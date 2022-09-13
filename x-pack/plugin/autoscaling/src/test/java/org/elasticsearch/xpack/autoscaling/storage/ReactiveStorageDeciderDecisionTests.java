@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -152,16 +153,20 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
                 numPrevents,
                 allocatableShards.shardIds(),
+                nodeAllocationResults -> numPrevents > 0
+                    ? canRemainDecision(nodeAllocationResults.get(0)).equals(Decision.single(Decision.Type.NO, "disk_threshold", "test"))
+                    : nodeAllocationResults.isEmpty(),
                 mockCanAllocateDiskDecider
             );
             verify(
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
                 0,
                 emptySortedSet(),
+                List::isEmpty,
                 mockCanAllocateDiskDecider,
                 CAN_ALLOCATE_NO_DECIDER
             );
-            verify(ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation, 0, emptySortedSet());
+            verify(ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation, 0, emptySortedSet(), List::isEmpty);
             // verify empty tier (no cold nodes) are always assumed a storage reason.
             SortedSet<ShardId> unassignedShardIds = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
                 .map(ShardRouting::shardId)
@@ -171,12 +176,14 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
                 state.getRoutingNodes().unassigned().size(),
                 unassignedShardIds,
+                List::isEmpty,
                 DiscoveryNodeRole.DATA_COLD_NODE_ROLE
             );
             verify(
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
                 0,
                 emptySortedSet(),
+                List::isEmpty,
                 DiscoveryNodeRole.DATA_COLD_NODE_ROLE
             );
             if (numPrevents > 0) {
@@ -252,16 +259,20 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 .map(ShardRouting::shardId)
                 .filter(subjectShards::contains)
                 .collect(Collectors.toCollection(TreeSet::new)),
+            nodeAllocationResults -> canRemainDecision(nodeAllocationResults.get(0)).equals(
+                Decision.single(Decision.Type.NO, "disk_threshold", "test")
+            ),
             mockCanAllocateDiskDecider
         );
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
             0,
             emptySortedSet(),
+            List::isEmpty,
             mockCanAllocateDiskDecider,
             CAN_ALLOCATE_NO_DECIDER
         );
-        verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, 0, emptySortedSet());
+        verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, 0, emptySortedSet(), List::isEmpty);
 
         verifyScale(subjectShards.size(), "not enough storage available, needs " + subjectShards.size() + "b", mockCanAllocateDiskDecider);
         verifyScale(0, "storage ok", mockCanAllocateDiskDecider, CAN_ALLOCATE_NO_DECIDER);
@@ -285,6 +296,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
             0,
             emptySortedSet(),
+            List::isEmpty,
             DiscoveryNodeRole.DATA_COLD_NODE_ROLE
         );
 
@@ -301,6 +313,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
             allocatedCandidateShards,
             allocatedShardIds,
+            List::isEmpty,
             DiscoveryNodeRole.DATA_COLD_NODE_ROLE
         );
     }
@@ -359,6 +372,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
             nodes,
             shardIds,
+            nodeAllocationResults -> canRemainDecision(nodeAllocationResults.get(0)).equals(
+                Decision.single(Decision.Type.NO, "disk_threshold", "test")
+            ),
             mockCanRemainDiskDecider,
             CAN_ALLOCATE_NO_DECIDER
         );
@@ -366,17 +382,21 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
             0,
             emptySortedSet(),
+            List::isEmpty,
             mockCanRemainDiskDecider,
             CAN_REMAIN_NO_DECIDER,
             CAN_ALLOCATE_NO_DECIDER
         );
-        verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, 0, emptySortedSet());
+        verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, 0, emptySortedSet(), List::isEmpty);
 
         // only consider it once (move case) if both cannot remain and cannot allocate.
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
             nodes,
             shardIds,
+            nodeAllocationResults -> canRemainDecision(nodeAllocationResults.get(0)).equals(
+                Decision.single(Decision.Type.NO, "disk_threshold", "test")
+            ),
             mockCanAllocateDiskDecider,
             mockCanRemainDiskDecider
         );
@@ -384,6 +404,15 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         verifyScale(nodes, "not enough storage available, needs " + nodes + "b", mockCanRemainDiskDecider, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok", mockCanRemainDiskDecider, CAN_REMAIN_NO_DECIDER, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok");
+    }
+
+    private static Decision canRemainDecision(NodeAllocationResult nodeAllocationResult) {
+        return nodeAllocationResult.getCanAllocateDecision()
+            .getDecisions()
+            .stream()
+            .filter(d -> d.type() == Decision.Type.NO)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Unable to find NO can_remain decision"));
     }
 
     private interface VerificationSubject {
@@ -394,19 +423,21 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         VerificationSubject subject,
         long expectedSizeInBytes,
         SortedSet<ShardId> expectedShardIds,
+        Predicate<List<NodeAllocationResult>> nodeAllocationResultCheck,
         AllocationDecider... allocationDeciders
     ) {
-        verify(subject, expectedSizeInBytes, expectedShardIds, DATA_HOT_NODE_ROLE, allocationDeciders);
+        verify(subject, expectedSizeInBytes, expectedShardIds, nodeAllocationResultCheck, DATA_HOT_NODE_ROLE, allocationDeciders);
     }
 
     private void verify(
         VerificationSubject subject,
         long expectedSizeInBytes,
         SortedSet<ShardId> expectedShardIds,
+        Predicate<List<NodeAllocationResult>> nodeAllocationResultCheck,
         DiscoveryNodeRole role,
         AllocationDecider... allocationDeciders
     ) {
-        verify(this.state, subject, expectedSizeInBytes, expectedShardIds, role, allocationDeciders);
+        verify(this.state, subject, expectedSizeInBytes, expectedShardIds, nodeAllocationResultCheck, role, allocationDeciders);
     }
 
     private static void verify(
@@ -414,6 +445,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         VerificationSubject subject,
         long expectedSizeInBytes,
         SortedSet<ShardId> expectedShardIds,
+        Predicate<List<NodeAllocationResult>> nodeAllocationResultCheck,
         DiscoveryNodeRole role,
         AllocationDecider... allocationDeciders
     ) {
@@ -425,8 +457,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         ShardsAllocationResults shardsAllocationResults = subject.invoke(allocationState);
         assertThat(shardsAllocationResults.sizeInBytes(), equalTo(expectedSizeInBytes));
         assertThat(shardsAllocationResults.shardIds(), equalTo(expectedShardIds));
-        // It seems very hard to verify nodeAllocationResults of ShardsSize with custom allocation deciders, so
-        // verify only expectedSize and shards
+        assertTrue(nodeAllocationResultCheck.test(shardsAllocationResults.nodeAllocationResults()));
     }
 
     private void verifyScale(long expectedDifference, String reason, AllocationDecider... allocationDeciders) {

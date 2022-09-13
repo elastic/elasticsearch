@@ -76,8 +76,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
-
 public class ReactiveStorageDeciderService implements AutoscalingDeciderService {
     public static final String NAME = "reactive_storage";
     /**
@@ -285,9 +283,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         public ShardsAllocationResults storagePreventsAllocation() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
             List<ShardNodeAllocationResults> unassignedShards = StreamSupport.stream(
-                    state.getRoutingNodes().unassigned().spliterator(),
-                    false
-                )
+                state.getRoutingNodes().unassigned().spliterator(),
+                false
+            )
                 .filter(shard -> canAllocate(shard, allocation) == false)
                 .flatMap(shard -> cannotAllocateDueToStorage(shard, allocation).stream())
                 .toList();
@@ -319,23 +317,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             // track these to ensure we do not double account if they both cannot remain and allocated due to storage.
             List<ShardNodeAllocationResults> unmovableShardNodeAllocationResults = candidates.stream()
                 .filter(s -> allocatedToTier(s, allocation))
-                .flatMap(
-                    shard -> cannotRemainDueToStorage(shard, allocation).map(
-                        shardNodeAllocationResults -> new ShardNodeAllocationResults(
-                            shard,
-                            Stream.concat(
-                                shardNodeAllocationResults.nodeAllocationResults.stream(),
-                                state.getRoutingNodes()
-                                    .stream()
-                                    .filter(n -> nodeTierPredicate.test(n.node()))
-                                    .filter(n -> shard.currentNodeId().equals(n.nodeId()) == false)
-                                    .map(
-                                        n -> new NodeAllocationResult(n.node(), null, allocationDeciders.canAllocate(shard, n, allocation))
-                                    )
-                            ).toList()
-                        )
-                    ).stream()
-                )
+                .flatMap(shard -> cannotRemainDueToStorage(shard, allocation).stream())
                 .toList();
             Set<ShardRouting> unmovableShards = unmovableShardNodeAllocationResults.stream().map(e -> e.shard).collect(Collectors.toSet());
 
@@ -348,21 +330,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
             List<ShardNodeAllocationResults> unallocatedShardNodeAllocationResults = candidates.stream()
                 .filter(Predicate.not(unmovableShards::contains))
-                .flatMap(
-                    shard -> cannotAllocateDueToStorage(shard, allocation).map(
-                        shardNodeAllocationResults -> new ShardNodeAllocationResults(
-                            shard,
-                            appendToCopy(
-                                shardNodeAllocationResults.nodeAllocationResults,
-                                new NodeAllocationResult(
-                                    allocation.routingNodes().node(shard.currentNodeId()).node(),
-                                    null,
-                                    allocationDeciders.canRemain(shard, allocation.routingNodes().node(shard.currentNodeId()), allocation)
-                                )
-                            )
-                        )
-                    ).stream()
-                )
+                .flatMap(shard -> cannotAllocateDueToStorage(shard, allocation).stream())
                 .toList();
             long unallocatableBytes = unallocatedShardNodeAllocationResults.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum();
 

@@ -4,9 +4,12 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.DockerBase
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes
 import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin
+import org.elasticsearch.gradle.internal.docker.DockerSupportService
 import org.elasticsearch.gradle.internal.docker.ShellRetry
 import org.elasticsearch.gradle.internal.docker.TransformLog4jConfigFilter
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
 
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
@@ -271,7 +274,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
       }
 
-      onlyIf { Architecture.current() == architecture }
+      onlyIf { isArchitectureSupported(architecture) }
     }
 
   if (base == DockerBase.IRON_BANK) {
@@ -318,12 +321,12 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
       inputs.property(k, { v.toString() })
     }
 
-    onlyIf { Architecture.current() == architecture }
+    onlyIf { isArchitectureSupported(architecture) }
   }
 }
 
 
-private static List<String> generateTags(DockerBase base) {
+private static List<String> generateTags(DockerBase base, Architecture architecture) {
   final String version = VersionProperties.elasticsearch
 
   String image = "elasticsearch${base.suffix}"
@@ -333,11 +336,13 @@ private static List<String> generateTags(DockerBase base) {
     namespace += '-ci'
   }
 
-  return [
-    "${image}:test",
-    "${image}:${version}",
-    "docker.elastic.co/${namespace}/${image}:${version}"
-  ]
+  def tags = ["${image}:${architecture.classifier}"]
+
+  if (architecture == Architecture.current()) {
+    tags.addAll(["${image}:test", "${image}:${version}", "docker.elastic.co/${namespace}/${image}:${version}"])
+  }
+
+  return tags
 }
 
 void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
@@ -350,7 +355,8 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
       noCache = BuildParams.isCi
-      tags = generateTags(base)
+      tags = generateTags(base, architecture)
+      platform = architecture.dockerPlatform
 
       // We don't build the Iron Bank image when we release Elasticsearch, as there's
       // separate process for submitting new releases. However, for testing we do a
@@ -375,7 +381,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
         baseImages = [base.image]
       }
 
-      onlyIf { Architecture.current() == architecture }
+      onlyIf { isArchitectureSupported(architecture) }
     }
 
   if (base != DockerBase.IRON_BANK && base != DockerBase.CLOUD && base != DockerBase.CLOUD_ESS) {
@@ -419,9 +425,10 @@ void addBuildEssDockerImageTask(Architecture architecture) {
 
       noCache = BuildParams.isCi
       baseImages = []
-      tags = generateTags(base)
+      tags = generateTags(base, architecture)
+      platform = architecture.dockerPlatform
 
-      onlyIf { Architecture.current() == architecture }
+      onlyIf { isArchitectureSupported(architecture) }
     }
 
   tasks.named("assemble").configure {
@@ -440,6 +447,11 @@ for (final Architecture architecture : Architecture.values()) {
   }
 
   addBuildEssDockerImageTask(architecture)
+}
+
+boolean isArchitectureSupported(Architecture architecture) {
+  Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(project.gradle.sharedServices, DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
+  return serviceProvider.get().dockerAvailability.supportedArchitectures().contains(architecture)
 }
 
 /*
@@ -481,10 +493,10 @@ subprojects { Project subProject ->
       args "save",
         "-o",
         tarFile,
-        "elasticsearch${base.suffix}:test"
+        "elasticsearch${base.suffix}:${architecture.classifier}"
 
       dependsOn(parent.path + ":" + buildTaskName)
-      onlyIf { Architecture.current() == architecture }
+      onlyIf { isArchitectureSupported(architecture) }
     }
 
     artifacts.add('default', file(tarFile)) {

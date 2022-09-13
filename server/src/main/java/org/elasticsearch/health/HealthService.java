@@ -167,6 +167,9 @@ public class HealthService {
         List<HealthIndicatorResult> filteredIndicatorResults,
         ActionListener<List<HealthIndicatorResult>> listener
     ) {
+        // Filter the cluster indicator results by indicator name if present
+        Stream<HealthIndicatorResult> filteredPreflightResults = preflightResults.stream()
+            .filter(result -> indicatorName == null || result.name().equals(indicatorName));
         List<HealthIndicatorResult> results = Stream.concat(filteredPreflightResults, filteredIndicatorResults.stream()).toList();
         assert findDuplicatesByName(results).isEmpty()
             : String.format(Locale.ROOT, "Found multiple indicators with the same name: %s", findDuplicatesByName(results));

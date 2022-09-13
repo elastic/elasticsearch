@@ -5,18 +5,21 @@
  * 2.0.
  */
 
-package org.apache.lucene.spatial3d.geom;
+package org.elasticsearch.xpack.spatial.index.query;
 
-import org.junit.Test;
+import org.apache.lucene.spatial3d.geom.GeoPoint;
+import org.apache.lucene.spatial3d.geom.GeoPolygon;
+import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygonFactory;
+import org.apache.lucene.spatial3d.geom.LatLonBounds;
+import org.apache.lucene.spatial3d.geom.PlanetModel;
+import org.apache.lucene.spatial3d.geom.Vector;
+import org.elasticsearch.test.ESTestCase;
 
+import static org.apache.lucene.spatial3d.geom.Spatial3DTestUtil.containsHorizonalLine;
 import static org.hamcrest.Matchers.closeTo;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 
-public class GeoRegularConvexPolygonTests {
+public class GeoRegularConvexPolygonTests extends ESTestCase {
 
-    @Test
     public void testSimpleTriangle() {
         GeoPoint left = new GeoPoint(PlanetModel.SPHERE, 0, -0.1);
         GeoPoint right = new GeoPoint(PlanetModel.SPHERE, 0, 0.1);
@@ -24,7 +27,6 @@ public class GeoRegularConvexPolygonTests {
         simpleShapeShouldBeValid(left, right, top);
     }
 
-    @Test
     public void testSimpleSquare() {
         GeoPoint left = new GeoPoint(PlanetModel.SPHERE, 0, -0.1);
         GeoPoint right = new GeoPoint(PlanetModel.SPHERE, 0, 0.1);
@@ -33,7 +35,6 @@ public class GeoRegularConvexPolygonTests {
         simpleShapeShouldBeValid(left, bottom, right, top);
     }
 
-    @Test
     public void testSimpleHexagon() {
         simpleShapeShouldBeValid(
             new GeoPoint(PlanetModel.SPHERE, 0, -0.1),
@@ -70,16 +71,5 @@ public class GeoRegularConvexPolygonTests {
         assertThat("Expected bounds min latitude", bounds.getMinLatitude(), closeTo(expected.getMinLatitude(), latThreshold));
         assertThat("Expected bounds left longitude", bounds.getLeftLongitude(), closeTo(expected.getLeftLongitude(), lonThreshold));
         assertThat("Expected bounds right longitude", bounds.getRightLongitude(), closeTo(expected.getRightLongitude(), lonThreshold));
-    }
-
-    private boolean containsHorizonalLine(GeoPoint[] points) {
-        boolean ans = false;
-        for (int i = 0; i < points.length; i++) {
-            int prev = (i == 0) ? points.length - 1 : i - 1;
-            double latDiff = Math.abs(points[i].latitude - points[prev].latitude);
-            double lonDiff = Math.abs(points[i].longitude - points[prev].longitude);
-            ans |= latDiff < 0.001 && lonDiff > 0.001;
-        }
-        return ans;
     }
 }

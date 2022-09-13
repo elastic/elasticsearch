@@ -16,9 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
-import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.health.node.selection.HealthNode;
-import org.elasticsearch.transport.NodeNotConnectedException;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -102,44 +100,32 @@ public class HealthService {
 
         if (clusterHealthIsObtainable) {
             if (HealthNode.isEnabled()) {
-                try {
-                    client.execute(FetchHealthInfoCacheAction.INSTANCE, new FetchHealthInfoCacheAction.Request(), new ActionListener<>() {
-                        @Override
-                        public void onResponse(FetchHealthInfoCacheAction.Response response) {
-                            HealthInfo healthInfo = response.getHealthInfo();
-                            validateResultsAndNotifyListener(
-                                indicatorName,
-                                Stream.concat(
-                                    filteredPreflightResults,
-                                    filteredIndicators.map(service -> service.calculate(explain, healthInfo))
-                                ).toList(),
-                                listener
-                            );
-                        }
+                client.execute(FetchHealthInfoCacheAction.INSTANCE, new FetchHealthInfoCacheAction.Request(), new ActionListener<>() {
+                    @Override
+                    public void onResponse(FetchHealthInfoCacheAction.Response response) {
+                        HealthInfo healthInfo = response.getHealthInfo();
+                        validateResultsAndNotifyListener(
+                            indicatorName,
+                            Stream.concat(
+                                filteredPreflightResults,
+                                filteredIndicators.map(service -> service.calculate(explain, healthInfo))
+                            ).toList(),
+                            listener
+                        );
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            validateResultsAndNotifyListener(
-                                indicatorName,
-                                Stream.concat(
-                                    filteredPreflightResults,
-                                    filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
-                                ).toList(),
-                                listener
-                            );
-                        }
-                    });
-                } catch (NodeNotConnectedException | HealthNodeNotDiscoveredException e) {
-                    logger.debug("Could not fetch data from health node", e);
-                    validateResultsAndNotifyListener(
-                        indicatorName,
-                        Stream.concat(
-                            filteredPreflightResults,
-                            filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
-                        ).toList(),
-                        listener
-                    );
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        validateResultsAndNotifyListener(
+                            indicatorName,
+                            Stream.concat(
+                                filteredPreflightResults,
+                                filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
+                            ).toList(),
+                            listener
+                        );
+                    }
+                });
             } else {
                 validateResultsAndNotifyListener(
                     indicatorName,

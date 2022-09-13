@@ -84,6 +84,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
+                            SlmHealthIndicatorService.AUTOMATION_DISABLED_IMPACT_URN,
                             3,
                             "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
                             List.of(ImpactArea.BACKUP)
@@ -202,6 +203,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
+                            SlmHealthIndicatorService.STALE_SNAPSHOTS_IMPACT_URN,
                             2,
                             "Some automated snapshots have not had a successful execution recently. Indices restored from affected "
                                 + "snapshots may not contain recent changes.",

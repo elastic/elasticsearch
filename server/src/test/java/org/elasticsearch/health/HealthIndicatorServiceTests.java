@@ -24,18 +24,43 @@ public class HealthIndicatorServiceTests extends ESTestCase {
         Set<HealthIndicatorImpact> impacts = new HashSet<>();
         for (int i = 0; i < 10; i++) {
             impacts.add(
-                new HealthIndicatorImpact(randomIntBetween(5, 20), randomAlphaOfLength(20), List.of(randomFrom(ImpactArea.values())))
+                new HealthIndicatorImpact(
+                    randomAlphaOfLength(20),
+                    randomIntBetween(5, 20),
+                    randomAlphaOfLength(20),
+                    List.of(randomFrom(ImpactArea.values()))
+                )
             );
         }
-        HealthIndicatorImpact impact1 = new HealthIndicatorImpact(1, randomAlphaOfLength(20), List.of(randomFrom(ImpactArea.values())));
-        HealthIndicatorImpact impact2 = new HealthIndicatorImpact(2, randomAlphaOfLength(20), List.of(randomFrom(ImpactArea.values())));
-        HealthIndicatorImpact impact3 = new HealthIndicatorImpact(3, randomAlphaOfLength(20), List.of(randomFrom(ImpactArea.values())));
+        HealthIndicatorImpact impact1 = new HealthIndicatorImpact(
+            randomAlphaOfLength(20),
+            1,
+            randomAlphaOfLength(20),
+            List.of(randomFrom(ImpactArea.values()))
+        );
+        HealthIndicatorImpact impact2 = new HealthIndicatorImpact(
+            randomAlphaOfLength(20),
+            2,
+            randomAlphaOfLength(20),
+            List.of(randomFrom(ImpactArea.values()))
+        );
+        HealthIndicatorImpact impact3 = new HealthIndicatorImpact(
+            randomAlphaOfLength(20),
+            3,
+            randomAlphaOfLength(20),
+            List.of(randomFrom(ImpactArea.values()))
+        );
         impacts.add(impact2);
         impacts.add(impact1);
         impacts.add(impact3);
         for (int i = 0; i < 10; i++) {
             impacts.add(
-                new HealthIndicatorImpact(randomIntBetween(5, 20), randomAlphaOfLength(20), List.of(randomFrom(ImpactArea.values())))
+                new HealthIndicatorImpact(
+                    randomAlphaOfLength(20),
+                    randomIntBetween(5, 20),
+                    randomAlphaOfLength(20),
+                    List.of(randomFrom(ImpactArea.values()))
+                )
             );
         }
         HealthIndicatorResult result = service.createIndicator(

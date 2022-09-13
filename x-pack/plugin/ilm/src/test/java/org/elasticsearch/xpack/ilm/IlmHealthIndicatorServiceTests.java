@@ -70,6 +70,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
+                            IlmHealthIndicatorService.AUTOMATION_DISABLED_IMPACT_URN,
                             3,
                             "Automatic index lifecycle and data retention management is disabled. The performance and stability of the "
                                 + "cluster could be impacted.",

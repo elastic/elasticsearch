@@ -15,7 +15,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public record HealthIndicatorImpact(int severity, String impactDescription, List<ImpactArea> impactAreas) implements ToXContentObject {
+public record HealthIndicatorImpact(String urn, int severity, String impactDescription, List<ImpactArea> impactAreas)
+    implements ToXContentObject {
 
     public HealthIndicatorImpact {
         if (severity < 0) {

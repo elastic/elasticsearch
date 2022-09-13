@@ -30,14 +30,16 @@ public class HealthIndicatorResultTests extends ESTestCase {
         detailsMap.put("key", "value");
         HealthIndicatorDetails details = new SimpleHealthIndicatorDetails(detailsMap);
         List<HealthIndicatorImpact> impacts = new ArrayList<>();
+        String impact1Urn = randomAlphaOfLength(30);
         int impact1Severity = randomIntBetween(1, 5);
         String impact1Description = randomAlphaOfLength(30);
         ImpactArea firstImpactArea = randomFrom(ImpactArea.values());
-        impacts.add(new HealthIndicatorImpact(impact1Severity, impact1Description, List.of(firstImpactArea)));
+        impacts.add(new HealthIndicatorImpact(impact1Urn, impact1Severity, impact1Description, List.of(firstImpactArea)));
+        String impact2Urn = randomAlphaOfLength(30);
         int impact2Severity = randomIntBetween(1, 5);
         String impact2Description = randomAlphaOfLength(30);
         ImpactArea secondImpactArea = randomFrom(ImpactArea.values());
-        impacts.add(new HealthIndicatorImpact(impact2Severity, impact2Description, List.of(secondImpactArea)));
+        impacts.add(new HealthIndicatorImpact(impact2Urn, impact2Severity, impact2Description, List.of(secondImpactArea)));
         List<Diagnosis> actions = new ArrayList<>();
         Diagnosis action1 = new Diagnosis(
             new Diagnosis.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(50), randomAlphaOfLength(30)),

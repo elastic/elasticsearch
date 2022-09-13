@@ -71,6 +71,9 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         );
     }
 
+    public static final String AUTOMATION_DISABLED_IMPACT_URN = "urn:elasticsearch:health:" + NAME + ":impact:automation_disabled";
+    public static final String STALE_SNAPSHOTS_IMPACT_URN = "urn:elasticsearch:health:" + NAME + ":impact:stale_snapshots";
+
     private final ClusterService clusterService;
     private volatile long failedSnapshotWarnThreshold;
 
@@ -104,6 +107,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
+                    AUTOMATION_DISABLED_IMPACT_URN,
                     3,
                     "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
                     List.of(ImpactArea.BACKUP)
@@ -126,6 +130,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             if (unhealthyPolicies.size() > 0) {
                 List<HealthIndicatorImpact> impacts = Collections.singletonList(
                     new HealthIndicatorImpact(
+                        STALE_SNAPSHOTS_IMPACT_URN,
                         2,
                         "Some automated snapshots have not had a successful execution recently. Indices restored from affected "
                             + "snapshots may not contain recent changes.",

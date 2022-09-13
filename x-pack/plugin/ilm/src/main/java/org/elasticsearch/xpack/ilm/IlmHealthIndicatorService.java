@@ -48,6 +48,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         null
     );
 
+    public static final String AUTOMATION_DISABLED_IMPACT_URN = "urn:elasticsearch:health:" + NAME + ":impact:automation_disabled";
+
     private final ClusterService clusterService;
 
     public IlmHealthIndicatorService(ClusterService clusterService) {
@@ -73,6 +75,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         } else if (ilmMetadata.getOperationMode() != OperationMode.RUNNING) {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
+                    AUTOMATION_DISABLED_IMPACT_URN,
                     3,
                     "Automatic index lifecycle and data retention management is disabled. The performance and stability of the cluster "
                         + "could be impacted.",

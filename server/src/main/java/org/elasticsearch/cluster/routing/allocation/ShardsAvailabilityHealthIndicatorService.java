@@ -128,6 +128,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         );
     }
 
+    // Impact URNs
+    public static final String PRIMARY_UNASSIGNED_IMPACT_URN = "urn:elasticsearch:health:" + NAME + ":impact:primary_unassigned";
+    public static final String REPLICA_UNASSIGNED_IMPACT_URN = "urn:elasticsearch:health:" + NAME + ":impact:replica_unassigned";
+
     public static final String RESTORE_FROM_SNAPSHOT_ACTION_GUIDE = "http://ela.st/restore-snapshot";
     public static final Diagnosis.Definition ACTION_RESTORE_FROM_SNAPSHOT = new Diagnosis.Definition(
         "restore_from_snapshot",
@@ -835,7 +839,14 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(primaries.indicesWithUnavailableShards, clusterMetadata)
                 );
-                impacts.add(new HealthIndicatorImpact(1, impactDescription, List.of(ImpactArea.INGEST, ImpactArea.SEARCH)));
+                impacts.add(
+                    new HealthIndicatorImpact(
+                        PRIMARY_UNASSIGNED_IMPACT_URN,
+                        1,
+                        impactDescription,
+                        List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                    )
+                );
             }
             /*
              * It is possible that we're working with an intermediate cluster state, and that for an index we have no primary but a replica
@@ -852,7 +863,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(indicesWithUnavailableReplicasOnly, clusterMetadata)
                 );
-                impacts.add(new HealthIndicatorImpact(2, impactDescription, List.of(ImpactArea.SEARCH)));
+                impacts.add(new HealthIndicatorImpact(REPLICA_UNASSIGNED_IMPACT_URN, 2, impactDescription, List.of(ImpactArea.SEARCH)));
             }
             return impacts;
         }

@@ -76,18 +76,13 @@ public class RunningTimeRecorder {
 
         @Override
         public void close() {
-            long previousReadingTime;
-            do {
-                previousReadingTime = latestReadingRelativeTime.get();
-            } while (latestReadingRelativeTime.compareAndSet(previousReadingTime, FINISHED_OP_SENTINEL) == false);
+            final long previousReadingTime = latestReadingRelativeTime.getAndSet(FINISHED_OP_SENTINEL);
+            assert previousReadingTime != FINISHED_OP_SENTINEL : previousReadingTime;
 
-            onOperationComplete(
-                this,
-                previousReadingTime != FINISHED_OP_SENTINEL ? relativeTimeSupplier.getAsLong() - previousReadingTime : 0
-            );
+            onOperationComplete(this, relativeTimeSupplier.getAsLong() - previousReadingTime);
         }
 
-        public long getPartialRunningTimeAndUpdateLatestReadingTime() {
+        private long getPartialRunningTimeAndUpdateLatestReadingTime() {
             long previousReadingTime;
             long updatedReadingTime;
             do {
@@ -112,5 +107,9 @@ public class RunningTimeRecorder {
 
         totalRunningTimeInNanos.add(unfinishedOperationsRunningTimeSinceLastReading);
         return totalRunningTimeInNanos.sum();
+    }
+
+    public int inFlightOps() {
+        return operationRunningTimeRecorders.size();
     }
 }

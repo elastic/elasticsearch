@@ -78,4 +78,8 @@ public class ShardIndexingTimeStats implements ReferenceManager.RefreshListener 
     public long totalRefreshTimeInNanos() {
         return refreshTimeRecorder.totalRunningTimeInNanos();
     }
+
+    public int inFlightOps() {
+        return bulkTimeRecorder.inFlightOps() + refreshTimeRecorder.inFlightOps() + mergeTimeRecorder.inFlightOps();
+    }
 }

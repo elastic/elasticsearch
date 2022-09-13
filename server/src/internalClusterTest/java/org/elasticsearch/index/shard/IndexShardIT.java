@@ -108,6 +108,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
 
@@ -777,6 +778,26 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         for (IndexShard indexShard : indexService) {
             assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
         }
+    }
+
+    public void testIndexingTimeStatsTrackersAreReleased() {
+        final String indexName = "idx";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        ensureGreen();
+
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+
+        final long numDocs = between(10, 20);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+        }
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        final IndexShard shard = indicesService.getShardOrNull(new ShardId(resolveIndex(indexName), 0));
+
+        assertThat(shard.getTotalIndexingTimeInNanos(), is(greaterThan(0L)));
+        assertThat(shard.getTotalRefreshTimeInNanos(), is(greaterThan(0L)));
+        assertThat(shard.getShardIndexingTimeStats().inFlightOps(), is(equalTo(0)));
     }
 
     /**

@@ -42,8 +42,9 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
     void collectWriteLoadStats() {
         assert currentThreadIsWriterLoadCollectorThreadOrTestThread() : Thread.currentThread().getName();
 
+        long currentTimeInNanos = relativeTimeInNanosSupplier.getAsLong();
         for (ShardWriteLoadHistogram shardWriteLoadHistogram : histograms.values()) {
-            shardWriteLoadHistogram.recordSample();
+            shardWriteLoadHistogram.recordSample(currentTimeInNanos);
         }
     }
 
@@ -54,7 +55,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
         return parentDataStream != null ? parentDataStream.getName() : null;
     }
 
-    private boolean isDataStreamWriteIndex(Index index, Map<String, IndexAbstraction> indicesLookup) {
+    private static boolean isDataStreamWriteIndex(Index index, Map<String, IndexAbstraction> indicesLookup) {
         final var indexAbstraction = indicesLookup.get(index.getName());
         if (indexAbstraction == null) {
             return false;
@@ -143,19 +144,18 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
             this.lastTotalRefreshTimeSample = indexShard.getTotalRefreshTimeInNanos();
         }
 
-        void recordSample() {
+        void recordSample(long relativeTimeInNanos) {
             long totalIndexingTimeInNanosSample = indexShard.getTotalIndexingTimeInNanos();
             long totalMergeTimeInNanosSample = indexShard.getTotalMergeTimeInNanos();
             long totalRefreshTimeInNanos = indexShard.getTotalRefreshTimeInNanos();
 
-            long sampleRelativeTimeInNanos = relativeTimeInNanosSupplier.getAsLong();
-            long samplingTimeInNanos = sampleRelativeTimeInNanos - lastSampleRelativeTimeInNanos;
+            long samplingTimeInNanos = relativeTimeInNanos - lastSampleRelativeTimeInNanos;
             // Even though we're using a MONOTONIC clock (at least System.nanoTime() relies on clock_gettime with CLOCK_MONOTONIC in linux)
             // it's possible that the clock do not have enough granularity, in that case we bail out early just to be cautious.
             if (samplingTimeInNanos <= 0) {
                 return;
             }
-            lastSampleRelativeTimeInNanos = sampleRelativeTimeInNanos;
+            lastSampleRelativeTimeInNanos = relativeTimeInNanos;
 
             long indexingTimeDeltaInNanos = totalIndexingTimeInNanosSample - lastTotalIndexingTimeSample;
             lastTotalIndexingTimeSample = totalIndexingTimeInNanosSample;

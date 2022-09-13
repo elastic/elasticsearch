@@ -18,13 +18,14 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public record HistogramSnapshot(double average, double p50, double p75, double p90, double p95, double p99, double max)
+public record HistogramSnapshot(double average, double p50, double p63, double p75, double p90, double p95, double p99, double max)
     implements
         ToXContentObject,
         Writeable {
 
     private static final ParseField AVG_FIELD = new ParseField("average");
     private static final ParseField P50_FIELD = new ParseField("50");
+    private static final ParseField P63_FIELD = new ParseField("63");
     private static final ParseField P75_FIELD = new ParseField("75");
     private static final ParseField P90_FIELD = new ParseField("90");
     private static final ParseField P95_FIELD = new ParseField("95");
@@ -41,13 +42,15 @@ public record HistogramSnapshot(double average, double p50, double p75, double p
             (double) args[3],
             (double) args[4],
             (double) args[5],
-            (double) args[6]
+            (double) args[6],
+            (double) args[7]
         )
     );
 
     static {
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), AVG_FIELD);
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), P50_FIELD);
+        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), P63_FIELD);
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), P75_FIELD);
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), P90_FIELD);
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), P95_FIELD);
@@ -64,6 +67,7 @@ public record HistogramSnapshot(double average, double p50, double p75, double p
         builder.startObject();
         builder.field(AVG_FIELD.getPreferredName(), average);
         builder.field(P50_FIELD.getPreferredName(), p50);
+        builder.field(P63_FIELD.getPreferredName(), p63);
         builder.field(P75_FIELD.getPreferredName(), p75);
         builder.field(P90_FIELD.getPreferredName(), p90);
         builder.field(P95_FIELD.getPreferredName(), p95);
@@ -74,13 +78,23 @@ public record HistogramSnapshot(double average, double p50, double p75, double p
     }
 
     HistogramSnapshot(StreamInput in) throws IOException {
-        this(in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble());
+        this(
+            in.readDouble(),
+            in.readDouble(),
+            in.readDouble(),
+            in.readDouble(),
+            in.readDouble(),
+            in.readDouble(),
+            in.readDouble(),
+            in.readDouble()
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeDouble(average);
         out.writeDouble(p50);
+        out.writeDouble(p63);
         out.writeDouble(p75);
         out.writeDouble(p90);
         out.writeDouble(p95);
@@ -92,6 +106,7 @@ public record HistogramSnapshot(double average, double p50, double p75, double p
         return new HistogramSnapshot(
             histogram.getAverage(),
             histogram.getValueAtPercentile(50),
+            histogram.getValueAtPercentile(63),
             histogram.getValueAtPercentile(75),
             histogram.getValueAtPercentile(90),
             histogram.getValueAtPercentile(95),

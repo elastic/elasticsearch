@@ -41,6 +41,7 @@ public class HistogramSnapshotSerializationTests extends AbstractSerializingTest
             case 0 -> new HistogramSnapshot(
                 randomDoubleBetween(0.0, 128.0, true),
                 histogramSnapshot.p50(),
+                histogramSnapshot.p63(),
                 histogramSnapshot.p75(),
                 histogramSnapshot.p90(),
                 histogramSnapshot.p95(),
@@ -50,6 +51,7 @@ public class HistogramSnapshotSerializationTests extends AbstractSerializingTest
             case 1 -> new HistogramSnapshot(
                 histogramSnapshot.average(),
                 randomDoubleBetween(0.0, 128.0, true),
+                histogramSnapshot.p63(),
                 histogramSnapshot.p75(),
                 histogramSnapshot.p90(),
                 histogramSnapshot.p95(),
@@ -60,6 +62,7 @@ public class HistogramSnapshotSerializationTests extends AbstractSerializingTest
                 histogramSnapshot.average(),
                 histogramSnapshot.p50(),
                 randomDoubleBetween(0.0, 128.0, true),
+                histogramSnapshot.p75(),
                 histogramSnapshot.p90(),
                 histogramSnapshot.p95(),
                 histogramSnapshot.p99(),
@@ -68,8 +71,9 @@ public class HistogramSnapshotSerializationTests extends AbstractSerializingTest
             case 3 -> new HistogramSnapshot(
                 histogramSnapshot.average(),
                 histogramSnapshot.p50(),
-                histogramSnapshot.p75(),
+                histogramSnapshot.p63(),
                 randomDoubleBetween(0.0, 128.0, true),
+                histogramSnapshot.p90(),
                 histogramSnapshot.p95(),
                 histogramSnapshot.p99(),
                 histogramSnapshot.max()
@@ -77,24 +81,37 @@ public class HistogramSnapshotSerializationTests extends AbstractSerializingTest
             case 4 -> new HistogramSnapshot(
                 histogramSnapshot.average(),
                 histogramSnapshot.p50(),
+                histogramSnapshot.p63(),
                 histogramSnapshot.p75(),
-                histogramSnapshot.p90(),
                 randomDoubleBetween(0.0, 128.0, true),
+                histogramSnapshot.p95(),
                 histogramSnapshot.p99(),
                 histogramSnapshot.max()
             );
             case 5 -> new HistogramSnapshot(
                 histogramSnapshot.average(),
                 histogramSnapshot.p50(),
+                histogramSnapshot.p63(),
+                histogramSnapshot.p75(),
+                histogramSnapshot.p90(),
+                randomDoubleBetween(0.0, 128.0, true),
+                histogramSnapshot.p99(),
+                histogramSnapshot.max()
+            );
+            case 6 -> new HistogramSnapshot(
+                histogramSnapshot.average(),
+                histogramSnapshot.p50(),
+                histogramSnapshot.p63(),
                 histogramSnapshot.p75(),
                 histogramSnapshot.p90(),
                 histogramSnapshot.p95(),
                 randomDoubleBetween(0.0, 128.0, true),
                 histogramSnapshot.max()
             );
-            case 6 -> new HistogramSnapshot(
+            case 7 -> new HistogramSnapshot(
                 histogramSnapshot.average(),
                 histogramSnapshot.p50(),
+                histogramSnapshot.p63(),
                 histogramSnapshot.p75(),
                 histogramSnapshot.p90(),
                 histogramSnapshot.p95(),
@@ -107,6 +124,7 @@ public class HistogramSnapshotSerializationTests extends AbstractSerializingTest
 
     public static HistogramSnapshot randomHistogramSnapshot() {
         return new HistogramSnapshot(
+            randomDoubleBetween(0.0, 128.0, true),
             randomDoubleBetween(0.0, 128.0, true),
             randomDoubleBetween(0.0, 128.0, true),
             randomDoubleBetween(0.0, 128.0, true),

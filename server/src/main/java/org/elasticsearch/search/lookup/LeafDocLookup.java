@@ -49,8 +49,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
                      per-segment computation as opposed to per-document computation
     Note that we share doc values between both caches when possible.
     */
-    private final Map<String, DocValuesScriptFieldFactory> fieldFactoryCache = Maps.newMapWithExpectedSize(4);
-    private final Map<String, DocValuesScriptFieldFactory> docFactoryCache = Maps.newMapWithExpectedSize(4);
+    final Map<String, DocValuesScriptFieldFactory> fieldFactoryCache = Maps.newMapWithExpectedSize(4);
+    final Map<String, DocValuesScriptFieldFactory> docFactoryCache = Maps.newMapWithExpectedSize(4);
 
     LeafDocLookup(
         Function<String, MappedFieldType> fieldTypeLookup,

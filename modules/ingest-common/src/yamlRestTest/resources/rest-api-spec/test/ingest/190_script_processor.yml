@@ -396,6 +396,12 @@ teardown:
                   "lang": "painless",
                   "source" : "field('numbers').removeValuesIf(x -> x == null).transform(x -> x instanceof String ? Integer.parseInt(x) : x);"
                 }
+              },
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "field('src.key1').move('dst.key5'); field('src.key2').overwrite('dst.key3'); field('dst.key4').remove()"
+                }
               }
             ]
           }
@@ -427,13 +433,27 @@ teardown:
           append: ["one", "again", "another", "again"]
           duplicate: ["aa", "aa", "bb"]
           numbers: [1, null, "2"]
+          src:
+            key1: value1
+            key2: value2
+          dst:
+            key3: value3
+            key4: value4
 
   - do:
       get:
         index: test
         id: "1"
 
-  - match: { _source.create.depth: "works" }
-  - match: { _source.size: 527 }
-  - match: { _source.duplicate: ["aa", "bb"] }
-  - match: { _source.numbers: [1, 2] }
+  - match:
+      _source:
+        create:
+          depth: "works"
+        append: ["one", "again", "another", "again", "another"]
+        size: 527
+        duplicate: ["aa", "bb"]
+        numbers: [1, 2]
+        src: {}
+        dst:
+          key3: value2
+          key5: value1

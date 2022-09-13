@@ -24,23 +24,6 @@ per document. Nested arrays are not supported.
 ========
 
 [role="child_attributes"]
-[[histogram-params]]
-==== Parameters
-
-ifeval::["{release-state}"=="unreleased"]
-`time_series_metric`::
-preview:[] (Optional, string)
-include::numeric.asciidoc[tag=time_series_metric]
-+
-.Valid `time_series_metric` values for `histogram` fields
-[%collapsible%open]
-====
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-histogram]
-
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
-====
-endif::[]
-
 [[histogram-uses]]
 ==== Uses
 

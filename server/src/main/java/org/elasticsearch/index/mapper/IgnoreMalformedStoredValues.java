@@ -31,6 +31,12 @@ public abstract class IgnoreMalformedStoredValues {
     /**
      * Build a {@link StoredField} for the value on which the parser is
      * currently positioned.
+     * <p>
+     * We try to use {@link StoredField}'s native types for fields where
+     * possible but we have to preserve more type information than
+     * stored fields support, so we encode steal the {@code byte[]}
+     * to mean "value with encoded type information" and then encode
+     * type information in the first byte.
      */
     public static StoredField storedField(String fieldName, XContentParser parser) throws IOException {
         String name = name(fieldName);

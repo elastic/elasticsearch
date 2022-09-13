@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAct
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
@@ -237,7 +238,8 @@ public class PrivilegeTests extends ESTestCase {
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME,
             GetUsersAction.NAME,
-            HasPrivilegesAction.NAME
+            HasPrivilegesAction.NAME,
+            GetUserPrivilegesAction.NAME
         );
         verifyClusterActionAllowed(
             ClusterPrivilegeResolver.READ_SECURITY,

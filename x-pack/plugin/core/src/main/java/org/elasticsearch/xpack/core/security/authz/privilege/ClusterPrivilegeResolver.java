@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAct
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
@@ -201,6 +202,7 @@ public class ClusterPrivilegeResolver {
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME + "*",
             GetUsersAction.NAME,
+            GetUserPrivilegesAction.NAME, // normally authorized under the "same-user" authz check, but added here for uniformity
             HasPrivilegesAction.NAME
         )
     );

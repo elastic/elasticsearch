@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 
+import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -24,14 +25,14 @@ public class AggregationExecutionContext {
 
     private final Supplier<BytesRef> tsidProvider;  // TODO remove this entirely?
     private final LongSupplier timestampProvider;
-    private final LongSupplier tsidOrdProvider;
+    private final IntSupplier tsidOrdProvider;
     private final LeafReaderContext leafReaderContext;
 
     public AggregationExecutionContext(
         LeafReaderContext leafReaderContext,
         Supplier<BytesRef> tsidProvider,
         LongSupplier timestampProvider,
-        LongSupplier tsidOrdProvider
+        IntSupplier tsidOrdProvider
     ) {
         this.leafReaderContext = leafReaderContext;
         this.tsidProvider = tsidProvider;
@@ -47,11 +48,11 @@ public class AggregationExecutionContext {
         return tsidProvider != null ? tsidProvider.get() : null;
     }
 
-    public Long getTimestamp() {
+    public long getTimestamp() {
         return timestampProvider.getAsLong();
     }
 
-    public long getTsidOrd() {
-        return tsidOrdProvider.getAsLong();
+    public int getTsidOrd() {
+        return tsidOrdProvider.getAsInt();
     }
 }

@@ -33,8 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.LongSupplier;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
 
@@ -67,7 +66,7 @@ public class TimeSeriesIndexSearcher {
         int seen = 0;
         query = searcher.rewrite(query);
         Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
-        AtomicInteger tsidOrd = new AtomicInteger();
+        int[] tsidOrd = new int[1];
 
         // Create LeafWalker for each subreader
         List<LeafWalker> leafWalkers = new ArrayList<>();
@@ -77,7 +76,7 @@ public class TimeSeriesIndexSearcher {
             }
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
-                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, tsidOrd::get);
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0]);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
@@ -118,7 +117,7 @@ public class TimeSeriesIndexSearcher {
                     queue.updateTop();
                 }
             } while (queue.size() > 0);
-            tsidOrd.incrementAndGet();
+            tsidOrd[0]++;
         }
     }
 
@@ -182,7 +181,7 @@ public class TimeSeriesIndexSearcher {
         int tsidOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, LongSupplier tsidOrdSupplier)
+        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, IntSupplier tsidOrdSupplier)
             throws IOException {
             AggregationExecutionContext aggCtx = new AggregationExecutionContext(context, scratch::get, () -> timestamp, tsidOrdSupplier);
             this.collector = bucketCollector.getLeafCollector(aggCtx);

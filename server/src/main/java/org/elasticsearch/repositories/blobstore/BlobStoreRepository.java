@@ -2023,7 +2023,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 + "expected state. This is likely the result of either concurrently modifying the contents of the "
                 + "repository by a process other than this cluster or an issue with the repository's underlying storage. "
                 + "The repository has been disabled to prevent corrupting its contents. To re-enable it "
-                + "and continue using it please remove the repository from the cluster and add it again to make "
+                + "and continue using it please recreate the repository with the same settings to make "
                 + "the cluster recover the known state of the repository from its physical contents."
                 + previousWriterMessage(previousWriterInfo),
             cause

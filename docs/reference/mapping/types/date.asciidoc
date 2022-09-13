@@ -232,7 +232,7 @@ Which will reply with a date like:
 ----
 
 [[date-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic `_source`
 `date` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
 <<copy-to,`copy_to`>>, <<ignore-malformed,`ignore_malformed`>> set to true

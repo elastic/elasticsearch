@@ -248,7 +248,7 @@ The search returns the following hit. The value of the `default_metric` field,
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
 
 [[aggregate-metric-double-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic `_source`
 `aggregate_metric-double` fields support <<synthetic-source,synthetic `_source`>> in their default
 configuration. Synthetic `_source` cannot be used together with <<ignore-malformed,`ignore_malformed`>>.
 

@@ -69,7 +69,7 @@ means the field can technically be aggregated with either algorithm, in practice
 index data in that manner (e.g. centroids for T-Digest or intervals for HDRHistogram) to ensure best accuracy.
 
 [[histogram-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic source
 `histogram` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
 <<ignore-malformed,`ignore_malformed`>> or <<copy-to,`copy_to`>>.

@@ -205,7 +205,7 @@ def lon      = doc['location'].lon;
 --------------------------------------------------
 
 [[geo-point-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic `_source`
 `geo_point` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
 <<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or with

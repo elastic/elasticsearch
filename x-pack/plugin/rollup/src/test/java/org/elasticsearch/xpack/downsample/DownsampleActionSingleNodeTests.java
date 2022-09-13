@@ -69,7 +69,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
-import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
@@ -140,7 +139,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         return List.of(
             LocalStateCompositeXPackPlugin.class,
             Rollup.class,
-            AnalyticsPlugin.class,
             AggregateMetricMapperPlugin.class,
             DataStreamsPlugin.class,
             IndexLifecycle.class

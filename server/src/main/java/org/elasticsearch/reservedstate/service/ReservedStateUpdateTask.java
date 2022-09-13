@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.core.Strings.format;
@@ -47,7 +47,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     private final ReservedStateChunk stateChunk;
     private final Map<String, ReservedClusterStateHandler<?>> handlers;
     private final Collection<String> orderedHandlers;
-    private final Consumer<ErrorState> errorReporter;
+    private final BiConsumer<ClusterState, ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
 
     public ReservedStateUpdateTask(
@@ -55,7 +55,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         ReservedStateChunk stateChunk,
         Map<String, ReservedClusterStateHandler<?>> handlers,
         Collection<String> orderedHandlers,
-        Consumer<ErrorState> errorReporter,
+        BiConsumer<ClusterState, ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
     ) {
         this.namespace = namespace;
@@ -112,7 +112,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
                 ReservedStateErrorMetadata.ErrorKind.VALIDATION
             );
 
-            errorReporter.accept(errorState);
+            errorReporter.accept(currentState, errorState);
 
             throw new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState);
         }

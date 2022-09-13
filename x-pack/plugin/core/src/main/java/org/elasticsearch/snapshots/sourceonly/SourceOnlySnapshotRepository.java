@@ -106,7 +106,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 metadataToSnapshot(finalizeSnapshotContext.updatedShardGenerations().indices(), finalizeSnapshotContext.clusterMetadata()),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                finalizeSnapshotContext
+                finalizeSnapshotContext,
+                finalizeSnapshotContext::onDone
             )
         );
     }
@@ -207,6 +208,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     context.status(),
                     context.getRepositoryMetaVersion(),
                     context.userMetadata(),
+                    context.snapshotStartTime(),
                     context
                 )
             );

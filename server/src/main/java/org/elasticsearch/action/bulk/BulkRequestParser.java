@@ -185,12 +185,12 @@ public final class BulkRequestParser {
                 }
                 String action = parser.currentName();
                 if (SUPPORTED_ACTIONS.contains(action) == false) {
-                    assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
-                    deprecationLogger.compatibleCritical(
-                        STRICT_ACTION_PARSING_WARNING_KEY,
-                        "Unsupported action: [{}]. Supported values are [create], [delete], [index], and [update]. "
-                            + "Unsupported actions are currently accepted but will be rejected in a future version.",
-                        action
+                    throw new IllegalArgumentException(
+                        "Malformed action/metadata line ["
+                            + line
+                            + "], expected field [create], [delete], [index] or [update] but found ["
+                            + action
+                            + "]"
                     );
                 }
 

@@ -122,8 +122,8 @@ public class LeafDocLookupTests extends ESTestCase {
 
     public void testParallelCache() {
         String nameDoc = "doc"; // field where search and script return doc values
-        String nameSource = "source"; // field where search returns doc values
-        String nameDocAndSource = "docAndSource"; // field where search returns no data and script returns source values
+        String nameSource = "source"; // field where search returns no data and script returns source values
+        String nameDocAndSource = "docAndSource"; // field where search returns doc values and script returns source values
 
         MappedFieldType docMappedFieldType = mock(MappedFieldType.class);
         MappedFieldType sourceMappedFieldType = mock(MappedFieldType.class);

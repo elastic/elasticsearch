@@ -347,7 +347,7 @@ for (final Architecture architecture : Architecture.values()) {
 
 boolean isArchitectureSupported(Architecture architecture) {
   Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(project.gradle.sharedServices, DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
-  return serviceProvider.get().dockerAvailability.supportedArchitectures().contains(architecture)
+  return serviceProvider.get().dockerAvailability.supportedArchitectures.contains(architecture)
 }
 
 /*

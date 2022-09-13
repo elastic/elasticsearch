@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
@@ -178,6 +179,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
             boolean tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
             boolean timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
             BytesRef currentTSID = null;
+            long currentTSIDord = -1;
             long currentTimestamp = 0;
             long total = 0;
 
@@ -209,10 +211,14 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                                     currentTimestamp + "->" + latestTimestamp,
                                     timestampReverse ? latestTimestamp <= currentTimestamp : latestTimestamp >= currentTimestamp
                                 );
+                                assertEquals(currentTSIDord, aggCtx.getTsidOrd());
+                            } else {
+                                assertThat(aggCtx.getTsidOrd(), greaterThan(currentTSIDord));
                             }
                         }
                         currentTimestamp = latestTimestamp;
                         currentTSID = BytesRef.deepCopyOf(latestTSID);
+                        currentTSIDord = aggCtx.getTsidOrd();
                         total++;
                     }
                 };

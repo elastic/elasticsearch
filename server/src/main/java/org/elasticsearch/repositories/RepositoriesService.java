@@ -267,8 +267,23 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     final RepositoryMetadata updatedMetadata;
                     if (canUpdateInPlace(newRepositoryMetadata, existing)) {
                         if (repositoryMetadata.settings().equals(newRepositoryMetadata.settings())) {
-                            // Previous version is the same as this one no update is needed.
-                            return currentState;
+                            if (repositoryMetadata.generation() == RepositoryData.CORRUPTED_REPO_GEN) {
+                                // If recreating a corrupted repository with the same settings, reset the corrupt flag.
+                                // Setting the safe generation to unknown, so that a consistent generation is found.
+                                ensureRepositoryNotInUse(currentState, request.name());
+                                logger.info(
+                                    "repository [{}/{}] is marked as corrupted, resetting the corruption marker",
+                                    repositoryMetadata.name(),
+                                    repositoryMetadata.uuid()
+                                );
+                                repositoryMetadata = repositoryMetadata.withGeneration(
+                                    RepositoryData.UNKNOWN_REPO_GEN,
+                                    repositoryMetadata.pendingGeneration()
+                                );
+                            } else {
+                                // Previous version is the same as this one no update is needed.
+                                return currentState;
+                            }
                         }
                         // we're updating in place so the updated metadata must point at the same uuid and generations
                         updatedMetadata = repositoryMetadata.withSettings(newRepositoryMetadata.settings());

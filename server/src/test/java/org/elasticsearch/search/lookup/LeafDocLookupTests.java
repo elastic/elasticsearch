@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -130,9 +129,12 @@ public class LeafDocLookupTests extends ESTestCase {
         MappedFieldType docAndSourceMappedFieldType = mock(MappedFieldType.class);
 
         Map<String, MappedFieldType> namesToMappedFieldTypes = Map.of(
-            nameDoc, docMappedFieldType,
-            nameSource, sourceMappedFieldType,
-            nameDocAndSource, docAndSourceMappedFieldType
+            nameDoc,
+            docMappedFieldType,
+            nameSource,
+            sourceMappedFieldType,
+            nameDocAndSource,
+            docAndSourceMappedFieldType
         );
 
         IndexFieldData<?> docIndexFieldData = mock(IndexFieldData.class);
@@ -173,37 +175,33 @@ public class LeafDocLookupTests extends ESTestCase {
         doReturn(docAndSourceSourceFactory).when(docAndSourceSourceLeafFieldData).getScriptFieldFactory(nameDocAndSource);
         doReturn(fieldSourceAndDocValues).when(docAndSourceSourceFactory).toScriptField();
 
-        LeafDocLookup leafDocLookup = new LeafDocLookup(
-            namesToMappedFieldTypes::get,
-            (mappedFieldType, operation) -> {
-                if (mappedFieldType.equals(docMappedFieldType)) {
-                    if (operation == SEARCH || operation == SCRIPT) {
-                        return docIndexFieldData;
-                    } else {
-                        throw new IllegalArgumentException("unknown operation [" + operation + "]");
-                    }
-                } else if (mappedFieldType.equals(sourceMappedFieldType)) {
-                    if (operation == SEARCH) {
-                        throw new IllegalArgumentException("search cannot access source");
-                    } else if (operation == SCRIPT) {
-                        return sourceIndexFieldData;
-                    } else {
-                        throw new IllegalArgumentException("unknown operation [" + operation + "]");
-                    }
-                } else if (mappedFieldType.equals(docAndSourceMappedFieldType)) {
-                    if (operation == SEARCH) {
-                        return docAndSourceDocIndexFieldData;
-                    } else if (operation == SCRIPT) {
-                        return docAndSourceSourceIndexFieldData;
-                    } else {
-                        throw new IllegalArgumentException("unknown operation [" + operation + "]");
-                    }
+        LeafDocLookup leafDocLookup = new LeafDocLookup(namesToMappedFieldTypes::get, (mappedFieldType, operation) -> {
+            if (mappedFieldType.equals(docMappedFieldType)) {
+                if (operation == SEARCH || operation == SCRIPT) {
+                    return docIndexFieldData;
                 } else {
-                    throw new IllegalArgumentException("unknown mapped field type [" + mappedFieldType + "]");
+                    throw new IllegalArgumentException("unknown operation [" + operation + "]");
                 }
-            },
-            null
-        );
+            } else if (mappedFieldType.equals(sourceMappedFieldType)) {
+                if (operation == SEARCH) {
+                    throw new IllegalArgumentException("search cannot access source");
+                } else if (operation == SCRIPT) {
+                    return sourceIndexFieldData;
+                } else {
+                    throw new IllegalArgumentException("unknown operation [" + operation + "]");
+                }
+            } else if (mappedFieldType.equals(docAndSourceMappedFieldType)) {
+                if (operation == SEARCH) {
+                    return docAndSourceDocIndexFieldData;
+                } else if (operation == SCRIPT) {
+                    return docAndSourceSourceIndexFieldData;
+                } else {
+                    throw new IllegalArgumentException("unknown operation [" + operation + "]");
+                }
+            } else {
+                throw new IllegalArgumentException("unknown mapped field type [" + mappedFieldType + "]");
+            }
+        }, null);
 
         // load shared doc values field into cache w/ doc-access first
         assertEquals(docDocValues, leafDocLookup.get(nameDoc));

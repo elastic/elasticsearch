@@ -7,18 +7,20 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 public class MetricFieldProducerTests extends AggregatorTestCase {
 
@@ -119,7 +121,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         assertNull(metric.get());
     }
 
-    public void testCounterMetricFieldProducer() {
+    public void testCounterMetricFieldProducer() throws IOException {
         final String field = "field";
         var producer = new MetricFieldProducer.CounterMetricFieldProducer(field);
         assertTrue(producer.isEmpty());
@@ -131,9 +133,14 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         Object o = producer.value();
         assertEquals(55.0, o);
         assertEquals("field", producer.name());
+
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        producer.write(builder);
+        builder.endObject();
+        assertEquals("{\"field\":55.0}", Strings.toString(builder));
     }
 
-    public void testGaugeMetricFieldProducer() {
+    public void testGaugeMetricFieldProducer() throws IOException {
         final String field = "field";
         MetricFieldProducer producer = new MetricFieldProducer.GaugeMetricFieldProducer(field);
         assertTrue(producer.isEmpty());
@@ -141,16 +148,13 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         producer.collect(field, 12.2);
         producer.collect(field, 5.5);
 
-        //TODO: Fix this
-//        assertFalse(producer.isEmpty());
-//        Object o = producer.value();
-//        if (o instanceof Map) {
-//            Map<?, ?> m = (Map<?, ?>) o;
-//            assertMap(m, matchesMap().entry("min", 5.5).entry("max", 55.0).entry("value_count", 3L).entry("sum", 72.7));
-//            assertEquals(4, m.size());
-//        } else {
-//            fail("Value is not a Map");
-//        }
+        assertFalse(producer.isEmpty());
+
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        producer.write(builder);
+        builder.endObject();
+        assertEquals("{\"field\":{\"min\":5.5,\"max\":55.0,\"sum\":72.7,\"value_count\":3}}", Strings.toString(builder));
+
         assertEquals(field, producer.name());
     }
 

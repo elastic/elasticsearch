@@ -47,7 +47,7 @@ abstract class AbstractRollupFieldProducer<T> {
     /**
      * Serialize the downsampled value of the field.
      */
-    public abstract void writeTo(XContentBuilder builder) throws IOException;
+    public abstract void write(XContentBuilder builder) throws IOException;
 
     /**
      * @return true if the field has not collected any value.

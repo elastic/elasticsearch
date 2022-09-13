@@ -118,7 +118,7 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
         }
 
         @Override
-        public void writeTo(XContentBuilder builder) throws IOException {
+        public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
                 builder.field(name(), value());
             }

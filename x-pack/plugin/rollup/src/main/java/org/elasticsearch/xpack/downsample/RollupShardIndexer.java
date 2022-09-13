@@ -470,12 +470,12 @@ class RollupShardIndexer {
 
             // Serialize all metric fields
             for (MetricFieldProducer producer : new HashSet<>(metricFieldProducers.values())) {
-                producer.writeTo(builder);
+                producer.write(builder);
             }
 
             // Serialize all label fields
             for (var producer : labelFieldProducers.values()) {
-                producer.writeTo(builder);
+                producer.write(builder);
             }
 
             builder.endObject();

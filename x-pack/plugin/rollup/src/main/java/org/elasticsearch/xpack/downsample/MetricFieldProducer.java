@@ -238,7 +238,7 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
         }
 
         @Override
-        public void writeTo(XContentBuilder builder) throws IOException {
+        public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
                 builder.field(name(), value());
             }
@@ -259,7 +259,7 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
         }
 
         @Override
-        public void writeTo(XContentBuilder builder) throws IOException {
+        public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
                 builder.startObject(name());
                 for (MetricFieldProducer.Metric metric : metrics()) {
@@ -291,7 +291,7 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
         }
 
         @Override
-        public void writeTo(XContentBuilder builder) throws IOException {
+        public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
                 builder.startObject(name());
                 for (MetricFieldProducer.Metric metric : metrics()) {

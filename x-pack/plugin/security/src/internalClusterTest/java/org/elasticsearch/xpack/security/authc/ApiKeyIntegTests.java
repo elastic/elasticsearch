@@ -1107,9 +1107,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             )
         );
         final boolean withLimitedBy = randomBoolean();
-        PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().withLimitedBy(withLimitedBy).build(), listener);
-        GetApiKeyResponse response = listener.get();
         int totalApiKeys = noOfSuperuserApiKeys + noOfApiKeysForUserWithManageApiKeyRole + noOfApiKeysForUserWithManageOwnApiKeyRole;
         List<CreateApiKeyResponse> allApiKeys = new ArrayList<>();
         Stream.of(defaultUserCreatedKeys, userWithManageApiKeyRoleApiKeys, userWithManageOwnApiKeyRoleApiKeys).forEach(allApiKeys::addAll);
@@ -1140,7 +1137,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             metadatas,
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             expectedLimitedByRoleDescriptorsLookup,
-            response.getApiKeyInfos(),
+            getAllApiKeyInfo(client, withLimitedBy),
             allApiKeys.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
             null
         );
@@ -2691,6 +2688,24 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
             assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
             return queryApiKeyResponse.getItems()[0].getApiKey();
+        }
+    }
+
+    private ApiKey[] getAllApiKeyInfo(Client client, boolean withLimitedBy) {
+        if (randomBoolean()) {
+            final PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().withLimitedBy(withLimitedBy).build(), future);
+            final GetApiKeyResponse getApiKeyResponse = future.actionGet();
+            return getApiKeyResponse.getApiKeyInfos();
+        } else {
+            final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                QueryApiKeyAction.INSTANCE,
+                new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, 1000, null, null, withLimitedBy),
+                future
+            );
+            final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
+            return Arrays.stream(queryApiKeyResponse.getItems()).map(QueryApiKeyResponse.Item::getApiKey).toArray(ApiKey[]::new);
         }
     }
 

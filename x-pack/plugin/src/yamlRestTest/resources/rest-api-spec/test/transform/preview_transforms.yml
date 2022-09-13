@@ -601,3 +601,20 @@ setup:
               }
             }
           }
+
+---
+"Test preview of unattended transform":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "dest-airline-data-by-airline-unattended" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "unattended": true
+            }
+          }

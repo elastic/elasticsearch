@@ -11,11 +11,12 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
 import org.elasticsearch.xpack.sql.action.compute.planner.PlanNode;
 import org.elasticsearch.xpack.sql.action.compute.transport.ComputeAction;
 import org.elasticsearch.xpack.sql.action.compute.transport.ComputeRequest;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -38,7 +39,7 @@ public class ComputeEngineIT extends AbstractSqlIntegTestCase {
         }
         ensureYellow("test");
 
-        client().execute(
+        List<Page> pages = client().execute(
             ComputeAction.INSTANCE,
             new ComputeRequest(
                 PlanNode.builder(new MatchAllDocsQuery(), randomFrom(PlanNode.LuceneSourceNode.Parallelism.values()), "test")
@@ -46,30 +47,24 @@ public class ComputeEngineIT extends AbstractSqlIntegTestCase {
                     .avgPartial("count")
                     .exchange(PlanNode.ExchangeNode.Type.GATHER, PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION)
                     .avgFinal("count")
-                    .buildWithoutOutputNode(),
-                page -> {
-                    logger.info(page);
-                    assertEquals(1, page.getBlockCount());
-                    assertEquals(43, page.getBlock(0).getLong(0));
-                }
+                    .buildWithoutOutputNode()
             )
-        ).actionGet();
+        ).actionGet().getPages();
+        logger.info(pages);
+        assertEquals(1, pages.size());
+        assertEquals(1, pages.get(0).getBlockCount());
+        assertEquals(43, pages.get(0).getBlock(0).getLong(0));
 
-        AtomicInteger hits = new AtomicInteger();
-        client().execute(
+        pages = client().execute(
             ComputeAction.INSTANCE,
             new ComputeRequest(
                 PlanNode.builder(new MatchAllDocsQuery(), randomFrom(PlanNode.LuceneSourceNode.Parallelism.values()), "test")
                     .numericDocValues("count")
                     .exchange(PlanNode.ExchangeNode.Type.GATHER, PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION)
-                    .buildWithoutOutputNode(),
-                page -> {
-                    logger.info(page);
-                    hits.addAndGet(page.getPositionCount());
-                }
+                    .buildWithoutOutputNode()
             )
-        ).actionGet();
-
-        assertEquals(20, hits.get());
+        ).actionGet().getPages();
+        logger.info(pages);
+        assertEquals(20, pages.stream().mapToInt(Page::getPositionCount).sum());
     }
 }

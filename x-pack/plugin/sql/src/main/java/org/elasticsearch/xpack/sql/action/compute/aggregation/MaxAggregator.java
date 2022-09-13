@@ -72,7 +72,7 @@ public class MaxAggregator implements AggregatorFunction {
         for (int i = 0; i < values.length; i++) {
             max = Math.max(max, values[i]);
         }
-        return (double)max;
+        return (double) max;
     }
 
     @Override

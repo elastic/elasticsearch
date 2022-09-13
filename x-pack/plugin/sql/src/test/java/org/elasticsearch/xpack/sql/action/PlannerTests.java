@@ -17,20 +17,28 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.Driver;
 import org.elasticsearch.xpack.sql.action.compute.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.sql.action.compute.planner.LocalExecutionPlanner.IndexReaderReference;
 import org.elasticsearch.xpack.sql.action.compute.planner.PlanNode;
+import org.elasticsearch.xpack.sql.action.compute.transport.ComputeRequest;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -90,7 +98,18 @@ public class PlannerTests extends ESTestCase {
             assertEquals(1, page.getPositionCount());
             assertEquals((numDocs - 1) / 2, page.getBlock(0).getLong(0));
         });
-        logger.info("Plan: {}", Strings.toString(plan, true, true));
+        logger.info("Plan: {}", Strings.toString(new ComputeRequest(plan), true, true));
+        try (
+            XContentParser parser = createParser(
+                parserConfig().withRegistry(new NamedXContentRegistry(PlanNode.getNamedXContentParsers())),
+                JsonXContent.jsonXContent,
+                new BytesArray(Strings.toString(new ComputeRequest(plan), true, true).getBytes(StandardCharsets.UTF_8))
+            )
+        ) {
+            ComputeRequest.fromXContent(parser);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = new LocalExecutionPlanner(
             List.of(new IndexReaderReference(indexReader, new ShardId("test", "test", 0)))
         ).plan(plan);

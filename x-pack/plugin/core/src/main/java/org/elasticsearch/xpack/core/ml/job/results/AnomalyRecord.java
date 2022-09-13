@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +22,8 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+// import org.elasticsearch.logging.LogManager;
+// import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +40,7 @@ import java.util.Objects;
  * can be returned if the members have not been set.
  */
 public class AnomalyRecord implements ToXContentObject, Writeable {
-
+    private static final Logger logger = LogManager.getLogger(AnomalyRecord.class);
     /**
      * Result type
      */
@@ -45,6 +49,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
      * Result fields (all detector types)
      */
     public static final ParseField PROBABILITY = new ParseField("probability");
+    public static final ParseField PROBABILITY_EXPLANATIONS = new ParseField("probability_explanations");
     public static final ParseField MULTI_BUCKET_IMPACT = new ParseField("multi_bucket_impact");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
@@ -102,6 +107,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         parser.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
         parser.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
+        parser.declareString(AnomalyRecord::setProbabilityExplanations, PROBABILITY_EXPLANATIONS);
         parser.declareDouble(AnomalyRecord::setMultiBucketImpact, MULTI_BUCKET_IMPACT);
         parser.declareDouble(AnomalyRecord::setRecordScore, RECORD_SCORE);
         parser.declareDouble(AnomalyRecord::setInitialRecordScore, INITIAL_RECORD_SCORE);
@@ -141,6 +147,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     private final String jobId;
     private int detectorIndex;
     private double probability;
+    private String probabilityExplanations;
     private Double multiBucketImpact;
     private String byFieldName;
     private String byFieldValue;
@@ -180,6 +187,8 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         jobId = in.readString();
         detectorIndex = in.readInt();
         probability = in.readDouble();
+        // TODO: is the sequence of reads important?
+        probabilityExplanations = in.readOptionalString();
         multiBucketImpact = in.readOptionalDouble();
         byFieldName = in.readOptionalString();
         byFieldValue = in.readOptionalString();
@@ -216,6 +225,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         out.writeString(jobId);
         out.writeInt(detectorIndex);
         out.writeDouble(probability);
+        out.writeOptionalString(probabilityExplanations);
         out.writeOptionalDouble(multiBucketImpact);
         out.writeOptionalString(byFieldName);
         out.writeOptionalString(byFieldValue);
@@ -314,6 +324,14 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         }
         if (geoResults != null) {
             builder.field(GEO_RESULTS.getPreferredName(), geoResults);
+        }
+        if (probabilityExplanations != null) {
+            builder.field(PROBABILITY_EXPLANATIONS.getPreferredName(), probabilityExplanations);
+            logger.info("Probability explanation is " + probabilityExplanations);
+        }
+        else {
+            builder.field(PROBABILITY_EXPLANATIONS.getPreferredName(), "Probability explanation is empty");
+            logger.info("Probability explanation is empty");
         }
 
         Map<String, LinkedHashSet<String>> inputFields = inputFieldMap();
@@ -423,6 +441,14 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
 
     public void setProbability(double value) {
         probability = value;
+    }
+
+    public String getProbabilityExplanations() {
+        return probabilityExplanations;
+    }
+
+    public void setProbabilityExplanations(String value) {
+        probabilityExplanations = value;
     }
 
     public double getMultiBucketImpact() {
@@ -575,6 +601,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             detectorIndex,
             bucketSpan,
             probability,
+            probabilityExplanations,
             multiBucketImpact,
             recordScore,
             initialRecordScore,
@@ -615,6 +642,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             && this.detectorIndex == that.detectorIndex
             && this.bucketSpan == that.bucketSpan
             && this.probability == that.probability
+            && Objects.equals(this.probabilityExplanations, that.probabilityExplanations)
             && Objects.equals(this.multiBucketImpact, that.multiBucketImpact)
             && this.recordScore == that.recordScore
             && this.initialRecordScore == that.initialRecordScore

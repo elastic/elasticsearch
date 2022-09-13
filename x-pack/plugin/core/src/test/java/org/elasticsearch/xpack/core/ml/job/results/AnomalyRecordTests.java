@@ -42,6 +42,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         anomalyRecord.setActual(Collections.singletonList(randomDouble()));
         anomalyRecord.setTypical(Collections.singletonList(randomDouble()));
         anomalyRecord.setProbability(randomDouble());
+        anomalyRecord.setProbabilityExplanations(randomAlphaOfLength(12));
         if (randomBoolean()) {
             anomalyRecord.setMultiBucketImpact(randomDouble());
         }

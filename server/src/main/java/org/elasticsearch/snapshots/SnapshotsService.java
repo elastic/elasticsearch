@@ -393,7 +393,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     repositoryName
                 );
                 if (request.partial() == false) {
-                    Set<String> missing = shards.entrySet().stream()
+                    Set<String> missing = shards.entrySet()
+                        .stream()
                         .filter(e -> e.getValue().state() == ShardState.MISSING)
                         .map(e -> e.getKey().getIndex().getName())
                         .collect(Collectors.toSet());

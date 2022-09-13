@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -93,9 +94,6 @@ class RollupShardIndexer {
     private final Map<String, FieldValueFetcher> metricFieldFetchers;
     private final Map<String, FieldValueFetcher> labelFieldFetchers;
 
-    private final Map<String, MetricFieldProducer> metricFieldProducers;
-    private final Map<String, LabelFieldProducer> labelFieldProducers;
-
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
     private final AtomicLong numFailed = new AtomicLong();
@@ -132,16 +130,8 @@ class RollupShardIndexer {
             this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
-
             this.metricFieldFetchers = FieldValueFetcher.forMetrics(searchExecutionContext, metricFields);
             this.labelFieldFetchers = FieldValueFetcher.forLabels(searchExecutionContext, labelFields);
-            this.metricFieldProducers = MetricFieldProducer.buildMetricFieldProducers(
-                searchExecutionContext,
-                metricFields,
-                metricFieldFetchers
-            );
-            this.labelFieldProducers = LabelFieldProducer.buildLabelFieldProducers(searchExecutionContext, labelFields, labelFieldFetchers);
-
             toClose = null;
         } finally {
             IOUtils.closeWhileHandlingException(toClose);
@@ -323,7 +313,6 @@ class RollupShardIndexer {
 
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
-
                     for (Map.Entry<String, FormattedDocValues> e : fieldFetchers) {
                         final String fieldName = e.getKey();
                         final FormattedDocValues leafField = e.getValue();
@@ -383,9 +372,12 @@ class RollupShardIndexer {
         private BytesRef tsid;
         private long timestamp;
         private int docCount;
+        private final Map<String, MetricFieldProducer> metricFieldProducers;
+        private final Map<String, LabelFieldProducer> labelFieldProducers;
 
         RollupBucketBuilder() {
-
+            this.metricFieldProducers = MetricFieldProducer.buildMetricFieldProducers(searchExecutionContext, metricFields);
+            this.labelFieldProducers = LabelFieldProducer.buildLabelFieldProducers(searchExecutionContext, labelFields);
         }
 
         /**
@@ -402,8 +394,8 @@ class RollupShardIndexer {
         public RollupBucketBuilder resetTimestamp(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
-            metricFieldProducers.values().forEach(MetricFieldProducer::reset);
-            labelFieldProducers.values().forEach(LabelFieldProducer::reset);
+            this.metricFieldProducers.values().forEach(MetricFieldProducer::reset);
+            this.labelFieldProducers.values().forEach(LabelFieldProducer::reset);
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "New bucket for _tsid: [{}], @timestamp: [{}]",
@@ -439,13 +431,13 @@ class RollupShardIndexer {
         }
 
         private void collectLabel(final String field, final Object value) {
-            labelFieldProducers.get(field).collect(value);
+            labelFieldProducers.get(field).collect(field, value);
         }
 
         private void collectMetric(final String field, final Object[] values) {
             for (var value : values) {
                 if (value instanceof Number number) {
-                    metricFieldProducers.get(field).collect(number);
+                    metricFieldProducers.get(field).collect(field, number);
                 } else {
                     throw new IllegalArgumentException(
                         "Expected numeric value for field '" + field + "' but got non numeric value: '" + value + "'"
@@ -459,7 +451,7 @@ class RollupShardIndexer {
         }
 
         public XContentBuilder buildRollupDocument() throws IOException {
-            final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
             builder.startObject();
             if (isEmpty()) {
                 builder.endObject();
@@ -477,7 +469,7 @@ class RollupShardIndexer {
             }
 
             // Serialize all metric fields
-            for (var producer : metricFieldProducers.values()) {
+            for (MetricFieldProducer producer : new HashSet<>(metricFieldProducers.values())) {
                 producer.writeTo(builder);
             }
 

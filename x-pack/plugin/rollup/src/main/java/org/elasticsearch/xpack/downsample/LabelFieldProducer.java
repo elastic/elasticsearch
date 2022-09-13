@@ -33,7 +33,7 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
 
     /** Collect the value of a raw field  */
     @Override
-    public void collect(Object value) {
+    public void collect(String field, Object value) {
         label.collect(value);
         isEmpty = false;
     }
@@ -57,7 +57,7 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
         final String name;
 
         /**
-         * Abstract class that defines the how a label is computed.
+         * Abstract class that defines how a label is computed.
          * @param name
          */
         protected Label(String name) {
@@ -128,11 +128,7 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
     /**
      * Produce a collection of label field producers.
      */
-    static Map<String, LabelFieldProducer> buildLabelFieldProducers(
-        SearchExecutionContext context,
-        String[] labelFields,
-        Map<String, FieldValueFetcher> fieldFetchers
-    ) {
+    static Map<String, LabelFieldProducer> buildLabelFieldProducers(SearchExecutionContext context, String[] labelFields) {
         final Map<String, LabelFieldProducer> fields = new LinkedHashMap<>();
         for (String field : labelFields) {
             LabelFieldProducer producer = new LabelLastValueFieldProducer(field);

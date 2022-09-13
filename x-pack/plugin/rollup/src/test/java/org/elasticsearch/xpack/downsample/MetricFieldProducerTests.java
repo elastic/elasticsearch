@@ -120,11 +120,12 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testCounterMetricFieldProducer() {
-        var producer = new MetricFieldProducer.CounterMetricFieldProducer("field");
+        final String field = "field";
+        var producer = new MetricFieldProducer.CounterMetricFieldProducer(field);
         assertTrue(producer.isEmpty());
-        producer.collect(55.0);
-        producer.collect(12.2);
-        producer.collect(5.5);
+        producer.collect(field, 55.0);
+        producer.collect(field, 12.2);
+        producer.collect(field, 5.5);
 
         assertFalse(producer.isEmpty());
         Object o = producer.value();
@@ -133,11 +134,12 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
     }
 
     public void testGaugeMetricFieldProducer() {
-        MetricFieldProducer producer = new MetricFieldProducer.GaugeMetricFieldProducer("field");
+        final String field = "field";
+        MetricFieldProducer producer = new MetricFieldProducer.GaugeMetricFieldProducer(field);
         assertTrue(producer.isEmpty());
-        producer.collect(55.0);
-        producer.collect(12.2);
-        producer.collect(5.5);
+        producer.collect(field, 55.0);
+        producer.collect(field, 12.2);
+        producer.collect(field, 5.5);
 
         //TODO: Fix this
 //        assertFalse(producer.isEmpty());
@@ -149,7 +151,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
 //        } else {
 //            fail("Value is not a Map");
 //        }
-        assertEquals("field", producer.name());
+        assertEquals(field, producer.name());
     }
 
     public void testBuildMetricProducers() {
@@ -214,7 +216,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
 
         Map<String, MetricFieldProducer> producers = MetricFieldProducer.buildMetricFieldProducers(
             searchExecutionContext,
-            new String[] { "gauge_field", "counter_field" }, null
+            new String[] { "gauge_field", "counter_field" }
         );
         assertTrue(producers.get("gauge_field") instanceof MetricFieldProducer.GaugeMetricFieldProducer);
         assertTrue(producers.get("counter_field") instanceof MetricFieldProducer.CounterMetricFieldProducer);

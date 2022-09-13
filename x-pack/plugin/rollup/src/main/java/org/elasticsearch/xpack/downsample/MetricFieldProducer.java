@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,7 +41,7 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
      * Reset all values collected for the field
      */
     public void reset() {
-        for (Metric metric : metrics) {
+        for (Metric metric : metrics()) {
             metric.reset();
         }
         isEmpty = true;
@@ -52,14 +52,14 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
     }
 
     /** return the list of metrics that are computed for the field */
-    public List<Metric> metrics() {
+    public Collection<Metric> metrics() {
         return metrics;
     }
 
     /** Collect the value of a raw field and compute all downsampled metrics */
     @Override
-    public void collect(Number value) {
-        for (MetricFieldProducer.Metric metric : metrics) {
+    public void collect(String field, Number value) {
+        for (MetricFieldProducer.Metric metric : metrics()) {
             metric.collect(value);
         }
         isEmpty = false;
@@ -70,7 +70,7 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
 
         /**
          * Abstract class that defines how a metric is computed.
-         * @param name
+         * @param name the name of the metric as it will be output in the downsampled document
          */
         protected Metric(String name) {
             this.name = name;
@@ -143,6 +143,10 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
 
         Sum() {
             super("sum");
+        }
+
+        Sum(String name) {
+            super(name);
         }
 
         @Override
@@ -230,7 +234,7 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
 
         public Object value() {
             assert metrics().size() == 1 : "Single value producers must have only one metric";
-            return metrics().get(0).get();
+            return metrics().iterator().next().get();
         }
 
         @Override
@@ -268,20 +272,40 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
         }
     }
 
-    static class SilentMetricFieldProducer extends MetricFieldProducer {
+    static class AggregateMetricFieldProducer extends MetricFieldProducer {
 
-        SilentMetricFieldProducer(String name, Metric metric) {
-            super(name, Collections.singletonList(metric));
+        private Map<String, Metric> metricsByField = new LinkedHashMap<>();
+
+        AggregateMetricFieldProducer(String name) {
+            super(name, Collections.emptyList());
         }
 
-        public Object value() {
-            assert metrics().size() == 1 : "Single value producers must have only one metric";
-            return metrics().get(0).get();
+        public void addMetric(String field, Metric metric) {
+            metricsByField.put(field, metric);
+        }
+
+        @Override
+        public void collect(String field, Number value) {
+            metricsByField.get(field).collect(value);
+            isEmpty = false;
         }
 
         @Override
         public void writeTo(XContentBuilder builder) throws IOException {
-            // No output. It's silent after all
+            if (isEmpty() == false) {
+                builder.startObject(name());
+                for (MetricFieldProducer.Metric metric : metrics()) {
+                    if (metric.get() != null) {
+                        builder.field(metric.name, metric.get());
+                    }
+                }
+                builder.endObject();
+            }
+        }
+
+        @Override
+        public Collection<Metric> metrics() {
+            return metricsByField.values();
         }
     }
 
@@ -289,11 +313,7 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
      * Produce a collection of metric field producers based on the metric_type mapping parameter in the field
      * mapping.
      */
-    static Map<String, MetricFieldProducer> buildMetricFieldProducers(
-        SearchExecutionContext context,
-        String[] metricFields,
-        Map<String, FieldValueFetcher> fieldFetchers
-    ) {
+    static Map<String, MetricFieldProducer> buildMetricFieldProducers(SearchExecutionContext context, String[] metricFields) {
         final Map<String, MetricFieldProducer> fields = new LinkedHashMap<>();
         for (String field : metricFields) {
             MappedFieldType fieldType = context.getFieldType(field);
@@ -301,20 +321,21 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
             assert fieldType.getMetricType() != null : "Unknown metric type for metric field: [" + field + "]";
 
             if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
-                List<Metric> metricOperations = new ArrayList<>(aggMetricFieldType.getMetricFields().size());
+                AggregateMetricFieldProducer producer = new AggregateMetricFieldProducer(field);
+
                 for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
                     AggregateDoubleMetricFieldMapper.Metric metric = e.getKey();
                     NumberFieldMapper.NumberFieldType metricSubField = e.getValue();
                     Metric metricOperation = switch (metric) {
                         case max -> new Max();
                         case min -> new Min();
-                        case sum, value_count -> new Sum(); // To aggregate value_count summary, we must sum all field values
+                        case sum -> new Sum();
+                        case value_count -> new Sum("value_count"); // To aggregate value_count summary, we must sum all field values
                     };
-                    metricOperations.add(metricOperation);
-                    MetricFieldProducer producer = new SilentMetricFieldProducer(metricSubField.name(), metricOperation);
+                    producer.addMetric(metricSubField.name(), metricOperation);
                     fields.put(metricSubField.name(), producer);
                 }
-                fields.put(field, new GaugeMetricFieldProducer(field, metricOperations));
+                fields.put(field, producer);
             } else {
                 MetricFieldProducer producer = switch (fieldType.getMetricType()) {
                     case gauge -> new GaugeMetricFieldProducer(field);

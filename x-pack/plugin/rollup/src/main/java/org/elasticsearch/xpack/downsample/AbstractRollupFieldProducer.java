@@ -26,9 +26,11 @@ abstract class AbstractRollupFieldProducer<T> {
 
     /**
      * Collect a value for the field applying the specific subclass collection strategy.
+     *
+     * @param field the name of the field to collect
      * @param value the value to collect.
      */
-    public abstract void collect(T value);
+    public abstract void collect(String field, T value);
 
     /**
      * @return the name of the field.
@@ -43,7 +45,7 @@ abstract class AbstractRollupFieldProducer<T> {
     public abstract void reset();
 
     /**
-     * Serialize the downsampled value.
+     * Serialize the downsampled value of the field.
      */
     public abstract void writeTo(XContentBuilder builder) throws IOException;
 

@@ -272,7 +272,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             nodeAllocationResults -> singleNoDecision(nodeAllocationResults.get(0)).equals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test")
             ),
-            List::isEmpty,
+            nodeDecisions -> nodeDecisions.get(0).decision().type().equals(Decision.Type.NO),
             mockCanAllocateDiskDecider
         );
         verify(
@@ -532,19 +532,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertThat(resultReason.summary(), equalTo(reason));
             assertThat(resultReason.unassignedShardIds(), equalTo(decider.allocationState(context).storagePreventsAllocation().shardIds()));
             assertThat(resultReason.assignedShardIds(), equalTo(decider.allocationState(context).storagePreventsRemainOrMove().shardIds()));
-            if (resultReason.assignedAllocationResults().size() > 0) {
-                assertEquals(
-                    Decision.single(Decision.Type.NO, DiskThresholdDecider.NAME, "test"),
-                    resultReason.assignedAllocationResults()
-                        .get(0)
-                        .decision()
-                        .getDecisions()
-                        .stream()
-                        .filter(d -> d.type() == Decision.Type.NO)
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalStateException("Unable to find NO can_allocate decision"))
-                );
-            }
         } else {
             assertThat(result.requiredCapacity(), is(nullValue()));
             assertThat(resultReason.summary(), equalTo("current capacity not available"));

@@ -388,9 +388,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
-        this.shardIndexingTimeStats = this.isDataStreamIndex
-            ? new ShardIndexingTimeStats(threadPool::rawRelativeTimeInNanos)
-            : ShardIndexingTimeStats.NO_OP;
+        this.shardIndexingTimeStats = new ShardIndexingTimeStats(threadPool::rawRelativeTimeInNanos);
     }
 
     public ThreadPool getThreadPool() {

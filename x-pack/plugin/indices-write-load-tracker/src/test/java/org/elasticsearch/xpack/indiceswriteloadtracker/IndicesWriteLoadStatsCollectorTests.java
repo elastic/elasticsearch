@@ -106,7 +106,6 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             for (int i = 0; i < 2; i++) {
                 indexDocsWithTextField(shard, randomIntBetween(1, 10));
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
-                assertThat(shard.getTotalIndexingTimeInNanos(), is(equalTo(0L)));
             }
             final var shardWriteLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
             assertThat(shardWriteLoadHistogramSnapshots, is(empty()));

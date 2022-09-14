@@ -21,7 +21,7 @@ import java.util.List;
  * @param definition The definition of the diagnosis (e.g. message, helpURL)
  * @param affectedResources Optional list of "things" that are affected by this condition (e.g. shards, indices, or policies).
  */
-public record Diagnosis(Definition definition, @Nullable List<String> affectedResources) implements ToXContentObject {
+public record Diagnosis(Definition definition, @Nullable List<Resource> affectedResources) implements ToXContentObject {
 
     /**
      * Details a diagnosis - cause and a potential action that a user could take to clear an issue identified by a {@link HealthService}.
@@ -40,10 +40,35 @@ public record Diagnosis(Definition definition, @Nullable List<String> affectedRe
         builder.field("action", definition.action);
 
         if (affectedResources != null && affectedResources.size() > 0) {
-            builder.field("affected_resources", affectedResources);
+            builder.array("affected_resources", arrayXContentBuilder -> {
+                for (Resource resource : affectedResources) {
+                    builder.startObject();
+                    builder.field("type", resource.type);
+                    String id = resource.id;
+                    if (id != null) {
+                        builder.field("id", id);
+                    }
+                    builder.field("name", resource.name);
+                    builder.endObject();
+                }
+            });
         }
 
         builder.field("help_url", definition.helpURL);
         return builder.endObject();
     }
+
+    public record Resource(Type type, @Nullable String id, String name) {
+        public Resource(Type type, String name) {
+            this(type, null, name);
+        }
+
+        public enum Type {
+            INDEX,
+            NODE,
+            REPOSITORY,
+            POLICY
+        }
+    }
+
 }

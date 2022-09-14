@@ -87,7 +87,12 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    List.of(new Diagnosis(CORRUPTED_REPOSITORY, corruptedRepos))
+                    List.of(
+                        new Diagnosis(
+                            CORRUPTED_REPOSITORY,
+                            corruptedRepos.stream().map(repo -> new Diagnosis.Resource(Diagnosis.Resource.Type.REPOSITORY, repo)).toList()
+                        )
+                    )
                 )
             )
         );

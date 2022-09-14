@@ -44,7 +44,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
             new ArrayList<>()
         );
         for (int i = 0; i < randomInt(10); i++) {
-            action1.affectedResources().add(randomAlphaOfLength(10));
+            action1.affectedResources().add(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, randomAlphaOfLength(10)));
         }
         actions.add(action1);
         Diagnosis action2 = new Diagnosis(
@@ -52,7 +52,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
             new ArrayList<>()
         );
         for (int i = 0; i < randomInt(10); i++) {
-            action2.affectedResources().add(randomAlphaOfLength(10));
+            action2.affectedResources().add(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, randomAlphaOfLength(10)));
         }
         actions.add(action2);
         HealthIndicatorResult result = new HealthIndicatorResult(name, status, symptom, details, impacts, actions);

@@ -110,6 +110,11 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 List.of(ImpactArea.BACKUP)
             )
         );
+        List<Diagnosis.Resource> corruptedResources = snapshotMetadata.repositories()
+            .stream()
+            .filter(repository -> repository.generation() == RepositoryData.CORRUPTED_REPO_GEN)
+            .map(repository -> new Diagnosis.Resource(Diagnosis.Resource.Type.REPOSITORY, repository.uuid(), repository.name()))
+            .toList();
         return createIndicator(
             RED,
             createCorruptedRepositorySummary(corrupted),
@@ -126,7 +131,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 )
                 : HealthIndicatorDetails.EMPTY,
             impacts,
-            List.of(new Diagnosis(CORRUPTED_REPOSITORY, corrupted))
+            List.of(new Diagnosis(CORRUPTED_REPOSITORY, corruptedResources))
         );
     }
 

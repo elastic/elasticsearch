@@ -882,7 +882,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         .map(
                             e -> new Diagnosis(
                                 e.getKey(),
-                                e.getValue().stream().sorted(byPriorityThenByName(clusterMetadata)).collect(Collectors.toList())
+                                e.getValue()
+                                    .stream()
+                                    .sorted(byPriorityThenByName(clusterMetadata))
+                                    .map(indexName -> new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, indexName))
+                                    .collect(Collectors.toList())
                             )
                         )
                         .collect(Collectors.toList());

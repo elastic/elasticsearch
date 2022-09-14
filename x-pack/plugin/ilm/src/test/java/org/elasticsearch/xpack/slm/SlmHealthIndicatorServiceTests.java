@@ -220,7 +220,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                                     + "]",
                                 "Check the snapshot lifecycle policy for detailed failure info:\n- /_slm/policy/test-policy?human"
                             ),
-                            List.of("test-policy")
+                            List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.POLICY, "test-policy"))
                         )
                     )
                 )

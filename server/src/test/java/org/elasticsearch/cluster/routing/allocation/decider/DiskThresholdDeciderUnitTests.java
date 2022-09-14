@@ -512,9 +512,24 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         List<ShardRouting> shards = new ArrayList<>();
         int anotherNodeShardCounter = 0;
+        int nodeShardCounter = 0;
+        Map<String, Long> initializingShardSizes = new HashMap<>();
         for (int i = 1; i <= 3; i++) {
             int expectedSize = 10 * i;
-            shards.add(createShard(index, nodeId, i - 1, expectedSize));
+            shards.add(createShard(index, nodeId, nodeShardCounter++, expectedSize));
+            if (randomBoolean()) {
+                ShardRouting initializingShard = ShardRoutingHelper.initialize(
+                    ShardRouting.newUnassigned(
+                        new ShardId(index, nodeShardCounter++),
+                        true,
+                        PeerRecoverySource.INSTANCE,
+                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
+                    ),
+                    nodeId
+                );
+                initializingShardSizes.put(ClusterInfo.shardIdentifierFromRouting(initializingShard), randomLongBetween(10, 50));
+                shards.add(initializingShard);
+            }
             // randomly add shards for non-searchable snapshot index
             if (randomBoolean()) {
                 for (int j = 0; j < randomIntBetween(1, 5); j++) {
@@ -552,17 +567,17 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         RoutingAllocation allocation = new RoutingAllocation(
             null,
             clusterState,
-            new DevNullClusterInfo(Map.of(), Map.of(), Map.of()),
+            new DevNullClusterInfo(Map.of(), Map.of(), initializingShardSizes),
             null,
             0
         );
-        long sizeOfRelocatingShards = sizeOfUnaccountedShards(
+        long sizeOfUnaccountedShards = sizeOfUnaccountedShards(
             allocation,
             RoutingNodesHelper.routingNode(nodeId, node, shards.toArray(ShardRouting[]::new)),
             false,
             "/dev/null"
         );
-        assertEquals(60L, sizeOfRelocatingShards);
+        assertEquals(60L + initializingShardSizes.values().stream().mapToLong(Long::longValue).sum(), sizeOfUnaccountedShards);
     }
 
     private ShardRouting createShard(Index index, String nodeId, int i, int expectedSize) {

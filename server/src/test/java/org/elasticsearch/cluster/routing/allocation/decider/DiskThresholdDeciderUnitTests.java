@@ -515,9 +515,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         for (int i = 1; i <= 3; i++) {
             int expectedSize = 10 * i;
             shards.add(createShard(index, nodeId, i - 1, expectedSize));
-            // randomly add shard for non-searchable snapshot index
+            // randomly add shards for non-searchable snapshot index
             if (randomBoolean()) {
-                shards.add(createShard(anotherIndex, anotherNodeId, anotherNodeShardCounter++, expectedSize));
+                for (int j = 0; j < randomIntBetween(1, 5); j++) {
+                    shards.add(createShard(anotherIndex, anotherNodeId, anotherNodeShardCounter++, expectedSize));
+                }
             }
         }
 

@@ -320,11 +320,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
 
             // track these to ensure we do not double account if they both cannot remain and allocated due to storage.
-            List<ShardNodeDecisions> unmovableShardNodeAllocationResults = candidates.stream()
+            List<ShardNodeDecisions> unmovableShardNodeDecisions = candidates.stream()
                 .filter(s -> allocatedToTier(s, allocation))
                 .flatMap(shard -> cannotRemainDueToStorage(shard, allocation).stream())
                 .toList();
-            List<ShardNodeDecisions> otherNodesOnTierAllocationDecisions = unmovableShardNodeAllocationResults.stream()
+            List<ShardNodeDecisions> otherNodesOnTierAllocationDecisions = unmovableShardNodeDecisions.stream()
                 .map(ShardNodeDecisions::shard)
                 .map(
                     shard -> new ShardNodeDecisions(
@@ -338,7 +338,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     )
                 )
                 .toList();
-            Set<ShardRouting> unmovableShards = unmovableShardNodeAllocationResults.stream().map(e -> e.shard).collect(Collectors.toSet());
+            Set<ShardRouting> unmovableShards = unmovableShardNodeDecisions.stream().map(e -> e.shard).collect(Collectors.toSet());
 
             long unmovableBytes = unmovableShards.stream()
                 .collect(Collectors.groupingBy(ShardRouting::currentNodeId))
@@ -347,11 +347,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .mapToLong(e -> unmovableSize(e.getKey(), e.getValue()))
                 .sum();
 
-            List<ShardNodeDecisions> unallocatedShardNodeAllocationResults = candidates.stream()
+            List<ShardNodeDecisions> unallocatedShardNodeDecisions = candidates.stream()
                 .filter(Predicate.not(unmovableShards::contains))
                 .flatMap(shard -> cannotAllocateDueToStorage(shard, allocation).stream())
                 .toList();
-            List<ShardNodeDecisions> canRemainDecisionsForUnallocatedShards = unallocatedShardNodeAllocationResults.stream()
+            List<ShardNodeDecisions> canRemainDecisionsForUnallocatedShards = unallocatedShardNodeDecisions.stream()
                 .filter(snd -> snd.nodeDecisions.size() > 0)
                 .map(ShardNodeDecisions::shard)
                 .map(
@@ -366,19 +366,19 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     )
                 )
                 .toList();
-            long unallocatableBytes = unallocatedShardNodeAllocationResults.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum();
+            long unallocatableBytes = unallocatedShardNodeDecisions.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum();
 
             return new ShardsAllocationResults(
                 unallocatableBytes + unmovableBytes,
-                Stream.concat(unmovableShardNodeAllocationResults.stream(), unallocatedShardNodeAllocationResults.stream())
+                Stream.concat(unmovableShardNodeDecisions.stream(), unallocatedShardNodeDecisions.stream())
                     .map(e -> e.shard.shardId())
                     .collect(Collectors.toCollection(TreeSet::new)),
-                Stream.concat(unallocatedShardNodeAllocationResults.stream(), otherNodesOnTierAllocationDecisions.stream())
+                Stream.concat(unallocatedShardNodeDecisions.stream(), otherNodesOnTierAllocationDecisions.stream())
                     .filter(e -> e.nodeDecisions.size() > 0)
                     .min(Comparator.comparing(e -> e.shard.shardId()))
                     .map(e -> e.nodeDecisions)
                     .orElse(List.of()),
-                Stream.concat(unmovableShardNodeAllocationResults.stream(), canRemainDecisionsForUnallocatedShards.stream())
+                Stream.concat(unmovableShardNodeDecisions.stream(), canRemainDecisionsForUnallocatedShards.stream())
                     .filter(e -> e.nodeDecisions.size() > 0)
                     .min(Comparator.comparing(e -> e.shard.shardId()))
                     .map(e -> e.nodeDecisions)

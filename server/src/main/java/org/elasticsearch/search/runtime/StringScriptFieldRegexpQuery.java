@@ -9,7 +9,7 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
 

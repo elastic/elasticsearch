@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.ZoneAwareAssignmentPlanner;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
+import org.elasticsearch.xpack.ml.utils.MlProcessors;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -30,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -142,7 +142,7 @@ class TrainedModelAssignmentRebalancer {
                                 // We subtract native inference memory as the planner expects available memory for
                                 // native inference including current assignments.
                                 getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(load),
-                                getNodeAllocatedProcessors(discoveryNode).orElse(0)
+                                MlProcessors.get(discoveryNode).roundUp()
                             )
                         );
                     } else {
@@ -156,19 +156,6 @@ class TrainedModelAssignmentRebalancer {
             }
             return nodes;
         }));
-    }
-
-    private static OptionalInt getNodeAllocatedProcessors(DiscoveryNode node) {
-        String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
-        try {
-            return OptionalInt.of(Integer.parseInt(allocatedProcessorsString));
-        } catch (NumberFormatException e) {
-            assert e == null
-                : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR
-                    + " should parse because we set it internally: invalid value was "
-                    + allocatedProcessorsString;
-            return OptionalInt.empty();
-        }
     }
 
     private static long getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(NodeLoad load) {
@@ -266,7 +253,7 @@ class TrainedModelAssignmentRebalancer {
             // But we should also check if we managed to assign a model during the rebalance for which
             // we check if the node has used up any of its allocated processors.
             boolean isPerNodeOverheadAccountedFor = load.getNumAssignedJobsAndModels() > 0
-                || assignmentPlan.getRemainingNodeCores(load.getNodeId()) < getNodeAllocatedProcessors(node).orElse(0);
+                || assignmentPlan.getRemainingNodeCores(load.getNodeId()) < MlProcessors.get(node).roundUp();
             long requiredMemory = model.memoryBytes() + (isPerNodeOverheadAccountedFor
                 ? 0
                 : MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes());
@@ -295,7 +282,7 @@ class TrainedModelAssignmentRebalancer {
                     "This node has insufficient allocated processors. Available processors [{}], free processors [{}], "
                         + "processors required for each allocation of this model [{}]",
                     new Object[] {
-                        getNodeAllocatedProcessors(node).orElse(0),
+                        MlProcessors.get(node).roundUp(),
                         assignmentPlan.getRemainingNodeCores(node.getId()),
                         model.threadsPerAllocation() }
                 )

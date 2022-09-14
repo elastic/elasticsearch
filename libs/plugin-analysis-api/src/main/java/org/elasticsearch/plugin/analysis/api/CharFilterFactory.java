@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugin.analysis.api;
 
+import org.elasticsearch.plugin.api.Extensible;
 import org.elasticsearch.plugin.api.Nameable;
 
 import java.io.Reader;
@@ -16,6 +17,7 @@ import java.io.Reader;
  * An analysis component used to create char filters.
  *
  */
+@Extensible
 public interface CharFilterFactory extends Nameable {
     /**
      * Wraps the given Reader with a CharFilter.

@@ -56,8 +56,7 @@ public class DesiredBalanceComputer {
         final var routingNodes = routingAllocation.routingNodes();
         final var ignoredShards = new HashSet<>(desiredBalanceInput.ignoredShards());
         final var changes = routingAllocation.changes();
-        final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
-        final var unassignedPrimaries = new HashSet<ShardId>();
+        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation.clusterInfo());
 
         if (routingNodes.isEmpty()) {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of());
@@ -67,14 +66,15 @@ public class DesiredBalanceComputer {
         for (final var routingNode : routingNodes) {
             for (final var shardRouting : routingNode) {
                 if (shardRouting.initializing()) {
+                    clusterInfoSimulator.simulate(shardRouting);
                     routingNodes.startShard(logger, shardRouting, changes);
-                    // TODO adjust disk usage info to reflect the assumed shard movement
                 }
             }
         }
 
         // we are not responsible for allocating unassigned primaries of existing shards, and we're only responsible for allocating
         // unassigned replicas if the ReplicaShardAllocator gives up, so we must respect these ignored shards
+        final var unassignedPrimaries = new HashSet<ShardId>();
         final var shardRoutings = new HashMap<ShardId, ShardRoutings>();
         for (final var primary : new boolean[] { true, false }) {
             final RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
@@ -98,6 +98,7 @@ public class DesiredBalanceComputer {
         }
 
         // we can assume that all possible shards will be allocated/relocated to one of their desired locations
+        final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         final var unassignedShardsToInitialize = new HashMap<ShardRouting, LinkedList<String>>();
         for (final var entry : shardRoutings.entrySet()) {
             final var shardId = entry.getKey();
@@ -125,11 +126,9 @@ public class DesiredBalanceComputer {
             for (final var shardRouting : shardsToRelocate) {
                 assert shardRouting.started();
                 if (targetNodesIterator.hasNext()) {
-                    routingNodes.startShard(
-                        logger,
-                        routingNodes.relocateShard(shardRouting, targetNodesIterator.next(), 0L, changes).v2(),
-                        changes
-                    );
+                    ShardRouting shardToRelocate = routingNodes.relocateShard(shardRouting, targetNodesIterator.next(), 0L, changes).v2();
+                    clusterInfoSimulator.simulate(shardToRelocate);
+                    routingNodes.startShard(logger, shardToRelocate, changes);
                 } else {
                     break;
                 }
@@ -153,7 +152,9 @@ public class DesiredBalanceComputer {
                 final var nodeIds = unassignedShardsToInitialize.get(shardRouting);
                 if (nodeIds != null && nodeIds.isEmpty() == false) {
                     final String nodeId = nodeIds.removeFirst();
-                    routingNodes.startShard(logger, unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes), changes);
+                    ShardRouting shardToInitialized = unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes);
+                    clusterInfoSimulator.simulate(shardToInitialized);
+                    routingNodes.startShard(logger, shardToInitialized, changes);
                 }
             }
         }
@@ -165,7 +166,9 @@ public class DesiredBalanceComputer {
                 final var nodeIds = unassignedShardsToInitialize.get(shardRouting);
                 if (nodeIds != null && nodeIds.isEmpty() == false) {
                     final String nodeId = nodeIds.removeFirst();
-                    routingNodes.startShard(logger, unassignedReplicaIterator.initialize(nodeId, null, 0L, changes), changes);
+                    ShardRouting shardToInitialize = unassignedReplicaIterator.initialize(nodeId, null, 0L, changes);
+                    clusterInfoSimulator.simulate(shardToInitialize);
+                    routingNodes.startShard(logger, shardToInitialize, changes);
                 }
             }
         }
@@ -216,6 +219,7 @@ public class DesiredBalanceComputer {
                 // TODO test that we reset ignored shards properly
             }
 
+            routingAllocation.setSimulatedClusterInfo(clusterInfoSimulator.getClusterInfo());
             logger.trace("running delegate allocator");
             delegateAllocator.allocate(routingAllocation);
             assert routingNodes.unassigned().size() == 0; // any unassigned shards should now be ignored
@@ -225,9 +229,9 @@ public class DesiredBalanceComputer {
                 for (final var shardRouting : routingNode) {
                     if (shardRouting.initializing()) {
                         hasChanges = true;
+                        clusterInfoSimulator.simulate(shardRouting);
                         routingNodes.startShard(logger, shardRouting, changes);
                         logger.trace("starting shard {}", shardRouting);
-                        // TODO adjust disk usage info to reflect the assumed shard movement
                     }
                 }
             }

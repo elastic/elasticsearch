@@ -88,7 +88,8 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
             equalTo(
                 new ClusterInfoTestBuilder().withNode("node-0", "/node-0/data", 1000, 900)
                     .withNode("node-1", "/node-1/data", 1000, 1000)
-                    .withShard(shard, 100, "/node-0/data")
+                    .withShard(shard, 100, "/node-1/data")
+                    // .withShard(shard, 100, "/node-0/data") TODO update shard data path?
                     .build()
             )
         );

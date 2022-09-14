@@ -13,7 +13,10 @@ import org.apache.lucene.codecs.lucene94.Lucene94HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnVectorField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
@@ -31,6 +34,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -45,6 +49,7 @@ import java.nio.ByteBuffer;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -523,6 +528,99 @@ public class DenseVectorFieldMapper extends FieldMapper {
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
             return new Lucene94HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction);
+        }
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        if (indexed) {
+            return new IndexedSyntheticFieldLoader();
+        }
+        return new DocValuesSyntheticFieldLoader();
+    }
+
+    private class IndexedSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private VectorValues values;
+        private boolean hasValue;
+
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.of();
+        }
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            values = leafReader.getVectorValues(name());
+            if (values == null) {
+                return null;
+            }
+            return docId -> {
+                hasValue = docId == values.advance(docId);
+                return hasValue;
+            };
+        }
+
+        @Override
+        public boolean hasValue() {
+            return hasValue;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (false == hasValue) {
+                return;
+            }
+            b.startArray(simpleName());
+            for (float v : values.vectorValue()) {
+                b.value(v);
+            }
+            b.endArray();
+        }
+    }
+
+    private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private BinaryDocValues values;
+        private boolean hasValue;
+
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.of();
+        }
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            values = leafReader.getBinaryDocValues(name());
+            if (values == null) {
+                return null;
+            }
+            return docId -> {
+                hasValue = docId == values.advance(docId);
+                return hasValue;
+            };
+        }
+
+        @Override
+        public boolean hasValue() {
+            return hasValue;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (false == hasValue) {
+                return;
+            }
+            b.startArray(simpleName());
+            BytesRef ref = values.binaryValue();
+            ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
+            for (int dim = 0; dim < dims; dim++) {
+                b.value(byteBuffer.getFloat());
+            }
+            b.endArray();
         }
     }
 }

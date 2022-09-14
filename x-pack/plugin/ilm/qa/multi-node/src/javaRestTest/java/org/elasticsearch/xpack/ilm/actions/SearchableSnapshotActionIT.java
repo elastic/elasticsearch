@@ -665,7 +665,13 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // searchable snapshots mounted in the hot phase should be pinned to hot nodes
         assertThat(hotIndexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
 
+        // Need to stop ILM to prevent a race between rollovers and deletion of searchable snapshots
         assertOK(client().performRequest(new Request("POST", "_ilm/stop")));
+        try {
+            cleanUpCluster();
+        } finally {
+            assertOK(client().performRequest(new Request("POST", "_ilm/start")));
+        }
     }
 
     // See: https://github.com/elastic/elasticsearch/issues/77269

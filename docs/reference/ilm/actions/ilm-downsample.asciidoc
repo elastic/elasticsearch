@@ -31,7 +31,7 @@ will be downsampled up.
 ////
 [source,console]
 ----
-PUT _ilm/policy/my-rollup-ilm-policy
+PUT _ilm/policy/my-downsample-ilm-policy
 {
   "policy": {
     "phases": {
@@ -57,7 +57,7 @@ PUT _ilm/policy/datastream_policy
           "rollover": {             
             "max_docs": 1
           },
-          "rollup": {
+          "downsample": {
   	          "fixed_interval": "1h"
   	      }
         }

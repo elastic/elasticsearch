@@ -27,6 +27,7 @@ import org.elasticsearch.health.ImpactArea;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -225,15 +226,13 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
      */
     private void logMissingHealthInfoData(Map<String, DiskHealthInfo> diskHealthInfoMap) {
         if (logger.isDebugEnabled()) {
-            Set<String> nodeIdsInClusterState = clusterService.state()
-                .nodes()
-                .stream()
-                .map(DiscoveryNode::getId)
-                .collect(Collectors.toSet());
+            Set<DiscoveryNode> nodesInClusterState = new HashSet<>(clusterService.state().nodes());
+            Set<String> nodeIdsInClusterState = nodesInClusterState.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             Set<String> nodeIdsInHealthInfo = diskHealthInfoMap.keySet();
             if (nodeIdsInHealthInfo.containsAll(nodeIdsInClusterState) == false) {
-                String problemNodes = nodeIdsInClusterState.stream()
-                    .filter(node -> nodeIdsInHealthInfo.contains(node) == false)
+                String problemNodes = nodesInClusterState.stream()
+                    .filter(node -> nodeIdsInHealthInfo.contains(node.getId()) == false)
+                    .map(node -> String.format(Locale.ROOT, "{%s / %s}", node.getId(), node.getName()))
                     .collect(Collectors.joining(", "));
                 logger.debug("The following nodes are in the cluster state but not reporting health data: [{}}]", problemNodes);
             }

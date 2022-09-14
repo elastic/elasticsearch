@@ -11,6 +11,8 @@ import org.elasticsearch.gradle.testclusters.RunTask
 boolean proxyMode = Boolean.valueOf(providers.systemProperty('proxyMode').getOrElse('true'))
 
 def fulfillingCluster = testClusters.register('fulfilling-cluster') {
+  testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
+
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -19,6 +21,8 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
 }
 
 def queryingCluster = testClusters.register('querying-cluster') {
+  testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
+
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

@@ -73,6 +73,7 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_RESTORE_FROM_SNAPSHOT;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.NAME;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.AVAILABLE;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.INITIALIZING;
@@ -386,7 +387,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("restarting-index")))
+                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS, List.of("restarting-index")))
                 )
             )
         );
@@ -460,7 +461,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("restarting-index")))
+                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS, List.of("restarting-index")))
                 )
             )
         );

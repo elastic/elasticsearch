@@ -332,6 +332,9 @@ details have contents and a structure that is unique to each indicator.
 
 `status`::
     (string) The status of the disk indicator on the node.
+
+`cause`::
+    (Optional, string) The cause for the status not being GREEN, if known.
 ====
 
 [[health-api-response-details-repository-integrity]]

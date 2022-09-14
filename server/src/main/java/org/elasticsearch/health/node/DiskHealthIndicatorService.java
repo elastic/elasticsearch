@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -29,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -252,7 +254,12 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             builder.array("nodes", arrayXContentBuilder -> {
                 for (Map.Entry<String, DiskHealthInfo> entry : diskHealthInfoMap.entrySet()) {
                     builder.startObject();
-                    builder.field("node_id", entry.getKey());
+                    String nodeId = entry.getKey();
+                    builder.field("node_id", nodeId);
+                    String nodeName = getNameForNodeId(nodeId);
+                    if (nodeName != null) {
+                        builder.field("name", nodeName);
+                    }
                     builder.field("status", entry.getValue().healthStatus());
                     DiskHealthInfo.Cause cause = entry.getValue().cause();
                     if (cause != null) {
@@ -263,6 +270,23 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             });
             return builder.endObject();
         };
+    }
+
+    /**
+     * Returns the name of the node with the given nodeId, as seen in the cluster state at this moment. The name of a node is optional,
+     * so if the node does not have a name (or the node with the given nodeId is no longer in the cluster state), null is returned.
+     * @param nodeId The id of the node whose name is to be returned
+     * @return The current name of the node, or null if the node is not in the cluster state or does not have a name
+     */
+    @Nullable
+    private String getNameForNodeId(String nodeId) {
+        DiscoveryNode node = clusterService.state().nodes().get(nodeId);
+        if (node == null) {
+            return null;
+        } else {
+            String nodeName = node.getName();
+            return Objects.requireNonNullElse(nodeName, null);
+        }
     }
 
     private List<Diagnosis> getDiskProblemsDiagnosis(boolean explain, Set<String> nodeIds, Set<String> indices) {

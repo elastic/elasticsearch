@@ -53,6 +53,12 @@ public class HealthServiceIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int ordinal, Settings otherSettings) {
+        /*
+         * Every once in a while a node tries to publish its health data before it has discovered the health node and gets a
+         * NodeNotConnectedException in LocalHealthMonitor. So it waits "health.reporting.local.monitor.interval" and tries again, this
+         * time successfully. Lowering that amount of time to the lowest allowed so that this test doesn't take any more time than
+         * necessary when that happens.
+         */
         return Settings.builder()
             .put(super.nodeSettings(ordinal, otherSettings))
             .put("health.reporting.local.monitor.interval", TimeValue.timeValueSeconds(10))

@@ -1,0 +1,5 @@
+pr: 90072
+summary: Add URNs to health API diagnoses and impacts
+area: Health
+type: enhancement
+issues: []

@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
@@ -106,6 +107,28 @@ public class ReactiveReasonTests extends ESTestCase {
             assertEquals("YES", assignedDeciders.get("decision"));
             assertEquals("yes_label", assignedDeciders.get("decider"));
             assertEquals("There's enough space", assignedDeciders.get("explanation"));
+        }
+    }
+
+    public void testEmptyNodeDecisions() throws IOException {
+        var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
+            randomAlphaOfLength(10),
+            randomNonNegativeLong(),
+            Collections.emptySortedSet(),
+            randomNonNegativeLong(),
+            Collections.emptySortedSet(),
+            List.of(),
+            List.of()
+        );
+        try (
+            XContentParser parser = createParser(
+                JsonXContent.jsonXContent,
+                BytesReference.bytes(reactiveReason.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
+            )
+        ) {
+            Map<String, Object> map = parser.map();
+            assertEquals(List.of(),map.get("unassigned_node_decisions"));
+            assertEquals(List.of(), map.get("assigned_node_decisions"));
         }
     }
 

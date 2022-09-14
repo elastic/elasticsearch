@@ -16,7 +16,7 @@ POST /my-time-series-index/_downsample/my-downsampled-time-series-index
     "fixed_interval": "1d"
 }
 ----
-// TEST[skip: Just for now, to get a clean PR build and preview]
+// TEST[skip: TBD]
 
 [[downsample-api-request]]
 ==== {api-request-title}

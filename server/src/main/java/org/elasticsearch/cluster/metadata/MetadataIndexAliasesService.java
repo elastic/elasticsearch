@@ -13,14 +13,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -71,7 +74,7 @@ public class MetadataIndexAliasesService {
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        var task = new ApplyAliasActions(this, request.actions(), listener);
+        var task = new ApplyAliasActions(this, request, listener);
         var config = ClusterStateTaskConfig.build(Priority.URGENT);
         clusterService.submitStateUpdateTask("index-aliases", task, config, executor);
     }
@@ -244,7 +247,7 @@ public class MetadataIndexAliasesService {
      */
     private record ApplyAliasActions(
         MetadataIndexAliasesService aliasesService,
-        Iterable<AliasAction> actions,
+        IndicesAliasesClusterStateUpdateRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) implements ClusterStateTaskListener {
 
@@ -253,8 +256,33 @@ public class MetadataIndexAliasesService {
             listener.onFailure(e);
         }
 
-        private void onSuccess() {
-            listener.onResponse(AcknowledgedResponse.of(true));
+        ClusterStateAckListener getAckListener() {
+            return new ClusterStateAckListener() {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
+
+                @Override
+                public void onAllNodesAcked() {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                }
+
+                @Override
+                public void onAckFailure(Exception e) {
+                    listener.onResponse(AcknowledgedResponse.FALSE);
+                }
+
+                @Override
+                public void onAckTimeout() {
+                    listener.onResponse(AcknowledgedResponse.FALSE);
+                }
+
+                @Override
+                public TimeValue ackTimeout() {
+                    return request.ackTimeout();
+                }
+            };
         }
 
         /**
@@ -262,7 +290,7 @@ public class MetadataIndexAliasesService {
          * the {@link MetadataIndexAliasesService#applyAliasActions(ClusterState, Iterable)}.
          */
         public ClusterState execute(ClusterState currentState) {
-            return aliasesService.applyAliasActions(currentState, actions);
+            return aliasesService.applyAliasActions(currentState, request.actions());
         }
 
         static class Executor implements ClusterStateTaskExecutor<ApplyAliasActions> {
@@ -273,7 +301,7 @@ public class MetadataIndexAliasesService {
                 for (TaskContext<ApplyAliasActions> taskContext : batchExecutionContext.taskContexts()) {
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         updatedState = taskContext.getTask().execute(updatedState);
-                        taskContext.success(() -> taskContext.getTask().onSuccess());
+                        taskContext.success(taskContext.getTask().getAckListener());
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }

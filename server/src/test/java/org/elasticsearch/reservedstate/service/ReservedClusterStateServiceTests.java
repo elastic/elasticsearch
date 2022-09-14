@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.reservedstate.NonStateTransformResult;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -35,6 +36,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,10 +45,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.checkMetadataVersion;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
@@ -322,15 +327,18 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         assertTrue(ReservedClusterStateService.isNewError(operatorMetadata, 3L));
         assertTrue(ReservedClusterStateService.isNewError(null, 1L));
 
+        var chunk = new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT));
+        var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
+
         // We submit a task with two handler, one will cause an exception, the other will create a new state.
         // When we fail to update the metadata because of version, we ensure that the returned state is equal to the
         // original state by pointer reference to avoid cluster state update task to run.
         ReservedStateUpdateTask task = new ReservedStateUpdateTask(
             "namespace_one",
-            new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT)),
+            chunk,
             List.of(),
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
-            List.of(exceptionThrower.name(), newStateMaker.name()),
+            orderedHandlers,
             (clusterState, errorState) -> { assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())); },
             new ActionListener<>() {
                 @Override
@@ -340,6 +348,16 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 public void onFailure(Exception e) {}
             }
         );
+
+        ClusterService clusterService = mock(ClusterService.class);
+        final var controller = spy(
+            new ReservedClusterStateService(clusterService, List.of(newStateMaker, exceptionThrower))
+        );
+
+        var trialRunResult = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
+        assertEquals(0, trialRunResult.nonStateTransforms().size());
+        assertEquals(1, trialRunResult.errors().size());
+        assertTrue(trialRunResult.errors().get(0).contains("Error processing one state change:"));
 
         // We exit on duplicate errors before we update the cluster state error metadata
         assertThat(
@@ -460,6 +478,92 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 )
             ).getMessage().startsWith("Duplicate key cluster_settings")
         );
+    }
+
+    public void testCheckAndReportError() {
+        ClusterService clusterService = mock(ClusterService.class);
+        final var controller = spy(new ReservedClusterStateService(clusterService, List.of()));
+
+        assertNull(controller.checkAndReportError("test", List.of(), null, null));
+        verify(controller, times(0)).saveErrorState(any(), any());
+
+        var state = ClusterState.builder(new ClusterName("elasticsearch")).build();
+        var version = new ReservedStateVersion(2L, Version.CURRENT);
+        var error = controller.checkAndReportError("test", List.of("test error"), state, version);
+        assertThat(error, allOf(notNullValue(), instanceOf(IllegalStateException.class)));
+        assertEquals(
+            "Error processing state change request for test, errors: test error",
+            error.getMessage()
+        );
+        verify(controller, times(1)).saveErrorState(any(), any());
+    }
+
+    public void testTrialRunExtractsNonStateActions() {
+        ReservedClusterStateHandler<Map<String, Object>> newStateMaker = new ReservedClusterStateHandler<>() {
+            @Override
+            public String name() {
+                return "maker";
+            }
+
+            @Override
+            public TransformState transform(Object source, TransformState prevState) throws Exception {
+                ClusterState newState = new ClusterState.Builder(prevState.state()).build();
+                return new TransformState(newState, prevState.keys());
+            }
+
+            @Override
+            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+                return parser.map();
+            }
+        };
+
+        ReservedClusterStateHandler<Map<String, Object>> exceptionThrower = new ReservedClusterStateHandler<>() {
+            @Override
+            public String name() {
+                return "non-state";
+            }
+
+            @Override
+            public TransformState transform(Object source, TransformState prevState)  {
+                return new TransformState(prevState.state(), prevState.keys(), (l) -> internalKeys(l));
+            }
+
+            private void internalKeys(ActionListener<NonStateTransformResult> listener) {
+                listener.onResponse(new NonStateTransformResult(name(), Set.of("key non-state")));
+            }
+
+            @Override
+            public Map<String, Object> fromXContent(XContentParser parser) throws IOException {
+                return parser.map();
+            }
+        };
+
+        ReservedStateHandlerMetadata hmOne = new ReservedStateHandlerMetadata("non-state", Set.of("a", "b"));
+        ReservedStateErrorMetadata emOne = new ReservedStateErrorMetadata(
+            2L,
+            ReservedStateErrorMetadata.ErrorKind.VALIDATION,
+            List.of("Test error 1", "Test error 2")
+        );
+
+        final ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("namespace_one")
+            .errorMetadata(emOne)
+            .version(1L)
+            .putHandler(hmOne)
+            .build();
+
+        Metadata metadata = Metadata.builder().put(operatorMetadata).build();
+        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+
+        var chunk = new ReservedStateChunk(Map.of("non-state", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT));
+        var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
+
+        ClusterService clusterService = mock(ClusterService.class);
+        final var controller = spy(
+            new ReservedClusterStateService(clusterService, List.of(newStateMaker, exceptionThrower))
+        );
+
+        var trialRunResult = controller.trialRun("namespace_one", state, chunk, new LinkedHashSet<>(orderedHandlers));
+
     }
 
     class TestHandler implements ReservedClusterStateHandler<Map<String, Object>> {

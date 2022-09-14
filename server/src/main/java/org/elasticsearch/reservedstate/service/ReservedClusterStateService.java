@@ -225,7 +225,8 @@ public class ReservedClusterStateService {
         });
     }
 
-    private Exception checkAndReportError(
+    // package private for testing
+    Exception checkAndReportError(
         String namespace,
         List<String> errors,
         ClusterState currentState,
@@ -257,7 +258,8 @@ public class ReservedClusterStateService {
             || existingMetadata.errorMetadata().version() < newStateVersion);
     }
 
-    private void saveErrorState(ClusterState clusterState, ErrorState errorState) {
+    // package private for testing
+    void saveErrorState(ClusterState clusterState, ErrorState errorState) {
         ReservedStateMetadata existingMetadata = clusterState.metadata().reservedStateMetadata().get(errorState.namespace());
 
         if (isNewError(existingMetadata, errorState.version()) == false) {
@@ -301,8 +303,10 @@ public class ReservedClusterStateService {
      * need to be performed asynchronously before we attempt to save the cluster state. The trial run does not
      * result in an update of the cluster state, it's only purpose is to verify if we can correctly perform a
      * cluster state update with the given reserved state chunk.
+     *
+     * Package private for testing
      */
-    private TrialRunResult trialRun(
+    TrialRunResult trialRun(
         String namespace,
         ClusterState currentState,
         ReservedStateChunk stateChunk,
@@ -339,8 +343,10 @@ public class ReservedClusterStateService {
      * Once all non cluster state transformations have completed, we submit the cluster state update task, which
      * updates all of the handler state, including the keys produced by the non cluster state transforms. The new reserved
      * state version isn't written to the cluster state until the cluster state task runs.
+     *
+     * Package private for testing
      */
-    private void executeNonStateTransformationSteps(
+    void executeNonStateTransformationSteps(
         List<Consumer<ActionListener<NonStateTransformResult>>> nonStateTransforms,
         ActionListener<Collection<NonStateTransformResult>> listener
     ) {

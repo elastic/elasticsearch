@@ -80,7 +80,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
 
             if (names.size() > 1 && names.stream().filter(Regex::isSimpleMatchPattern).count() > 0) {
                 throw new IllegalArgumentException(
-                    "wildcard only support a single value, please use comma-separated values or a single wildcard value"
+                    "wildcard only supports a single value, please use comma-separated values or a single wildcard value"
                 );
             }
 

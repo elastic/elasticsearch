@@ -10,17 +10,22 @@ package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharFilter;
+import org.apache.lucene.analysis.FilteringTokenFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.charfilter.MappingCharFilter;
+import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.util.CharTokenizer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
@@ -38,6 +43,7 @@ import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugin.analysis.api.AnalysisMode;
 import org.elasticsearch.plugin.api.NamedComponent;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.scanners.NameToPluginInfo;
@@ -472,83 +478,190 @@ public class AnalysisModuleTests extends ESTestCase {
 
     @NamedComponent(name = "stableCharFilterFactory")
     public static class TestCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
+        @SuppressForbidden(reason = "need a public constructor")
         public TestCharFilterFactory() {}
 
         @Override
         public Reader create(Reader reader) {
-            try {
-                return new StringReader(Streams.copyToString(reader) + "_stable");
-            } catch (IOException e) {}
-            return reader;
+            return new ReplaceHash(reader);
         }
 
         @Override
         public Reader normalize(Reader reader) {
-            try {
-                return new StringReader(Streams.copyToString(reader) + "_stable");
-            } catch (IOException e) {}
-            return reader;
+            return new ReplaceHash(reader);
         }
 
     }
 
+    static class ReplaceHash extends MappingCharFilter {
+
+        ReplaceHash(Reader in) {
+            super(charMap(), in);
+        }
+
+        private static NormalizeCharMap charMap() {
+            NormalizeCharMap.Builder builder = new NormalizeCharMap.Builder();
+            builder.add("#", "3");
+            return builder.build();
+        }
+    }
+
+    @NamedComponent(name = "stableTokenFilterFactory")
+    public static class TestTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
+
+        @SuppressForbidden(reason = "need a public constructor")
+        public TestTokenFilterFactory() {}
+
+        @Override
+        public TokenStream create(TokenStream tokenStream) {
+
+            return new Skip1TokenFilter(tokenStream);
+        }
+
+        @Override
+        public TokenStream normalize(TokenStream tokenStream) {
+            return org.elasticsearch.plugin.analysis.api.TokenFilterFactory.super.normalize(tokenStream);
+        }
+
+        @Override
+        public AnalysisMode getAnalysisMode() {
+            return org.elasticsearch.plugin.analysis.api.TokenFilterFactory.super.getAnalysisMode();
+        }
+
+    }
+
+    static class Skip1TokenFilter extends FilteringTokenFilter {
+
+        private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+
+        Skip1TokenFilter(TokenStream in) {
+            super(in);
+        }
+
+        @Override
+        protected boolean accept() throws IOException {
+            return termAtt.buffer()[0] != '1';
+        }
+    }
+
+    @NamedComponent(name = "stableTokenizerFactory")
+    public static class TestTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
+        @SuppressForbidden(reason = "need a public constructor")
+        public TestTokenizerFactory() {}
+
+        @Override
+        public Tokenizer create() {
+            return new UnderscoreTokenizer();
+        }
+
+    }
+
+    static class UnderscoreTokenizer extends CharTokenizer {
+
+        @Override
+        protected boolean isTokenChar(int c) {
+            return c != '_';
+        }
+    }
+
+    @NamedComponent(name = "stableAnalyzerFactory")
+    public static class TestAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
+
+        @Override
+        public Analyzer create() {
+            return new CustomAnalyzer();
+        }
+
+        static class CustomAnalyzer extends Analyzer {
+
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                var tokenizer = new UnderscoreTokenizer();
+                var tokenFilter = new Skip1TokenFilter(tokenizer);
+                return new TokenStreamComponents(r -> tokenizer.setReader(new ReplaceHash(r)), tokenFilter);
+            }
+        }
+    }
+
     public void testStablePlugins() throws IOException {
+        // todo test multiterm -normalize
         boolean noVersionSupportsMultiTerm = randomBoolean();
         boolean luceneVersionSupportsMultiTerm = randomBoolean();
         boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
         AnalysisRegistry registry = new AnalysisModule(
             TestEnvironment.newEnvironment(emptyNodeSettings),
-            singletonList(new AnalysisPlugin() {
-                @Override
-                public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
-                    // Need mock keyword tokenizer here, because alpha / beta versions are broken up by the dash.
-                    return singletonMap(
-                        "keyword",
-                        (indexSettings, environment, name, settings) -> TokenizerFactory.newFactory(
-                            name,
-                            () -> new MockTokenizer(MockTokenizer.KEYWORD, false)
+            emptyList(),
+            new StablePluginsRegistry(
+                new NamedComponentReader(),
+                Map.of(
+                    org.elasticsearch.plugin.analysis.api.CharFilterFactory.class.getCanonicalName(),
+                    new NameToPluginInfo(
+                        Map.of(
+                            "stableCharFilterFactory",
+                            new PluginInfo("stableCharFilterFactory", TestCharFilterFactory.class.getName(), getClass().getClassLoader())
                         )
-                    );
-                }
-            }),
-            new StablePluginsRegistry(new NamedComponentReader(),
-                Map.of(org.elasticsearch.plugin.analysis.api.CharFilterFactory.class.getCanonicalName(), new NameToPluginInfo(
-                    Map.of("stableCharFilterFactory",
-                        new PluginInfo("stableCharFilterFactory",
-                            TestCharFilterFactory.class.getName(),
-                            getClass().getClassLoader()))
-                )))
+                    ),
+                    org.elasticsearch.plugin.analysis.api.TokenFilterFactory.class.getCanonicalName(),
+                    new NameToPluginInfo(
+                        Map.of(
+                            "stableTokenFilterFactory",
+                            new PluginInfo("stableTokenFilterFactory", TestTokenFilterFactory.class.getName(), getClass().getClassLoader())
+                        )
+                    ),
+                    org.elasticsearch.plugin.analysis.api.TokenizerFactory.class.getCanonicalName(),
+                    new NameToPluginInfo(
+                        Map.of(
+                            "stableTokenizerFactory",
+                            new PluginInfo("stableTokenizerFactory", TestTokenizerFactory.class.getName(), getClass().getClassLoader())
+                        )
+                    ),
+                    org.elasticsearch.plugin.analysis.api.AnalyzerFactory.class.getCanonicalName(),
+                    new NameToPluginInfo(
+                        Map.of(
+                            "stableAnalyzerFactory",
+                            new PluginInfo("stableAnalyzerFactory", TestAnalyzerFactory.class.getName(), getClass().getClassLoader())
+                        )
+                    )
+                )
+            )
         ).getAnalysisRegistry();
 
         Version version = VersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
             registry,
             Settings.builder()
-                .put("index.analysis.analyzer.no_version.tokenizer", "standard")
-                .put("index.analysis.analyzer.no_version.char_filter", "stableCharFilterFactory")
-//                .put("index.analysis.analyzer.lucene_version.tokenizer", "keyword")
-//                .put("index.analysis.analyzer.lucene_version.char_filter", "lucene_version")
-//                .put("index.analysis.analyzer.elasticsearch_version.tokenizer", "keyword")
-//                .put("index.analysis.analyzer.elasticsearch_version.char_filter", "elasticsearch_version")
+                .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")
+                .put("index.analysis.analyzer.char_filter_test.char_filter", "stableCharFilterFactory")
+
+                .put("index.analysis.analyzer.token_filter_test.tokenizer", "standard")
+                .put("index.analysis.analyzer.token_filter_test.filter", "stableTokenFilterFactory")
+
+                .put("index.analysis.analyzer.tokenizer_test.tokenizer", "stableTokenizerFactory")
+
+                .put("index.analysis.analyzer.analyzer_provider_test.type", "stableAnalyzerFactory")
                 .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()
         );
-        assertTokenStreamContents(analyzers.get("no_version").tokenStream("", "test"), new String[] { "test_stable" });
-//        assertTokenStreamContents(analyzers.get("lucene_version").tokenStream("", "test"), new String[] { "test" + version.luceneVersion });
-//        assertTokenStreamContents(analyzers.get("elasticsearch_version").tokenStream("", "test"), new String[] { "test" + version });
-
-        assertEquals(
-            "test" + (noVersionSupportsMultiTerm ? "_stable" : ""),
-            analyzers.get("no_version").normalize("", "test").utf8ToString()
+        assertTokenStreamContents(analyzers.get("char_filter_test").tokenStream("", "t#st"), new String[] { "t3st" });
+        assertTokenStreamContents(
+            analyzers.get("token_filter_test").tokenStream("", "1test 2test 1test 3test "),
+            new String[] { "2test", "3test" }
         );
-//        assertEquals(
-//            "test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
-//            analyzers.get("lucene_version").normalize("", "test").utf8ToString()
-//        );
-//        assertEquals(
-//            "test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
-//            analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString()
-//        );
+        assertTokenStreamContents(analyzers.get("tokenizer_test").tokenStream("", "x_y_z"), new String[] { "x", "y", "z" });
+        assertTokenStreamContents(analyzers.get("analyzer_provider_test").tokenStream("", "1x_y_#z"), new String[] { "y", "3z" });
+
+        // assertEquals(
+        // "test" + (noVersionSupportsMultiTerm ? "_stable" : ""),
+        // analyzers.get("no_version").normalize("", "test").utf8ToString()
+        // );
+        // assertEquals(
+        // "test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
+        // analyzers.get("lucene_version").normalize("", "test").utf8ToString()
+        // );
+        // assertEquals(
+        // "test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
+        // analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString()
+        // );
     }
 
     // Simple char filter that appends text to the term

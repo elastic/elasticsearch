@@ -28,9 +28,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
-import org.elasticsearch.plugins.scanners.NameToPluginInfo;
-import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
@@ -468,13 +465,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             privilegedSetContextClassLoader(pluginClassLoader);
             if (bundle.pluginDescriptor().isStable()) {
                 stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
-            }
-
-            if (bundle.pluginDescriptor().getName().contains("analysis-common")) {
-                stablePluginsRegistry.namedComponents.put(
-                    CharFilterFactory.class.getCanonicalName(),
-                    new NameToPluginInfo(Map.of("xx", new PluginInfo("xx", "org.elasticsearch.analysis.common.XX", pluginClassLoader)))
-                );
             }
 
             Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);

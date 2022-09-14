@@ -125,6 +125,10 @@ public class RoutingAllocation {
         }
         this.nodeReplacementTargets = Map.copyOf(targetNameToShutdown);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+        unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
+    }
+
+    private static Map<String, Long> unaccountedSearchableSnapshotSizes(ClusterState clusterState, ClusterInfo clusterInfo) {
         Map<String, Long> unaccountedSearchableSnapshotSizes = new HashMap<>();
         if (clusterInfo != null) {
             for (RoutingNode node : clusterState.getRoutingNodes()) {
@@ -147,7 +151,7 @@ public class RoutingAllocation {
                 }
             }
         }
-        this.unaccountedSearchableSnapshotSizes = Collections.unmodifiableMap(unaccountedSearchableSnapshotSizes);
+        return Collections.unmodifiableMap(unaccountedSearchableSnapshotSizes);
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */

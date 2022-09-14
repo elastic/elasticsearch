@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -15,14 +17,19 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -30,6 +37,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.IsSafe;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 
+// TODO: action with
 public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeReadAction<
     PrevalidateNodeRemovalRequest,
     PrevalidateNodeRemovalResponse> {
@@ -66,7 +74,34 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         ActionListener<PrevalidateNodeRemovalResponse> listener
     ) throws Exception {
         // TODO: Need to set masterNodeTimeOut
-        doPrevalidation(request, new ClusterStateHealth(state), listener);
+        List<String> nodes = request.getNodeIds();
+        try {
+            List<DiscoveryNode> concreteNodes = resolveNodes(nodes, state.nodes());
+            request.setConcreteNodes(concreteNodes.toArray(new DiscoveryNode[0]));
+            doPrevalidation(request, new ClusterStateHealth(state), listener);
+        } catch (IllegalArgumentException e) {
+            listener.onFailure(new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST));
+        } catch (ResourceNotFoundException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    public static List<DiscoveryNode> resolveNodes(List<String> nodes, DiscoveryNodes discoveryNodes) {
+        List<DiscoveryNode> concreteNodes = new ArrayList<>(nodes.size());
+        for (String node : nodes) {
+            List<DiscoveryNode> matches = discoveryNodes.stream()
+                .filter(dn -> dn.getId().equals(node) || dn.getName().equals(node) || dn.getExternalId().equals(node))
+                .toList();
+            if (matches.isEmpty()) {
+                throw new ResourceNotFoundException("node [{}] not found", node);
+            }
+            if (matches.size() > 1) {
+                throw new IllegalArgumentException("more than one node matches [" + node + "]");
+            }
+            concreteNodes.add(matches.get(0));
+        }
+        assert concreteNodes.size() == nodes.size();
+        return concreteNodes;
     }
 
     @Override

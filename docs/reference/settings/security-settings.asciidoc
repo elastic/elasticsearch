@@ -1501,8 +1501,7 @@ This setting cannot be used with `ssl.truststore.password`.
 // tag::saml-ssl-verification-mode-tag[]
 `ssl.verification_mode` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Indicates the type of verification when using `saml` to protect against man
-in the middle attacks and certificate forgery.
+Controls the verification of certificates.
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 // end::saml-ssl-verification-mode-tag[]
 
@@ -1988,8 +1987,7 @@ You cannot use this setting and `ssl.truststore.password` at the same time.
 // tag::oidc-ssl-verification-mode-tag[]
 `ssl.verification_mode` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Indicates the type of verification when using `oidc` to protect against man
-in the middle attacks and certificate forgery.
+Controls the verification of certificates.
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 // end::oidc-ssl-verification-mode-tag[]
 
@@ -2351,8 +2349,7 @@ You cannot use this setting and `ssl.truststore.password` at the same time.
 // tag::jwt-ssl-verification-mode-tag[]
 `ssl.verification_mode` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Indicates the type of verification when using `jwt` to protect against man
-in the middle attacks and certificate forgery.
+Controls the verification of certificates.
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 // end::jwt-ssl-verification-mode-tag[]
 

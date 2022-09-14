@@ -93,14 +93,14 @@ public class ReactiveReasonTests extends ESTestCase {
             assertSorted(xContentAssignedShardIds.stream().map(ShardId::fromString).toList());
             assertEquals(assignedShardIds.size(), map.get("assigned_shards_count"));
 
-            List<Map<String, Object>> unassignedAllocateResults = (List<Map<String, Object>>) map.get("unassigned_allocation_results");
+            List<Map<String, Object>> unassignedAllocateResults = (List<Map<String, Object>>) map.get("unassigned_node_decisions");
             assertEquals("node1", unassignedAllocateResults.get(0).get("node_id"));
             Map<String, Object> unassignedDeciders = (Map<String, Object>) unassignedAllocateResults.get(0).get("node_decision");
             assertEquals("NO", unassignedDeciders.get("decision"));
             assertEquals("no_label", unassignedDeciders.get("decider"));
             assertEquals("No space to allocate", unassignedDeciders.get("explanation"));
 
-            List<Map<String, Object>> assignedAllocateResults = (List<Map<String, Object>>) map.get("assigned_allocation_results");
+            List<Map<String, Object>> assignedAllocateResults = (List<Map<String, Object>>) map.get("assigned_node_decisions");
             assertEquals("node1", assignedAllocateResults.get(0).get("node_id"));
             Map<String, Object> assignedDeciders = (Map<String, Object>) assignedAllocateResults.get(0).get("node_decision");
             assertEquals("YES", assignedDeciders.get("decision"));

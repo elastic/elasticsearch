@@ -153,9 +153,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
                 numPrevents,
                 allocatableShards.shardIds(),
-                nodeAllocationResults -> numPrevents > 0
-                    ? singleNoDecision(nodeAllocationResults.get(0)).equals(Decision.single(Decision.Type.NO, "disk_threshold", "test"))
-                    : nodeAllocationResults.isEmpty(),
+                nodeDecisions -> numPrevents > 0
+                    ? singleNoDecision(nodeDecisions.get(0)).equals(Decision.single(Decision.Type.NO, "disk_threshold", "test"))
+                    : nodeDecisions.isEmpty(),
                 List::isEmpty,
                 mockCanAllocateDiskDecider
             );
@@ -269,7 +269,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 .map(ShardRouting::shardId)
                 .filter(subjectShards::contains)
                 .collect(Collectors.toCollection(TreeSet::new)),
-            nodeAllocationResults -> singleNoDecision(nodeAllocationResults.get(0)).equals(
+            nodeDecisions -> singleNoDecision(nodeDecisions.get(0)).equals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test")
             ),
             nodeDecisions -> nodeDecisions.get(0).decision().type().equals(Decision.Type.NO),
@@ -393,7 +393,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertTrue(nodeDecisions.stream().map(NodeDecision::decision).allMatch(d -> d.type() == Decision.Type.NO));
             return true;
         },
-            nodeAllocationResults -> singleNoDecision(nodeAllocationResults.get(0)).equals(
+            nodeDecisions -> singleNoDecision(nodeDecisions.get(0)).equals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test")
             ),
             mockCanRemainDiskDecider,
@@ -423,7 +423,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertTrue(nodeDecisions.stream().map(NodeDecision::decision).allMatch(d -> d.type() == Decision.Type.NO));
             return true;
         },
-            nodeAllocationResults -> singleNoDecision(nodeAllocationResults.get(0)).equals(
+            nodeDecisions -> singleNoDecision(nodeDecisions.get(0)).equals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test")
             ),
             mockCanAllocateDiskDecider,
@@ -537,8 +537,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertThat(resultReason.summary(), equalTo("current capacity not available"));
             assertThat(resultReason.unassignedShardIds(), equalTo(Set.of()));
             assertThat(resultReason.assignedShardIds(), equalTo(Set.of()));
-            assertThat(resultReason.unassignedAllocationResults(), equalTo(List.of()));
-            assertThat(resultReason.assignedAllocationResults(), equalTo(List.of()));
+            assertThat(resultReason.unassignedNodeDecisions(), equalTo(List.of()));
+            assertThat(resultReason.assignedNodeDecisions(), equalTo(List.of()));
         }
     }
 

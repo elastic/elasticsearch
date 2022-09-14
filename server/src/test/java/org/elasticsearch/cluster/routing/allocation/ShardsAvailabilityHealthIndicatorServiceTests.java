@@ -464,7 +464,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
-                            ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_URN,
+                            ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_URN,
                             1,
                             "Cannot add data to 1 index [restarting-index]. Searches might return incomplete results.",
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)

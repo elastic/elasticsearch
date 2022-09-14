@@ -451,7 +451,6 @@ public class WriteField implements Field<Object> {
     /**
      * Append a {@link NestedDocument} to this field and return it.
      */
-    @SuppressWarnings("unchecked")
     public NestedDocument doc() {
         List<Map<String, Object>> docs = getDocsAsList();
 
@@ -470,7 +469,6 @@ public class WriteField implements Field<Object> {
      *  Returns a {@link NestedDocument} at the index, if index is beyond the end of the List, creates empty
      *  NestedDocument through the end of the array to the index.
      */
-    @SuppressWarnings("unchecked")
     public NestedDocument doc(int index) {
         List<Map<String, Object>> docs = getDocsAsList();
         if (docs == null) {

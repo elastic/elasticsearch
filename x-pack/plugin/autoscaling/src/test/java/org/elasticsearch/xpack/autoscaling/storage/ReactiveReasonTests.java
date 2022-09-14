@@ -127,7 +127,7 @@ public class ReactiveReasonTests extends ESTestCase {
             )
         ) {
             Map<String, Object> map = parser.map();
-            assertEquals(List.of(),map.get("unassigned_node_decisions"));
+            assertEquals(List.of(), map.get("unassigned_node_decisions"));
             assertEquals(List.of(), map.get("assigned_node_decisions"));
         }
     }

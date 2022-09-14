@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.node.DiskHealthInfo;
@@ -34,6 +36,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -46,6 +49,14 @@ public class HealthServiceIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return appendToCopy(super.nodePlugins(), TestHealthPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int ordinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(ordinal, otherSettings))
+            .put("health.reporting.local.monitor.interval", TimeValue.timeValueSeconds(10))
+            .build();
     }
 
     public void testThatHealthNodeDataIsFetchedAndPassedToIndicators() throws Exception {
@@ -98,7 +109,7 @@ public class HealthServiceIT extends ESIntegTestCase {
             for (String nodeId : state.getNodes().getNodes().keySet()) {
                 assertThat(healthResponse.getHealthInfo().diskInfoByNode().containsKey(nodeId), equalTo(true));
             }
-        });
+        }, 15, TimeUnit.SECONDS);
     }
 
     public static final class TestHealthPlugin extends Plugin implements HealthPlugin {

@@ -94,11 +94,6 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain) {
-        return calculate(explain, new HealthInfo(Map.of())); // TODO delete this method
-    }
-
-    // @Override //TODO: put this back
     public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
         Map<String, DiskHealthInfo> diskHealthInfoMap = healthInfo.diskInfoByNode();
         if (diskHealthInfoMap == null || diskHealthInfoMap.isEmpty()) {

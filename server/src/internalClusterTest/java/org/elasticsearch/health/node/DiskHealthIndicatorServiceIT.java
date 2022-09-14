@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health.node;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -21,6 +22,7 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -35,11 +37,7 @@ public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
             waitForAllNodesToReportHealth();
             for (String node : internalCluster.getNodeNames()) {
                 HealthService healthService = internalCluster.getInstance(HealthService.class, node);
-                List<HealthIndicatorResult> resultList = healthService.getHealth(
-                    // internalCluster.client(node), //TODO: add this line
-                    DiskHealthIndicatorService.NAME,
-                    true
-                );
+                List<HealthIndicatorResult> resultList = getHealthServiceResults(healthService, node);
                 assertNotNull(resultList);
                 assertThat(resultList.size(), equalTo(1));
                 HealthIndicatorResult testIndicatorResult = resultList.get(0);
@@ -57,11 +55,7 @@ public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
             waitForAllNodesToReportHealth();
             for (String node : internalCluster.getNodeNames()) {
                 HealthService healthService = internalCluster.getInstance(HealthService.class, node);
-                List<HealthIndicatorResult> resultList = healthService.getHealth(
-                    // internalCluster.client(node), //TODO: add this line
-                    DiskHealthIndicatorService.NAME,
-                    true
-                );
+                List<HealthIndicatorResult> resultList = getHealthServiceResults(healthService, node);
                 assertNotNull(resultList);
                 assertThat(resultList.size(), equalTo(1));
                 HealthIndicatorResult testIndicatorResult = resultList.get(0);
@@ -69,6 +63,24 @@ public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
                 assertThat(testIndicatorResult.symptom(), equalTo("2 nodes are out of disk space."));
             }
         }
+    }
+
+    private List<HealthIndicatorResult> getHealthServiceResults(HealthService healthService, String node) throws Exception {
+        AtomicReference<List<HealthIndicatorResult>> resultListReference = new AtomicReference<>();
+        ActionListener<List<HealthIndicatorResult>> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
+                resultListReference.set(healthIndicatorResults);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
+        healthService.getHealth(internalCluster().client(node), DiskHealthIndicatorService.NAME, true, listener);
+        assertBusy(() -> assertNotNull(resultListReference.get()));
+        return resultListReference.get();
     }
 
     private Settings getVeryLowWatermarksSettings() {
@@ -82,15 +94,7 @@ public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
 
     private void waitForAllNodesToReportHealth() throws Exception {
         assertBusy(() -> {
-            ClusterState state = internalCluster().client()
-                .admin()
-                .cluster()
-                .prepareState()
-                .clear()
-                .setMetadata(true)
-                .setNodes(true)
-                .get()
-                .getState();
+            ClusterState state = internalCluster().clusterService().state();
             DiscoveryNode healthNode = HealthNode.findHealthNode(state);
             assertNotNull(healthNode);
             Map<String, DiskHealthInfo> healthInfoCache = internalCluster().getInstance(HealthInfoCache.class, healthNode.getName())

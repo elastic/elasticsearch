@@ -2019,12 +2019,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private RepositoryException corruptedStateException(@Nullable Exception cause, @Nullable Tuple<Long, String> previousWriterInfo) {
         return new RepositoryException(
             metadata.name(),
-            "Could not read repository data because the contents of the repository do not match its "
-                + "expected state. This is likely the result of either concurrently modifying the contents of the "
-                + "repository by a process other than this cluster or an issue with the repository's underlying storage. "
-                + "The repository has been disabled to prevent corrupting its contents. To re-enable it "
-                + "and continue using it please remove the repository from the cluster and add it again to make "
-                + "the cluster recover the known state of the repository from its physical contents."
+            "The repository has been disabled to prevent data corruption because its contents were found not to match its expected state. "
+                + "This is either because something other than this cluster modified the repository contents, or because the repository's "
+                + "underlying storage behaves incorrectly. To re-enable this repository, first ensure that this cluster has exclusive "
+                + "write access to it, and then re-register the repository with this cluster. "
+                + "See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                + Version.CURRENT.major
+                + "."
+                + Version.CURRENT.minor
+                + "/add-repository.html for further information."
                 + previousWriterMessage(previousWriterInfo),
             cause
         );

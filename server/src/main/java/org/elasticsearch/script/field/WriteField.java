@@ -453,25 +453,12 @@ public class WriteField implements Field<Object> {
      */
     @SuppressWarnings("unchecked")
     public NestedDocument doc() {
+        List<Map<String, Object>> docs = getDocsAsList();
 
-        Object value = get(MISSING);
-        if (value == MISSING) {
+        if (docs == null) {
             NestedDocument doc = new NestedDocument(this, new HashMap<>());
             set(doc.getDoc());
             return doc;
-        }
-
-        List<Map<String, Object>> docs;
-        if (value instanceof List<?> list) {
-            docs = (List<Map<String, Object>>) list;
-
-        } else if (value instanceof Map<?, ?> map) {
-            docs = new ArrayList<>(4);
-            docs.add((Map<String, Object>) map);
-            set(docs);
-
-        } else {
-            throw new IllegalStateException("Cannot append a doc at [" + path + "] to [" + value + "] of type [" + typeName(value) + "]");
         }
 
         NestedDocument doc = new NestedDocument(this, new HashMap<>());
@@ -485,55 +472,57 @@ public class WriteField implements Field<Object> {
      */
     @SuppressWarnings("unchecked")
     public NestedDocument doc(int index) {
-        Object value = get(index, MISSING);
-        if (value != MISSING) {
-            if (value instanceof Map<?, ?> map) {
-                return new NestedDocument(this, (Map<String, Object>) map);
+        List<Map<String, Object>> docs = getDocsAsList();
+        if (docs == null) {
+            if (index == 0) {
+                NestedDocument doc = new NestedDocument(this, new HashMap<>());
+                set(doc.getDoc());
+                return doc;
             }
-            throw new IllegalArgumentException(
-                "Expected NestedDocument at path ["
-                    + path
-                    + "] and index ["
-                    + index
-                    + "], "
-                    + "found ["
-                    + value
-                    + "] of type ["
-                    + (value != null ? value.getClass().getName() : null)
-                    + "] instead"
-            );
+            docs = new ArrayList<>(index + 1);
+            set(docs);
         }
 
-        List<Map<String, Object>> docs;
-        NestedDocument doc = new NestedDocument(this, new HashMap<>());
-
-        // Are there any values?
-        value = get(MISSING);
-        if (value == MISSING) {
-            docs = new ArrayList<>(index + 1);
-            set(docs);
-
-        } else if (value instanceof List<?> list) {
-            docs = (List<Map<String, Object>>) list;
-
-            // index = 0 handled by get(index, MISSING)
-        } else if (value instanceof Map<?, ?> map) {
-            docs = new ArrayList<>(index + 1);
-            set(docs);
-            docs.add((Map<String, Object>) map);
-
-        } else {
-            throw new IllegalStateException(
-                "Unexpected value [" + value + "] of type [" + typeName(value) + "] at [" + path + "] when adding doc at [" + index + "]"
-            );
+        if (index < docs.size()) {
+            return new NestedDocument(this, docs.get(index));
         }
 
         for (int i = docs.size(); i < index; i++) {
             docs.add(new HashMap<>());
         }
 
+        NestedDocument doc = new NestedDocument(this, new HashMap<>());
         docs.add(doc.getDoc());
         return doc;
+    }
+
+    /**
+     * Fetch the value at the current location, changing a Map into a single element list.  The new list is written back to the leaf.
+     * If there is no value, return {@code null}.
+     * If there is a value that is not a List or a Map, {@throws IllegalStateException}.
+     */
+    @SuppressWarnings("unchecked")
+    protected List<Map<String, Object>> getDocsAsList() {
+        Object value = get(MISSING);
+        if (value == MISSING) {
+            return null;
+        }
+
+        List<Map<String, Object>> docs;
+        if (value instanceof List<?> list) {
+            docs = (List<Map<String, Object>>) list;
+
+        } else if (value instanceof Map<?, ?> map) {
+            docs = new ArrayList<>(4);
+            docs.add((Map<String, Object>) map);
+            set(docs);
+
+        } else {
+            throw new IllegalStateException(
+                "Unexpected value [" + value + "] of type [" + typeName(value) + "] at path [" + path + "], expected Map or List of Map"
+            );
+        }
+        return docs;
     }
 
     /**

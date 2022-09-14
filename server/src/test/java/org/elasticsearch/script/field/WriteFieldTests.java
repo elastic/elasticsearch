@@ -626,16 +626,13 @@ public class WriteFieldTests extends ESTestCase {
         WriteField wf = new WriteField("a.b", () -> root);
 
         IllegalStateException err = expectThrows(IllegalStateException.class, wf::doc);
-        assertEquals("Cannot append a doc at [a.b] to [foo] of type [java.lang.String]", err.getMessage());
+        assertEquals("Unexpected value [foo] of type [java.lang.String] at path [a.b], expected Map or List of Map", err.getMessage());
 
-        IllegalArgumentException err2 = expectThrows(IllegalArgumentException.class, () -> wf.doc(0));
-        assertEquals(
-            "Expected NestedDocument at path [a.b] and index [0], found [foo] of type [java.lang.String] instead",
-            err2.getMessage()
-        );
+        err = expectThrows(IllegalStateException.class, () -> wf.doc(0));
+        assertEquals("Unexpected value [foo] of type [java.lang.String] at path [a.b], expected Map or List of Map", err.getMessage());
 
         err = expectThrows(IllegalStateException.class, () -> wf.doc(2));
-        assertEquals("Unexpected value [foo] of type [java.lang.String] at [a.b] when adding doc at [2]", err.getMessage());
+        assertEquals("Unexpected value [foo] of type [java.lang.String] at path [a.b], expected Map or List of Map", err.getMessage());
 
         err = expectThrows(IllegalStateException.class, wf::docs);
         assertEquals("Unexpected value [foo] of type [java.lang.String] at [a.b] for docs()", err.getMessage());
@@ -679,7 +676,6 @@ public class WriteFieldTests extends ESTestCase {
         NestedDocument doc = wf.doc(3);
         doc.field("c").set("foo");
         assertEquals("foo", wf.doc(3).field("c").get("dne"));
-        doc = wf.doc(3);
         assertThat(getList(root, "a.b").get(3), equalTo(Map.of("c", "foo")));
     }
 

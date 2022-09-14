@@ -2027,7 +2027,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 + Version.CURRENT.major
                 + "."
                 + Version.CURRENT.minor
-                + "/add-repository.html for detailed instructions on how to re-register the repository."
+                + "/add-repository.html for further information."
                 + previousWriterMessage(previousWriterInfo),
             cause
         );

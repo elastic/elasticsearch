@@ -33,13 +33,13 @@ public class NodeDecision implements ToXContentObject, Writeable {
 
     public NodeDecision(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
-        decision = in.readOptionalWriteable(Decision::readFrom);
+        decision = Decision.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
-        out.writeOptionalWriteable(decision);
+        decision.writeTo(out);
     }
 
     public DiscoveryNode node() {

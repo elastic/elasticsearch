@@ -68,7 +68,6 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -930,8 +929,7 @@ public class TextFieldMapper extends FieldMapper {
             if (operation != FielddataOperation.SCRIPT) {
                 throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
             }
-            SourceLookup sourceLookup = fieldDataContext.lookupSupplier().get().source();
-            if (sourceLookup.alwaysEmpty() && isStored()) {
+            if (fieldDataContext.isSyntheticSource() && isStored()) {
                 return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                     name(),
                     CoreValuesSourceType.KEYWORD,
@@ -947,7 +945,7 @@ public class TextFieldMapper extends FieldMapper {
                 name(),
                 CoreValuesSourceType.KEYWORD,
                 SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
-                sourceLookup,
+                fieldDataContext.lookupSupplier().get().source(),
                 TextDocValuesField::new
             );
         }

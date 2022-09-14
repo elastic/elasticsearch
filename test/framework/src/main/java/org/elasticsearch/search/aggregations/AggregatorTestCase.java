@@ -297,7 +297,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     indexSettings.getIndex().getName(),
                     context.lookupSupplier(),
                     context.sourcePathsLookup(),
-                    context.fielddataOperation()
+                    context.fielddataOperation(),
+                    context.isSyntheticSource()
                 )
             ).build(new IndexFieldDataCache.None(), breakerService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
@@ -992,7 +993,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             MappedFieldType fieldType = mapper.fieldType();
 
             // Non-aggregatable fields are not testable (they will throw an error on all aggs anyway), so skip
-            if (fieldType.isAggregatable() == false) {
+            if (fieldType.isAggregatable(false) == false) {
                 continue;
             }
 
@@ -1054,7 +1055,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
-        return fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null).getValuesSourceType();
+        return fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test", false)).build(null, null).getValuesSourceType();
     }
 
     /**

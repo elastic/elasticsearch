@@ -144,7 +144,13 @@ public final class DocumentParser {
         SearchLookup searchLookup = new SearchLookup(
             context.mappingLookup().indexTimeLookup()::get,
             (ft, lookup, fto) -> ft.fielddataBuilder(
-                new FieldDataContext(context.indexSettings().getIndex().getName(), lookup, context.mappingLookup()::sourcePaths, fto)
+                new FieldDataContext(
+                    context.indexSettings().getIndex().getName(),
+                    lookup,
+                    context.mappingLookup()::sourcePaths,
+                    fto,
+                    context.isSyntheticSource()
+                )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             new SourceLookup.ReaderSourceProvider()
         );
@@ -749,7 +755,9 @@ public final class DocumentParser {
         MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
         if (fieldType != null) {
             // we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
-            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
+            assert fieldType.hasDocValues() == false
+                && fieldType.isAggregatable(context.mappingLookup().isSourceSynthetic())
+                && fieldType.isSearchable();
             return NO_OP_FIELDMAPPER;
         }
         return null;

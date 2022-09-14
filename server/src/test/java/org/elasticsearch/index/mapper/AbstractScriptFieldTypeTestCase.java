@@ -153,7 +153,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         MappedFieldType concreteIndexType = concreteIndexMapping.fieldType("field");
         assertEquals(concreteIndexType.familyTypeName(), scriptFieldType.familyTypeName());
         assertEquals(concreteIndexType.isSearchable(), scriptFieldType.isSearchable());
-        assertEquals(concreteIndexType.isAggregatable(), scriptFieldType.isAggregatable());
+        assertEquals(concreteIndexType.isAggregatable(false), scriptFieldType.isAggregatable(false));
     }
 
     @SuppressWarnings("unused")
@@ -188,7 +188,14 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static FieldDataContext mockFielddataContext() {
-        return new FieldDataContext("test", mockContext()::lookup, mockContext()::sourcePath, MappedFieldType.FielddataOperation.SCRIPT);
+        SearchExecutionContext searchExecutionContext = mockContext();
+        return new FieldDataContext(
+            "test",
+            searchExecutionContext::lookup,
+            mockContext()::sourcePath,
+            MappedFieldType.FielddataOperation.SCRIPT,
+            searchExecutionContext.isSourceSynthetic()
+        );
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries) {
@@ -219,15 +226,16 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
-            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo))
-                .build(null, null),
+            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
+                new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo, context.isSourceSynthetic())
+            ).build(null, null),
             sourceProvider
         );
         when(context.lookup()).thenReturn(lookup);
         when(context.getForField(any(), any())).then(args -> {
             MappedFieldType ft = args.getArgument(0);
             MappedFieldType.FielddataOperation fdo = args.getArgument(1);
-            return ft.fielddataBuilder(new FieldDataContext("test", context::lookup, context::sourcePath, fdo))
+            return ft.fielddataBuilder(new FieldDataContext("test", context::lookup, context::sourcePath, fdo, context.isSourceSynthetic()))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         return context;

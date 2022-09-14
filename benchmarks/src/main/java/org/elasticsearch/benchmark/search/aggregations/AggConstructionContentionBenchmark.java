@@ -211,7 +211,7 @@ public class AggConstructionContentionBenchmark {
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
             IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(new IndexFieldDataCache.Listener() {
             }, index, ft.name());
-            return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(indexFieldDataCache, breakerService);
+            return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark", false)).build(indexFieldDataCache, breakerService);
         }
 
         @Override

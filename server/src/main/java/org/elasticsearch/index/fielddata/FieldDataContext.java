@@ -22,12 +22,14 @@ import java.util.function.Supplier;
  * @param lookupSupplier a supplier for a SearchLookup to be used by runtime scripts
  * @param sourcePathsLookup a function to get source paths for a specific field
  * @param fielddataOperation the operation used to determine data structures to generate fielddata from
+ * @param isSyntheticSource is the {@code _source} stored in synthetic {@code _source}
  */
 public record FieldDataContext(
     String fullyQualifiedIndexName,
     Supplier<SearchLookup> lookupSupplier,
     Function<String, Set<String>> sourcePathsLookup,
-    MappedFieldType.FielddataOperation fielddataOperation
+    MappedFieldType.FielddataOperation fielddataOperation,
+    boolean isSyntheticSource
 ) {
 
     /**
@@ -36,13 +38,16 @@ public record FieldDataContext(
      * Used for validating index sorts, eager global ordinal loading, etc
      *
      * @param reason the reason that runtime fields are not supported
+     * @param isSyntheticSource is the {@code _source} stored in synthetic
+     *                          {@code _source}
      */
-    public static FieldDataContext noRuntimeFields(String reason) {
+    public static FieldDataContext noRuntimeFields(String reason, boolean isSyntheticSource) {
         return new FieldDataContext(
             "",
             () -> { throw new UnsupportedOperationException("Runtime fields not supported for [" + reason + "]"); },
             Set::of,
-            MappedFieldType.FielddataOperation.SEARCH
+            MappedFieldType.FielddataOperation.SEARCH,
+            isSyntheticSource
         );
     }
 }

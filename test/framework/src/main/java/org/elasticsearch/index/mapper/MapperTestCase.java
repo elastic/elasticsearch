@@ -337,7 +337,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw -> {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
-                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                    fieldDataLookup(mapperService),
                     new SourceLookup.ReaderSourceProvider()
                 );
                 ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
@@ -361,7 +361,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 MappedFieldType ft = mapperService.fieldType("field");
                 SearchLookup searchLookup = new SearchLookup(null, null, mapperService.mappingLookup().getSourceProvider());
                 IndexFieldData<?> sfd = ft.fielddataBuilder(
-                    new FieldDataContext("", () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+                    new FieldDataContext(
+                        "",
+                        () -> searchLookup,
+                        Set::of,
+                        MappedFieldType.FielddataOperation.SCRIPT,
+                        mapperService.mappingLookup().isSourceSynthetic()
+                    )
                 ).build(null, null);
                 LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
                 DocValuesScriptFieldFactory sff = lfd.getScriptFieldFactory("field");
@@ -614,18 +620,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SourceToParse source = source(b -> b.field(ft.name(), value));
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
-            ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test", mapperService.mappingLookup().isSourceSynthetic()))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(
-            inv -> fieldDataLookup(mapperService.mappingLookup()::sourcePaths).apply(
-                ft,
-                () -> { throw new UnsupportedOperationException(); },
-                fdt
-            )
+            inv -> fieldDataLookup(mapperService).apply(ft, () -> { throw new UnsupportedOperationException(); }, fdt)
         );
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
@@ -687,7 +689,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertParseMinimalWarnings();
         MappedFieldType fieldType = mapperService.fieldType("field");
-        if (fieldType.isAggregatable() == false) {
+        boolean isSyntheticSource = mapperService.mappingLookup().isSourceSynthetic();
+        if (fieldType.isAggregatable(isSyntheticSource) == false) {
             return; // No field data available, so we ignore
         }
         SourceToParse source = source(this::writeField);
@@ -697,14 +700,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             LeafReaderContext ctx = ir.leaves().get(0);
 
-            DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
-                .load(ctx)
-                .getScriptFieldFactory("test");
+            DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(
+                FieldDataContext.noRuntimeFields("test", isSyntheticSource)
+            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()).load(ctx).getScriptFieldFactory("test");
             docValuesFieldSource.setNextDocId(0);
 
             DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
-            DocValuesScriptFieldFactory indexData = fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            DocValuesScriptFieldFactory indexData = fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test", isSyntheticSource))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(reader.getContext())
                 .getScriptFieldFactory("test");

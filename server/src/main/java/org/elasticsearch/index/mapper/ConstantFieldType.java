@@ -36,7 +36,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final boolean isAggregatable() {
+    public final boolean isAggregatable(boolean isSyntheticSource) {
         return true;
     }
 

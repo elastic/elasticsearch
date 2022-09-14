@@ -174,12 +174,14 @@ public abstract class MappedFieldType {
         return null;
     }
 
-    /** Returns true if the field is aggregatable.
-     *
+    /**
+     * Returns true if the field is aggregatable.
+     * @param isSyntheticSource is the {@code _source} stored in synthetic
+     *                          {@code _source}
      */
-    public boolean isAggregatable() {
+    public boolean isAggregatable(boolean isSyntheticSource) {
         try {
-            fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_check"));
+            fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_check", isSyntheticSource));
             return true;
         } catch (IllegalArgumentException e) {
             return false;

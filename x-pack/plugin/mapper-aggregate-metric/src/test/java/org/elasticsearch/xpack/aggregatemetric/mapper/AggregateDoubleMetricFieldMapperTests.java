@@ -524,7 +524,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         MappedFieldType fieldType = aggMetricMapperService.fieldType("field");
         assertThat(fieldType.familyTypeName(), equalTo("double"));
         assertTrue(fieldType.isSearchable());
-        assertTrue(fieldType.isAggregatable());
+        assertTrue(fieldType.isAggregatable(aggMetricMapperService.mappingLookup().isSourceSynthetic()));
     }
 
     /*

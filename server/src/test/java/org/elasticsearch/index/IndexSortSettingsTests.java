@@ -220,7 +220,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             lookup::get,
             (ft, s) -> indexFieldDataService.getForField(
                 ft,
-                new FieldDataContext("test", s, Set::of, MappedFieldType.FielddataOperation.SEARCH)
+                new FieldDataContext("test", s, Set::of, MappedFieldType.FielddataOperation.SEARCH, randomBoolean())
             )
         );
     }

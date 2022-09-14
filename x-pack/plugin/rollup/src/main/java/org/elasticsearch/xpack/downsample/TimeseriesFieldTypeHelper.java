@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.indices.IndicesService;
 
@@ -32,10 +33,11 @@ class TimeseriesFieldTypeHelper {
     }
 
     public boolean isTimeSeriesLabel(final String field, final Map<String, ?> unused) {
-        final MappedFieldType fieldType = mapperService.mappingLookup().getFieldType(field);
+        final MappingLookup lookup = mapperService.mappingLookup();
+        final MappedFieldType fieldType = lookup.getFieldType(field);
         return fieldType != null
             && (timestampField.equals(field) == false)
-            && (fieldType.isAggregatable())
+            && (fieldType.isAggregatable(lookup.isSourceSynthetic()))
             && (fieldType.isDimension() == false)
             && (mapperService.isMetadataField(field) == false);
     }

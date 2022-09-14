@@ -301,8 +301,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             if (fieldDataContext.fielddataOperation() != FielddataOperation.SCRIPT) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
             }
-            SourceLookup sourceLookup = fieldDataContext.lookupSupplier().get().source();
-            if (sourceLookup.alwaysEmpty()) {
+            if (fieldDataContext.isSyntheticSource()) {
                 return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                     storedFieldNameForSyntheticSource(),
                     CoreValuesSourceType.KEYWORD,
@@ -318,7 +317,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 name(),
                 CoreValuesSourceType.KEYWORD,
                 SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
-                sourceLookup,
+                fieldDataContext.lookupSupplier().get().source(),
                 TextDocValuesField::new
             );
         }

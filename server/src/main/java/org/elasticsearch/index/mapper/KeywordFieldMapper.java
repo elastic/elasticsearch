@@ -59,7 +59,6 @@ import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
@@ -696,8 +695,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return fieldDataFromDocValues();
             }
-            SourceLookup sourceLookup = fieldDataContext.lookupSupplier().get().source();
-            if (sourceLookup.alwaysEmpty() && isStored()) {
+            if (fieldDataContext.isSyntheticSource() && isStored()) {
                 return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                     name(),
                     CoreValuesSourceType.KEYWORD,
@@ -715,7 +713,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 name(),
                 CoreValuesSourceType.KEYWORD,
                 sourceValueFetcher(sourcePaths),
-                sourceLookup,
+                fieldDataContext.lookupSupplier().get().source(),
                 KeywordDocValuesField::new
             );
         }

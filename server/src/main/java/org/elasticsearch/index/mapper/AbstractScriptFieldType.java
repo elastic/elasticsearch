@@ -64,7 +64,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public final boolean isAggregatable() {
+    public final boolean isAggregatable(boolean isSyntheticSource) {
         return true;
     }
 

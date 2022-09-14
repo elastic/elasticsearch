@@ -111,6 +111,7 @@ class FieldCapabilitiesFetcher {
 
         Predicate<MappedFieldType> filter = buildFilter(indexFieldfilter, filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
+        boolean isSyntheticSource = context.isSourceSynthetic();
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
             MappedFieldType ft = context.getFieldType(field);
@@ -124,7 +125,7 @@ class FieldCapabilitiesFetcher {
                     isTimeSeriesIndex && ft.getMetricType() != null ? ft.typeName() : ft.familyTypeName(),
                     context.isMetadataField(field),
                     ft.isSearchable(),
-                    ft.isAggregatable(),
+                    ft.isAggregatable(isSyntheticSource),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
                     ft.meta()

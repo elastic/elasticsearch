@@ -50,23 +50,23 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testEnableFieldData() throws IOException {
-
         boolean[] enabled = new boolean[1];
 
         MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
+        boolean isSyntheticSource = mapperService.mappingLookup().isSourceSynthetic();
         ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.fieldType("_id");
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null)
+            () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test", isSyntheticSource)).build(null, null)
         );
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
-        assertFalse(ft.isAggregatable());
+        assertFalse(ft.isAggregatable(isSyntheticSource));
 
         enabled[0] = true;
-        ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null);
+        ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test", isSyntheticSource)).build(null, null);
         assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
-        assertTrue(ft.isAggregatable());
+        assertTrue(ft.isAggregatable(isSyntheticSource));
     }
 
     public void testFetchIdFieldValue() throws IOException {
@@ -78,7 +78,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
             iw -> {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
-                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                    fieldDataLookup(mapperService),
                     new SourceLookup.ReaderSourceProvider()
                 );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);

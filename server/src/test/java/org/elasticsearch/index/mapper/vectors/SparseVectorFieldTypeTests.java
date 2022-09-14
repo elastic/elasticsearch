@@ -19,12 +19,15 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testDocValuesDisabled() {
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", Collections.emptyMap());
         assertFalse(fieldType.hasDocValues());
-        expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test", randomBoolean()))
+        );
     }
 
     public void testIsNotAggregatable() {
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", Collections.emptyMap());
-        assertFalse(fieldType.isAggregatable());
+        assertFalse(fieldType.isAggregatable(randomBoolean()));
     }
 
     public void testDocValueFormatIsNotSupported() {

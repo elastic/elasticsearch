@@ -89,7 +89,7 @@ A TSDS document is uniquely identified by its time series and timestamp, both of
 which are used to generate the document `_id`. So, two documents with the same
 dimensions and the same timestamp are considered to be duplicates. When you use
 the `_bulk` endpoint to add documents to a TSDS, a second document with the same
-timestamp and dimensions overwrites the first. When you use the 
+timestamp and dimensions overwrites the first. When you use the
 `PUT /<target>/_create/<_id>` format to add an individual document and a document
 with the same `_id` already exists, an error is generated.
 
@@ -105,16 +105,16 @@ parameter:
 * <<number,`long`>>
 * <<number,`unsigned_long`>>
 
-[[dimension-limits]] 
-.Dimension limits 
-**** 
+[[dimension-limits]]
+.Dimension limits
+****
 In a TSDS, {es} uses dimensions to
 generate the document `_id` and <<tsid,`_tsid`>> values. The resulting `_id` is
 always a short encoded hash. To prevent the `_tsid` value from being overly
 large, {es} limits the number of dimensions for an index using the
 <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
 index setting. While you can increase this limit, the resulting document `_tsid`
-value can't exceed 32KB. 
+value can't exceed 32KB.
 ****
 
 [discrete]
@@ -156,20 +156,6 @@ available disk space.
 +
 Only numeric and `aggregate_metric_double` fields support the `gauge` metric
 type.
-
-// tag::time-series-metric-histogram[]
-`histogram`:: A pair of numeric arrays that measure the distribution of values
-across predefined buckets. For example, server response times by percentile.
-// end::time-series-metric-histogram[]
-+
-Only `histogram` fields support the `histogram` metric type.
-
-// tag::time-series-metric-summary[]
-`summary`:: An array of aggregated values, such as `sum`, `avg`, `value_count`,
-`min`, and `max`.
-// end::time-series-metric-summary[]
-+
-Only `aggregate_metric_double` fields support the `gauge` metric type.
 
 // tag::time-series-metric-null[]
 `null` (Default):: Not a time series metric.

@@ -909,7 +909,11 @@ public class TextFieldMapper extends FieldMapper {
             } else if (operation == FielddataOperation.SEARCH) {
                 if (fielddata == false) {
                     throw new IllegalArgumentException(
-                        "Text fields are not optimised for operations that require per-document "
+                        "Fielddata is disabled on ["
+                            + name()
+                            + "] in ["
+                            + fieldDataContext.fullyQualifiedIndexName()
+                            + "]. Text fields are not optimised for operations that require per-document "
                             + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
                             + "keyword field instead. Alternatively, set fielddata=true on ["
                             + name()
@@ -1288,14 +1292,17 @@ public class TextFieldMapper extends FieldMapper {
             );
         }
         if (store) {
-            return new StringStoredFieldFieldLoader(name(), simpleName());
+            return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
+                @Override
+                protected void write(XContentBuilder b, Object value) throws IOException {
+                    b.value((String) value);
+                }
+            };
         }
         for (Mapper sub : this) {
             if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                 KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
-                if (kwd.hasNormalizer() == false
-                    && kwd.fieldType().ignoreAbove() == KeywordFieldMapper.Defaults.IGNORE_ABOVE
-                    && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
 
                     return kwd.syntheticFieldLoader(simpleName());
                 }
@@ -1305,7 +1312,7 @@ public class TextFieldMapper extends FieldMapper {
             String.format(
                 Locale.ROOT,
                 "field [%s] of type [%s] doesn't support synthetic source unless it is stored or has a sub-field of"
-                    + " type [keyword] with doc values or stored and without ignore_above or a normalizer",
+                    + " type [keyword] with doc values or stored and without a normalizer",
                 name(),
                 typeName()
             )

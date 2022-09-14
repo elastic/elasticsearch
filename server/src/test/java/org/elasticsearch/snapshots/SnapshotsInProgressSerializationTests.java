@@ -53,13 +53,13 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         int numberOfSnapshots = randomInt(10);
         SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.EMPTY;
         for (int i = 0; i < numberOfSnapshots; i++) {
-            snapshotsInProgress.withAddedEntry(randomSnapshot());
+            snapshotsInProgress = snapshotsInProgress.withAddedEntry(randomSnapshot());
         }
         return snapshotsInProgress;
     }
 
     private Entry randomSnapshot() {
-        Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+        Snapshot snapshot = new Snapshot("repo-" + randomInt(5), new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         boolean includeGlobalState = randomBoolean();
         boolean partial = randomBoolean();
         int numberOfIndices = randomIntBetween(0, 10);
@@ -80,7 +80,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             }
         }
         List<SnapshotFeatureInfo> featureStates = randomList(5, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo);
-        return new Entry(
+        return Entry.snapshot(
             snapshot,
             includeGlobalState,
             partial,
@@ -143,12 +143,15 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         if (randomBoolean()) {
             // modify some elements
             for (List<Entry> perRepoEntries : updatedInstance.entriesByRepo()) {
-                final List<Entry> entries = new ArrayList<>(perRepoEntries);
+                List<Entry> entries = new ArrayList<>(perRepoEntries);
                 for (int i = 0; i < entries.size(); i++) {
                     if (randomBoolean()) {
                         final Entry entry = entries.get(i);
-                        entries.set(i, mutateEntry(entry));
+                        entries.set(i, mutateEntryWithLegalChange(entry));
                     }
+                }
+                if (randomBoolean()) {
+                    entries = shuffledList(entries);
                 }
                 updatedInstance = updatedInstance.withUpdatedEntriesForRepo(perRepoEntries.get(0).repository(), entries);
             }
@@ -187,10 +190,10 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     }
 
     private Entry mutateEntry(Entry entry) {
-        switch (randomInt(8)) {
+        switch (randomInt(5)) {
             case 0 -> {
                 boolean includeGlobalState = entry.includeGlobalState() == false;
-                return new Entry(
+                return Entry.snapshot(
                     entry.snapshot(),
                     includeGlobalState,
                     entry.partial(),
@@ -208,7 +211,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             }
             case 1 -> {
                 boolean partial = entry.partial() == false;
-                return new Entry(
+                return Entry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     partial,
@@ -225,26 +228,8 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 );
             }
             case 2 -> {
-                List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10))).toList();
-                return new Entry(
-                    entry.snapshot(),
-                    entry.includeGlobalState(),
-                    entry.partial(),
-                    entry.state(),
-                    entry.indices(),
-                    dataStreams,
-                    entry.featureStates(),
-                    entry.startTime(),
-                    entry.repositoryStateId(),
-                    entry.shards(),
-                    entry.failure(),
-                    entry.userMetadata(),
-                    entry.version()
-                );
-            }
-            case 3 -> {
                 long startTime = randomValueOtherThan(entry.startTime(), ESTestCase::randomLong);
-                return new Entry(
+                return Entry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     entry.partial(),
@@ -260,69 +245,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                     entry.version()
                 );
             }
-            case 4 -> {
-                long repositoryStateId = randomValueOtherThan(entry.startTime(), ESTestCase::randomLong);
-                return new Entry(
-                    entry.snapshot(),
-                    entry.includeGlobalState(),
-                    entry.partial(),
-                    entry.state(),
-                    entry.indices(),
-                    entry.dataStreams(),
-                    entry.featureStates(),
-                    entry.startTime(),
-                    repositoryStateId,
-                    entry.shards(),
-                    entry.failure(),
-                    entry.userMetadata(),
-                    entry.version()
-                );
-            }
-            case 5 -> {
-                String failure = randomValueOtherThan(entry.failure(), () -> randomAlphaOfLengthBetween(2, 10));
-                return new Entry(
-                    entry.snapshot(),
-                    entry.includeGlobalState(),
-                    entry.partial(),
-                    entry.state(),
-                    entry.indices(),
-                    entry.dataStreams(),
-                    entry.featureStates(),
-                    entry.startTime(),
-                    entry.repositoryStateId(),
-                    entry.shards(),
-                    failure,
-                    entry.userMetadata(),
-                    entry.version()
-                );
-            }
-            case 6 -> {
-                Map<String, IndexId> indices = new HashMap<>(entry.indices());
-                IndexId indexId = new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10));
-                indices.put(indexId.getName(), indexId);
-                Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = new HashMap<>(entry.shards());
-                Index index = new Index(indexId.getName(), randomAlphaOfLength(10));
-                int shardsCount = randomIntBetween(1, 10);
-                for (int j = 0; j < shardsCount; j++) {
-                    shards.put(new ShardId(index, j), randomShardSnapshotStatus(randomAlphaOfLength(10)));
-                }
-                return new Entry(
-                    entry.snapshot(),
-                    entry.includeGlobalState(),
-                    entry.partial(),
-                    randomState(shards),
-                    indices,
-                    entry.dataStreams(),
-                    entry.featureStates(),
-                    entry.startTime(),
-                    entry.repositoryStateId(),
-                    shards,
-                    entry.failure(),
-                    entry.userMetadata(),
-                    entry.version()
-                );
-            }
-            case 7 -> {
+            case 3 -> {
                 Map<String, Object> userMetadata = entry.userMetadata() != null ? new HashMap<>(entry.userMetadata()) : new HashMap<>();
                 String key = randomAlphaOfLengthBetween(2, 10);
                 if (userMetadata.containsKey(key)) {
@@ -330,7 +253,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 } else {
                     userMetadata.put(key, randomAlphaOfLengthBetween(2, 10));
                 }
-                return new Entry(
+                return Entry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     entry.partial(),
@@ -346,13 +269,13 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                     entry.version()
                 );
             }
-            case 8 -> {
+            case 4 -> {
                 List<SnapshotFeatureInfo> featureStates = randomList(
                     1,
                     5,
                     () -> randomValueOtherThanMany(entry.featureStates()::contains, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo)
                 );
-                return new Entry(
+                return Entry.snapshot(
                     entry.snapshot(),
                     entry.includeGlobalState(),
                     entry.partial(),
@@ -368,6 +291,96 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                     entry.version()
                 );
             }
+            case 5 -> {
+                return mutateEntryWithLegalChange(entry);
+            }
+            default -> throw new IllegalArgumentException("invalid randomization case");
+        }
+    }
+
+    // mutates an entry with a change that could occur as part of a cluster state update and is thus diffable
+    private Entry mutateEntryWithLegalChange(Entry entry) {
+        switch (randomInt(3)) {
+            case 0 -> {
+                List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10))).toList();
+                return Entry.snapshot(
+                    entry.snapshot(),
+                    entry.includeGlobalState(),
+                    entry.partial(),
+                    entry.state(),
+                    entry.indices(),
+                    dataStreams,
+                    entry.featureStates(),
+                    entry.startTime(),
+                    entry.repositoryStateId(),
+                    entry.shards(),
+                    entry.failure(),
+                    entry.userMetadata(),
+                    entry.version()
+                );
+            }
+            case 1 -> {
+                long repositoryStateId = randomValueOtherThan(entry.repositoryStateId(), ESTestCase::randomLong);
+                return Entry.snapshot(
+                    entry.snapshot(),
+                    entry.includeGlobalState(),
+                    entry.partial(),
+                    entry.state(),
+                    entry.indices(),
+                    entry.dataStreams(),
+                    entry.featureStates(),
+                    entry.startTime(),
+                    repositoryStateId,
+                    entry.shards(),
+                    entry.failure(),
+                    entry.userMetadata(),
+                    entry.version()
+                );
+            }
+            case 2 -> {
+                String failure = randomValueOtherThan(entry.failure(), () -> randomAlphaOfLengthBetween(2, 10));
+                return Entry.snapshot(
+                    entry.snapshot(),
+                    entry.includeGlobalState(),
+                    entry.partial(),
+                    entry.state(),
+                    entry.indices(),
+                    entry.dataStreams(),
+                    entry.featureStates(),
+                    entry.startTime(),
+                    entry.repositoryStateId(),
+                    entry.shards(),
+                    failure,
+                    entry.userMetadata(),
+                    entry.version()
+                );
+            }
+            case 3 -> {
+                Map<String, IndexId> indices = new HashMap<>(entry.indices());
+                IndexId indexId = new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10));
+                indices.put(indexId.getName(), indexId);
+                Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = new HashMap<>(entry.shards());
+                Index index = new Index(indexId.getName(), randomAlphaOfLength(10));
+                int shardsCount = randomIntBetween(1, 10);
+                for (int j = 0; j < shardsCount; j++) {
+                    shards.put(new ShardId(index, j), randomShardSnapshotStatus(randomAlphaOfLength(10)));
+                }
+                return Entry.snapshot(
+                    entry.snapshot(),
+                    entry.includeGlobalState(),
+                    entry.partial(),
+                    randomState(shards),
+                    indices,
+                    entry.dataStreams(),
+                    entry.featureStates(),
+                    entry.startTime(),
+                    entry.repositoryStateId(),
+                    shards,
+                    entry.failure(),
+                    entry.userMetadata(),
+                    entry.version()
+                );
+            }
             default -> throw new IllegalArgumentException("invalid randomization case");
         }
     }
@@ -375,7 +388,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     public void testXContent() throws IOException {
         final IndexId indexId = new IndexId("index", "uuid");
         SnapshotsInProgress sip = SnapshotsInProgress.EMPTY.withAddedEntry(
-            new Entry(
+            Entry.snapshot(
                 new Snapshot("repo", new SnapshotId("name", "uuid")),
                 true,
                 true,

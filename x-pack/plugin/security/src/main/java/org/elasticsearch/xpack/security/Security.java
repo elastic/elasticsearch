@@ -468,6 +468,12 @@ public class Security extends Plugin
         License.OperationMode.ENTERPRISE
     );
 
+    public static final LicensedFeature.Momentary USER_PROFILE_COLLABORATION_FEATURE = LicensedFeature.momentary(
+        null,
+        "user-profile-collaboration",
+        License.OperationMode.STANDARD
+    );
+
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     private final Settings settings;

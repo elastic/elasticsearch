@@ -41,6 +41,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -93,9 +94,16 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.Dynamic,
         Property.NodeScope
     );
+    public static final Setting<Boolean> NEW_INDEX_IGNORE_NODE_SHARDS = Setting.boolSetting(
+        "cluster.routing.allocation.new_index_ignore_node_shards",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private volatile WeightFunction weightFunction;
     private volatile float threshold;
+    private static volatile boolean newCreateIgnoreNodeShards = false;
 
     public BalancedShardsAllocator(Settings settings) {
         this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
@@ -107,6 +115,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setThreshold(THRESHOLD_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
+        newCreateIgnoreNodeShards = NEW_INDEX_IGNORE_NODE_SHARDS.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(NEW_INDEX_IGNORE_NODE_SHARDS, this::setIndexCreateIgnoreNodeShards);
+    }
+
+    public void setIndexCreateIgnoreNodeShards(boolean indexCreateIgnoreNodeShards) {
+        BalancedShardsAllocator.newCreateIgnoreNodeShards = indexCreateIgnoreNodeShards;
     }
 
     private void setWeightFunction(float indexBalance, float shardBalanceFactor) {
@@ -243,6 +257,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
             return theta0 * weightShard + theta1 * weightIndex;
+        }
+
+        float onlyIndexWeight(Balancer balancer, ModelNode node, String index) {
+            final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
+            return weightIndex;
         }
     }
 
@@ -973,14 +992,26 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * iteration order is different for each run and makes testing hard */
             Map<String, NodeAllocationResult> nodeExplanationMap = explain ? new HashMap<>() : null;
             List<Tuple<String, Float>> nodeWeights = explain ? new ArrayList<>() : null;
-            for (ModelNode node : nodes.values()) {
+            Collection<ModelNode> nodeList = nodes.values();
+            if (newCreateIgnoreNodeShards) {
+                // 随机重排node，保证当shard数小于节点数的情况下，shard能随机分配node
+                List<ModelNode> tempNodeList = new ArrayList<>(nodeList);
+                Collections.shuffle(tempNodeList);
+                nodeList = tempNodeList;
+            }
+            for (ModelNode node : nodeList) {
                 if (node.containsShard(shard) && explain == false) {
                     // decision is NO without needing to check anything further, so short circuit
                     continue;
                 }
 
                 // weight of this index currently on the node
-                float currentWeight = weight.weight(this, node, shard.getIndexName());
+                float currentWeight;
+                if (newCreateIgnoreNodeShards) {
+                    currentWeight = weight.onlyIndexWeight(this, node, shard.getIndexName());
+                } else {
+                    currentWeight = weight.weight(this, node, shard.getIndexName());
+                }
                 // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
                 if (currentWeight > minWeight && explain == false) {
                     continue;

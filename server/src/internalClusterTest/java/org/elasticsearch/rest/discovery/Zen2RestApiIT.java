@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.discovery;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
@@ -34,11 +33,8 @@ import java.util.Map;
 
 import static org.hamcrest.core.Is.is;
 
-// These tests are here today so they have access to a proper REST client. They cannot be in :server:integTest since the REST client needs a
-// proper transport implementation, and they cannot be REST tests today since they need to restart nodes. When #35599 and friends land we
-// should be able to move these tests to run against a proper cluster instead. TODO do this.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
-public class Zen2RestApiIT extends ESNetty4IntegTestCase {
+public class Zen2RestApiIT extends ESIntegTestCase {
 
     @Override
     protected boolean addMockHttpTransport() {

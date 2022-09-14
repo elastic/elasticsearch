@@ -170,7 +170,7 @@ Dimension fields have the following constraints:
 --
 
 [[keyword-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic `_source`
 `keyword` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
 a <<normalizer,`normalizer`>> or <<copy-to,`copy_to`>>.

@@ -152,7 +152,7 @@ GET my-index-000001/_search
 --------------------------------------------------
 
 [[ip-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic source
 `ip` fields support <<synthetic-source,synthetic `_source`>> in their default
 configuration. Synthetic `_source` cannot be used together with
 <<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or with

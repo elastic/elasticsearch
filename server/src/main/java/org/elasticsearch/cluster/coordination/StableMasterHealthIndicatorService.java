@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -166,20 +167,14 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             if (coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap() != null) {
                 builder.field(
                     CLUSTER_FORMATION,
-                    coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap()
-                        .entrySet()
-                        .stream()
-                        .map(
-                            entry -> Map.of(
-                                "node_id",
-                                entry.getKey(),
-                                "name",
-                                getNameForNodeId(entry.getKey()),
-                                CLUSTER_FORMATION_MESSAGE,
-                                entry.getValue()
-                            )
-                        )
-                        .toList()
+                    coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap().entrySet().stream().map(entry -> {
+                        String nodeName = getNameForNodeId(entry.getKey());
+                        if (nodeName == null) {
+                            return Map.of("node_id", entry.getKey(), CLUSTER_FORMATION_MESSAGE, entry.getValue());
+                        } else {
+                            return Map.of("node_id", entry.getKey(), "name", nodeName, CLUSTER_FORMATION_MESSAGE, entry.getValue());
+                        }
+                    }).toList()
                 );
             }
             return builder.endObject();
@@ -188,18 +183,18 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     /**
      * Returns the name of the node with the given nodeId, as seen in the cluster state at this moment. The name of a node is optional,
-     * so if the node does not have a name (or the node with the given nodeId is no longer in the cluster state), an empty string is
-     * returned.
+     * so if the node does not have a name (or the node with the given nodeId is no longer in the cluster state), null is returned.
      * @param nodeId The id of the node whose name is to be returned
-     * @return The current name of the node, or empty string if the node is not in the cluster state or does not have a name
+     * @return The current name of the node, or null if the node is not in the cluster state or does not have a name
      */
+    @Nullable
     private String getNameForNodeId(String nodeId) {
         DiscoveryNode node = clusterService.state().nodes().get(nodeId);
         if (node == null) {
-            return "";
+            return null;
         } else {
             String nodeName = node.getName();
-            return Objects.requireNonNullElse(nodeName, "");
+            return Objects.requireNonNullElse(nodeName, null);
         }
     }
 

@@ -36,6 +36,7 @@ public record Diagnosis(Definition definition, @Nullable List<String> affectedRe
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("urn", definition.urn);
         builder.field("cause", definition.cause);
         builder.field("action", definition.action);
 

@@ -33,6 +33,7 @@ public record HealthIndicatorImpact(String urn, int severity, String impactDescr
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("urn", urn);
         builder.field("severity", severity);
         builder.field("description", impactDescription);
         builder.startArray("impact_areas");

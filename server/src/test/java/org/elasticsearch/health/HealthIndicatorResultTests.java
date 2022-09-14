@@ -66,10 +66,12 @@ public class HealthIndicatorResultTests extends ESTestCase {
         assertEquals(detailsMap, xContentMap.get("details"));
         List<Map<String, Object>> expectedImpacts = new ArrayList<>();
         Map<String, Object> expectedImpact1 = new HashMap<>();
+        expectedImpact1.put("urn", impact1Urn);
         expectedImpact1.put("severity", impact1Severity);
         expectedImpact1.put("description", impact1Description);
         expectedImpact1.put("impact_areas", List.of(firstImpactArea.displayValue()));
         Map<String, Object> expectedImpact2 = new HashMap<>();
+        expectedImpact2.put("urn", impact2Urn);
         expectedImpact2.put("severity", impact2Severity);
         expectedImpact2.put("description", impact2Description);
         expectedImpact2.put("impact_areas", List.of(secondImpactArea.displayValue()));
@@ -79,6 +81,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         List<Map<String, Object>> expectedDiagnosis = new ArrayList<>();
         {
             Map<String, Object> expectedDiagnosis1 = new HashMap<>();
+            expectedDiagnosis1.put("urn", action1.definition().urn());
             expectedDiagnosis1.put("cause", action1.definition().cause());
             expectedDiagnosis1.put("action", action1.definition().action());
             expectedDiagnosis1.put("help_url", action1.definition().helpURL());
@@ -89,6 +92,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         }
         {
             Map<String, Object> expectedDiagnosis2 = new HashMap<>();
+            expectedDiagnosis2.put("urn", action2.definition().urn());
             expectedDiagnosis2.put("cause", action2.definition().cause());
             expectedDiagnosis2.put("action", action2.definition().action());
             expectedDiagnosis2.put("help_url", action2.definition().helpURL());

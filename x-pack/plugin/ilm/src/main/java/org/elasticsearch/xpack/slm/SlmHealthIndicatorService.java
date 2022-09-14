@@ -58,7 +58,9 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("iso8601").withZone(ZoneOffset.UTC);
 
-    public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_URN = "urn:elasticsearch:health:" + NAME + ":diagnosis:check_recent_snapshot_failures";
+    public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_URN = "urn:elasticsearch:health:"
+        + NAME
+        + ":diagnosis:check_recent_snapshot_failures";
     public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
 
     // Visible for testing

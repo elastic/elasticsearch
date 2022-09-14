@@ -97,6 +97,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.TrackingQueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -1680,6 +1681,13 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return new QueryRewriteContext(parserConfig, namedWriteableRegistry, client, nowInMillis);
+    }
+
+    /**
+     * Returns a new {@link TrackingQueryRewriteContext} with the given {@code now} provider
+     */
+    public TrackingQueryRewriteContext getTrackingRewriteContext(LongSupplier nowInMillis) {
+        return new TrackingQueryRewriteContext(parserConfig, namedWriteableRegistry, client, nowInMillis);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

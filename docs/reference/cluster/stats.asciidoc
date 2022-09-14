@@ -264,6 +264,27 @@ grow due to ongoing peer recoveries, restoring snapshots, and similar
 activities.
 =====
 
+`queries`::
+(array of objects)
+Contains statistics about queries submitted to selected nodes,
+when the selected nodes served as coordinating nodes during
+search requests.
+Queries are counted only by a coordinating node, and deduplicated per
+a search request.
+
++
+.Properties of `queries` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Query type used in selected nodes.
+
+`count`::
+(integer)
+Number of times this query type was used in selected nodes.
+=====
+
 `fielddata`::
 (object)
 Contains statistics about the <<modules-fielddata, field data cache>> of selected nodes.
@@ -1334,6 +1355,7 @@ The API returns the following response:
          "reserved": "0b",
          "reserved_in_bytes": 0
       },
+      "queries": [],
       "fielddata": {
          "memory_size": "0b",
          "memory_size_in_bytes": 0,

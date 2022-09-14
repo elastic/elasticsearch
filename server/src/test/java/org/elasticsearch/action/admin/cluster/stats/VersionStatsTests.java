@@ -125,7 +125,8 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             ClusterHealthStatus.GREEN,
             null,
             null,
-            new ShardStats[] { shardStats }
+            new ShardStats[] { shardStats },
+            null
         );
 
         stats = VersionStats.of(metadata, Collections.singletonList(nodeResponse));

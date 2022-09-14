@@ -139,6 +139,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     @Override
     public KnnSearchBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+        ctx.addQueryUsage("knn");
+
         boolean changed = false;
         List<QueryBuilder> rewrittenQueries = new ArrayList<>(filterQueries.size());
         for (QueryBuilder query : filterQueries) {

@@ -29,6 +29,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private ShardStats shards;
     private DocsStats docs;
     private StoreStats store;
+    private QueryStats queries;
     private FieldDataStats fieldData;
     private QueryCacheStats queryCache;
     private CompletionStats completion;
@@ -47,6 +48,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
         this.docs = new DocsStats();
         this.store = new StoreStats();
+        this.queries = new QueryStats();
         this.fieldData = new FieldDataStats();
         this.queryCache = new QueryCacheStats();
         this.completion = new CompletionStats();
@@ -74,6 +76,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
                 completion.add(shardCommonStats.completion);
                 segments.add(shardCommonStats.segments);
             }
+            queries.add(r.queryStats());
         }
 
         shards = new ShardStats();
@@ -101,6 +104,10 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
     public StoreStats getStore() {
         return store;
+    }
+
+    public QueryStats getQueries() {
+        return queries;
     }
 
     public FieldDataStats getFieldData() {
@@ -141,6 +148,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         shards.toXContent(builder, params);
         docs.toXContent(builder, params);
         store.toXContent(builder, params);
+        queries.toXContent(builder, params);
         fieldData.toXContent(builder, params);
         queryCache.toXContent(builder, params);
         completion.toXContent(builder, params);

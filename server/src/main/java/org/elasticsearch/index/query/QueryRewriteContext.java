@@ -121,4 +121,10 @@ public class QueryRewriteContext {
         }
     }
 
+    /**
+     * Add query usage for a given query type;
+     * No operation except for {@link TrackingQueryRewriteContext}
+     */
+    public void addQueryUsage(String query) {}
+
 }

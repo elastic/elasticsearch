@@ -19,8 +19,12 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -34,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -282,6 +287,124 @@ public class ClusterStatsIT extends ESIntegTestCase {
             } else if (stat.getName().equals("object")) {
                 assertThat(stat.getCount(), greaterThanOrEqualTo(1));
             }
+        }
+    }
+
+    public void testQueriesUsage() {
+        int numNodes = randomIntBetween(1, 3);
+        for (int i = 1; i <= numNodes; i++) {
+            internalCluster().startNode();
+            waitForNodes(i);
+        }
+        ensureGreen();
+
+        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
+        assertTrue(clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts().isEmpty());
+
+        client().admin().indices().prepareCreate("test1").setMapping("""
+            {
+              "properties": {
+                "field1" : {
+                  "type" : "keyword"
+                },
+                "field2" : {
+                  "type" : "integer"
+                },
+                "field3": {
+                  "type" : "dense_vector",
+                  "dims" : 2,
+                  "index" : true,
+                  "similarity" : "dot_product"
+                }
+              }
+            }""").get();
+
+        {
+            client().prepareSearch("test1").setQuery(new MatchQueryBuilder("field1", "value1")).get();
+            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
+            Map<String, Long> expectedQueriesCounts = Map.of("match", 1L);
+            assertEquals(expectedQueriesCounts, queriesCounts);
+        }
+
+        {
+            client().prepareSearch("test1")
+                .setQuery(boolQuery().must(new MatchQueryBuilder("field1", "value1")).must(new RangeQueryBuilder("field2").gte(0)))
+                .get();
+            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
+            Map<String, Long> expectedQueriesCounts = Map.of("match", 2L, "bool", 1L, "range", 1L);
+            assertEquals(expectedQueriesCounts, queriesCounts);
+        }
+
+        {
+            // as we count only unique query types per a search request,
+            // expect "match" query type to be incremented by 1, even though we have two of them in the request
+            client().prepareSearch("test1")
+                .setQuery(boolQuery().must(new MatchQueryBuilder("field1", "value1")).must(new MatchQueryBuilder("field2", 10)))
+                .get();
+            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
+            Map<String, Long> expectedQueriesCounts = Map.of("match", 3L, "bool", 2L, "range", 1L);
+            assertEquals(expectedQueriesCounts, queriesCounts);
+        }
+
+        {
+            // Even if a search request is across multiple indices,
+            // queries are counted only once by a coordinating node:
+            // expect "match" query type to be incremented by 1
+            client().admin().indices().prepareCreate("test2").setMapping("""
+                {
+                  "properties": {
+                    "field1": {
+                      "type": "keyword"
+                    },
+                    "field2": {
+                      "type": "integer"
+                    }
+                  }
+                }""").get();
+            client().prepareSearch("test*").setQuery(new MatchQueryBuilder("field1", "value1")).get();
+            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
+            Map<String, Long> expectedQueriesCounts = Map.of("match", 4L, "bool", 2L, "range", 1L);
+            assertEquals(expectedQueriesCounts, queriesCounts);
+        }
+
+        {
+            // simple knn search
+            KnnSearchBuilder knnSearch = new KnnSearchBuilder("field3", new float[] { 0.6f, 0.8f }, 2, 5);
+            client().prepareSearch("test1").setKnnSearch(knnSearch).get();
+            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
+            Map<String, Long> expectedQueriesCounts = Map.of("match", 4L, "bool", 2L, "range", 1L, "knn", 1L);
+            assertEquals(expectedQueriesCounts, queriesCounts);
+        }
+
+        {
+            // knn search with filter
+            KnnSearchBuilder knnSearch = new KnnSearchBuilder("field3", new float[] { 0.6f, 0.8f }, 2, 5).addFilterQuery(
+                new TermQueryBuilder("field1", "value1")
+            );
+            client().prepareSearch("test1").setKnnSearch(knnSearch).get();
+            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
+            Map<String, Long> expectedQueriesCounts = Map.of("match", 4L, "bool", 2L, "range", 1L, "knn", 2L, "term", 1L);
+            assertEquals(expectedQueriesCounts, queriesCounts);
+        }
+
+        {
+            // hybrid search with filter
+            // expect "term" query type to be incremented by 1 even if the search request contains two of them
+            KnnSearchBuilder knnSearch = new KnnSearchBuilder("field3", new float[] { 0.6f, 0.8f }, 2, 5).addFilterQuery(
+                new TermQueryBuilder("field1", "value1")
+            );
+            client().prepareSearch("test1").setKnnSearch(knnSearch).setQuery(new TermQueryBuilder("field1", "value2")).get();
+            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            Map<String, Long> queriesCounts = clusterStatsResponse.getIndicesStats().getQueries().getQueriesCounts();
+            Map<String, Long> expectedQueriesCounts = Map.of("match", 4L, "bool", 2L, "range", 1L, "knn", 3L, "term", 2L);
+            assertEquals(expectedQueriesCounts, queriesCounts);
         }
     }
 }

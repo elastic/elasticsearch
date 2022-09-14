@@ -1458,6 +1458,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 actionFilters,
                 null,
                 null,
+                null,
                 null
             );
 

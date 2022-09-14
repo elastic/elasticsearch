@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class DiskHealthIndicatorService implements HealthIndicatorService {
-    public static final String NAME = "disk_health";
+    public static final String NAME = "disk";
 
     private static final Logger logger = LogManager.getLogger(DiskHealthIndicatorService.class);
 
@@ -249,7 +249,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         }
         return (builder, params) -> {
             builder.startObject();
-            builder.array("disk_health_by_node", arrayXContentBuilder -> {
+            builder.array("nodes", arrayXContentBuilder -> {
                 for (Map.Entry<String, DiskHealthInfo> entry : diskHealthInfoMap.entrySet()) {
                     builder.startObject();
                     builder.field("node_id", entry.getKey());

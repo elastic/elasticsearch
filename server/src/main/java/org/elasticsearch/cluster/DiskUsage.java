@@ -44,9 +44,9 @@ public class DiskUsage implements ToXContentFragment, Writeable {
     public DiskUsage(String nodeId, String nodeName, String path, long totalBytes, long freeBytes) {
         this.nodeId = nodeId;
         this.nodeName = nodeName;
-        this.freeBytes = freeBytes;
-        this.totalBytes = totalBytes;
         this.path = path;
+        this.totalBytes = totalBytes;
+        this.freeBytes = freeBytes;
     }
 
     public DiskUsage(StreamInput in) throws IOException {
@@ -155,6 +155,10 @@ public class DiskUsage implements ToXContentFragment, Writeable {
             + "["
             + Strings.format1Decimals(getFreeDiskAsPercentage(), "%")
             + "]";
+    }
+
+    public DiskUsage copyWithFreeBytes(long freeBytes) {
+        return new DiskUsage(nodeId, nodeName, path, totalBytes, freeBytes);
     }
 
     /**

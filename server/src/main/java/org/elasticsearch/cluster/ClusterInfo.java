@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,15 +36,15 @@ import java.util.Set;
  */
 public class ClusterInfo implements ToXContentFragment, Writeable {
 
+    public static final ClusterInfo EMPTY = new ClusterInfo();
     public static final Version DATA_SET_SIZE_SIZE_VERSION = Version.V_7_13_0;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
-    final Map<String, Long> shardSizes;
-    final Map<ShardId, Long> shardDataSetSizes;
-    public static final ClusterInfo EMPTY = new ClusterInfo();
-    final Map<ShardRouting, String> routingToDataPath;
-    final Map<NodeAndPath, ReservedSpace> reservedSpace;
+    public final Map<String, Long> shardSizes;
+    public final Map<ShardId, Long> shardDataSetSizes;
+    public final Map<ShardRouting, String> routingToDataPath;
+    public final Map<NodeAndPath, ReservedSpace> reservedSpace;
 
     protected ClusterInfo() {
         this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
@@ -224,7 +225,41 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * includes a 'p' or 'r' depending on whether the shard is a primary.
      */
     public static String shardIdentifierFromRouting(ShardRouting shardRouting) {
-        return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
+        return shardIdentifierFromRouting(shardRouting.shardId(), shardRouting.primary());
+    }
+
+    public static String shardIdentifierFromRouting(ShardId shardId, boolean primary) {
+        return shardId.toString() + "[" + (primary ? "p" : "r") + "]";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClusterInfo that = (ClusterInfo) o;
+        return leastAvailableSpaceUsage.equals(that.leastAvailableSpaceUsage)
+            && mostAvailableSpaceUsage.equals(that.mostAvailableSpaceUsage)
+            && shardSizes.equals(that.shardSizes)
+            && shardDataSetSizes.equals(that.shardDataSetSizes)
+            && routingToDataPath.equals(that.routingToDataPath)
+            && reservedSpace.equals(that.reservedSpace);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            routingToDataPath,
+            reservedSpace
+        );
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, false);
     }
 
     /**

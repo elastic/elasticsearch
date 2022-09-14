@@ -151,7 +151,7 @@ public class HealthServiceTests extends ESTestCase {
         boolean explain,
         Class<T> expectedType,
         String expectedMessage,
-        boolean expectedInOnFail
+        boolean expectOnFailCalled
     ) throws Exception {
         AtomicBoolean onFailureCalled = new AtomicBoolean(false);
         ActionListener<List<HealthIndicatorResult>> listener = getExpectThrowsActionListener(
@@ -162,7 +162,7 @@ public class HealthServiceTests extends ESTestCase {
         try {
             service.getHealth(client, indicatorName, explain, listener);
         } catch (Throwable t) {
-            if (expectedInOnFail || (expectedType.isInstance(t) == false)) {
+            if (expectOnFailCalled || (expectedType.isInstance(t) == false)) {
                 throw new RuntimeException("Unexpected throwable", t);
             } else {
                 // Expected
@@ -171,7 +171,7 @@ public class HealthServiceTests extends ESTestCase {
                 }
             }
         }
-        if (expectedInOnFail) {
+        if (expectOnFailCalled) {
             assertBusy(() -> assertThat(onFailureCalled.get(), equalTo(true)));
         }
     }
@@ -184,7 +184,7 @@ public class HealthServiceTests extends ESTestCase {
         return new ActionListener<>() {
             @Override
             public void onResponse(List<HealthIndicatorResult> healthIndicatorResults) {
-                fail("Unexpected");
+                fail("Expected failure");
             }
 
             @Override

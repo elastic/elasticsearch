@@ -48,14 +48,15 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
         "health_node.transport_action_timeout",
         TimeValue.timeValueSeconds(5),
         TimeValue.timeValueMillis(1),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final ThreadPool threadPool;
     protected final String executor;
-    private final TimeValue healthNodeTransportActionTimeout;
+    private TimeValue healthNodeTransportActionTimeout;
 
     private final Writeable.Reader<Response> responseReader;
 
@@ -76,6 +77,11 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
         this.executor = executor;
         this.responseReader = response;
         this.healthNodeTransportActionTimeout = HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT,
+                newTimeout -> this.healthNodeTransportActionTimeout = newTimeout
+            );
     }
 
     protected abstract void healthOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)

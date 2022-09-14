@@ -9,22 +9,17 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -92,25 +87,6 @@ public class RestGetMappingAction extends BaseRestHandler {
         final HttpChannel httpChannel = request.getHttpChannel();
         return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
             .indices()
-            .getMappings(getMappingsRequest, new RestActionListener<>(channel) {
-                @Override
-                protected void processResponse(GetMappingsResponse getMappingsResponse) throws Exception {
-                    ensureOpen();
-                    channel.sendResponse(
-                        new RestResponse(
-                            RestStatus.OK,
-                            ChunkedRestResponseBody.fromXContent(
-                                () -> Iterators.concat(
-                                    Iterators.single((b, p) -> b.startObject()),
-                                    getMappingsResponse.toXContentChunked(),
-                                    Iterators.single((b, p) -> b.endObject())
-                                ),
-                                request,
-                                channel
-                            )
-                        )
-                    );
-                }
-            });
+            .getMappings(getMappingsRequest, new RestChunkedToXContentListener<>(channel));
     }
 }

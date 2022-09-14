@@ -7,6 +7,7 @@
 
 package org.elasticsearch.integration;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -15,8 +16,10 @@ import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -34,14 +37,17 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -53,6 +59,17 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
     private static AtomicLong versionCounter = new AtomicLong(1);
 
+    private static String emptyJSON = """
+        {
+             "metadata": {
+                 "version": "%s",
+                 "compatibility": "8.4.0"
+             },
+             "state": {
+                "cluster_settings": {}
+             }
+        }""";
+
     private static String testJSON = """
         {
              "metadata": {
@@ -60,6 +77,9 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                  "compatibility": "8.4.0"
              },
              "state": {
+                 "cluster_settings": {
+                     "indices.recovery.max_bytes_per_sec": "50mb"
+                 },
                  "role_mappings": {
                        "everyone_kibana": {
                           "enabled": true,
@@ -146,6 +166,28 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
+    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForCleanup(String node) {
+        ClusterService clusterService = internalCluster().clusterService(node);
+        CountDownLatch savedClusterState = new CountDownLatch(1);
+        AtomicLong metadataVersion = new AtomicLong(-1);
+        clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+                if (reservedState != null) {
+                    ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedClusterSettingsAction.NAME);
+                    if (handlerMetadata == null || handlerMetadata.keys().isEmpty()) {
+                        clusterService.removeListener(this);
+                        metadataVersion.set(event.state().metadata().version());
+                        savedClusterState.countDown();
+                    }
+                }
+            }
+        });
+
+        return new Tuple<>(savedClusterState, metadataVersion);
+    }
+
     private void assertRoleMappingsSaveOK(CountDownLatch savedClusterState, AtomicLong metadataVersion) throws Exception {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
@@ -161,8 +203,28 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             .get(FileSettingsService.NAMESPACE);
 
         ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
-
         assertThat(handlerMetadata.keys(), allOf(notNullValue(), containsInAnyOrder("everyone_kibana", "everyone_fleet")));
+
+        ReservedStateHandlerMetadata clusterStateHandlerMetadata = reservedState.handlers().get(ReservedClusterSettingsAction.NAME);
+        assertThat(
+            clusterStateHandlerMetadata.keys(),
+            allOf(notNullValue(), containsInAnyOrder(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()))
+        );
+
+        assertThat(
+            clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
+            equalTo("50mb")
+        );
+
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb")
+        );
+        assertEquals(
+            "java.lang.IllegalArgumentException: Failed to process request "
+                + "[org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest/unset] "
+                + "with errors: [[indices.recovery.max_bytes_per_sec] set as read-only by [file_settings]]",
+            expectThrows(ExecutionException.class, () -> client().admin().cluster().updateSettings(req).get()).getMessage()
+        );
 
         var request = new GetRoleMappingsRequest();
         request.setNames("everyone_kibana", "everyone_fleet");
@@ -198,10 +260,18 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
     public void testRoleMappingsApplied() throws Exception {
         ensureGreen();
 
-        var savedClusterState = setupClusterStateListener(internalCluster().getMasterName());
-        writeJSONFile(internalCluster().getMasterName(), testJSON);
+        try {
+            var savedClusterState = setupClusterStateListener(internalCluster().getMasterName());
+            writeJSONFile(internalCluster().getMasterName(), testJSON);
 
-        assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
+            assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
+        } finally {
+            logger.info("---> cleanup cluster settings...");
+            var savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
+            writeJSONFile(internalCluster().getMasterName(), emptyJSON);
+            boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+            assertTrue(awaitSuccessful);
+        }
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(String node) {

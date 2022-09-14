@@ -19,12 +19,12 @@ import java.util.function.Consumer;
  * current state as well as previous keys set by an {@link ReservedClusterStateHandler} to each transform
  * step of the cluster state update.
  *
- * Each {@link ReservedClusterStateHandler} can also provide a post transform consumer that should run after
- * the cluster state fully processed. This allows for handlers to perform extra steps, like clearing caches or saving
- * other state outside the cluster state. The consumer, if provided, must return a {@link PostTransformResult} with
+ * Each {@link ReservedClusterStateHandler} can also provide a non cluster state transform consumer that should run after
+ * the cluster state is fully validated. This allows for handlers to perform extra steps, like clearing caches or saving
+ * other state outside the cluster state. The consumer, if provided, must return a {@link NonStateTransformResult} with
  * the keys that will be saved as reserved in the cluster state.
  */
-public record TransformState(ClusterState state, Set<String> keys, Consumer<ActionListener<PostTransformResult>> postTransform) {
+public record TransformState(ClusterState state, Set<String> keys, Consumer<ActionListener<NonStateTransformResult>> nonStateTransform) {
     public TransformState(ClusterState state, Set<String> keys) {
         this(state, keys, null);
     }

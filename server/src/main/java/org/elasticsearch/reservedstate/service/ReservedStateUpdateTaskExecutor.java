@@ -11,15 +11,11 @@ package org.elasticsearch.reservedstate.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.reservedstate.PostTransformResult;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Reserved cluster state update task executor
@@ -33,18 +29,15 @@ public record ReservedStateUpdateTaskExecutor(RerouteService rerouteService) imp
     @Override
     public ClusterState execute(BatchExecutionContext<ReservedStateUpdateTask> batchExecutionContext) throws Exception {
         var updatedState = batchExecutionContext.initialState();
-        List<Consumer<ActionListener<PostTransformResult>>> postTransforms = new ArrayList<>();
 
         // The post transformation actions can be async, so we don't run those on the master state update threads.
         // Instead, we collect all those consumers and pass them back to the main task listener, so they can be
         // run asynchronously.
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             try (var ignored = taskContext.captureResponseHeaders()) {
-                var updateResult = taskContext.getTask().execute(updatedState);
-                updatedState = updateResult.clusterState();
-                postTransforms.addAll(updateResult.postTransforms());
+                updatedState = taskContext.getTask().execute(updatedState);
             }
-            taskContext.success(() -> taskContext.getTask().listener().onResponse(postTransforms));
+            taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
         }
         return updatedState;
     }

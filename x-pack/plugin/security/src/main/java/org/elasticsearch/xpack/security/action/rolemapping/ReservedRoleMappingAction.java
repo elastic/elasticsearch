@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.action.rolemapping;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.reservedstate.PostTransformResult;
+import org.elasticsearch.reservedstate.NonStateTransformResult;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -79,16 +79,16 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
     public TransformState transform(Object source, TransformState prevState) throws Exception {
         // We execute the prepare() call to catch any errors in the transform phase.
         // Since we store the role mappings outside the cluster state, we do the actual save with a
-        // post transform call.
+        // non cluster state transform call.
         @SuppressWarnings("unchecked")
         var requests = prepare((List<ExpressionRoleMapping>) source);
-        return new TransformState(prevState.state(), prevState.keys(), ((l) -> postTransform(requests, prevState, l)));
+        return new TransformState(prevState.state(), prevState.keys(), ((l) -> nonStateTransform(requests, prevState, l)));
     }
 
-    private Void postTransform(
+    private Void nonStateTransform(
         Collection<PutRoleMappingRequest> requests,
         TransformState prevState,
-        ActionListener<PostTransformResult> listener
+        ActionListener<NonStateTransformResult> listener
     ) {
         Set<String> entities = requests.stream().map(r -> r.getName()).collect(Collectors.toSet());
         Set<String> toDelete = new HashSet<>(prevState.keys());
@@ -98,14 +98,14 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
 
         // Nothing to do, don't start a group listener with 0 actions
         if (tasksCount == 0) {
-            listener.onResponse(new PostTransformResult(ReservedRoleMappingAction.NAME, Set.of()));
+            listener.onResponse(new NonStateTransformResult(ReservedRoleMappingAction.NAME, Set.of()));
             return null;
         }
 
         GroupedActionListener<Boolean> taskListener = new GroupedActionListener<>(new ActionListener<>() {
             @Override
             public void onResponse(Collection<Boolean> booleans) {
-                listener.onResponse(new PostTransformResult(ReservedRoleMappingAction.NAME, Collections.unmodifiableSet(entities)));
+                listener.onResponse(new NonStateTransformResult(ReservedRoleMappingAction.NAME, Collections.unmodifiableSet(entities)));
             }
 
             @Override

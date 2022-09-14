@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.reservedstate.PostTransformResult;
+import org.elasticsearch.reservedstate.NonStateTransformResult;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -48,10 +48,10 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
             CountDownLatch latch = new CountDownLatch(1);
             AtomicReference<Set<String>> updatedKeys = new AtomicReference<>();
             AtomicReference<Exception> error = new AtomicReference<>();
-            state.postTransform().accept(new ActionListener<>() {
+            state.nonStateTransform().accept(new ActionListener<>() {
                 @Override
-                public void onResponse(PostTransformResult postTransformResult) {
-                    updatedKeys.set(postTransformResult.updatedKeys());
+                public void onResponse(NonStateTransformResult nonStateTransformResult) {
+                    updatedKeys.set(nonStateTransformResult.updatedKeys());
                     latch.countDown();
                 }
 
@@ -147,7 +147,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testPostTransformWaitsOnAsyncActions() throws Exception {
+    public void testNonStateTransformWaitsOnAsyncActions() throws Exception {
         var nativeRoleMappingStore = mockNativeRoleMappingStore();
 
         doAnswer(invocation -> {

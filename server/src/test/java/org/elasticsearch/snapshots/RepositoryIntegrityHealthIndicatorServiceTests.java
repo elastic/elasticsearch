@@ -21,6 +21,7 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -46,7 +47,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -70,7 +71,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
 
         List<String> corruptedRepos = List.of("corrupted-repo");
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -97,7 +98,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(false),
+            service.calculate(false, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,

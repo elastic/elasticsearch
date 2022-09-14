@@ -126,7 +126,9 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         this.internalLoader = new URLClassLoader(jarURLs);
         // code source is always the first jar on the list
         this.codeSource = new CodeSource(jarURLs[0], (CodeSigner[]) null);
-        // we need a module layer to bind our module to this classloader
+        // Defining a module layer tells the Java virtual machine about the
+        // classes that may be loaded from the module, and is what makes the
+        // Class::getModule call return the name of our ubermodule.
         this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
         this.module = this.moduleController.layer().findModule(moduleName).orElseThrow();
 

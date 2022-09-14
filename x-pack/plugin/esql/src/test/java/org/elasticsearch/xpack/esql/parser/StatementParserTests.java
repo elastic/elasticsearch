@@ -179,7 +179,7 @@ public class StatementParserTests extends ESTestCase {
         assertThat(orderBy.order().size(), equalTo(1));
         order = orderBy.order().get(0);
         assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
-        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
         assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("y"));
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -54,13 +56,20 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         null
     );
 
-    public static final String ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
-    public static final Diagnosis.Definition ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS = new Diagnosis.Definition(
-        "check_recent_snapshot_failures",
-        "The following snapshot lifecycle policies have exceeded the warning threshold for repeat failures without a successful execution.",
-        "Check the snapshot lifecycle policies [/_slm/policy/<policy_name>?human] for detailed failure info.",
-        ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL
-    );
+    private static final DateFormatter FORMATTER = DateFormatter.forPattern("iso8601").withZone(ZoneOffset.UTC);
+
+    public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID = "check_recent_snapshot_failures";
+    public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
+
+    // Visible for testing
+    static Diagnosis.Definition checkRecentlyFailedSnapshots(String causeText, String actionText) {
+        return new Diagnosis.Definition(
+            DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID,
+            causeText,
+            actionText,
+            DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL
+        );
+    }
 
     private final ClusterService clusterService;
     private volatile long failedSnapshotWarnThreshold;
@@ -124,6 +133,29 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     )
                 );
 
+                String unhealthyPolicyCauses = unhealthyPolicies.stream()
+                    .map(
+                        policy -> "- ["
+                            + policy.getName()
+                            + "] had ["
+                            + policy.getInvocationsSinceLastSuccess()
+                            + "] repeated failures without successful execution since ["
+                            + FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp())
+                            + "]"
+                    )
+                    .collect(Collectors.joining("\n"));
+                String cause = (unhealthyPolicies.size() > 1
+                    ? "Several automated snapshot policies are unhealthy:\n"
+                    : "An automated snapshot policy is unhealthy:\n") + unhealthyPolicyCauses;
+
+                String unhealthyPolicyActions = unhealthyPolicies.stream()
+                    .map(policy -> "- /_slm/policy/" + policy.getName() + "?human")
+                    .collect(Collectors.joining("\n"));
+                String action = "Check the snapshot lifecycle "
+                    + (unhealthyPolicies.size() > 1 ? "policies" : "policy")
+                    + " for detailed failure info:\n"
+                    + unhealthyPolicyActions;
+
                 return createIndicator(
                     YELLOW,
                     "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies.",
@@ -131,7 +163,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     impacts,
                     List.of(
                         new Diagnosis(
-                            ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS,
+                            checkRecentlyFailedSnapshots(cause, action),
                             unhealthyPolicies.stream().map(SnapshotLifecyclePolicyMetadata::getName).toList()
                         )
                     )

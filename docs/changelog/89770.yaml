@@ -1,0 +1,6 @@
+pr: 89770
+summary: Clarified fielddata not supported for text fields error message
+area: Mapping
+type: enhancement
+issues:
+ - 89485

@@ -171,12 +171,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 ignoreMalformedByDefault
             );
 
-            this.timeSeriesMetric = TimeSeriesParams.metricParam(
-                m -> toType(m).metricType,
-                MetricType.gauge,
-                MetricType.counter,
-                MetricType.summary
-            );
+            this.timeSeriesMetric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge);
 
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
         }

@@ -71,7 +71,7 @@ public class MetadataIndexAliasesService {
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        var task = new ApplyAliasActions(request.actions(), listener);
+        var task = new ApplyAliasActions(this, request.actions(), listener);
         var config = ClusterStateTaskConfig.build(Priority.URGENT);
         clusterService.submitStateUpdateTask("index-aliases", task, config, executor);
     }
@@ -242,15 +242,11 @@ public class MetadataIndexAliasesService {
     /**
      * A cluster state update task that applies the alias actions to the given cluster state.
      */
-    private class ApplyAliasActions implements ClusterStateTaskListener {
-
-        private final Iterable<AliasAction> actions;
-        private final ActionListener<AcknowledgedResponse> listener;
-
-        ApplyAliasActions(Iterable<AliasAction> actions, ActionListener<AcknowledgedResponse> listener) {
-            this.actions = actions;
-            this.listener = listener;
-        }
+    private record ApplyAliasActions(
+        MetadataIndexAliasesService aliasesService,
+        Iterable<AliasAction> actions,
+        ActionListener<AcknowledgedResponse> listener
+    ) implements ClusterStateTaskListener {
 
         @Override
         public void onFailure(Exception e) {
@@ -266,7 +262,7 @@ public class MetadataIndexAliasesService {
          * the {@link MetadataIndexAliasesService#applyAliasActions(ClusterState, Iterable)}.
          */
         public ClusterState execute(ClusterState currentState) {
-            return MetadataIndexAliasesService.this.applyAliasActions(currentState, actions);
+            return aliasesService.applyAliasActions(currentState, actions);
         }
 
         static class Executor implements ClusterStateTaskExecutor<ApplyAliasActions> {

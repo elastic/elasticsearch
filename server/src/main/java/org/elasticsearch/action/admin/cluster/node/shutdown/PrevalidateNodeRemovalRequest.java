@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -17,7 +18,8 @@ import java.io.IOException;
 import java.util.List;
 
 public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<PrevalidateNodeRemovalRequest> {
-    private final String[] nodeIds;
+    private final String[] nodeIds; // Maybe named just nodes?
+    private DiscoveryNode[] concreteNodes;
 
     public PrevalidateNodeRemovalRequest(String... nodeIds) {
         this.nodeIds = nodeIds;
@@ -26,6 +28,10 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
     public PrevalidateNodeRemovalRequest(final StreamInput in) throws IOException {
         super(in);
         nodeIds = in.readStringArray();
+    }
+
+    public void setConcreteNodes(DiscoveryNode... discoveryNodes) {
+        concreteNodes = discoveryNodes;
     }
 
     @Override

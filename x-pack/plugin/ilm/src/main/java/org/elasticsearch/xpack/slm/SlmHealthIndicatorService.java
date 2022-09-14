@@ -48,7 +48,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     public static final String HELP_URL = "https://ela.st/fix-slm";
     public static final Diagnosis SLM_NOT_RUNNING = new Diagnosis(
         new Diagnosis.Definition(
-            "slm-not-running",
+            "urn:elasticsearch:health:" + NAME + ":diagnosis:slm_disabled",
             "Snapshot Lifecycle Management is stopped",
             "Start Snapshot Lifecycle Management using [POST /_slm/start].",
             HELP_URL
@@ -58,13 +58,13 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("iso8601").withZone(ZoneOffset.UTC);
 
-    public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID = "check_recent_snapshot_failures";
+    public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_URN = "urn:elasticsearch:health:" + NAME + ":diagnosis:check_recent_snapshot_failures";
     public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
 
     // Visible for testing
     static Diagnosis.Definition checkRecentlyFailedSnapshots(String causeText, String actionText) {
         return new Diagnosis.Definition(
-            DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID,
+            DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_URN,
             causeText,
             actionText,
             DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL

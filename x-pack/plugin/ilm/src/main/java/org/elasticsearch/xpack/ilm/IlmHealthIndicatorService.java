@@ -40,7 +40,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     public static final String HELP_URL = "https://ela.st/fix-ilm";
     public static final Diagnosis ILM_NOT_RUNNING = new Diagnosis(
         new Diagnosis.Definition(
-            "ilm-not-running",
+            "urn:elasticsearch:health:" + NAME + ":diagnosis:ilm_disabled",
             "Index Lifecycle Management is stopped",
             "Start Index Lifecycle Management using [POST /_ilm/start].",
             HELP_URL

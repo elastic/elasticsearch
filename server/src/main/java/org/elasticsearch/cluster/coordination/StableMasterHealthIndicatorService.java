@@ -39,7 +39,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     public static final String GET_HELP_GUIDE = "https://ela.st/getting-help";
     public static final Diagnosis CONTACT_SUPPORT_USER_ACTION = new Diagnosis(
         new Diagnosis.Definition(
-            "contact_support",
+            "urn:elasticsearch:health:" + NAME + ":diagnosis:contact_support",
             "The Elasticsearch cluster does not have a stable master node.",
             "Get help at " + GET_HELP_GUIDE,
             GET_HELP_GUIDE

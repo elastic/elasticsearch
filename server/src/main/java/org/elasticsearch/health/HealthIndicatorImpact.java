@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public record HealthIndicatorImpact(String urn, int severity, String impactDescription, List<ImpactArea> impactAreas)
+public record HealthIndicatorImpact(String id, int severity, String impactDescription, List<ImpactArea> impactAreas)
     implements
         ToXContentObject {
 
@@ -34,7 +34,7 @@ public record HealthIndicatorImpact(String urn, int severity, String impactDescr
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("urn", urn);
+        builder.field("id", id);
         builder.field("severity", severity);
         builder.field("description", impactDescription);
         builder.startArray("impact_areas");

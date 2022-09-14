@@ -81,7 +81,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         List<Map<String, Object>> expectedDiagnosis = new ArrayList<>();
         {
             Map<String, Object> expectedDiagnosis1 = new HashMap<>();
-            expectedDiagnosis1.put("urn", action1.definition().urn());
+            expectedDiagnosis1.put("id", action1.definition().id());
             expectedDiagnosis1.put("cause", action1.definition().cause());
             expectedDiagnosis1.put("action", action1.definition().action());
             expectedDiagnosis1.put("help_url", action1.definition().helpURL());
@@ -92,7 +92,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         }
         {
             Map<String, Object> expectedDiagnosis2 = new HashMap<>();
-            expectedDiagnosis2.put("urn", action2.definition().urn());
+            expectedDiagnosis2.put("id", action2.definition().id());
             expectedDiagnosis2.put("cause", action2.definition().cause());
             expectedDiagnosis2.put("action", action2.definition().action());
             expectedDiagnosis2.put("help_url", action2.definition().helpURL());

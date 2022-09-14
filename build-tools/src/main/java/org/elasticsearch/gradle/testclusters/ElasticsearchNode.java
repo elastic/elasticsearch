@@ -1676,7 +1676,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             wait.setCertificateAuthorities(getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate").toString()).toFile());
         }
         if (settings.containsKey("xpack.security.http.ssl.keystore.path")
-            && settings.containsKey("xpack.security.http.ssl.certificate_authorities") == false) { //Can not set both trust stores and CA
+            && settings.containsKey("xpack.security.http.ssl.certificate_authorities") == false) { // Can not set both trust stores and CA
             wait.setTrustStoreFile(getConfigDir().resolve(settings.get("xpack.security.http.ssl.keystore.path").toString()).toFile());
         }
         if (keystoreSettings.containsKey("xpack.security.http.ssl.keystore.secure_password")) {

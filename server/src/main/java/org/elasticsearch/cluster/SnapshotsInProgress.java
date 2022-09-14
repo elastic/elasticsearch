@@ -691,7 +691,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * This is used by data nodes to determine if there is any work to be done on a snapshot by them without having to iterate
          * the full {@link #shards} map.
          */
-        private final boolean hasInitStateShards;
+        private final boolean hasShardsInInitState;
 
         // visible for testing, use #startedEntry and copy constructors in production code
         public static Entry snapshot(
@@ -792,7 +792,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             @Nullable SnapshotId source,
             Map<RepositoryShardId, ShardSnapshotStatus> shardStatusByRepoShardId,
             Map<String, Index> snapshotIndices,
-            boolean hasInitStateShards
+            boolean hasShardsInInitState
         ) {
             this.state = state;
             this.snapshot = snapshot;
@@ -810,14 +810,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.source = source;
             this.shardStatusByRepoShardId = Map.copyOf(shardStatusByRepoShardId);
             this.snapshotIndices = snapshotIndices;
-            this.hasInitStateShards = hasInitStateShards;
+            this.hasShardsInInitState = hasShardsInInitState;
             assert assertShardsConsistent(
                 this.source,
                 this.state,
                 this.indices,
                 this.shards,
                 this.shardStatusByRepoShardId,
-                this.hasInitStateShards
+                this.hasShardsInInitState
             );
         }
 
@@ -938,7 +938,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 source,
                 shardStatusByRepoShardId,
                 snapshotIndices,
-                hasInitStateShards
+                hasShardsInInitState
             );
         }
 
@@ -1157,11 +1157,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         /**
-         * See {@link #hasInitStateShards}.
+         * See {@link #hasShardsInInitState}.
          * @return true if this entry can contain shard snapshots that have yet to be started on a data node.
          */
-        public boolean hasInitStateShards() {
-            return hasInitStateShards;
+        public boolean hasShardsInInitState() {
+            return hasShardsInInitState;
         }
 
         public boolean partial() {
@@ -1549,7 +1549,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     null,
                     part.shardStatusByRepoShardId,
                     part.snapshotIndices,
-                    part.hasInitStateShards
+                    part.hasShardsInInitState
                 );
             }
             if (part.isClone()) {

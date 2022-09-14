@@ -2022,7 +2022,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             "The repository has been disabled to prevent data corruption because its contents were found not to match its expected state. "
                 + "This is either because something other than this cluster modified the repository contents, or because the repository's "
                 + "underlying storage behaves incorrectly. To re-enable this repository, first ensure that this cluster has exclusive "
-                + "write access to it, and then use the Update Snapshot Repository API to re-register the repository with this cluster. "
+                + "write access to it, and then re-register the repository with this cluster. "
                 + "See https://www.elastic.co/guide/en/elasticsearch/reference/"
                 + Version.CURRENT.major
                 + "."

@@ -357,7 +357,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, Integer position, Runnable next) {
-            fail("should not be called");
         }
 
         @Override

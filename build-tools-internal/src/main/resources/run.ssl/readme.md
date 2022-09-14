@@ -3,7 +3,7 @@ This directory contains public and private keys for use with the manual run task
 All certs expire September 13, 2042,
 have no required password,
 require the hostname to be localhost or esX (where X=the name in the certificate) for hostname verification,
-and were created by the elasticsearch-certutil tool.
+were created by the elasticsearch-certutil tool.
 
 ## Usage
 
@@ -13,7 +13,7 @@ Use private-certX.p12 for node X's `xpack.security.[transport|http].ssl.keystore
 
 ## Certificate Authority (CA):
 
-* private-ca.key : the private key of the signing CA in PEM format. Useful if desired to sign additional keys.
+* private-ca.key : the private key of the signing CA in PEM format. Useful if desired to sign additional certificates.
 * public-ca.pem : the public key of the signing CA in PEM format. Useful as the certificate_authorities.
 
 To recreate CA :

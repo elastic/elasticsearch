@@ -188,7 +188,9 @@ public class ExpressionBuilder extends IdentifierBuilder {
             source(ctx),
             expression(ctx.booleanExpression()),
             ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC,
-            (ctx.NULLS() != null && ctx.LAST() != null) ? Order.NullsPosition.LAST : Order.NullsPosition.FIRST
+            (ctx.NULLS() != null && ctx.LAST() != null || ctx.NULLS() == null && ctx.DESC() == null)
+                ? Order.NullsPosition.LAST
+                : Order.NullsPosition.FIRST
         );
     }
 

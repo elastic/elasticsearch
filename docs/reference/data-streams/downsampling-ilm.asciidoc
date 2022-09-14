@@ -67,7 +67,7 @@ PUT _ilm/policy/datastream_policy
           "rollover": {             
             "max_docs": 1
           },
-          "rollup": {
+          "downsample": {
   	          "fixed_interval": "1h"
   	      }
         }
@@ -384,7 +384,7 @@ GET _data_stream
 
 After the ILM policy has taken effect, the original
 `.ds-datastream-2022.08.26-000001` index is replaced with a new, downsampled
-index, in this case `rollup-6tkn-.ds-datastream-2022.08.26-000001`.
+index, in this case `downsample-6tkn-.ds-datastream-2022.08.26-000001`.
 
 ```
 {
@@ -396,7 +396,7 @@ index, in this case `rollup-6tkn-.ds-datastream-2022.08.26-000001`.
       },
       "indices": [
         {
-          "index_name": "rollup-6tkn-.ds-datastream-2022.08.26-000001",
+          "index_name": "downsample-6tkn-.ds-datastream-2022.08.26-000001",
           "index_uuid": "qRane1fQQDCNgKQhXmTIvg"
         },
         {
@@ -437,7 +437,7 @@ metrics.
     "max_score": 1,
     "hits": [
       {
-        "_index": "rollup-6tkn-.ds-datastream-2022.08.26-000001",
+        "_index": "downsample-6tkn-.ds-datastream-2022.08.26-000001",
         "_id": "0eL0wC_4-45SnTNFAAABgtpz0wA",
         "_score": 1,
         "_source": {

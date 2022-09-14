@@ -344,7 +344,7 @@ And now, you can use the <<indices-downsample-data-stream,downsample API>> to do
 
 [source,console]
 ----
-POST /sample-01/_rollup/sample-01-rollup
+POST /sample-01/_downsample/sample-01-downsample
 {
   "fixed_interval": "1h"
 }
@@ -383,7 +383,7 @@ In the query results, notice that the numer of hits has been reduced to only 288
     "max_score": 1,
     "hits": [
       {
-        "_index": "sample-01-rollup",
+        "_index": "sample-01-downsample",
         "_id": "WyHN6N6AwdaJByQWAAABgYNYIYA",
         "_score": 1,
         "_source": {

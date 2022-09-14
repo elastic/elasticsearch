@@ -32,7 +32,7 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
 
     @Override
     protected ReactiveStorageDeciderService.ReactiveReason mutateInstance(ReactiveStorageDeciderService.ReactiveReason instance) {
-        switch (between(0, 8)) {
+        switch (between(0, 7)) {
             case 0:
                 return new ReactiveStorageDeciderService.ReactiveReason(
                     randomValueOtherThan(instance.summary(), () -> randomAlphaOfLength(10)),
@@ -111,16 +111,6 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.assigned(),
                     instance.assignedShardIds(),
                     instance.unassignedAllocationResults(),
-                    randomList(8, this::randomNodeDecision)
-                );
-            case 8:
-                return new ReactiveStorageDeciderService.ReactiveReason(
-                    instance.summary(),
-                    instance.unassigned(),
-                    instance.unassignedShardIds(),
-                    instance.assigned(),
-                    instance.assignedShardIds(),
-                    randomList(8, this::randomNodeDecision),
                     randomList(8, this::randomNodeDecision)
                 );
             default:

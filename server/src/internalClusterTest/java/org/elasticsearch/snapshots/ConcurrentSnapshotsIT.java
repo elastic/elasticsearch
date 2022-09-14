@@ -170,10 +170,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final ExecutionException executionException = expectThrows(ExecutionException.class, () -> slowFuture.get().getSnapshotInfo());
         final Throwable innermostException = Throwables.getRootCause(executionException);
         assertThat(innermostException, instanceOf(RepositoryException.class));
-        assertThat(
-            innermostException.getMessage(),
-            containsString("Could not read repository data because the contents of the repository do not match its expected state")
-        );
+        assertThat(innermostException.getMessage(), containsString("The repository has been disabled to prevent data corruption"));
 
         logger.info("--> without snapshots in progress, finally recreate repository to reset corrupted state");
         createRepository(repoName, "mock", Settings.builder().put(repoSettings));

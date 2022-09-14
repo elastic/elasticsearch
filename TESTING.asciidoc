@@ -107,6 +107,7 @@ password: `elastic-password`.
 - In order to set a different keystore password: `--keystore-password`
 - In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 - In order to pass a JVM setting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`
+- In order to use HTTPS use ./gradlew run -Dhttps
 
 ==== Customizing the test cluster for ./gradlew run
 
@@ -118,7 +119,7 @@ Alternatively, you can use a Gradle init script to inject custom build logic wit
 
 For example:
 
-To enable HTTPS for use with ./gradlew run, an extraConfigFile is needed to be added to the cluster configuration.
+To use a custom certificate for HTTPS for use with ./gradlew run.
 Create a file (for example ~/custom-run.gradle) with the following contents:
 -------------------------------------
 rootProject {

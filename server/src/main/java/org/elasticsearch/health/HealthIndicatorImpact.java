@@ -16,7 +16,8 @@ import java.io.IOException;
 import java.util.List;
 
 public record HealthIndicatorImpact(String urn, int severity, String impactDescription, List<ImpactArea> impactAreas)
-    implements ToXContentObject {
+    implements
+        ToXContentObject {
 
     public HealthIndicatorImpact {
         if (severity < 0) {

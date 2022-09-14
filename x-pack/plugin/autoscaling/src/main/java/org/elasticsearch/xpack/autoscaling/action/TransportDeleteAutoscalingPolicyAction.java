@@ -31,6 +31,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
+import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -85,6 +87,13 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
+    /**
+     * Used by the reserved cluster state action handler for autoscaling policy
+     */
+    static ClusterState deleteAutoscalingPolicy(final ClusterState currentState, final String name) {
+        return deleteAutoscalingPolicy(currentState, name, LOGGER);
+    }
+
     static ClusterState deleteAutoscalingPolicy(final ClusterState currentState, final String name, final Logger logger) {
         final ClusterState.Builder builder = ClusterState.builder(currentState);
         final AutoscalingMetadata currentMetadata;
@@ -113,4 +122,13 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
         return builder.build();
     }
 
+    @Override
+    protected Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedAutoscalingPolicyAction.NAME);
+    }
+
+    @Override
+    protected Set<String> modifiedKeys(DeleteAutoscalingPolicyAction.Request request) {
+        return Set.of(request.name());
+    }
 }

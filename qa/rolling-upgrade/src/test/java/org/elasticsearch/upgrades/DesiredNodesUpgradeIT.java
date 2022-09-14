@@ -37,7 +37,6 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
         FLOAT
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90004")
     public void testUpgradeDesiredNodes() throws Exception {
         // Desired nodes was introduced in 8.1
         if (UPGRADE_FROM_VERSION.before(Version.V_8_1_0)) {
@@ -159,7 +158,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                 .map(
                     nodeName -> new DesiredNode(
                         Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
-                        processorsPrecision == ProcessorsPrecision.DOUBLE ? randomDoubleProcessorCount() : randomFloatProcessorCount(),
+                        processorsPrecision == ProcessorsPrecision.DOUBLE ? randomDoubleProcessorCount() : 0.5f,
                         ByteSizeValue.ofGb(randomIntBetween(10, 24)),
                         ByteSizeValue.ofGb(randomIntBetween(128, 256)),
                         Version.CURRENT

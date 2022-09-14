@@ -779,19 +779,13 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             RepositoryException.class,
             () -> client.admin().cluster().prepareDeleteSnapshot(repo, existingSnapshot).execute().actionGet()
         );
-        assertThat(
-            repositoryException3.getMessage(),
-            containsString("Could not read repository data because the contents of the repository do not match its expected state.")
-        );
+        assertThat(repositoryException3.getMessage(), containsString("The repository has been disabled to prevent data corruption"));
 
         logger.info("--> try to create snapshot");
         final RepositoryException repositoryException4 = expectThrows(
             RepositoryException.class,
             () -> client.admin().cluster().prepareCreateSnapshot(repo, existingSnapshot).execute().actionGet()
         );
-        assertThat(
-            repositoryException4.getMessage(),
-            containsString("Could not read repository data because the contents of the repository do not match its expected state.")
-        );
+        assertThat(repositoryException4.getMessage(), containsString("The repository has been disabled to prevent data corruption"));
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -26,7 +27,6 @@ import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.RUNNING;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
@@ -42,14 +42,12 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
                     "Index Lifecycle Management is running",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 1)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -64,14 +62,12 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     YELLOW,
                     "Index Lifecycle Management is not running",
-                    IlmHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
@@ -93,14 +89,12 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
                     "No Index Lifecycle Management policies configured",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -114,14 +108,12 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createIlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
                     "No Index Lifecycle Management policies configured",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()

@@ -1,0 +1,5 @@
+pr: 90017
+summary: Fix Fields API Caching Regression
+area: Infra/Scripting
+type: regression
+issues: []

@@ -16,7 +16,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
@@ -156,6 +155,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89860")
     public void testDoesNotElectNonMasterNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
             cluster.runRandomly();
@@ -1133,7 +1133,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("unchanged", cs -> {
                 computeAdvancer.advanceTime();
                 return cs;
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
@@ -1220,7 +1220,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("update", cs -> {
                 computeAdvancer.advanceTime();
                 return ClusterState.builder(cs).putCustom(customName, new DelayedCustom(contextAdvancer)).build();
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
@@ -1281,7 +1281,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("update", cs -> {
                 computeAdvancer.advanceTime();
                 return ClusterState.builder(cs).build();
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     fail("shouldn't have processed cluster state");
@@ -1903,6 +1903,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89867")
     public void testSingleNodeDiscoveryStabilisesEvenWhenDisrupted() {
         try (
             Cluster cluster = new Cluster(
@@ -2165,6 +2166,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    public void testInvariantWhenTwoNodeClusterBecomesSingleNodeCluster() {
+        try (Cluster cluster = new Cluster(2)) {
+            cluster.stabilise();
+            assertTrue(cluster.getAnyNodeExcept(cluster.getAnyLeader()).disconnect()); // Remove non-leader node
+            cluster.stabilise();
+        }
+    }
+
     @TestLogging(
         reason = "testing LagDetector and CoordinatorPublication logging",
         value = "org.elasticsearch.cluster.coordination.LagDetector:DEBUG,"
@@ -2375,6 +2384,23 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion2);
 
             assertFalse(Coordinator.validVotingConfigExclusionState(newState2));
+        }
+    }
+
+    public void testPeerFinderListener() throws Exception {
+        try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            ClusterNode leader = cluster.getAnyLeader();
+            ClusterNode nodeWithListener = cluster.getAnyNodeExcept(leader);
+            AtomicBoolean listenerCalled = new AtomicBoolean(false);
+            nodeWithListener.coordinator.addPeerFinderListener(() -> listenerCalled.set(true));
+            assertFalse(listenerCalled.get());
+            leader.disconnect();
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Letting disconnect take effect");
+            cluster.stabilise();
+            assertTrue(cluster.clusterNodes.contains(nodeWithListener));
+            assertBusy(() -> assertTrue(listenerCalled.get()));
         }
     }
 

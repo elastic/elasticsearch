@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -143,11 +144,13 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         TrainedModelDeploymentTask task,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
+        assert actionTask instanceof CancellableTask : "task [" + actionTask + "] not cancellable";
         task.infer(
             request.getDocs().get(0),
             request.getUpdate(),
             request.isSkipQueue(),
             request.getInferenceTimeout(),
+            actionTask,
             ActionListener.wrap(
                 pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult)),
                 listener::onFailure

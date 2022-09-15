@@ -1,0 +1,5 @@
+pr: 89973
+summary: Fix debug mode in `MaxRetryAllocationDecider`
+area: Allocation
+type: bug
+issues: []

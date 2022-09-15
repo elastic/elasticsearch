@@ -1,6 +1,0 @@
-pr: 88336
-summary: Add `build_flavor` back to info api rest response
-area: Infra/Core
-type: bug
-issues:
- - 88318

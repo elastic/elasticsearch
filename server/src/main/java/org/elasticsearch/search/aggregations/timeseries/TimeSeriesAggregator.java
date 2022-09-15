@@ -42,7 +42,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, bucketCardinality, metadata);
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.keyed = keyed;
         bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), bucketCardinality);
     }

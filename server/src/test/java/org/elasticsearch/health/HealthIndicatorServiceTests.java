@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -59,17 +60,7 @@ public class HealthIndicatorServiceTests extends ESTestCase {
             }
 
             @Override
-            public String component() {
-                return null;
-            }
-
-            @Override
-            public String helpURL() {
-                return null;
-            }
-
-            @Override
-            public HealthIndicatorResult calculate(boolean explain) {
+            public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
                 return null;
             }
         };

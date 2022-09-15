@@ -54,6 +54,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -319,11 +320,22 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      * Returns a built (on demand) routing nodes view of the routing table.
      */
     public RoutingNodes getRoutingNodes() {
-        if (routingNodes != null) {
-            return routingNodes;
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
         }
-        routingNodes = RoutingNodes.immutable(routingTable, nodes);
-        return routingNodes;
+        r = buildRoutingNodes();
+        return r;
+    }
+
+    private synchronized RoutingNodes buildRoutingNodes() {
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
+        }
+        r = RoutingNodes.immutable(routingTable, nodes);
+        routingNodes = r;
+        return r;
     }
 
     /**
@@ -338,6 +350,19 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         // we don't have any routing nodes for this state, likely because it's a temporary state in the reroute logic, don't compute an
         // immutable copy that will never be used and instead directly build a mutable copy
         return RoutingNodes.mutable(routingTable, this.nodes);
+    }
+
+    /**
+     * Initialize data structures that lazy computed for this instance in the background by using the giving executor.
+     * @param executor executor to run initialization tasks on
+     */
+    public void initializeAsync(Executor executor) {
+        if (routingNodes == null) {
+            executor.execute(this::getRoutingNodes);
+        }
+        if (metadata.indicesLookupInitialized() == false) {
+            executor.execute(metadata::getIndicesLookup);
+        }
     }
 
     @Override
@@ -704,8 +729,10 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder fromDiff(boolean fromDiff) {
-            this.fromDiff = fromDiff;
+        // set previous cluster state that this builder is created from during diff application
+        private Builder fromDiff(ClusterState previous) {
+            this.fromDiff = true;
+            this.previous = previous;
             return this;
         }
 
@@ -876,7 +903,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));
-            builder.fromDiff(true);
+            builder.fromDiff(state);
             return builder.build();
         }
     }

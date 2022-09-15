@@ -24,12 +24,12 @@ public class MaxAgeCondition extends Condition<TimeValue> {
     public static final String NAME = "max_age";
 
     public MaxAgeCondition(TimeValue value) {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = value;
     }
 
     public MaxAgeCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = TimeValue.timeValueMillis(in.readLong());
     }
 
@@ -64,7 +64,7 @@ public class MaxAgeCondition extends Condition<TimeValue> {
         if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
             return new MaxAgeCondition(TimeValue.parseTimeValue(parser.text(), NAME));
         } else {
-            throw new IllegalArgumentException("invalid token: " + parser.currentToken());
+            throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }
     }
 }

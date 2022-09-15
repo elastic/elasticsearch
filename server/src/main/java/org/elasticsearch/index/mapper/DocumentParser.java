@@ -19,10 +19,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -141,8 +143,10 @@ public final class DocumentParser {
         }
         SearchLookup searchLookup = new SearchLookup(
             context.mappingLookup().indexTimeLookup()::get,
-            (ft, lookup) -> ft.fielddataBuilder(context.indexSettings().getIndex().getName(), lookup)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+            (ft, lookup, fto) -> ft.fielddataBuilder(
+                new FieldDataContext(context.indexSettings().getIndex().getName(), lookup, context.mappingLookup()::sourcePaths, fto)
+            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            new SourceLookup.ReaderSourceProvider()
         );
         // field scripts can be called both by the loop at the end of this method and via
         // the document reader, so to ensure that we don't run them multiple times we
@@ -294,17 +298,18 @@ public final class DocumentParser {
 
     private static void innerParseObject(DocumentParserContext context, ObjectMapper mapper) throws IOException {
 
-        XContentParser.Token token = context.parser().currentToken();
-        String currentFieldName = context.parser().currentName();
+        final XContentParser parser = context.parser();
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = null;
         assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
 
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == null) {
-                throwEOF(mapper, currentFieldName);
+                throwEOF(mapper, context);
             }
             switch (token) {
                 case FIELD_NAME:
-                    currentFieldName = context.parser().currentName();
+                    currentFieldName = parser.currentName();
                     if (currentFieldName.isBlank()) {
                         throwFieldNameBlank(context, currentFieldName);
                     }
@@ -324,7 +329,7 @@ public final class DocumentParser {
                     }
                     break;
             }
-            token = context.parser().nextToken();
+            token = parser.nextToken();
         }
     }
 
@@ -334,12 +339,12 @@ public final class DocumentParser {
         );
     }
 
-    private static void throwEOF(ObjectMapper mapper, String currentFieldName) {
+    private static void throwEOF(ObjectMapper mapper, DocumentParserContext context) throws IOException {
         throw new MapperParsingException(
             "object mapping for ["
                 + mapper.name()
                 + "] tried to parse field ["
-                + currentFieldName
+                + context.parser().currentName()
                 + "] as object, but got EOF, has a concrete value been provided to it?"
         );
     }

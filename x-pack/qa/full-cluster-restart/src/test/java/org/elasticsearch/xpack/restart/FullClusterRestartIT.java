@@ -26,11 +26,10 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -629,11 +628,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
             try (
                 XContentParser parser = xContentType.xContent()
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        response.getEntity().getContent()
-                    )
+                    .createParser(XContentParserConfiguration.EMPTY, response.getEntity().getContent())
             ) {
                 assertEquals(new SnapshotLifecycleStats(), SnapshotLifecycleStats.parse(parser));
             }

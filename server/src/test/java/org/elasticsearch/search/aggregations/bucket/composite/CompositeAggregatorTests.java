@@ -67,6 +67,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
@@ -80,6 +81,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -1120,6 +1123,47 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals("{keyword=b}", result.getBuckets().get(0).getKeyAsString());
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
         });
+    }
+
+    public void testMultiValuedWithLong() throws Exception {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(Arrays.asList(Map.of("long", List.of(10L, 10L))));
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("long")),
+            dataset,
+            () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("long").field("long"))).subAggregation(
+                new SumAggregationBuilder("sum").field("long")
+            ),
+            (InternalComposite result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{long=10}", result.afterKey().toString());
+                InternalMultiBucketAggregation.InternalBucket bucket = result.getBuckets().get(0);
+                assertEquals("{long=10}", bucket.getKeyAsString());
+                assertEquals(1L, bucket.getDocCount());
+                assertThat(bucket.getAggregations().get("sum"), instanceOf(Sum.class));
+                assertEquals(20L, ((Sum) bucket.getAggregations().get("sum")).value(), 0.01d);
+            }
+        );
+    }
+
+    public void testMultiValuedWithDouble() throws Exception {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(Arrays.asList(Map.of("double", List.of(10.0d, 10.0d))));
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("double")),
+            dataset,
+            () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("double").field("double")))
+                .subAggregation(new SumAggregationBuilder("sum").field("double")),
+            (InternalComposite result) -> {
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{double=10.0}", result.afterKey().toString());
+                InternalMultiBucketAggregation.InternalBucket bucket = result.getBuckets().get(0);
+                assertEquals("{double=10.0}", bucket.getKeyAsString());
+                assertEquals(1L, bucket.getDocCount());
+                assertThat(bucket.getAggregations().get("sum"), instanceOf(Sum.class));
+                assertEquals(20.0d, ((Sum) bucket.getAggregations().get("sum")).value(), 0.01d);
+            }
+        );
     }
 
     public void testWithKeywordAndLong() throws Exception {

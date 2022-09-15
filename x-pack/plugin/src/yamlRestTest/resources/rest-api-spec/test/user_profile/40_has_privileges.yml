@@ -137,6 +137,10 @@ teardown:
   - length: { has_privilege_uids: 2 }
   - match: { has_privilege_uids.0 : "/^(${profile_uid1}|${profile_uid2})$/" }
   - match: { has_privilege_uids.1 : "/^(${profile_uid1}|${profile_uid2})$/" }
+  - match: { errors.count: 1 }
+  - length: { errors.details: 1 }
+  - is_true: errors.details.dummy_missing
+  - match: { errors.details.dummy_missing.type: "resource_not_found_exception" }
 
   - do:
       security.has_privileges_user_profile:
@@ -153,6 +157,7 @@ teardown:
                   - all
                   - read
   - length: { "has_privilege_uids": 0 }
+  - is_false: errors
 
   - do:
       security.has_privileges_user_profile:
@@ -174,3 +179,7 @@ teardown:
                   - read
   - length: { "has_privilege_uids": 1 }
   - match: { "has_privilege_uids.0" : $profile_uid1 }
+  - match: { errors.count: 1 }
+  - length: { errors.details: 1 }
+  - is_true: errors.details.dummy
+  - match: { errors.details.dummy.type: "resource_not_found_exception" }

@@ -1018,7 +1018,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
      */
-    public long randomMillisUpToYear9999() {
+    public static long randomMillisUpToYear9999() {
         return randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
     }
 
@@ -1226,8 +1226,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
-        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
-        return builder;
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
     /**
@@ -1266,6 +1265,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
         return tempList.subList(0, size);
+    }
+
+    public static <T> List<T> shuffledList(List<T> list) {
+        return randomSubsetOf(list.size(), list);
     }
 
     /**

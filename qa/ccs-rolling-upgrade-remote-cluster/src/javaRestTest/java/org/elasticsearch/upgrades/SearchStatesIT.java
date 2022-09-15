@@ -43,9 +43,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -189,8 +189,7 @@ public class SearchStatesIT extends ESRestTestCase {
             Response response = localClient.performRequest(request);
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY,
                     response.getEntity().getContent()
                 )
             ) {

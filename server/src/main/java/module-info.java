@@ -22,6 +22,8 @@ module org.elasticsearch.server {
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.plugin.api;
+    requires org.elasticsearch.plugin.analysis.api;
 
     requires com.sun.jna;
     requires hppc;
@@ -213,6 +215,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.env;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
+    exports org.elasticsearch.health.node;
     exports org.elasticsearch.health.node.selection;
     exports org.elasticsearch.http;
     exports org.elasticsearch.index;
@@ -223,6 +226,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.cache.query;
     exports org.elasticsearch.index.cache.request;
     exports org.elasticsearch.index.codec;
+    exports org.elasticsearch.index.codec.bloomfilter;
     exports org.elasticsearch.index.engine;
     exports org.elasticsearch.index.fielddata;
     exports org.elasticsearch.index.fielddata.fieldcomparator;
@@ -344,6 +348,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
     exports org.elasticsearch.timeseries.support;
+    exports org.elasticsearch.tracing;
     exports org.elasticsearch.transport;
     exports org.elasticsearch.upgrades;
     exports org.elasticsearch.usage;
@@ -360,4 +365,6 @@ module org.elasticsearch.server {
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+
+    provides org.apache.lucene.codecs.PostingsFormat with org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
 }

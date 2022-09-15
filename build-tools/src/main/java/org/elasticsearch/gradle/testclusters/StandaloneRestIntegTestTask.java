@@ -90,7 +90,9 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
 
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
-            locks.add(resource.getResourceLock());
+            for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {
+                locks.add(resource.getResourceLock());
+            }
         }
         return Collections.unmodifiableList(locks);
     }

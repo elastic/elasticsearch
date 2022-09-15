@@ -108,7 +108,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             GetJobsStatsAction.Request request = new GetJobsStatsAction.Request("fail-over-job");
             GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
             DiscoveryNode discoveryNode = response.getResponse().results().get(0).getNode();
-            internalCluster().stopRandomNode(settings -> discoveryNode.getName().equals(settings.get("node.name")));
+            internalCluster().stopNode(discoveryNode.getName());
             ensureStableCluster();
         });
     }
@@ -331,7 +331,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // Stop the node running the failed job/stopping datafeed
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
-        internalCluster().stopRandomNode(settings -> jobNode.getName().equals(settings.get("node.name")));
+        internalCluster().stopNode(jobNode.getName());
         ensureStableCluster(3);
 
         // We should be allowed to force stop the unassigned datafeed even though it is stopping and its job has failed

@@ -9,18 +9,21 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.health.UserAction;
+import org.elasticsearch.health.node.HealthInfo;
 
 import java.util.Collection;
 import java.util.List;
-
-import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * This indicator reports the health of master stability.
@@ -37,24 +40,26 @@ import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATI
 public class StableMasterHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "master_is_stable";
-    private static final String HELP_URL = "https://ela.st/fix-master";
     public static final String GET_HELP_GUIDE = "https://ela.st/getting-help";
-    public static final UserAction CONTACT_SUPPORT_USER_ACTION = new UserAction(
-        new UserAction.Definition(
+    public static final Diagnosis CONTACT_SUPPORT_USER_ACTION = new Diagnosis(
+        new Diagnosis.Definition(
             "contact_support",
-            "The Elasticsearch cluster does not have a stable master node. Get help at " + GET_HELP_GUIDE,
+            "The Elasticsearch cluster does not have a stable master node.",
+            "Get help at " + GET_HELP_GUIDE,
             GET_HELP_GUIDE
         ),
         null
     );
 
     private final CoordinationDiagnosticsService coordinationDiagnosticsService;
+    private final ClusterService clusterService;
 
     // Keys for the details map:
     private static final String DETAILS_CURRENT_MASTER = "current_master";
     private static final String DETAILS_RECENT_MASTERS = "recent_masters";
     private static final String DETAILS_EXCEPTION_FETCHING_HISTORY = "exception_fetching_history";
     private static final String CLUSTER_FORMATION = "cluster_formation";
+    private static final String CLUSTER_FORMATION_MESSAGE = "cluster_formation_message";
 
     // Impacts of having an unstable master:
     private static final String UNSTABLE_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot "
@@ -73,8 +78,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         new HealthIndicatorImpact(3, UNSTABLE_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP))
     );
 
-    public StableMasterHealthIndicatorService(CoordinationDiagnosticsService coordinationDiagnosticsService) {
+    public StableMasterHealthIndicatorService(
+        CoordinationDiagnosticsService coordinationDiagnosticsService,
+        ClusterService clusterService
+    ) {
         this.coordinationDiagnosticsService = coordinationDiagnosticsService;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -83,17 +92,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     @Override
-    public String component() {
-        return CLUSTER_COORDINATION;
-    }
-
-    @Override
-    public String helpURL() {
-        return HELP_URL;
-    }
-
-    @Override
-    public HealthIndicatorResult calculate(boolean explain) {
+    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult = coordinationDiagnosticsService
             .diagnoseMasterStability(explain);
         return getHealthIndicatorResult(coordinationDiagnosticsResult, explain);
@@ -113,8 +112,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         HealthStatus status = HealthStatus.fromCoordinationDiagnosticsStatus(coordinationDiagnosticsResult.status());
         HealthIndicatorDetails details = getDetails(coordinationDiagnosticsResult.details(), explain);
         Collection<HealthIndicatorImpact> impacts = status.indicatesHealthProblem() ? UNSTABLE_MASTER_IMPACTS : List.of();
-        List<UserAction> userActions = status.indicatesHealthProblem() ? getContactSupportUserActions(explain) : List.of();
-        return createIndicator(status, coordinationDiagnosticsResult.summary(), details, impacts, userActions);
+        List<Diagnosis> diagnosis = status.indicatesHealthProblem() ? getContactSupportUserActions(explain) : List.of();
+        return createIndicator(status, coordinationDiagnosticsResult.summary(), details, impacts, diagnosis);
     }
 
     /**
@@ -166,10 +165,17 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     builder.field("stack_trace", coordinationDiagnosticsDetails.remoteExceptionStackTrace());
                 });
             }
-            if (coordinationDiagnosticsDetails.clusterFormationDescription() != null) {
-                builder.object(
+            if (coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap() != null) {
+                builder.field(
                     CLUSTER_FORMATION,
-                    xContentBuilder -> { builder.field("description", coordinationDiagnosticsDetails.clusterFormationDescription()); }
+                    coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap().entrySet().stream().map(entry -> {
+                        String nodeName = getNameForNodeId(entry.getKey());
+                        if (nodeName == null) {
+                            return Map.of("node_id", entry.getKey(), CLUSTER_FORMATION_MESSAGE, entry.getValue());
+                        } else {
+                            return Map.of("node_id", entry.getKey(), "name", nodeName, CLUSTER_FORMATION_MESSAGE, entry.getValue());
+                        }
+                    }).toList()
                 );
             }
             return builder.endObject();
@@ -177,11 +183,28 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     /**
+     * Returns the name of the node with the given nodeId, as seen in the cluster state at this moment. The name of a node is optional,
+     * so if the node does not have a name (or the node with the given nodeId is no longer in the cluster state), null is returned.
+     * @param nodeId The id of the node whose name is to be returned
+     * @return The current name of the node, or null if the node is not in the cluster state or does not have a name
+     */
+    @Nullable
+    private String getNameForNodeId(String nodeId) {
+        DiscoveryNode node = clusterService.state().nodes().get(nodeId);
+        if (node == null) {
+            return null;
+        } else {
+            String nodeName = node.getName();
+            return Objects.requireNonNullElse(nodeName, null);
+        }
+    }
+
+    /**
      * This method returns the only user action that is relevant when the master is unstable -- contact support.
      * @param explain If true, the returned list includes a UserAction to contact support, otherwise an empty list
      * @return a single UserAction instructing users to contact support.
      */
-    private List<UserAction> getContactSupportUserActions(boolean explain) {
+    private List<Diagnosis> getContactSupportUserActions(boolean explain) {
         if (explain) {
             return List.of(CONTACT_SUPPORT_USER_ACTION);
         } else {

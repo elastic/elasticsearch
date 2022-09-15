@@ -487,15 +487,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 .stream()
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
                 .filter(TaskParams::mayAssignToNode)
-                .collect(Collectors.toList());
-            OptionalLong smallestMLNode = nodes.stream().map(NodeLoadDetector::getNodeSize).flatMapToLong(OptionalLong::stream).min();
+                .toList();
+            boolean isScalingPossible = isScalingPossible(nodes);
 
             // No nodes allocated at all!
-            if (nodeIdsAndRouting.isEmpty()
-                // We cannot scale horizontally
-                && maxLazyMLNodes <= nodes.size()
-                // We cannot scale vertically
-                && (smallestMLNode.isEmpty() || smallestMLNode.getAsLong() >= maxMLNodeSize)) {
+            if (nodeIdsAndRouting.isEmpty() && isScalingPossible == false) {
                 String msg = "Could not start deployment because no suitable nodes were found, allocation explanation ["
                     + trainedModelAssignment.getReason()
                     + "]";
@@ -506,6 +502,15 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     RestStatus.TOO_MANY_REQUESTS,
                     detail
                 );
+                return true;
+            }
+
+            // We cannot add more nodes and the assignment is not satisfied
+            if (isScalingPossible == false
+                && trainedModelAssignment.isSatisfied(nodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet())) == false) {
+                String msg = "Could not start deployment because there are not enough resources to provide all requested allocations";
+                logger.debug(() -> format("[%s] %s", modelId, msg));
+                exception = new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
                 return true;
             }
 
@@ -526,6 +531,16 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 )
             );
             return false;
+        }
+
+        private boolean isScalingPossible(List<DiscoveryNode> nodes) {
+            OptionalLong smallestMLNode = nodes.stream().map(NodeLoadDetector::getNodeSize).flatMapToLong(OptionalLong::stream).min();
+
+            // We can scale horizontally
+            return maxLazyMLNodes > nodes.size()
+                // We can scale vertically
+                // TODO this currently only considers memory. We should also consider CPU when autoscaling by CPU is possible.
+                || (smallestMLNode.isEmpty() == false && smallestMLNode.getAsLong() < maxMLNodeSize);
         }
     }
 

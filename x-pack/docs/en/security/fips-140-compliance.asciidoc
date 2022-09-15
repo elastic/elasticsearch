@@ -8,14 +8,16 @@ government computer security standard used to approve cryptographic modules.
 {es} offers a FIPS 140-2 compliant mode and as such can run in a FIPS 140-2
 configured JVM.
 
-IMPORTANT: The JVM bundled with {es} is not configured for FIPS 140-2. You must
-either configure the bundled JVM to run with a FIPS 140-2 certified Java
-Security Provider or use an external JVM configured for FIPS 140-2.
+IMPORTANT: The JVM bundled with {es} is not configured for FIPS 140-2. You must 
+configure an external JDK with a FIPS 140-2 certified Java Security Provider.
+Refer to the {es}
+https://www.elastic.co/support/matrix#matrix_jvm[JVM support matrix] for
+supported JVM configurations.
 
 After configuring your JVM for FIPS 140-2, you can run {es} in FIPS 140-2 mode by
 setting the `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`.
 
-For {es}, adherence to FIPS 140-2 is ensured by
+For {es}, adherence to FIPS 140-2 is ensured by:
 
 - Using FIPS approved / NIST recommended cryptographic algorithms.
 - Delegating the implementation of these cryptographic algorithms to a NIST
@@ -113,11 +115,12 @@ keys must have corresponding length according to the following table:
 |=======================
 
 [discrete]
-==== Password Hashing
+==== Stored password hashing
+[[fips-stored-password-hashing]]
 
-While {es} offers a number of algorithms for securely hashing credentials in memory and
+While {es} offers a number of algorithms for securely hashing credentials
 on disk, only the `PBKDF2` based family of algorithms is compliant with FIPS
-140-2 for password hashing. However, since `PBKDF2` is essentially a key derivation
+140-2 for stored password hashing. However, since `PBKDF2` is essentially a key derivation
 function, your JVM security provider may enforce a
 <<keystore-fips-password,112-bit key strength requirement>>. Although FIPS 140-2
 does not mandate user password standards, this requirement may affect password
@@ -131,8 +134,7 @@ NOTE: You can still use one of the plain `pbkdf2` options instead of `pbkdf2_str
 you have external policies and tools that can ensure all user passwords for the reserved,
 native, and file realms are longer than 14 bytes.
 
-You must set the `cache.hash_algo` realm settings
-and the `xpack.security.authc.password_hashing.algorithm` setting to one of the
+You must set the `xpack.security.authc.password_hashing.algorithm` setting to one of the
 available `pbkdf_stretch_*` values.
 When FIPS-140 mode is enabled, the default value for
 `xpack.security.authc.password_hashing.algorithm` is `pbkdf2_stretch`.
@@ -147,9 +149,27 @@ for the file realm and the <<security-api-put-user,create users>> and
 <<security-api-change-password,change password>> APIs for the native and reserved realms.
 Other types of realms are not affected and do not require any changes.
 
-The user cache will be emptied upon node restart, so any existing hashes using
-non-compliant algorithms will be discarded and the new ones will be created
-using the compliant `PBKDF2` based algorithm you have selected.
+[discrete]
+==== Cached password hashing
+[[fips-cached-password-hashing]]
+
+`ssha256` (salted `sha256`) is recommended for cache hashing. Though
+`PBKDF2` is compliant with FIPS-140-2, it is -- by design -- slow, and
+thus not generally suitable as a cache hashing algorithm. Cached
+credentials are never stored on disk, and salted `sha256` provides an
+adequate level of security for in-memory credential hashing, without
+imposing prohibitive performance overhead. You _may_ use `PBKDF2`,
+however you should carefully assess performance impact first. Depending
+on your deployment, the overhead of `PBKDF2` could undo most of the
+performance gain of using a cache.
+
+Either set all `cache.hash_algo` settings to `ssha256` or leave
+them undefined, since `ssha256` is the default value for all
+`cache.hash_algo` settings. See <<hashing-settings>>.
+
+The user cache will be emptied upon node restart, so any existing
+hashes using non-compliant algorithms will be discarded and the new
+ones will be created using the algorithm you have selected.
 
 [discrete]
 === Limitations

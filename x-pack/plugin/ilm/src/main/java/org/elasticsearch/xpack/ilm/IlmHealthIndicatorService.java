@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.UserAction;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
@@ -24,7 +25,6 @@ import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
 
 /**
  * This indicator reports health for index lifecycle management component.
@@ -39,8 +39,13 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     public static final String NAME = "ilm";
 
     public static final String HELP_URL = "https://ela.st/fix-ilm";
-    public static final UserAction ILM_NOT_RUNNING = new UserAction(
-        new UserAction.Definition("ilm-not-running", "Start Index Lifecycle Management using [POST /_ilm/start].", HELP_URL),
+    public static final Diagnosis ILM_NOT_RUNNING = new Diagnosis(
+        new Diagnosis.Definition(
+            "ilm-not-running",
+            "Index Lifecycle Management is stopped",
+            "Start Index Lifecycle Management using [POST /_ilm/start].",
+            HELP_URL
+        ),
         null
     );
 
@@ -56,17 +61,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public String component() {
-        return DATA;
-    }
-
-    @Override
-    public String helpURL() {
-        return HELP_URL;
-    }
-
-    @Override
-    public HealthIndicatorResult calculate(boolean explain) {
+    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
         var ilmMetadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(

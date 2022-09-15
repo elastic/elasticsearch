@@ -18,10 +18,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -57,8 +62,15 @@ import java.util.function.Function;
  */
 class S3Repository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(S3Repository.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     static final String TYPE = "s3";
+
+    /** The access key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    static final Setting<SecureString> ACCESS_KEY_SETTING = SecureSetting.insecureString("access_key");
+
+    /** The secret key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    static final Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.insecureString("secret_key");
 
     /**
      * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of
@@ -233,6 +245,16 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
+        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
+            // provided repository settings
+            deprecationLogger.critical(
+                DeprecationCategory.SECURITY,
+                "s3_repository_secret_settings",
+                "Using s3 access/secret key from repository settings. Instead "
+                    + "store these in named clients and the elasticsearch keystore for secure settings."
+            );
+        }
+
         coolDown = COOLDOWN_PERIOD.get(metadata.settings());
 
         logger.debug(
@@ -257,18 +279,33 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final AtomicReference<Scheduler.Cancellable> finalizationFuture = new AtomicReference<>();
 
     @Override
-    public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+    public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
+        final FinalizeSnapshotContext wrappedFinalizeContext;
         if (SnapshotsService.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
-            finalizeSnapshotContext = new FinalizeSnapshotContext(
+            final ListenableFuture<Void> metadataDone = new ListenableFuture<>();
+            wrappedFinalizeContext = new FinalizeSnapshotContext(
                 finalizeSnapshotContext.updatedShardGenerations(),
                 finalizeSnapshotContext.repositoryStateId(),
                 finalizeSnapshotContext.clusterMetadata(),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                delayedListener(finalizeSnapshotContext)
+                delayedListener(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
+                info -> metadataDone.addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        finalizeSnapshotContext.onDone(info);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert false : e; // never fails
+                    }
+                })
             );
+        } else {
+            wrappedFinalizeContext = finalizeSnapshotContext;
         }
-        super.finalizeSnapshot(finalizeSnapshotContext);
+        super.finalizeSnapshot(wrappedFinalizeContext);
     }
 
     @Override

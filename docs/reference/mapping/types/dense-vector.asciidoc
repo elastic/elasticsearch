@@ -152,6 +152,7 @@ NOTE: Although they are conceptually related, the `similarity` parameter is
 different from <<text,`text`>> field <<similarity,`similarity`>> and accepts
 a distinct set of options.
 
+[[dense-vector-index-options]]
 `index_options`::
 (Optional, object)
 An optional section that configures the kNN indexing algorithm. The HNSW
@@ -177,3 +178,7 @@ Defaults to `16`.
 The number of candidates to track while assembling the list of nearest
 neighbors for each new node. Defaults to `100`.
 ====
+
+[[dense-vector-synthetic-source]]
+==== Synthetic `_source`
+`dense_vector` fields support <<synthetic-source,synthetic `_source`>> .

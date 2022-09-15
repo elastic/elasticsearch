@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Collections;
@@ -61,7 +62,11 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
                     .rootDoc()
             );
         }, iw -> {
-            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+            SearchLookup lookup = new SearchLookup(
+                mapperService::fieldType,
+                fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                new SourceLookup.ReaderSourceProvider()
+            );
             SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
             FieldFetcher fieldFetcher = FieldFetcher.create(
                 searchExecutionContext,

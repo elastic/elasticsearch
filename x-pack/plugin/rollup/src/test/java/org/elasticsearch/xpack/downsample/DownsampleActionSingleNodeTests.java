@@ -477,7 +477,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertBusy(() -> assertTrue("In progress rollup did not complete", rollupListener.success), 60, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88800")
     public void testRollupDatastream() throws Exception {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         String dataStreamName = createDataStream();

@@ -85,7 +85,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         return new TransformState(prevState.state(), prevState.keys(), ((l) -> nonStateTransform(requests, prevState, l)));
     }
 
-    private Void nonStateTransform(
+    private void nonStateTransform(
         Collection<PutRoleMappingRequest> requests,
         TransformState prevState,
         ActionListener<NonStateTransformResult> listener
@@ -99,7 +99,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         // Nothing to do, don't start a group listener with 0 actions
         if (tasksCount == 0) {
             listener.onResponse(new NonStateTransformResult(ReservedRoleMappingAction.NAME, Set.of()));
-            return null;
+            return;
         }
 
         GroupedActionListener<Boolean> taskListener = new GroupedActionListener<>(new ActionListener<>() {
@@ -123,8 +123,6 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             deleteRequest.setName(mappingToDelete);
             roleMappingStore.deleteRoleMapping(deleteRequest, taskListener);
         }
-
-        return null;
     }
 
     @Override

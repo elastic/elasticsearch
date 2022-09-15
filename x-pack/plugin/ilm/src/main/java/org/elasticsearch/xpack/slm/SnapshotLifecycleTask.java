@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.ilm.LifecyclePolicySecurityClient;
@@ -36,9 +37,12 @@ import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -49,6 +53,11 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     private final Client client;
     private final ClusterService clusterService;
     private final SnapshotHistoryStore historyStore;
+
+    /**
+     * Set of all currently running  {@link SnapshotLifecyclePolicy} ids, used to prevent starting multiple snapshots for the same policy.
+     */
+    private final Set<String> runningPolicies = Collections.synchronizedSet(new HashSet<>());
 
     public SnapshotLifecycleTask(final Client client, final ClusterService clusterService, final SnapshotHistoryStore historyStore) {
         this.client = client;
@@ -81,8 +90,37 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         final ClusterService clusterService,
         final SnapshotHistoryStore historyStore
     ) {
+        return maybeTakeSnapshot(jobId, client, clusterService, historyStore, new HashSet<>());
+    }
+
+    /**
+     * For the given job id (a combination of policy id and version), issue a create snapshot
+     * request. On a successful or failed create snapshot issuing the state is stored in the cluster
+     * state in the policy's metadata.
+     *
+     * The set of running policies is used as a mutex, so that if there's a snapshot already running
+     * for a given policy we won't run an additional one.
+     *
+     * @return An optional snapshot name if the request was issued successfully
+     */
+    private static Optional<String> maybeTakeSnapshot(
+        final String jobId,
+        final Client client,
+        final ClusterService clusterService,
+        final SnapshotHistoryStore historyStore,
+        final Set<String> runningPolicies
+    ) {
         Optional<SnapshotLifecyclePolicyMetadata> maybeMetadata = getSnapPolicyMetadata(jobId, clusterService.state());
         String snapshotName = maybeMetadata.map(policyMetadata -> {
+            if (runningPolicies.add(policyMetadata.getPolicy().getId()) == false) {
+                // policy is already running, log that that's the case and don't schedule a new snapshot for it
+                logger.info(
+                    "snapshot lifecycle policy [{}] current has a snapshot in progress, skipping",
+                    policyMetadata.getPolicy().getId()
+                );
+                return null;
+            }
+
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
             final LifecyclePolicySecurityClient clientWithHeaders = new LifecyclePolicySecurityClient(
@@ -98,6 +136,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             clientWithHeaders.admin().cluster().createSnapshot(request, new ActionListener<>() {
                 @Override
                 public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                    runningPolicies.remove(policyMetadata.getPolicy().getId());
                     logger.debug(
                         "snapshot response for [{}]: {}",
                         policyMetadata.getPolicy().getId(),
@@ -133,6 +172,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                 @Override
                 public void onFailure(Exception e) {
+                    runningPolicies.remove(policyMetadata.getPolicy().getId());
                     logger.error("failed to create snapshot for snapshot lifecycle policy [{}]: {}", policyMetadata.getPolicy().getId(), e);
                     final long timestamp = Instant.now().toEpochMilli();
                     submitUnbatchedTask(

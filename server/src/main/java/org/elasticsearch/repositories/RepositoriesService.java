@@ -141,8 +141,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      */
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
+        validateRepositoryName(request.name());
 
-        validateRepository(request, listener);
+        // Trying to create the new repository on master to make sure it works
+        try {
+            validateRepositoryCanBeCreated(request);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
 
         final StepListener<AcknowledgedResponse> acknowledgementStep = new StepListener<>();
         final StepListener<Boolean> publicationStep = new StepListener<>(); // Boolean==changed.
@@ -260,8 +267,23 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     final RepositoryMetadata updatedMetadata;
                     if (canUpdateInPlace(newRepositoryMetadata, existing)) {
                         if (repositoryMetadata.settings().equals(newRepositoryMetadata.settings())) {
-                            // Previous version is the same as this one no update is needed.
-                            return currentState;
+                            if (repositoryMetadata.generation() == RepositoryData.CORRUPTED_REPO_GEN) {
+                                // If recreating a corrupted repository with the same settings, reset the corrupt flag.
+                                // Setting the safe generation to unknown, so that a consistent generation is found.
+                                ensureRepositoryNotInUse(currentState, request.name());
+                                logger.info(
+                                    "repository [{}/{}] is marked as corrupted, resetting the corruption marker",
+                                    repositoryMetadata.name(),
+                                    repositoryMetadata.uuid()
+                                );
+                                repositoryMetadata = repositoryMetadata.withGeneration(
+                                    RepositoryData.UNKNOWN_REPO_GEN,
+                                    repositoryMetadata.pendingGeneration()
+                                );
+                            } else {
+                                // Previous version is the same as this one no update is needed.
+                                return currentState;
+                            }
                         }
                         // we're updating in place so the updated metadata must point at the same uuid and generations
                         updatedMetadata = repositoryMetadata.withSettings(newRepositoryMetadata.settings());
@@ -291,19 +313,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * This verification method will create and then close the repository we want to create.
      *
      * @param request
-     * @param listener
      */
-    public void validateRepository(final PutRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
+    public void validateRepositoryCanBeCreated(final PutRepositoryRequest request) {
         final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
-        validate(request.name());
 
         // Trying to create the new repository on master to make sure it works
-        try {
-            closeRepository(createRepository(newRepositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists));
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
+        closeRepository(createRepository(newRepositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists));
     }
 
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
@@ -755,7 +770,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return new UnknownTypeRepository(repositoryMetadata);
     }
 
-    private static void validate(final String repositoryName) {
+    public static void validateRepositoryName(final String repositoryName) {
         if (Strings.hasLength(repositoryName) == false) {
             throw new RepositoryException(repositoryName, "cannot be empty");
         }

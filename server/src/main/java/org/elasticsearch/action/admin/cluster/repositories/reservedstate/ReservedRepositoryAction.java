@@ -8,9 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.reservedstate;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
@@ -61,15 +59,8 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
 
         for (var repositoryRequest : repositories) {
             validate(repositoryRequest);
-            repositoriesService.validateRepository(repositoryRequest, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {}
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new IllegalStateException("Validation error", e);
-                }
-            });
+            RepositoriesService.validateRepositoryName(repositoryRequest.name());
+            repositoriesService.validateRepositoryCanBeCreated(repositoryRequest);
         }
 
         return repositories;
@@ -106,10 +97,10 @@ public class ReservedRepositoryAction implements ReservedClusterStateHandler<Lis
 
         Map<String, ?> source = parser.map();
 
-        for (String name : source.keySet()) {
-            PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(name);
+        for (var entry : source.entrySet()) {
+            PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(entry.getKey());
             @SuppressWarnings("unchecked")
-            Map<String, ?> content = (Map<String, ?>) source.get(name);
+            Map<String, ?> content = (Map<String, ?>) entry.getValue();
             try (XContentParser repoParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {
                 putRepositoryRequest.source(repoParser.mapOrdered());
             }

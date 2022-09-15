@@ -8,9 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.reservedstate;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -67,8 +65,8 @@ public class ReservedRepositoryActionTests extends ESTestCase {
             }""";
 
         assertEquals(
-            "Validation error",
-            expectThrows(IllegalStateException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+            "[repo] repository type [inter_planetary] does not exist",
+            expectThrows(RepositoryException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
         );
     }
 
@@ -148,12 +146,11 @@ public class ReservedRepositoryActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             var request = (PutRepositoryRequest) invocation.getArguments()[0];
-            var listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
             if (request.type().equals("inter_planetary")) {
-                listener.onFailure(new RepositoryException(request.name(), "repository type [" + request.type() + "] does not exist"));
+                throw new RepositoryException(request.name(), "repository type [" + request.type() + "] does not exist");
             }
             return null;
-        }).when(repositoriesService).validateRepository(any(), any());
+        }).when(repositoriesService).validateRepositoryCanBeCreated(any());
 
         return repositoriesService;
     }

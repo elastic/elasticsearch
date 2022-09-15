@@ -1250,6 +1250,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
             builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
+            if (part.indices == updatedIndices
+                && builder.dataStreamMetadata() == part.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY)) {
+                builder.previousIndicesLookup = part.indicesLookup;
+            }
             return builder.build(true);
         }
     }

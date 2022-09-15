@@ -1,0 +1,5 @@
+pr: 88957
+summary: Date histogram range edge case fix
+area: Geo
+type: bug
+issues: []

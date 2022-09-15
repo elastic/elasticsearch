@@ -2,6 +2,8 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
+
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 restResources {
@@ -28,4 +30,5 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.4.0")
 }

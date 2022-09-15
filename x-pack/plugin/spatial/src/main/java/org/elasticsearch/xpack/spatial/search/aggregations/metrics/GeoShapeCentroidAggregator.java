@@ -65,7 +65,7 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final GeoShapeValues values = valuesSource.geoShapeValues(aggCtx.getLeafReaderContext());
+        final GeoShapeValues values = valuesSource.shapeValues(aggCtx.getLeafReaderContext());
         final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumWeight = new CompensatedSum(0, 0);
@@ -86,8 +86,8 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
                     if (compares < 0) {
                         // shape with higher dimensional value
                         final double coordinateWeight = value.weight();
-                        compensatedSumLat.reset(coordinateWeight * value.lat(), 0.0);
-                        compensatedSumLon.reset(coordinateWeight * value.lon(), 0.0);
+                        compensatedSumLat.reset(coordinateWeight * value.getY(), 0.0);
+                        compensatedSumLon.reset(coordinateWeight * value.getX(), 0.0);
                         compensatedSumWeight.reset(coordinateWeight, 0.0);
                         dimensionalShapeTypes.set(bucket, (byte) value.dimensionalShapeType().ordinal());
                     } else if (compares == 0) {
@@ -96,8 +96,8 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
                         compensatedSumLon.reset(lonSum.get(bucket), lonCompensations.get(bucket));
                         compensatedSumWeight.reset(weightSum.get(bucket), weightCompensations.get(bucket));
                         final double coordinateWeight = value.weight();
-                        compensatedSumLat.add(coordinateWeight * value.lat());
-                        compensatedSumLon.add(coordinateWeight * value.lon());
+                        compensatedSumLat.add(coordinateWeight * value.getY());
+                        compensatedSumLon.add(coordinateWeight * value.getX());
                         compensatedSumWeight.add(coordinateWeight);
                     } else {
                         // do not modify centroid calculation since shape is of lower dimension than the running dimension

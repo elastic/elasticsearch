@@ -14,6 +14,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.unmodifiableSet;
 import static java.util.stream.Collectors.toCollection;
 
 public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, int ignored) {
@@ -29,6 +30,6 @@ public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, in
 
     public static ShardAssignment of(List<ShardRouting> routings) {
         var nodeIds = routings.stream().map(ShardRouting::currentNodeId).collect(toCollection(LinkedHashSet::new));
-        return new ShardAssignment(nodeIds, routings.size(), 0, 0);
+        return new ShardAssignment(unmodifiableSet(nodeIds), routings.size(), 0, 0);
     }
 }

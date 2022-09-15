@@ -17,10 +17,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.IsSafe;
+import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.NodeResult;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
@@ -29,25 +30,25 @@ public class PrevalidateNodeRemovalResponseTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         PrevalidateNodeRemovalResponse simpleResp = new PrevalidateNodeRemovalResponse(
-            new NodesRemovalPrevalidation(new Result(IsSafe.YES, ""), Map.of())
+            new NodesRemovalPrevalidation(new Result(IsSafe.YES, ""), List.of())
         );
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
             simpleResp.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals("""
                 {
-                  "overall_result" : {
+                  "result" : {
                     "is_safe" : "YES",
                     "reason" : ""
                   },
-                  "per_node_result" : { }
+                  "nodes" : [ ]
                 }""", Strings.toString(builder));
         }
 
         PrevalidateNodeRemovalResponse respWithNodes = new PrevalidateNodeRemovalResponse(
             new NodesRemovalPrevalidation(
                 new Result(IsSafe.UNKNOWN, ""),
-                Map.of("node1", new Result(IsSafe.UNKNOWN, "node hosts a red shard copy"))
+                List.of(new NodeResult("node1", "id1", "externalId1", new Result(IsSafe.UNKNOWN, "node hosts a red shard copy")))
             )
         );
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
@@ -55,26 +56,31 @@ public class PrevalidateNodeRemovalResponseTests extends ESTestCase {
             respWithNodes.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals("""
                 {
-                  "overall_result" : {
+                  "result" : {
                     "is_safe" : "UNKNOWN",
                     "reason" : ""
                   },
-                  "per_node_result" : {
-                    "node1" : {
-                      "is_safe" : "UNKNOWN",
-                      "reason" : "node hosts a red shard copy"
+                  "nodes" : [
+                    {
+                      "id" : "id1",
+                      "name" : "node1",
+                      "external_id" : "externalId1",
+                      "result" : {
+                        "is_safe" : "UNKNOWN",
+                        "reason" : "node hosts a red shard copy"
+                      }
                     }
-                  }
+                  ]
                 }""", Strings.toString(builder));
         }
     }
 
     public void testSerialization() throws IOException {
         int noOfNodes = randomIntBetween(1, 10);
-        Map<String, Result> nodes = new HashMap<>(noOfNodes);
+        List<NodeResult> nodes = new ArrayList<>(noOfNodes);
         Result result = createRandomResult();
         for (int i = 0; i < noOfNodes; i++) {
-            nodes.put(randomAlphaOfLength(10), createRandomResult());
+            nodes.add(new NodeResult(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), createRandomResult()));
         }
         PrevalidateNodeRemovalResponse resp = new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodes));
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -83,9 +89,9 @@ public class PrevalidateNodeRemovalResponseTests extends ESTestCase {
                 PrevalidateNodeRemovalResponse deserialized = new PrevalidateNodeRemovalResponse(input);
                 assertNotNull(deserialized.getPrevalidation());
                 NodesRemovalPrevalidation prevalidation = deserialized.getPrevalidation();
-                assertThat(prevalidation.getOverallResult(), is(result));
-                assertNotNull(prevalidation.getPerNodeResult());
-                assertThat(prevalidation.getPerNodeResult(), equalTo(nodes));
+                assertThat(prevalidation.getResult(), is(result));
+                assertNotNull(prevalidation.getNodes());
+                assertThat(prevalidation.getNodes(), equalTo(nodes));
             }
         }
     }

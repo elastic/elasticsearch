@@ -11,7 +11,7 @@ Prevalidate node removal.
 [[prevalidate-node-removal-api-request]]
 ==== {api-request-title}
 
-`GET /_internal/prevalidate_node_removal/<node_id>`
+`GET /_internal/prevalidate_node_removal/<nodes>`
 
 [[prevalidate-node-removal-api-prereqs]]
 ==== {api-prereq-title}
@@ -30,16 +30,16 @@ The result of the prevalidation is expressed as either `YES`, `NO`, or `UNKNOWN`
 [[prevalidate-node-removal-api-path-params]]
 ==== {api-path-parms-title}
 
-`<node_id>`::
-    (Required, string) Comma-separated list of node IDs.
+`<node>`::
+    (Required, string) Comma-separated list of node IDs, names or external IDs.
 
 [[prevalidate-node-removal-api-response-body]]
 ==== {api-response-body-title}
 
-`overall_result`::
+`result`::
     (object) Prevalidation result for the removal of all the provided nodes.
 
-`per_node_result`::
+`nodes`::
     (object) Prevalidation result for the removal of each of the provided nodes.
 
 [[prevalidate-node-removal-api-example]]
@@ -58,19 +58,29 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "overall_result": {
-        "is_safe": "UNKNOWN",
+  "result": {
+    "is_safe": "UNKNOWN",
+    "reason": ""
+  },
+  "nodes": [
+    {
+      "id": "node1-id",
+      "name" : "node1",
+      "external_id" : "node1-externalId
+      "result" : {
+        "is_safe": "YES",
         "reason": ""
+      }
     },
-    "per_node_result": {
-        "node1": {
-            "is_safe": "YES",
-            "reason": ""
-        },
-        "node2": {
-            "is_safe": "UNKNOWN",
-            "reason": "no response from the node"
-        }
+    {
+      "id": "node2-id",
+      "name" : "node2",
+      "external_id" : "node2-externalId
+      "result" : {
+        "is_safe": "UNKNOWN",
+        "reason": "no response from the node"
+      }
     }
+  ]
 }
 --------------------------------------------------

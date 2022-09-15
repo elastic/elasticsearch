@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
@@ -105,6 +106,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
+import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
@@ -131,9 +133,9 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
+import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
@@ -711,7 +713,8 @@ public class Node implements Closeable {
                     namedWriteableRegistry,
                     clusterModule.getIndexNameExpressionResolver(),
                     repositoriesServiceReference::get,
-                    tracer
+                    tracer,
+                    clusterModule.getAllocationService().getAllocationDeciders()
                 )
             ).toList();
 
@@ -824,6 +827,8 @@ public class Node implements Closeable {
                 transportService,
                 indicesService
             );
+
+            actionModule.getReservedClusterStateService().installStateHandler(new ReservedRepositoryAction(repositoryService));
 
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,
@@ -962,8 +967,9 @@ public class Node implements Closeable {
                 ? HealthMetadataService.create(clusterService, settings)
                 : null;
             LocalHealthMonitor localHealthMonitor = HealthNode.isEnabled()
-                ? LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool)
+                ? LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client)
                 : null;
+            HealthInfoCache nodeHealthOverview = HealthNode.isEnabled() ? HealthInfoCache.create(clusterService) : null;
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1052,6 +1058,7 @@ public class Node implements Closeable {
                     b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
                     b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
                     b.bind(LocalHealthMonitor.class).toInstance(localHealthMonitor);
+                    b.bind(HealthInfoCache.class).toInstance(nodeHealthOverview);
                 }
                 b.bind(Tracer.class).toInstance(tracer);
                 b.bind(FileSettingsService.class).toInstance(fileSettingsService);
@@ -1157,7 +1164,7 @@ public class Node implements Closeable {
         CoordinationDiagnosticsService coordinationDiagnosticsService
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new StableMasterHealthIndicatorService(coordinationDiagnosticsService)
+            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
         );
         var serverHealthIndicatorServices = List.of(
             new RepositoryIntegrityHealthIndicatorService(clusterService),
@@ -1180,7 +1187,7 @@ public class Node implements Closeable {
     ) {
         final List<RecoveryPlannerPlugin> recoveryPlannerPlugins = pluginsService.filterPlugins(RecoveryPlannerPlugin.class);
         if (recoveryPlannerPlugins.isEmpty()) {
-            return new SourceOnlyRecoveryPlannerService();
+            return new PeerOnlyRecoveryPlannerService();
         }
 
         if (recoveryPlannerPlugins.size() > 1) {

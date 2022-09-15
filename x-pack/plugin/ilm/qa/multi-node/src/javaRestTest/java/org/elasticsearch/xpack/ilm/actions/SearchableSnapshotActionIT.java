@@ -265,7 +265,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertThat(
             exception.getMessage(),
             containsString(
-                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup]"
+                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, downsample]"
                     + " actions which are not allowed after a managed index is mounted as a searchable snapshot"
             )
         );
@@ -664,6 +664,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Map<String, Object> hotIndexSettings = getIndexSettingsAsMap(restoredIndex);
         // searchable snapshots mounted in the hot phase should be pinned to hot nodes
         assertThat(hotIndexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
+
+        assertOK(client().performRequest(new Request("DELETE", "_data_stream/" + dataStream)));
+        assertOK(client().performRequest(new Request("DELETE", "_ilm/policy/" + policy)));
     }
 
     // See: https://github.com/elastic/elasticsearch/issues/77269

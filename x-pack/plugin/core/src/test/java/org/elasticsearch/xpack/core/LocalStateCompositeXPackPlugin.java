@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -199,7 +200,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         List<Object> components = new ArrayList<>();
         components.addAll(
@@ -215,7 +217,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 namedWriteableRegistry,
                 expressionResolver,
                 repositoriesServiceSupplier,
-                tracer
+                tracer,
+                allocationDeciders
             )
         );
 
@@ -234,7 +237,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         namedWriteableRegistry,
                         expressionResolver,
                         repositoriesServiceSupplier,
-                        tracer
+                        tracer,
+                        allocationDeciders
                     )
                 )
             );

@@ -1,0 +1,5 @@
+pr: 88241
+summary: Log unsuccessful attempts to get credentials from web identity tokens
+area: Allocation
+type: enhancement
+issues: []

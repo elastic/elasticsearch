@@ -15,8 +15,10 @@ import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
@@ -31,6 +33,11 @@ public class ShardSnapshotTaskRunner {
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
 
     abstract static class SnapshotTask implements Comparable<SnapshotTask>, Runnable {
+
+        private static final Comparator<SnapshotTask> COMPARATOR = Comparator.comparingLong(
+            (SnapshotTask t) -> t.context().snapshotStartTime()
+        ).thenComparing(t -> t.context().snapshotId().getUUID()).thenComparingInt(SnapshotTask::priority);
+
         protected final SnapshotShardContext context;
 
         SnapshotTask(SnapshotShardContext context) {
@@ -45,11 +52,7 @@ public class ShardSnapshotTaskRunner {
 
         @Override
         public final int compareTo(SnapshotTask other) {
-            int res = Integer.compare(priority(), other.priority());
-            if (res != 0) {
-                return res;
-            }
-            return Long.compare(context.snapshotStartTime(), other.context.snapshotStartTime());
+            return COMPARATOR.compare(this, other);
         }
     }
 
@@ -75,18 +78,23 @@ public class ShardSnapshotTaskRunner {
     }
 
     class FileSnapshotTask extends SnapshotTask {
-        private final FileInfo fileInfo;
+        private final Supplier<FileInfo> fileInfos;
         private final ActionListener<Void> fileSnapshotListener;
 
-        FileSnapshotTask(SnapshotShardContext context, FileInfo fileInfo, ActionListener<Void> fileSnapshotListener) {
+        FileSnapshotTask(SnapshotShardContext context, Supplier<FileInfo> fileInfos, ActionListener<Void> fileSnapshotListener) {
             super(context);
-            this.fileInfo = fileInfo;
+            this.fileInfos = fileInfos;
             this.fileSnapshotListener = fileSnapshotListener;
         }
 
         @Override
         public void run() {
-            ActionRunnable.run(fileSnapshotListener, () -> fileSnapshotter.accept(context, fileInfo)).run();
+            ActionRunnable.run(fileSnapshotListener, () -> {
+                FileInfo fileInfo = fileInfos.get();
+                if (fileInfo != null) {
+                    fileSnapshotter.accept(context, fileInfo);
+                }
+            }).run();
         }
 
         @Override
@@ -96,14 +104,7 @@ public class ShardSnapshotTaskRunner {
 
         @Override
         public String toString() {
-            return getClass().getSimpleName()
-                + "{snapshotID=["
-                + context.snapshotId()
-                + "], indexID=["
-                + context.indexId()
-                + "], file=["
-                + fileInfo.name()
-                + "]}";
+            return getClass().getSimpleName() + "{snapshotID=[" + context.snapshotId() + "], indexID=[" + context.indexId() + "]}";
         }
     }
 
@@ -123,8 +124,12 @@ public class ShardSnapshotTaskRunner {
         taskRunner.enqueueTask(task);
     }
 
-    public void enqueueFileSnapshot(final SnapshotShardContext context, final FileInfo fileInfo, final ActionListener<Void> listener) {
-        final FileSnapshotTask task = new FileSnapshotTask(context, fileInfo, listener);
+    public void enqueueFileSnapshot(
+        final SnapshotShardContext context,
+        final Supplier<FileInfo> fileInfos,
+        final ActionListener<Void> listener
+    ) {
+        final FileSnapshotTask task = new FileSnapshotTask(context, fileInfos, listener);
         taskRunner.enqueueTask(task);
     }
 

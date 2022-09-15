@@ -273,6 +273,9 @@ details have contents and a structure that is unique to each indicator.
 `node_id`::
     (string) The node id of a master-eligible node
 
+`name`::
+(Optional, string) The node name of a master-eligible node
+
 `cluster_formation_message`::
     (string) A detailed description explaining what went wrong with cluster formation, or why this node was
     unable to join the cluster if it has formed.

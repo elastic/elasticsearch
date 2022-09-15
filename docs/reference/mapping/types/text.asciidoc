@@ -160,7 +160,7 @@ The following parameters are accepted by `text` fields:
     Metadata about the field.
 
 [[text-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic `_source`
 `text` fields support <<synthetic-source,synthetic `_source`>> if they have
 a <<keyword-synthetic-source, `keyword`>> sub-field that supports synthetic
 `_source` or if the `text` field sets `store` to `true`. Either way, it may

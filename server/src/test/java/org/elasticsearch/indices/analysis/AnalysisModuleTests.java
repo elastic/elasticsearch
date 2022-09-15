@@ -520,7 +520,7 @@ public class AnalysisModuleTests extends ESTestCase {
 
         @Override
         public TokenStream normalize(TokenStream tokenStream) {
-            return org.elasticsearch.plugin.analysis.api.TokenFilterFactory.super.normalize(tokenStream);
+            return new AppendTokenFilter(tokenStream, "1");
         }
 
         @Override
@@ -584,10 +584,7 @@ public class AnalysisModuleTests extends ESTestCase {
     }
 
     public void testStablePlugins() throws IOException {
-        // todo test multiterm -normalize
-        boolean noVersionSupportsMultiTerm = randomBoolean();
-        boolean luceneVersionSupportsMultiTerm = randomBoolean();
-        boolean elasticsearchVersionSupportsMultiTerm = randomBoolean();
+        ClassLoader classLoader = getClass().getClassLoader();
         AnalysisRegistry registry = new AnalysisModule(
             TestEnvironment.newEnvironment(emptyNodeSettings),
             emptyList(),
@@ -598,28 +595,28 @@ public class AnalysisModuleTests extends ESTestCase {
                     new NameToPluginInfo(
                         Map.of(
                             "stableCharFilterFactory",
-                            new PluginInfo("stableCharFilterFactory", TestCharFilterFactory.class.getName(), getClass().getClassLoader())
+                            new PluginInfo("stableCharFilterFactory", TestCharFilterFactory.class.getName(), classLoader)
                         )
                     ),
                     org.elasticsearch.plugin.analysis.api.TokenFilterFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableTokenFilterFactory",
-                            new PluginInfo("stableTokenFilterFactory", TestTokenFilterFactory.class.getName(), getClass().getClassLoader())
+                            new PluginInfo("stableTokenFilterFactory", TestTokenFilterFactory.class.getName(), classLoader)
                         )
                     ),
                     org.elasticsearch.plugin.analysis.api.TokenizerFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableTokenizerFactory",
-                            new PluginInfo("stableTokenizerFactory", TestTokenizerFactory.class.getName(), getClass().getClassLoader())
+                            new PluginInfo("stableTokenizerFactory", TestTokenizerFactory.class.getName(), classLoader)
                         )
                     ),
                     org.elasticsearch.plugin.analysis.api.AnalyzerFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableAnalyzerFactory",
-                            new PluginInfo("stableAnalyzerFactory", TestAnalyzerFactory.class.getName(), getClass().getClassLoader())
+                            new PluginInfo("stableAnalyzerFactory", TestAnalyzerFactory.class.getName(), classLoader)
                         )
                     )
                 )
@@ -639,6 +636,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put("index.analysis.analyzer.tokenizer_test.tokenizer", "stableTokenizerFactory")
 
                 .put("index.analysis.analyzer.analyzer_provider_test.type", "stableAnalyzerFactory")
+
                 .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build()
         );
@@ -650,18 +648,13 @@ public class AnalysisModuleTests extends ESTestCase {
         assertTokenStreamContents(analyzers.get("tokenizer_test").tokenStream("", "x_y_z"), new String[] { "x", "y", "z" });
         assertTokenStreamContents(analyzers.get("analyzer_provider_test").tokenStream("", "1x_y_#z"), new String[] { "y", "3z" });
 
-        // assertEquals(
-        // "test" + (noVersionSupportsMultiTerm ? "_stable" : ""),
-        // analyzers.get("no_version").normalize("", "test").utf8ToString()
-        // );
-        // assertEquals(
-        // "test" + (luceneVersionSupportsMultiTerm ? version.luceneVersion.toString() : ""),
-        // analyzers.get("lucene_version").normalize("", "test").utf8ToString()
-        // );
-        // assertEquals(
-        // "test" + (elasticsearchVersionSupportsMultiTerm ? version.toString() : ""),
-        // analyzers.get("elasticsearch_version").normalize("", "test").utf8ToString()
-        // );
+        assertThat(analyzers.get("char_filter_test").normalize("", "t#st").utf8ToString(), equalTo("t3st"));
+        assertThat(
+            analyzers.get("token_filter_test").normalize("", "1test 2test 1test 3test ").utf8ToString(),
+            equalTo("1test 2test 1test 3test 1")
+        );
+
+        // TODO does it makes sense to test normalize on tokenizer and analyzer?
     }
 
     // Simple char filter that appends text to the term

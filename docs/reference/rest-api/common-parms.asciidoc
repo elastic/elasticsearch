@@ -628,8 +628,8 @@ already defined in the mapping, then this parameter won't be used.
 end::bulk-dynamic-templates[]
 
 tag::missing-bucket[]
-If `true`, documents without a value in the given `group_by` field are included. 
-Defaults to `false`.
+If `true`, documents without a value in the respective `group_by` field are 
+included. Defaults to `false`.
 end::missing-bucket[]
 
 tag::node-filter[]

@@ -32,6 +32,26 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry namedXContentRegistry;
 
+    public static KnnSearchBuilder randomTestInstance() {
+        String field = randomAlphaOfLength(6);
+        int dim = randomIntBetween(2, 30);
+        float[] vector = randomVector(dim);
+        int k = randomIntBetween(1, 100);
+        int numCands = randomIntBetween(k + 20, 1000);
+
+        KnnSearchBuilder builder = new KnnSearchBuilder(field, vector, k, numCands);
+        if (randomBoolean()) {
+            builder.boost(randomFloat());
+        }
+
+        int numFilters = randomIntBetween(0, 3);
+        for (int i = 0; i < numFilters; i++) {
+            builder.addFilterQuery(QueryBuilders.termQuery(randomAlphaOfLength(5), randomAlphaOfLength(10)));
+        }
+
+        return builder;
+    }
+
     @Before
     public void registerNamedXContents() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
@@ -61,23 +81,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
     @Override
     protected KnnSearchBuilder createTestInstance() {
-        String field = randomAlphaOfLength(6);
-        int dim = randomIntBetween(2, 30);
-        float[] vector = randomVector(dim);
-        int k = randomIntBetween(1, 100);
-        int numCands = randomIntBetween(k + 20, 1000);
-
-        KnnSearchBuilder builder = new KnnSearchBuilder(field, vector, k, numCands);
-        if (randomBoolean()) {
-            builder.boost(randomFloat());
-        }
-
-        int numFilters = randomIntBetween(0, 3);
-        for (int i = 0; i < numFilters; i++) {
-            builder.addFilterQuery(QueryBuilders.termQuery(randomAlphaOfLength(5), randomAlphaOfLength(10)));
-        }
-
-        return builder;
+        return randomTestInstance();
     }
 
     @Override

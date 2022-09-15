@@ -1841,20 +1841,19 @@ public class ReservedRolesStoreTests extends ESTestCase {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         IndicesAccessControl iac = superuserRole.indices()
-            .authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache,
-                Optional.empty());
+            .authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache, Optional.empty());
         assertThat(iac.getIndexPermissions("a1").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
-        iac = superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache,
-            Optional.empty());
+        iac = superuserRole.indices()
+            .authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache, Optional.empty());
         assertThat(iac.getIndexPermissions("a1").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
-        iac = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache,
-            Optional.empty());
+        iac = superuserRole.indices()
+            .authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache, Optional.empty());
         assertThat(iac.getIndexPermissions("a2").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
-        iac = superuserRole.indices().authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache,
-            Optional.empty());
+        iac = superuserRole.indices()
+            .authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache, Optional.empty());
         assertThat(iac.getIndexPermissions("aaaaaa").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
 

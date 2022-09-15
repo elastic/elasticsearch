@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -98,21 +99,21 @@ public final class LimitedRole implements Role {
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> aliasAndIndexLookup,
         FieldPermissionsCache fieldPermissionsCache,
-        Optional<Boolean> parentActionGranted
+        Optional<ParentIndexActionAuthorization> parentAuthorization
     ) {
         IndicesAccessControl indicesAccessControl = baseRole.authorize(
             action,
             requestedIndicesOrAliases,
             aliasAndIndexLookup,
             fieldPermissionsCache,
-            parentActionGranted
+            parentAuthorization
         );
         IndicesAccessControl limitedByIndicesAccessControl = limitedByRole.authorize(
             action,
             requestedIndicesOrAliases,
             aliasAndIndexLookup,
             fieldPermissionsCache,
-            parentActionGranted
+            parentAuthorization
         );
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }

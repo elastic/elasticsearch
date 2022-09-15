@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -155,7 +156,7 @@ public interface Role {
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> aliasAndIndexLookup,
         FieldPermissionsCache fieldPermissionsCache,
-        Optional<Boolean> parentActionGranted
+        Optional<ParentIndexActionAuthorization> parentAuthorization
     );
 
     /***

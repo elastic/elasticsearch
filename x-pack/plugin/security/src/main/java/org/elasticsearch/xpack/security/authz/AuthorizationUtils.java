@@ -6,19 +6,32 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
+import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -41,8 +54,12 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.STACK_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 
 public final class AuthorizationUtils {
+
+    private static final Logger logger = LogManager.getLogger(AuthorizationUtils.class);
 
     private static final Predicate<String> INTERNAL_PREDICATE = Automatons.predicate("internal:*");
 
@@ -148,6 +165,99 @@ public final class AuthorizationUtils {
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";
                 throw new IllegalStateException("action.origin [" + actionOrigin + "] should always be a known value");
         }
+    }
+
+    public static void maybePreAuthorizeChildAction(
+        ThreadContext threadContext,
+        ClusterState clusterState,
+        String childAction,
+        DiscoveryNode destinationNode,
+        TransportRequest request
+    ) {
+
+        AuthorizationEngine.AuthorizationContext parentContext = extractAuthorizationContext(threadContext, childAction);
+        if (parentContext == null) {
+            return;
+        }
+
+        if (childAction.startsWith(parentContext.getAction()) == false) {
+            // Parent action is not a true parent
+            // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]')
+            // or similar (e.g. search phases) as children, but not every action that is triggered
+            // within another action should be authorized this way
+            return;
+        }
+
+        final IndicesRequest indicesRequest;
+        if (request instanceof IndicesRequest) {
+            indicesRequest = (IndicesRequest) request;
+        } else {
+            // We can only pre-authorize indices request.
+            return;
+        }
+
+        final String[] indices = indicesRequest.indices();
+        if (indices == null || indices.length == 0 || Arrays.equals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
+            // No indices to check
+            return;
+        }
+
+        if (clusterState.nodes().getLocalNode().equals(destinationNode)) {
+            // Child actions targeting local (same) node are handled differently and already pre-authorized by parent action.
+            return;
+        }
+
+        if (clusterState.nodes().nodeExists(destinationNode)) {
+            // We can only pre-authorize actions targeting node which belongs to the same cluster.
+            return;
+        }
+
+        try {
+            new ParentIndexActionAuthorization(
+                Version.CURRENT,
+                parentContext.getAction(),
+                parentContext.getIndicesAccessControl().isGranted()
+            ).writeToThreadContext(threadContext);
+        } catch (Exception e) {
+            logger.debug("Failed to write authorization to thread context.", e);
+            throw internalError(
+                "Failed to write pre-authorization for child action ["
+                    + childAction
+                    + "] of parent action ["
+                    + parentContext.getAction()
+                    + "] to the context"
+            );
+        }
+
+    }
+
+    @Nullable
+    public static AuthorizationEngine.AuthorizationContext extractAuthorizationContext(ThreadContext threadContext, String childAction) {
+        final String originatingAction = threadContext.getTransient(ORIGINATING_ACTION_KEY);
+        if (Strings.isNullOrEmpty(originatingAction)) {
+            // No parent action
+            return null;
+        }
+        AuthorizationEngine.AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
+        if (authorizationInfo == null) {
+            throw internalError(
+                "While attempting to authorize action ["
+                    + childAction
+                    + "], found originating action ["
+                    + originatingAction
+                    + "] but no authorization info"
+            );
+        }
+
+        final IndicesAccessControl parentAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        return new AuthorizationEngine.AuthorizationContext(originatingAction, authorizationInfo, parentAccessControl);
+    }
+
+    private static ElasticsearchSecurityException internalError(String message) {
+        // When running with assertions enabled (testing) kill the node so that there is a hard failure in CI
+        assert false : message;
+        // Otherwise (production) just throw an exception so that we don't authorize something incorrectly
+        return new ElasticsearchSecurityException(message);
     }
 
     private static boolean isInternalAction(String action) {

@@ -165,8 +165,13 @@ public class LimitedRoleTests extends ESTestCase {
             } else {
                 role = fromRole.limitedBy(limitedByRole);
             }
-            iac = role.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(), fieldPermissionsCache,
-                Optional.empty());
+            iac = role.authorize(
+                SearchAction.NAME,
+                Sets.newHashSet("_index", "_alias1"),
+                md.getIndicesLookup(),
+                fieldPermissionsCache,
+                Optional.empty()
+            );
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
             assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));

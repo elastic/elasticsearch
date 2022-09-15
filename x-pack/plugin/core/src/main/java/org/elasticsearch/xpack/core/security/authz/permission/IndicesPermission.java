@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -367,7 +368,7 @@ public final class IndicesPermission {
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> lookup,
         FieldPermissionsCache fieldPermissionsCache,
-        Optional<Boolean> parentActionGranted
+        Optional<ParentIndexActionAuthorization> parentAuthorization
     ) {
         // Short circuit if the indicesPermission allows all access to every index
         if (Arrays.stream(groups).anyMatch(Group::isTotal)) {
@@ -384,7 +385,7 @@ public final class IndicesPermission {
         }
 
         final boolean overallGranted;
-        if (parentActionGranted.isPresent() && parentActionGranted.get()) {
+        if (parentAuthorization.isPresent() && parentAuthorization.get().granted()) {
             overallGranted = true;
         } else {
             overallGranted = isActionGranted(action, resources);

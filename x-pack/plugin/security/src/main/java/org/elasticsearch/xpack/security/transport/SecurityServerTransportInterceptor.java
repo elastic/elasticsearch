@@ -11,6 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.Maps;
@@ -54,6 +56,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
+    private final ClusterService clusterService;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -62,7 +65,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         AuthorizationService authzService,
         SSLService sslService,
         SecurityContext securityContext,
-        DestructiveOperations destructiveOperations
+        DestructiveOperations destructiveOperations,
+        ClusterService clusterService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -71,6 +75,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -152,11 +157,23 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
 
+        maybePreAuthorizeChildAction(connection.getNode(), action, request);
+
         try {
             sender.sendRequest(connection, action, request, options, handler);
         } catch (Exception e) {
             handler.handleException(new SendRequestTransportException(connection.getNode(), action, e));
         }
+    }
+
+    private void maybePreAuthorizeChildAction(DiscoveryNode destinationNode, String action, TransportRequest request) {
+        AuthorizationUtils.maybePreAuthorizeChildAction(
+            securityContext.getThreadContext(),
+            clusterService.state(),
+            action,
+            destinationNode,
+            request
+        );
     }
 
     // pkg-private method to allow overriding for tests

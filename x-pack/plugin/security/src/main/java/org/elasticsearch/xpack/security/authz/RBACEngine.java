@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -361,7 +362,7 @@ public class RBACEngine implements AuthorizationEngine {
                             authorizationInfo,
                             Sets.newHashSet(resolvedIndices.getLocal()),
                             aliasOrIndexLookup,
-                            requestInfo.getOriginatingActionGranted()
+                            requestInfo.getParentAuthorization()
                         )
                     );
                 }
@@ -388,7 +389,7 @@ public class RBACEngine implements AuthorizationEngine {
                                     authorizationInfo,
                                     Sets.newHashSet(resolvedIndices.getLocal()),
                                     aliasOrIndexLookup,
-                                    requestInfo.getOriginatingActionGranted()
+                                    requestInfo.getParentAuthorization()
                                 )
                             );
                         }
@@ -818,7 +819,7 @@ public class RBACEngine implements AuthorizationEngine {
         AuthorizationInfo authorizationInfo,
         Set<String> indices,
         Map<String, IndexAbstraction> aliasAndIndexLookup,
-        Optional<Boolean> parentActionGranted
+        Optional<ParentIndexActionAuthorization> parentAuthorization
     ) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
         final IndicesAccessControl accessControl = role.authorize(
@@ -826,7 +827,7 @@ public class RBACEngine implements AuthorizationEngine {
             indices,
             aliasAndIndexLookup,
             fieldPermissionsCache,
-            parentActionGranted
+            parentAuthorization
         );
         return new IndexAuthorizationResult(true, accessControl);
     }

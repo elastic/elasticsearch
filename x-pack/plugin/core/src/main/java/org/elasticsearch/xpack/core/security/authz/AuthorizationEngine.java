@@ -448,20 +448,20 @@ public interface AuthorizationEngine {
         @Nullable
         private final AuthorizationContext originatingAuthorizationContext;
 
-        private final Optional<Boolean> originatingActionGranted;
+        private final Optional<ParentIndexActionAuthorization> parentAuthorization;
 
         public RequestInfo(
             Authentication authentication,
             TransportRequest request,
             String action,
             AuthorizationContext originatingContext,
-            Boolean originatingActionGranted
+            ParentIndexActionAuthorization parentAuthorization
         ) {
             this.authentication = Objects.requireNonNull(authentication);
             this.request = Objects.requireNonNull(request);
             this.action = Objects.requireNonNull(action);
             this.originatingAuthorizationContext = originatingContext;
-            this.originatingActionGranted = Optional.ofNullable(originatingActionGranted);
+            this.parentAuthorization = Optional.ofNullable(parentAuthorization);
         }
 
         public String getAction() {
@@ -476,8 +476,8 @@ public interface AuthorizationEngine {
             return request;
         }
 
-        public Optional<Boolean> getOriginatingActionGranted() {
-            return originatingActionGranted;
+        public Optional<ParentIndexActionAuthorization> getParentAuthorization() {
+            return parentAuthorization;
         }
 
         @Nullable
@@ -508,7 +508,6 @@ public interface AuthorizationEngine {
      */
     class AuthorizationResult {
 
-        public static final String THREAD_CONTEXT_KEY = "_xpack_security_authorization";
         private final boolean granted;
         private final boolean auditable;
 

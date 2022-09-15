@@ -893,7 +893,8 @@ public class Security extends Plugin
                 authzService,
                 getSslService(),
                 securityContext.get(),
-                destructiveOperations
+                destructiveOperations,
+                clusterService
             )
         );
 

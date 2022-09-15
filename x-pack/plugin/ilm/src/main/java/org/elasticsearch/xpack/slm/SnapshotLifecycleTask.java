@@ -65,7 +65,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 event.getJobName(),
                 name
             ),
-            () -> logger.warn("snapshot lifecycle policy for job [{}] no longer exists, snapshot not created", event.getJobName())
+            () -> logger.warn("snapshot lifecycle policy job [{}] did not issue new snapshot creation", event.getJobName())
         );
     }
 

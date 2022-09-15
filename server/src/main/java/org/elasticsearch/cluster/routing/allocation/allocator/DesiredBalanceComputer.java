@@ -188,14 +188,6 @@ public class DesiredBalanceComputer {
             }
         }
 
-        // TODO must also bypass ResizeAllocationDecider
-        // TODO must also bypass RestoreInProgressAllocationDecider
-        // TODO what about delayed allocation?
-
-        // TODO consider also whether to unassign any shards that cannot remain on their current nodes so that the desired balance reflects
-        // the actual desired state of the cluster. But this would mean that a REPLACE shutdown needs special handling at reconciliation
-        // time too. But maybe it needs special handling anyway since reconciliation also tries to respect allocation rules.
-
         boolean hasChanges = false;
         for (int i = 0; true; i++) {
             if (hasChanges) {

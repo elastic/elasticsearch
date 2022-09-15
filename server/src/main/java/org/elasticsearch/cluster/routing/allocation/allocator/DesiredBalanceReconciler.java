@@ -62,7 +62,6 @@ public class DesiredBalanceReconciler {
             failAllocationOfNewPrimaries(allocation);
             logger.trace("no nodes available, nothing to reconcile");
             return;
-            // TODO test that we do this even if desired balance is empty
         }
 
         if (desiredBalance.assignments().isEmpty()) {

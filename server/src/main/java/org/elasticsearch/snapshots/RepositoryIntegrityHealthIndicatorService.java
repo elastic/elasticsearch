@@ -18,6 +18,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.Collections;
@@ -66,7 +67,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain) {
+    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
         var snapshotMetadata = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
         if (snapshotMetadata.repositories().isEmpty()) {

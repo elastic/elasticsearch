@@ -10,10 +10,11 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.stream.Collectors.toUnmodifiableSet;
+import static java.util.stream.Collectors.toCollection;
 
 public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, int ignored) {
 
@@ -27,6 +28,7 @@ public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, in
     }
 
     public static ShardAssignment of(List<ShardRouting> routings) {
-        return new ShardAssignment(routings.stream().map(ShardRouting::currentNodeId).collect(toUnmodifiableSet()), routings.size(), 0, 0);
+        var nodeIds = routings.stream().map(ShardRouting::currentNodeId).collect(toCollection(LinkedHashSet::new));
+        return new ShardAssignment(nodeIds, routings.size(), 0, 0);
     }
 }

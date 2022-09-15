@@ -82,7 +82,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         // non cluster state transform call.
         @SuppressWarnings("unchecked")
         var requests = prepare((List<ExpressionRoleMapping>) source);
-        return new TransformState(prevState.state(), prevState.keys(), ((l) -> nonStateTransform(requests, prevState, l)));
+        return new TransformState(prevState.state(), prevState.keys(), l -> nonStateTransform(requests, prevState, l));
     }
 
     private Void nonStateTransform(

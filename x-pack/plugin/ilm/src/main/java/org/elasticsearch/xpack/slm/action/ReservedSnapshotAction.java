@@ -62,7 +62,7 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
         @SuppressWarnings("unchecked")
-        var requests = prepare((List<SnapshotLifecyclePolicy>)source, prevState.state());
+        var requests = prepare((List<SnapshotLifecyclePolicy>) source, prevState.state());
 
         ClusterState state = prevState.state();
 

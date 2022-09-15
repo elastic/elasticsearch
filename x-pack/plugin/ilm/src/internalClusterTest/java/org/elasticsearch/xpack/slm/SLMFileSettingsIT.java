@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -28,13 +29,18 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.slm.action.ReservedSnapshotAction;
 
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -49,7 +55,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
+import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -118,7 +126,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
                      "search.allow_expensive_queries": "false"
                  },
                  "slm": {
-                    "test-snapshots": {
+                    "test-snapshots-err": {
                         "schedule": "* * * 31 FEB ? *",
                         "name": "<production-snap-{now/d}>",
                         "repository": "other-repo",
@@ -194,7 +202,12 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         final ClusterStateResponse clusterStateResponse = client().admin()
             .cluster()
             .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .actionGet();
+            .get();
+
+        var reservedState = clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+
+        assertThat(reservedState.handlers().get(ReservedSnapshotAction.NAME).keys(), containsInAnyOrder("test-snapshots"));
+        assertThat(reservedState.handlers().get(ReservedRepositoryAction.NAME).keys(), containsInAnyOrder("repo"));
 
         assertThat(
             clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
@@ -209,6 +222,13 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
                 + "[org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest/unset] "
                 + "with errors: [[indices.recovery.max_bytes_per_sec] set as read-only by [file_settings]]",
             expectThrows(ExecutionException.class, () -> client().admin().cluster().updateSettings(req).get()).getMessage()
+        );
+
+        assertTrue(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> client().execute(PutSnapshotLifecycleAction.INSTANCE, sampleRestRequest("test-snapshots")).actionGet()
+            ).getMessage().contains("[[test-snapshots] set as read-only by [file_settings]]")
         );
     }
 
@@ -237,7 +257,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> create snapshot manually");
         var request = new CreateSnapshotRequest("repo", "file-snap").waitForCompletion(true);
-        var response = admin().cluster().createSnapshot(request).actionGet();
+        var response = admin().cluster().createSnapshot(request).get();
         RestStatus status = response.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
@@ -301,11 +321,38 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         assertThat(clusterStateResponse.getState().metadata().persistentSettings().get("search.allow_expensive_queries"), nullValue());
 
+        var reservedState = clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+
+        assertTrue(
+            reservedState.handlers().get(ReservedSnapshotAction.NAME) == null
+                || reservedState.handlers().get(ReservedSnapshotAction.NAME).keys().contains("test-snapshots-err") == false
+        );
+        assertTrue(
+            reservedState.handlers().get(ReservedRepositoryAction.NAME) == null
+                || reservedState.handlers().get(ReservedRepositoryAction.NAME).keys().contains("other-repo") == false
+        );
+        assertTrue(
+            reservedState.handlers().get(ReservedClusterSettingsAction.NAME) == null
+                || reservedState.handlers()
+                    .get(ReservedClusterSettingsAction.NAME)
+                    .keys()
+                    .contains("search.allow_expensive_queries") == false
+        );
+
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
             Settings.builder().put("search.allow_expensive_queries", "false")
         );
         // This should succeed, nothing was reserved
         client().admin().cluster().updateSettings(req).get();
+        // This will fail because repo-new isn't there, not because we can't write test-snapshots-err, meaning we were allowed to
+        // make the request
+        assertEquals(
+            "no such repository [repo-new]",
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> client().execute(PutSnapshotLifecycleAction.INSTANCE, sampleRestRequest("test-snapshots-err")).actionGet()
+            ).getMessage()
+        );
     }
 
     public void testErrorSaved() throws Exception {
@@ -332,6 +379,33 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
             logger.error("failed to execute policy", e);
             fail("failed to execute policy " + policyId + " got: " + e);
             return "bad";
+        }
+    }
+
+    private PutSnapshotLifecycleAction.Request sampleRestRequest(String name) throws Exception {
+        var json = """
+            {
+                "schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo-new",
+                "config": {
+                    "indices": ["test*"],
+                    "ignore_unavailable": true,
+                    "include_global_state": false
+                },
+                "retention": {
+                    "expire_after": "30d",
+                    "min_count": 1,
+                    "max_count": 50
+                }
+            }""";
+
+        try (
+            var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
+        ) {
+            var policy = SnapshotLifecyclePolicy.parse(parser, name);
+            return new PutSnapshotLifecycleAction.Request(name, policy);
         }
     }
 }

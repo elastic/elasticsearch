@@ -65,6 +65,11 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testDependencies() {
+        var action = new ReservedSnapshotAction();
+        assertTrue(action.optionalDependencies().contains(ReservedRepositoryAction.NAME));
+    }
+
     public void testValidationFails() {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

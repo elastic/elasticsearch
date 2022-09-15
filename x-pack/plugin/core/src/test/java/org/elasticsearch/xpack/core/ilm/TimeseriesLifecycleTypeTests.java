@@ -843,6 +843,29 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
+        {
+            // not inject in hot phase
+            Phase phase = new Phase(HOT_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // not inject in frozen phase
+            Phase phase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // not inject in delete phase
+            Phase phase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // return false for invalid phase
+            Phase phase = new Phase(HOT_PHASE + randomAlphaOfLength(5), TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
     }
 
     public void testValidatingSearchableSnapshotRepos() {

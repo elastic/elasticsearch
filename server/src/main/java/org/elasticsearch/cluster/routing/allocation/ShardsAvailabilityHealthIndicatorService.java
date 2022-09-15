@@ -42,6 +42,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
@@ -105,7 +106,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain) {
+    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());

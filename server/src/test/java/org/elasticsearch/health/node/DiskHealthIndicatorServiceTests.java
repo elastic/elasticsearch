@@ -19,11 +19,23 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.junit.Ignore;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,13 +45,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DiskHealthIndicatorServiceTests extends ESTestCase {
-    public void testService() {
+    public void testServiceBasics() {
         Set<DiscoveryNode> discoveryNodes = createNodes();
         ClusterService clusterService = createClusterService(false, discoveryNodes);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
@@ -63,6 +78,129 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testGreen() throws IOException {
+        Set<DiscoveryNode> discoveryNodes = createNodes();
+        ClusterService clusterService = createClusterService(false, discoveryNodes);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
+        HealthStatus expectedStatus = HealthStatus.GREEN;
+        HealthInfo healthInfo = createHealthInfo(expectedStatus, discoveryNodes);
+        HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
+        assertThat(result.status(), equalTo(expectedStatus));
+        assertThat(result.symptom(), equalTo("The cluster has enough available disk space."));
+        assertThat(result.impacts().size(), equalTo(0));
+        assertThat(result.diagnosisList().size(), equalTo(0));
+        Map<String, Object> detailsMap = xContentToMap(result.details());
+        assertThat(detailsMap.size(), equalTo(1));
+        List<Map<String, String>> nodeDetails = (List<Map<String, String>>) detailsMap.get("nodes");
+        assertThat(nodeDetails.size(), equalTo(discoveryNodes.size()));
+        Map<String, String> nodeIdToName = discoveryNodes.stream().collect(Collectors.toMap(DiscoveryNode::getId, DiscoveryNode::getName));
+        for (Map<String, String> nodeDetail : nodeDetails) {
+            assertThat(nodeDetail.size(), greaterThanOrEqualTo(3));
+            assertThat(nodeDetail.size(), lessThanOrEqualTo(4)); // Could have a cause
+            String nodeId = nodeDetail.get("node_id");
+            assertThat(nodeDetail.get("name"), equalTo(nodeIdToName.get(nodeId)));
+            assertThat(nodeDetail.get("status"), equalTo("GREEN"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRedNoBlocksNoIndices() throws IOException {
+        Set<DiscoveryNode> discoveryNodes = createNodes();
+        ClusterService clusterService = createClusterService(false, discoveryNodes);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
+        HealthStatus expectedStatus = HealthStatus.RED;
+        HealthInfo healthInfo = createHealthInfo(expectedStatus, discoveryNodes);
+        HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
+        assertThat(result.status(), equalTo(expectedStatus));
+        assertThat(result.symptom(), equalTo("1 data node is out of disk space."));
+        assertThat(result.impacts().size(), equalTo(1));
+        HealthIndicatorImpact impact = result.impacts().get(0);
+        assertNotNull(impact);
+        List<ImpactArea> impactAreas = impact.impactAreas();
+        assertThat(impactAreas.size(), equalTo(1));
+        assertThat(impactAreas.get(0), equalTo(ImpactArea.INGEST));
+        assertThat(impact.severity(), equalTo(1));
+        assertThat(impact.impactDescription(), equalTo("Cannot insert or update documents in the affected indices."));
+        assertThat(result.diagnosisList().size(), equalTo(1));
+        Diagnosis diagnosis = result.diagnosisList().get(0);
+        List<String> affectedResources = diagnosis.affectedResources();
+        assertThat(affectedResources.size(), equalTo(1));
+        String expectedRedNodeId = healthInfo.diskInfoByNode()
+            .entrySet()
+            .stream()
+            .filter(entry -> expectedStatus.equals(entry.getValue().healthStatus()))
+            .map(Map.Entry::getKey)
+            .findAny()
+            .orElseThrow();
+        assertThat(affectedResources.get(0), equalTo(expectedRedNodeId));
+        Map<String, Object> detailsMap = xContentToMap(result.details());
+        assertThat(detailsMap.size(), equalTo(1));
+        List<Map<String, String>> nodeDetails = (List<Map<String, String>>) detailsMap.get("nodes");
+        assertThat(nodeDetails.size(), equalTo(discoveryNodes.size()));
+        Map<String, String> nodeIdToName = discoveryNodes.stream().collect(Collectors.toMap(DiscoveryNode::getId, DiscoveryNode::getName));
+        for (Map<String, String> nodeDetail : nodeDetails) {
+            assertThat(nodeDetail.size(), greaterThanOrEqualTo(3));
+            assertThat(nodeDetail.size(), lessThanOrEqualTo(4)); // Could have a cause
+            String nodeId = nodeDetail.get("node_id");
+            assertThat(nodeDetail.get("name"), equalTo(nodeIdToName.get(nodeId)));
+            if (nodeId.equals(expectedRedNodeId)) {
+                assertThat(nodeDetail.get("status"), equalTo("RED"));
+            } else {
+                assertThat(nodeDetail.get("status"), equalTo("GREEN"));
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Ignore
+    public void testRedNoBlocksWithIndices() throws IOException {
+        Set<DiscoveryNode> discoveryNodes = createNodes();
+        ClusterService clusterService = createClusterService(false, discoveryNodes);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
+        HealthStatus expectedStatus = HealthStatus.RED;
+        HealthInfo healthInfo = createHealthInfo(expectedStatus, discoveryNodes);
+        HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
+        assertThat(result.status(), equalTo(expectedStatus));
+        assertThat(result.symptom(), equalTo("3 indices are blocked and cannot be updated because 2 nodes are out of space."));
+        assertThat(result.impacts().size(), equalTo(1));
+        HealthIndicatorImpact impact = result.impacts().get(0);
+        assertNotNull(impact);
+        List<ImpactArea> impactAreas = impact.impactAreas();
+        assertThat(impactAreas.size(), equalTo(1));
+        assertThat(impactAreas.get(0), equalTo(ImpactArea.INGEST));
+        assertThat(impact.severity(), equalTo(1));
+        assertThat(impact.impactDescription(), equalTo("Cannot insert or update documents in the affected indices."));
+        assertThat(result.diagnosisList().size(), equalTo(1));
+        Diagnosis diagnosis = result.diagnosisList().get(0);
+        List<String> affectedResources = diagnosis.affectedResources();
+        assertThat(affectedResources.size(), equalTo(1));
+        String expectedRedNodeId = healthInfo.diskInfoByNode()
+            .entrySet()
+            .stream()
+            .filter(entry -> expectedStatus.equals(entry.getValue().healthStatus()))
+            .map(Map.Entry::getKey)
+            .findAny()
+            .orElseThrow();
+        assertThat(affectedResources.get(0), equalTo(expectedRedNodeId));
+        Map<String, Object> detailsMap = xContentToMap(result.details());
+        assertThat(detailsMap.size(), equalTo(1));
+        List<Map<String, String>> nodeDetails = (List<Map<String, String>>) detailsMap.get("nodes");
+        assertThat(nodeDetails.size(), equalTo(discoveryNodes.size()));
+        Map<String, String> nodeIdToName = discoveryNodes.stream().collect(Collectors.toMap(DiscoveryNode::getId, DiscoveryNode::getName));
+        for (Map<String, String> nodeDetail : nodeDetails) {
+            assertThat(nodeDetail.size(), greaterThanOrEqualTo(3));
+            assertThat(nodeDetail.size(), lessThanOrEqualTo(4)); // Could have a cause
+            String nodeId = nodeDetail.get("node_id");
+            assertThat(nodeDetail.get("name"), equalTo(nodeIdToName.get(nodeId)));
+            if (nodeId.equals(expectedRedNodeId)) {
+                assertThat(nodeDetail.get("status"), equalTo("RED"));
+            } else {
+                assertThat(nodeDetail.get("status"), equalTo("GREEN"));
+            }
+        }
+    }
+
     public void testBlockOtherwiseGreen() {
         /*
          * Tests when there is an index that has a block on it but the nodes report green (so the lock is probably about to be released).
@@ -80,6 +218,9 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testBlockOtherwiseYellow() {
+        /*
+         * Tests when there is an index that has a block on it but the nodes report yellow.
+         */
         Set<DiscoveryNode> discoveryNodes = createNodes();
         ClusterService clusterService = createClusterService(true, discoveryNodes);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
@@ -94,7 +235,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 String.format(
                     Locale.ROOT,
                     "1 index is blocked and cannot be updated because %s running low on disk space.",
-                    discoveryNodes.size() == 1 ? "1 node is" : numberOfYellowNodes + " nodes are"
+                    numberOfYellowNodes == 1 ? "1 node is" : numberOfYellowNodes + " nodes are"
                 )
             )
         );
@@ -117,8 +258,8 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 String.format(
                     Locale.ROOT,
                     "%s blocked and cannot be updated because %s out of disk space.",
-                    numberOfBlockedIndices == 1 ? " 1 index is" : numberOfBlockedIndices + " indices are",
-                    discoveryNodes.size() == 1 ? "1 node is" : numberOfRedNodes + " nodes are"
+                    numberOfBlockedIndices == 1 ? "1 index is" : numberOfBlockedIndices + " indices are",
+                    numberOfRedNodes == 1 ? "1 node is" : numberOfRedNodes + " nodes are"
                 )
             )
         );
@@ -249,5 +390,13 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
         return clusterService;
+    }
+
+    private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentParser parser = XContentType.JSON.xContent()
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
+        return parser.map();
     }
 }

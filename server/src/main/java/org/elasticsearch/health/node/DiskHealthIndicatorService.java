@@ -240,6 +240,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 new Diagnosis.Definition(
                     "free-disk-space-or-add-capacity-data-nodes",
                     String.format(
+                        Locale.ROOT,
                         "%d %s reside%s on nodes that have run out of space and writing has been blocked by the system.",
                         impactedIndices.size(),
                         impactedIndices.size() == 1 ? "index" : "indices",
@@ -262,6 +263,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     ) {
         final Set<String> problemIndices = getIndicesForNodes(problemNodes);
         final String symptom = String.format(
+            Locale.ROOT,
             "%d data node%s increased disk usage. As a result %d %s at risk of not being able to process any more " + "updates.",
             problemNodes.size(),
             problemNodes.size() == 1 ? " has" : "s have",
@@ -280,6 +282,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 new Diagnosis.Definition(
                     "free-disk-space-or-add-capacity-data-nodes",
                     String.format(
+                        Locale.ROOT,
                         "%d %s reside%s on nodes that have run out of space and writing has been blocked by the system.",
                         problemIndices.size(),
                         problemIndices.size() == 1 ? "index" : "indices",

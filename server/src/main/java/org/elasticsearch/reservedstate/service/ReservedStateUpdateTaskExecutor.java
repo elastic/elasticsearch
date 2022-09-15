@@ -30,9 +30,6 @@ public record ReservedStateUpdateTaskExecutor(RerouteService rerouteService) imp
     public ClusterState execute(BatchExecutionContext<ReservedStateUpdateTask> batchExecutionContext) throws Exception {
         var updatedState = batchExecutionContext.initialState();
 
-        // The post transformation actions can be async, so we don't run those on the master state update threads.
-        // Instead, we collect all those consumers and pass them back to the main task listener, so they can be
-        // run asynchronously.
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             try (var ignored = taskContext.captureResponseHeaders()) {
                 updatedState = taskContext.getTask().execute(updatedState);

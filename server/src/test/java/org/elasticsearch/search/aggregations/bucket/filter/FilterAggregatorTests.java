@@ -111,7 +111,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
                 FilterAggregator agg = createAggregator(builder, indexSearcher, fieldType);
                 agg.preCollection();
                 LeafBucketCollector collector = agg.getLeafCollector(
-                    new AggregationExecutionContext(indexReader.leaves().get(0), null, null)
+                    new AggregationExecutionContext(indexReader.leaves().get(0), null, null, null)
                 );
                 collector.collect(0, 0);
                 collector.collect(0, 0);

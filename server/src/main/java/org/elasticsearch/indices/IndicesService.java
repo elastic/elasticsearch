@@ -461,17 +461,13 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
-        final Map<Index, CommonStats> statsByIndex = new HashMap<>();
+        final Map<Index, CommonStats> statsByIndex = Maps.newHashMapWithExpectedSize(indicesService.indices.size());
 
         for (final IndexService indexService : indicesService) {
             Index index = indexService.index();
             CommonStats commonStats = CommonStats.getIndexLevelStats(indexService, flags);
-
-            if (statsByIndex.containsKey(index) == false) {
-                statsByIndex.put(index, commonStats);
-            } else {
-                statsByIndex.get(index).add(commonStats);
-            }
+            var existing = statsByIndex.putIfAbsent(index, commonStats);
+            assert existing == null;
         }
 
         return statsByIndex;

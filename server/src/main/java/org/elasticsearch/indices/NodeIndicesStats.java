@@ -72,14 +72,10 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             statsByShard.put(index, indexShardStats);
         }
 
-        statsByIndex = new HashMap<>();
         if (in.getVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
-            entries = in.readVInt();
-            for (int i = 0; i < entries; i++) {
-                Index index = new Index(in);
-                CommonStats indexStats = new CommonStats(in);
-                statsByIndex.put(index, indexStats);
-            }
+            statsByIndex = in.readMap(Index::new, CommonStats::new);
+        } else {
+            statsByIndex = new HashMap<>();
         }
     }
 
@@ -279,10 +275,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
 
         for (Map.Entry<Index, CommonStats> entry : statsByIndex.entrySet()) {
-            if (statsMap.containsKey(entry.getKey()) == false) {
-                statsMap.put(entry.getKey(), new CommonStats());
-            }
-            statsMap.get(entry.getKey()).add(entry.getValue());
+            statsMap.computeIfAbsent(entry.getKey(), k -> new CommonStats()).add(entry.getValue());
         }
 
         return statsMap;

@@ -1151,6 +1151,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     private static class MetadataDiff implements Diff<Metadata> {
 
+        private static final Version NOOP_METADATA_DIFF_VERSION = Version.V_8_5_0;
+
         private final long version;
         private final String clusterUUID;
         private final boolean clusterUUIDCommitted;
@@ -1163,22 +1165,39 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
         private final Diff<Map<String, ReservedStateMetadata>> reservedStateMetadata;
 
+        // true if this diff is a noop because before and after were the same instance
+        private final boolean noop;
+
         MetadataDiff(Metadata before, Metadata after) {
+            this.noop = before == after;
             clusterUUID = after.clusterUUID;
             clusterUUIDCommitted = after.clusterUUIDCommitted;
             version = after.version;
             coordinationMetadata = after.coordinationMetadata;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
-            hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
-            indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
-            templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
-            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            reservedStateMetadata = DiffableUtils.diff(
-                before.reservedStateMetadata,
-                after.reservedStateMetadata,
-                DiffableUtils.getStringKeySerializer()
-            );
+            if (noop) {
+                hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
+                indices = DiffableUtils.emptyDiff();
+                templates = DiffableUtils.emptyDiff();
+                customs = DiffableUtils.emptyDiff();
+                reservedStateMetadata = DiffableUtils.emptyDiff();
+            } else {
+                hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
+                indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
+                templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
+                customs = DiffableUtils.diff(
+                    before.customs,
+                    after.customs,
+                    DiffableUtils.getStringKeySerializer(),
+                    CUSTOM_VALUE_SERIALIZER
+                );
+                reservedStateMetadata = DiffableUtils.diff(
+                    before.reservedStateMetadata,
+                    after.reservedStateMetadata,
+                    DiffableUtils.getStringKeySerializer()
+                );
+            }
         }
 
         private static final DiffableUtils.DiffableValueReader<String, IndexMetadata> INDEX_METADATA_DIFF_VALUE_READER =
@@ -1189,6 +1208,26 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             new DiffableUtils.DiffableValueReader<>(ReservedStateMetadata::readFrom, ReservedStateMetadata::readDiffFrom);
 
         MetadataDiff(StreamInput in) throws IOException {
+            if (in.getVersion().onOrAfter(NOOP_METADATA_DIFF_VERSION)) {
+                noop = in.readBoolean();
+                if (noop) {
+                    // noop diff, other fields are irrelevant
+                    clusterUUID = null;
+                    clusterUUIDCommitted = false;
+                    version = -1L;
+                    coordinationMetadata = null;
+                    transientSettings = null;
+                    persistentSettings = null;
+                    hashesOfConsistentSettings = DiffableUtils.emptyDiff();
+                    indices = DiffableUtils.emptyDiff();
+                    templates = DiffableUtils.emptyDiff();
+                    customs = DiffableUtils.emptyDiff();
+                    reservedStateMetadata = DiffableUtils.emptyDiff();
+                    return;
+                }
+            } else {
+                noop = false;
+            }
             clusterUUID = in.readString();
             clusterUUIDCommitted = in.readBoolean();
             version = in.readLong();
@@ -1216,6 +1255,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().onOrAfter(NOOP_METADATA_DIFF_VERSION)) {
+                out.writeBoolean(noop);
+                if (noop) {
+                    // noop diff
+                    return;
+                }
+            }
             out.writeString(clusterUUID);
             out.writeBoolean(clusterUUIDCommitted);
             out.writeLong(version);
@@ -1235,6 +1281,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         @Override
         public Metadata apply(Metadata part) {
+            if (noop) {
+                return part;
+            }
             // create builder from existing mappings hashes so we don't change existing index metadata instances when deduplicating
             // mappings in the builder
             final var updatedIndices = indices.apply(part.indices);

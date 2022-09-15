@@ -299,11 +299,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public String familyTypeName() {
-            return NumberFieldMapper.NumberType.DOUBLE.typeName();
-        }
-
-        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
@@ -497,18 +492,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-            }
-
-            return new SourceValueFetcher(name(), context) {
-                @Override
-                @SuppressWarnings("unchecked")
-                protected Object parseSourceValue(Object value) {
-                    Map<String, Double> metrics = (Map<String, Double>) value;
-                    return metrics.get(defaultMetric.name());
-                }
-            };
+            return SourceValueFetcher.identity(name(), context, format);
         }
 
         /**

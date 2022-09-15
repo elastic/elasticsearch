@@ -198,7 +198,9 @@ public class StableApiWrappersTests extends ESTestCase {
     }
 
     @NamedComponent(name = "DefaultConstrAnalyzerFactory")
-    static class DefaultConstrAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
+    public static class DefaultConstrAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
+
+        public DefaultConstrAnalyzerFactory(int x) {}
 
         @Override
         public Analyzer create() {
@@ -208,8 +210,7 @@ public class StableApiWrappersTests extends ESTestCase {
     }
 
     @NamedComponent(name = "TestAnalyzerFactory")
-    static class TestAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
-        TestAnalyzerFactory() {}
+    public static class TestAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
 
         @Override
         public Analyzer create() {
@@ -219,8 +220,7 @@ public class StableApiWrappersTests extends ESTestCase {
     }
 
     @NamedComponent(name = "TestTokenizerFactory")
-    static class TestTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
-        TestTokenizerFactory() {}
+    public static class TestTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
 
         @Override
         public Tokenizer create() {
@@ -229,8 +229,7 @@ public class StableApiWrappersTests extends ESTestCase {
     }
 
     @NamedComponent(name = "TestTokenFilterFactory")
-    static class TestTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
-        TestTokenFilterFactory() {}
+    public static class TestTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
 
         @Override
         public TokenStream create(TokenStream tokenStream) {
@@ -255,8 +254,7 @@ public class StableApiWrappersTests extends ESTestCase {
     }
 
     @NamedComponent(name = "TestCharFilterFactory")
-    static class TestCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
-        TestCharFilterFactory() {}
+    public static class TestCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
 
         @Override
         public Reader create(Reader reader) {

@@ -98,7 +98,7 @@ public class StableApiWrappers {
                     F instance = createInstance(clazz, indexSettings, environment.settings(), settings, environment);
                     return wrapper.apply(instance);
                 } catch (ClassNotFoundException e) {
-                    throw new IllegalStateException("Plugin classloader cannot find class " + pluginInfo.className());
+                    throw new IllegalStateException("Plugin classloader cannot find class " + pluginInfo.className(), e);
                 }
             }
         };

@@ -2,4 +2,6 @@ pr: 85490
 summary: Keep track of ingest load in `DataStreams`
 area: Autoscaling
 type: enhancement
-issues: []
+issues:
+ - 90103
+ - 90102

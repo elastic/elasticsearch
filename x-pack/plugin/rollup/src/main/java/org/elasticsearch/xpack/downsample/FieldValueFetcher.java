@@ -78,12 +78,16 @@ class FieldValueFetcher {
 
         if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
             for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields().values()) {
-                IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
-                fetchers.put(metricSubField.name(), new FieldValueFetcher(metricSubField.name(), fieldType, fieldData));
+                if (context.fieldExistsInIndex(metricSubField.name())) {
+                    IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
+                    fetchers.put(metricSubField.name(), new FieldValueFetcher(metricSubField.name(), fieldType, fieldData));
+                }
             }
         } else {
-            IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-            fetchers.put(field, new FieldValueFetcher(field, fieldType, fieldData));
+            if (context.fieldExistsInIndex(field)) {
+                IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                fetchers.put(field, new FieldValueFetcher(field, fieldType, fieldData));
+            }
         }
         return Collections.unmodifiableMap(fetchers);
     }

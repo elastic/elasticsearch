@@ -19,6 +19,7 @@ import org.apache.lucene.spatial3d.geom.GeoPathFactory;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
 import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
+import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygon;
 import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygonFactory;
 import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
@@ -221,8 +222,20 @@ public class H3LatLonGeometry extends LatLonGeometry {
                 return true;
             }
             // But if all corners are outside, we still need to do a more comprehensive search in case the hexagon is within the triangle
-            GeoAreaShape triangle = makeTriangle(aX, aY, bX, bY, cX, cY);
-            return hexagon.intersects(triangle);
+            return anyPointInside(makeTriangle(aX, aY, bX, bY, cX, cY));
+        }
+
+        /**
+         * Determine if any hexagon point is within the triangle. If the hexagon is not a GeoRegularConvexPolygon
+         * fall-back on determining the relationship between the two GeoPolygon objects.
+         */
+        private boolean anyPointInside(GeoAreaShape triangle) {
+            if (hexagon instanceof GeoRegularConvexPolygon polygon) {
+                // Perform a faster check if we have a regular convex polygon
+                return polygon.anyPointInside(triangle);
+            } else {
+                return hexagon.getRelationship(triangle) != GeoArea.DISJOINT;
+            }
         }
 
         @Override
@@ -349,8 +362,7 @@ public class H3LatLonGeometry extends LatLonGeometry {
             // We can only get to this stage if the entire triangle is outside the hexagon, or the entire hexagon
             // is contained within the triangle, but no points or edges intersect. It is sufficient to test
             // that a single point of the hexagon is within the triangle to return this triangle as a candidate.
-            // TODO: test a single point instead of the whole hexagon
-            return makeTriangle(aX, aY, bX, bY, cX, cY).intersects(hexagon) ? WithinRelation.CANDIDATE : WithinRelation.DISJOINT;
+            return anyPointInside(makeTriangle(aX, aY, bX, bY, cX, cY)) ? WithinRelation.CANDIDATE : WithinRelation.DISJOINT;
         }
 
         private GeoAreaShape makeTriangle(double aX, double aY, double bX, double bY, double cX, double cY) {

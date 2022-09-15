@@ -11,6 +11,7 @@ import org.apache.lucene.geo.Component2D;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.h3.CellBoundary;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.apache.lucene.spatial3d.geom.Spatial3DTestUtil.calculateCentroid;
+import static org.apache.lucene.spatial3d.geom.Spatial3DTestUtil.pointInterpolation;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -131,41 +134,25 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
 
         // Create a polygon slightly smaller than a single H3 cell at precision 5
         CellBoundary cellBoundary = H3.h3ToGeoBoundary(H3.geoToH3(y, x, 5));
+        Point centroid = calculateCentroid(cellBoundary);
         double[] lats = new double[cellBoundary.numPoints() + 1];
         double[] lons = new double[cellBoundary.numPoints() + 1];
-        double lat = 0;
-        double lng = 0;
+        Point[] ring = new Point[cellBoundary.numPoints()];
         for (int i = 0; i < cellBoundary.numPoints(); i++) {
             LatLng point = cellBoundary.getLatLon(i);
-            lats[i] = point.getLatDeg();
-            lons[i] = point.getLonDeg();
-            lat += lats[i];
-            lng += lons[i];
+            ring[i] = pointInterpolation(centroid, new Point(point.getLonDeg(), point.getLatDeg()), 0.9);
+            lats[i] = ring[i].getLat();
+            lons[i] = ring[i].getLon();
         }
         // Close the ring
         lats[lats.length - 1] = lats[0];
         lons[lats.length - 1] = lons[0];
-        lat /= cellBoundary.numPoints();
-        lng /= cellBoundary.numPoints();
         // TODO: Remove debugging output
-        StringBuilder sb = new StringBuilder("GEOMETRYCOLLECTION(");
-        sb.append("POINT(").append(lng).append(" ").append(lat).append("),");
-        addPolygon(sb, lons, lats);
-        sb.append(",");
-        double weight = 0.1; // move all points inwards by this fraction of the distance to the centroid
-        for (int i = 0; i < lats.length; i++) {
-            lats[i] = (1.0 - weight) * lats[i] + weight * lat;
-            lons[i] = (1.0 - weight) * lons[i] + weight * lng;
-        }
+        StringBuilder sb = debugH3Data(centroid, cellBoundary, lats, lons);
+        // System.out.println(sb + ")");
+
         Polygon polygon = new Polygon(new LinearRing(lons, lats));
         GeoShapeValues.GeoShapeValue value = geoShapeValue(polygon);
-        addPolygon(sb, lons, lats);
-        for (int i = 0; i < lats.length; i++) {
-            sb.append(",POINT(");
-            sb.append(lons[i]).append(" ").append(lats[i]);
-            sb.append(")");
-        }
-        System.out.println(sb + ")");
 
         // test shape within tile bounds
         {
@@ -173,7 +160,7 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
             assertTrue(values.advanceExact(0));
             int count = values.docValueCount();
             addPolygons(5, sb, values);
-            System.out.println(sb + ")");
+            // System.out.println(sb + ")");
             assertThat(count, equalTo(1));
         }
         {
@@ -181,24 +168,40 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
             assertTrue(values.advanceExact(0));
             int count = values.docValueCount();
             addPolygons(6, sb, values);
-            System.out.println(sb + ")");
-            //assertThat(count, equalTo(7));
+            // System.out.println(sb + ")");
+            assertThat(count, equalTo(7));
         }
         {
             GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoHexGridTiler(7), NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
             int count = values.docValueCount();
             addPolygons(7, sb, values);
-            System.out.println(sb + ")");
+            // System.out.println(sb + ")");
             assertThat(count, equalTo(7 * 7));
         }
+    }
+
+    private StringBuilder debugH3Data(Point centroid, CellBoundary cellBoundary, double[] lats, double[] lons) {
+        StringBuilder sb = new StringBuilder("GEOMETRYCOLLECTION(");
+        sb.append("POINT(").append(centroid.getX()).append(" ").append(centroid.getY()).append("),");
+        addPolygon(sb, cellBoundary);   // original H3 cell
+        sb.append(",");
+        addPolygon(sb, lons, lats);     // new smaller polygon
+        sb.append(",");
+        addPolygon(sb, lons, lats);
+        for (int i = 0; i < lats.length; i++) {
+            sb.append(",POINT(");
+            sb.append(lons[i]).append(" ").append(lats[i]);
+            sb.append(")");
+        }
+        return sb;
     }
 
     private void addPolygons(int precision, StringBuilder sb, GeoShapeCellValues values) {
         long[] h3values = values.getValues();
         for (int i = 0; i < values.docValueCount(); i++) {
             long h3 = h3values[i];
-            System.out.println("Adding polygon at depth " + precision + ": " + h3);
+            // System.out.println("Adding polygon at depth " + precision + ": " + h3);
             sb.append(",");
             addPolygon(sb, H3.h3ToGeoBoundary(h3));
         }

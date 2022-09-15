@@ -7,16 +7,28 @@
 
 package org.elasticsearch.xpack.spatial.index.query;
 
+import org.apache.lucene.spatial3d.geom.GeoArea;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
+import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
+import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygon;
 import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygonFactory;
 import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
+import org.apache.lucene.spatial3d.geom.Spatial3DTestUtil;
 import org.apache.lucene.spatial3d.geom.Vector;
+import org.elasticsearch.h3.CellBoundary;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.apache.lucene.spatial3d.geom.Spatial3DTestUtil.containsHorizonalLine;
+import java.util.Arrays;
+import java.util.HashMap;
+
+import static org.apache.lucene.spatial3d.geom.Spatial3DTestUtil.containsHorizontalLine;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assume.assumeThat;
 
 public class GeoRegularConvexPolygonTests extends ESTestCase {
 
@@ -46,6 +58,72 @@ public class GeoRegularConvexPolygonTests extends ESTestCase {
         );
     }
 
+    public void testH3Hexagon() {
+        // TODO randomize test point
+        String h3Address = H3.geoToH3Address(25, 25, 3);
+        CellBoundary boundary = H3.h3ToGeoBoundary(h3Address);
+        assumeThat("This test only works with true convex hexagons", boundary.numPoints(), equalTo(6));
+        GeoPoint centroid = Spatial3DTestUtil.calculateCentroid3d(boundary);
+        GeoPoint[] points = new GeoPoint[boundary.numPoints()];
+        for (int i = 0; i < boundary.numPoints(); i++) {
+            LatLng latlng = boundary.getLatLon(i);
+            points[i] = new GeoPoint(PlanetModel.SPHERE, latlng.getLatRad(), latlng.getLonRad());
+        }
+        GeoPoint[] inner = new GeoPoint[boundary.numPoints() / 2];
+        GeoPoint[] outer = new GeoPoint[boundary.numPoints() / 2];
+        for (int i = 0; i < boundary.numPoints() / 2; i++) {
+            GeoPoint point = Spatial3DTestUtil.pointInterpolation(points[i * 2], points[i * 2 + 1], 0.5);
+            inner[i] = Spatial3DTestUtil.pointInterpolation(centroid, point, 0.9);
+            outer[i] = Spatial3DTestUtil.pointInterpolation(centroid, point, 3.0);
+        }
+        GeoPolygon hexagon = GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
+        GeoPolygon innerTriangle = GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, inner);
+        GeoPolygon outerTriangle = GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, outer);
+        // TODO: remove debug output
+        // System.out.println(debugH3Data(centroid, hexagon, innerTriangle, outerTriangle));
+        GeoPolygon hexGeom = GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, Arrays.asList(points));
+        GeoPolygon innGeom = GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, Arrays.asList(inner));
+        GeoPolygon outGeom = GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, Arrays.asList(outer));
+        HashMap<GeoPolygon, String> names = new HashMap<>();
+        names.put(hexagon, "Hexagon");
+        names.put(innerTriangle, "Inner Triangle");
+        names.put(outerTriangle, "Outer Triangle");
+        names.put(hexGeom, "HexGeom");
+        names.put(innGeom, "InnGeom");
+        names.put(outGeom, "OutGeom");
+        GeoPolygon[] allPolygons = new GeoPolygon[] { innerTriangle, outerTriangle, hexagon, innGeom, outGeom, hexGeom };
+        for (GeoPolygon polygon : allPolygons) {
+            String name = names.get(polygon);
+            for (GeoPolygon other : allPolygons) {
+                String otherName = names.get(other);
+                boolean samePolygon = name.substring(0, 3).equals(otherName.substring(0, 3));
+                int relates = samePolygon ? GeoArea.OVERLAPS : expectedRelationship(name, otherName);
+                // System.out.println(name + " relation to " + otherName + ":\t" + polygon.getRelationship(other));
+                assertThat(name + " intersects " + otherName, polygon.intersects(other), equalTo(samePolygon));
+                assertThat(name + " relates to " + otherName, polygon.getRelationship(other), equalTo(relates));
+            }
+        }
+    }
+
+    private int expectedRelationship(String name, String otherName) {
+        if (name.equals(otherName)) {
+            return GeoArea.OVERLAPS;
+        }
+        if (name.contains("Inn")) {
+            return GeoArea.CONTAINS;
+        }
+        if (name.contains("Out")) {
+            return GeoArea.WITHIN;
+        }
+        if (otherName.contains("Inn")) {
+            return GeoArea.WITHIN;
+        }
+        if (otherName.contains("Out")) {
+            return GeoArea.CONTAINS;
+        }
+        throw new IllegalStateException("Must match one of the above cases, but we got '" + name + "' and '" + otherName + "'");
+    }
+
     private void simpleShapeShouldBeValid(GeoPoint... points) {
         GeoPolygon triangle = GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
         // test 3D axes (all samples above surround the x-axis)
@@ -63,7 +141,7 @@ public class GeoRegularConvexPolygonTests extends ESTestCase {
         LatLonBounds bounds = new LatLonBounds();
         triangle.getBounds(bounds);
         double latThreshold = 1e-10, lonThreshold = 1e-10;
-        if (containsHorizonalLine(points)) {
+        if (containsHorizontalLine(points)) {
             // Horizontal lines are not great circles, so the real bounds will differ due to the great circles
             latThreshold = 1e-3;
         }
@@ -71,5 +149,24 @@ public class GeoRegularConvexPolygonTests extends ESTestCase {
         assertThat("Expected bounds min latitude", bounds.getMinLatitude(), closeTo(expected.getMinLatitude(), latThreshold));
         assertThat("Expected bounds left longitude", bounds.getLeftLongitude(), closeTo(expected.getLeftLongitude(), lonThreshold));
         assertThat("Expected bounds right longitude", bounds.getRightLongitude(), closeTo(expected.getRightLongitude(), lonThreshold));
+    }
+
+    private StringBuilder debugH3Data(GeoPoint centroid, GeoPolygon... polygons) {
+        StringBuilder sb = new StringBuilder("GEOMETRYCOLLECTION(");
+        double lat = Math.toDegrees(centroid.getLatitude());
+        double lng = Math.toDegrees(centroid.getLongitude());
+        sb.append("POINT(").append(lng).append(" ").append(lat).append(")");
+        for (GeoPolygon polygon : polygons) {
+            sb.append(", ");
+            addPolygon(sb, polygon);
+        }
+        sb.append(")");
+        return sb;
+    }
+
+    private void addPolygon(StringBuilder sb, GeoPolygon polygon) {
+        if (polygon instanceof GeoRegularConvexPolygon geoRegularConvexPolygon) {
+            sb.append(geoRegularConvexPolygon.toWKT());
+        }
     }
 }

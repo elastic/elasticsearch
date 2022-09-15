@@ -20,8 +20,6 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.spatial3d.geom.GeoPoint;
-import org.apache.lucene.spatial3d.geom.PlanetModel;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -33,10 +31,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
-import org.locationtech.spatial4j.context.SpatialContext;
-import org.locationtech.spatial4j.distance.GeodesicSphereDistCalc;
-import org.locationtech.spatial4j.shape.impl.PointImpl;
 
+import static org.apache.lucene.spatial3d.geom.Spatial3DTestUtil.calculateCentroid;
+import static org.apache.lucene.spatial3d.geom.Spatial3DTestUtil.distance;
+import static org.apache.lucene.spatial3d.geom.Spatial3DTestUtil.pointInterpolation;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -118,19 +116,6 @@ public class H3LatLonGeometryTests extends ESTestCase {
         doTestLevelAndPoint(0, new Point(22.946810341965456, 80.96342330588482));
     }
 
-    public void testTwoHighLatitudeCells() {
-        Point point = new Point(22.946810341965456, 80.96342330588482);
-        long h3a = 576495936675512319L;
-        long h3b = 576566305419689983L;
-        final StringBuilder sb = new StringBuilder();
-        for (long h3 : new long[] { h3a, h3b }) {
-            H3LatLonGeometry h3geom = new H3LatLonGeometry(H3.h3ToString(h3));
-            addH3Polygon(sb, h3geom.toComponent2D(), point, false, false);
-        }
-        sb.append(")");
-        // System.out.println(sb);
-    }
-
     public void testRandomPointAllLevels() {
         Point point = GeometryTestUtils.randomPoint();
         for (int level = 0; level < H3.MAX_H3_RES; level++) {
@@ -138,15 +123,14 @@ public class H3LatLonGeometryTests extends ESTestCase {
         }
     }
 
-    private void debugH3Polygon2D(Component2D component, Point origin, boolean boxPoint) {
+    public static String debugH3Polygon2D(Component2D component, Point origin, boolean boxPoint) {
         final StringBuilder sb = new StringBuilder();
         addH3Polygon(sb, component, origin, true, boxPoint);
         sb.append(")");
-        // Uncomment this line to get WKT printout of H3 cell and origin point
-        // System.out.println(sb);
+        return sb.toString();
     }
 
-    private void addH3Polygon(StringBuilder sb, Component2D component, Point origin, boolean bbox, boolean boxPoint) {
+    private static void addH3Polygon(StringBuilder sb, Component2D component, Point origin, boolean bbox, boolean boxPoint) {
         final double BBOX_EDGE_DELTA = 1e-4;
         if (component instanceof H3LatLonGeometry.H3Polygon2D h3Polygon) {
             h3Polygon.inspect((h3, res, minX, maxX, minY, maxY, boundary) -> {
@@ -185,7 +169,7 @@ public class H3LatLonGeometryTests extends ESTestCase {
         }
     }
 
-    private void addBox(StringBuilder sb, double minX, double maxX, double minY, double maxY) {
+    private static void addBox(StringBuilder sb, double minX, double maxX, double minY, double maxY) {
         sb.append(",POLYGON((");
         sb.append(minX).append(" ").append(minY).append(", ");
         sb.append(maxX).append(" ").append(minY).append(", ");
@@ -199,7 +183,8 @@ public class H3LatLonGeometryTests extends ESTestCase {
         long h3 = H3.geoToH3(point.getLat(), point.getLon(), level);
         H3LatLonGeometry h3geom = new H3LatLonGeometry(H3.h3ToString(h3));
         Component2D component = h3geom.toComponent2D();
-        debugH3Polygon2D(component, point, false);
+        // Uncomment this line to get WKT printout of H3 cell and origin point
+        // System.out.println(debugH3Polygon2D(component, point, false));
         CellBoundary boundary = H3.h3ToGeoBoundary(h3);
         String cellName = "H3[l" + level + ":b" + boundary.numPoints() + "]";
         // assumeThat("We only test convex hexagons for now", boundary.numPoints(), lessThanOrEqualTo(6));
@@ -245,31 +230,18 @@ public class H3LatLonGeometryTests extends ESTestCase {
         // For points on opposite sides of the hexagon, test the lines going through the hexagon
         for (int i = 0; i < outside.length / 2; i++) {
             Point a = outside[i];
-            Point b = outside[i + outside.length / 2];
-            // Construct a point outside the hexagon such that the three points form a triangle that does not intersect
-            Point o = pointInterpolation(outside[i + 1], outside[i + 2], 0.5);
-            Point pointOutside = pointInterpolation(centroid, o, 2);
-            assertLineAndTriangleOutsideHexagon(cellName, component, a, b, true, pointOutside);
-            assertLineAndTriangleOutsideHexagon(cellName, component, a, b, false, pointOutside);
+            Point b = outside[i + 1];
+            Point c = outside[i + 2];
+            Point d = outside[i + 3];
+            // Construct a point outside the hexagon such that the three points form a triangle with edge line crossing the cell
+            Point edgePoint = pointInterpolation(b, c, 0.5);
+            for (int factor : new int[] { 2, 5 }) {
+                // Factor 2 has multiple lines crossing the H3 cell, while factor 5 has only the a-b line crossing
+                Point pointOutside = pointInterpolation(centroid, edgePoint, factor);
+                assertLineAndTriangleOutsideHexagon(cellName, component, pointOutside, d, a, true);
+                assertLineAndTriangleOutsideHexagon(cellName, component, pointOutside, d, a, false);
+            }
         }
-    }
-
-    private Point calculateCentroid(CellBoundary boundary) {
-        double centroidX = 0;
-        double centroidY = 0;
-        double centroidZ = 0;
-        for (int i = 0; i < boundary.numPoints(); i++) {
-            LatLng vertexLatLng = boundary.getLatLon(i);
-            GeoPoint vertex = new GeoPoint(PlanetModel.SPHERE, vertexLatLng.getLatRad(), vertexLatLng.getLonRad());
-            centroidX += vertex.x;
-            centroidY += vertex.y;
-            centroidZ += vertex.z;
-        }
-        centroidX /= boundary.numPoints();
-        centroidY /= boundary.numPoints();
-        centroidZ /= boundary.numPoints();
-        GeoPoint centroid3D = new GeoPoint(centroidX, centroidY, centroidZ);
-        return new Point(Math.toDegrees(centroid3D.getLongitude()), Math.toDegrees(centroid3D.getLatitude()));
     }
 
     private void assertPointAndLine(String cellName, Component2D component, Point origin, Point point, boolean inside) {
@@ -383,16 +355,17 @@ public class H3LatLonGeometryTests extends ESTestCase {
     private void assertLineAndTriangleOutsideHexagon(
         String cellName,
         Component2D component,
+        Point outside,
         Point a,
         Point b,
-        boolean partOfShape,
-        Point outside
+        boolean partOfShape
     ) {
         // Make sure this method is only called with points outside the hexagon
+        assertThat(outside + " should not be contained in " + cellName, component.contains(outside.getX(), outside.getY()), equalTo(false));
         assertThat(a + " should not be contained in " + cellName, component.contains(a.getX(), a.getY()), equalTo(false));
         assertThat(b + " should not be contained in " + cellName, component.contains(b.getX(), b.getY()), equalTo(false));
 
-        // If the line is part of the original shape, we know the hexagon is not within the original shape
+        // If the a-b line is part of the original shape, we know the hexagon is not within the original shape
         Component2D.WithinRelation withinLine = partOfShape ? Component2D.WithinRelation.NOTWITHIN : Component2D.WithinRelation.DISJOINT;
         String lineName = partOfShape ? "part of shape" : "not part of shape";
         assertThat(
@@ -402,7 +375,7 @@ public class H3LatLonGeometryTests extends ESTestCase {
         );
 
         // Test a triangle of three points all outside the hexagon, but with the ab line crossing the hexagon
-        String triangleName = "Triangle with three inner points and one line crossing which is "
+        String triangleName = "Triangle with three outer points and one line crossing which is "
             + (partOfShape ? "part of the shape" : "not part of the shape");
         assertThat(
             triangleName + " should intersect " + cellName,
@@ -458,25 +431,6 @@ public class H3LatLonGeometryTests extends ESTestCase {
         double longDistance = distance(origin, outside);
         assertThat("Inside " + inside + " should be closer than " + point + " to " + origin, shortDistance, lessThan(distance));
         assertThat("Outside " + outside + " should be closer than " + point + " to " + origin, longDistance, greaterThan(distance));
-    }
-
-    private double distance(Point from, Point to) {
-        PointImpl a = new PointImpl(from.getX(), from.getY(), SpatialContext.GEO);
-        PointImpl b = new PointImpl(to.getX(), to.getY(), SpatialContext.GEO);
-        return new GeodesicSphereDistCalc.Haversine().distance(a, b);
-    }
-
-    private Point pointInterpolation(Point inside, Point border, double factor) {
-        GeoPoint inside3d = new GeoPoint(PlanetModel.SPHERE, Math.toRadians(inside.getLat()), Math.toRadians(inside.getLon()));
-        GeoPoint border3d = new GeoPoint(PlanetModel.SPHERE, Math.toRadians(border.getLat()), Math.toRadians(border.getLon()));
-        double dX = border3d.x - inside3d.x;
-        double dY = border3d.y - inside3d.y;
-        double dZ = border3d.z - inside3d.z;
-        double newX = inside3d.x + dX * factor;
-        double newY = inside3d.y + dY * factor;
-        double newZ = inside3d.z + dZ * factor;
-        GeoPoint point = new GeoPoint(newX, newY, newZ);
-        return new Point(Math.toDegrees(point.getLongitude()), Math.toDegrees(point.getLatitude()));
     }
 
     private static Matcher<Point> matchesPoint(Point point) {

@@ -159,7 +159,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         final ClusterStateResponse clusterStateResponse = client().admin()
             .cluster()
             .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .actionGet();
+            .get();
 
         ReservedStateMetadata reservedState = clusterStateResponse.getState()
             .metadata()
@@ -221,7 +221,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         assertTrue(awaitSuccessful);
 
         // This should succeed, nothing was reserved
-        client().execute(PutPipelineAction.INSTANCE, sampleRestRequest("my_ingest_pipeline_bad")).actionGet();
+        client().execute(PutPipelineAction.INSTANCE, sampleRestRequest("my_ingest_pipeline_bad")).get();
     }
 
     public void testErrorSaved() throws Exception {

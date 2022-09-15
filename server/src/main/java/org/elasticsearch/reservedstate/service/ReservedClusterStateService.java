@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -87,6 +89,16 @@ public class ReservedClusterStateService {
         stateChunkParser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReservedStateVersion.parse(p), METADATA_FIELD);
     }
 
+    private void errorStateForException(Exception e, String namespace, Consumer<Exception> errorListener) {
+        ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+        saveErrorState(clusterService.state(), errorState);
+        logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
+
+        errorListener.accept(
+            new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState, e)
+        );
+    }
+
     /**
      * Saves and reserves a chunk of the cluster state under a given 'namespace' from {@link XContentParser}
      *
@@ -101,17 +113,39 @@ public class ReservedClusterStateService {
         try {
             stateChunk = stateChunkParser.apply(parser, null);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
-            saveErrorState(clusterService.state(), errorState);
-            logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
-
-            errorListener.accept(
-                new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState, e)
-            );
+            errorStateForException(e, namespace, errorListener);
             return;
         }
 
-        process(namespace, stateChunk, errorListener);
+        if (stateChunk.state().isEmpty()) {
+            errorListener.accept(null);
+            return;
+        }
+
+        // After we have parsed the json content, we give each handler an opportunity to augment the data
+        // with any async operations, e.g. fetching node or cluster information
+        ActionListener<Tuple<String, ?>> preTransformListener = new GroupedActionListener<>(new ActionListener<>() {
+            @Override
+            public void onResponse(Collection<Tuple<String, ?>> parsedData) {
+                // Once we get the updated data, we replace the handler values that we parsed
+                // directly from the JSON
+                for (var parsedHandlerData : parsedData) {
+                    stateChunk.state().put(parsedHandlerData.v1(), parsedHandlerData.v2());
+                }
+                process(namespace, stateChunk, errorListener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                errorStateForException(e, namespace, errorListener);
+                throw new IllegalStateException("Failed on pre-transform", e);
+            }
+        }, stateChunk.state().size());
+
+        // Run any pre-transform operations
+        for (var handlerEntry : stateChunk.state().entrySet()) {
+            handlers.get(handlerEntry.getKey()).preTransform(handlerEntry.getValue(), preTransformListener);
+        }
     }
 
     /**

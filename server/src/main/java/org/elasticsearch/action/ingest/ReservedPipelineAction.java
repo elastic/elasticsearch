@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
@@ -32,8 +33,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -42,7 +41,7 @@ import java.util.stream.Collectors;
  * It is used by the ReservedClusterStateService to add/update or remove ingest pipelines. Typical usage
  * for this action is in the context of file based state.
  */
-public class ReservedPipelineAction implements ReservedClusterStateHandler<List<PutPipelineRequest>> {
+public class ReservedPipelineAction implements ReservedClusterStateHandler<ReservedPipelineAction.ReservedPipelinesData> {
     public static final String NAME = "ingest_pipelines";
 
     private final IngestService ingestService;
@@ -63,14 +62,11 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
         return NAME;
     }
 
-    @SuppressWarnings("unchecked")
-    public Collection<PutPipelineRequest> prepare(NodesInfoResponse nodeInfos, Object input) {
-        List<PutPipelineRequest> pipelines = (List<PutPipelineRequest>) input;
-
+    public Collection<PutPipelineRequest> prepare(ReservedPipelinesData pipelines) {
         var exceptions = new ArrayList<String>();
-        for (var pipeline : pipelines) {
+        for (var pipeline : pipelines.requests) {
             try {
-                ingestService.validatePipelineRequest(pipeline, nodeInfos);
+                ingestService.validatePipelineRequest(pipeline, pipelines.nodesInfos);
             } catch (Exception e) {
                 exceptions.add(e.getMessage());
             }
@@ -80,32 +76,7 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
             throw new IllegalStateException(String.join(", ", exceptions));
         }
 
-        return pipelines;
-    }
-
-    // package private for testing
-    NodesInfoResponse getNodeInfos() throws Exception {
-        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-        nodesInfoRequest.clear();
-        nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
-        AtomicReference<NodesInfoResponse> nodesInfoHolder = new AtomicReference<>();
-        CountDownLatch completeLatch = new CountDownLatch(1);
-        nodeClient.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(NodesInfoResponse nodesInfoResponse) {
-                nodesInfoHolder.set(nodesInfoResponse);
-                completeLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                completeLatch.countDown();
-                throw new IllegalStateException(e);
-            }
-        });
-
-        completeLatch.await();
-        return nodesInfoHolder.get();
+        return pipelines.requests;
     }
 
     private ClusterState wrapIngestTaskExecute(IngestService.PipelineClusterStateUpdateTask task, ClusterState state) {
@@ -118,8 +89,8 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
 
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
-        var nodeInfos = getNodeInfos();
-        var requests = prepare(nodeInfos, source);
+        @SuppressWarnings("unchecked")
+        var requests = prepare((ReservedPipelinesData) source);
 
         ClusterState state = prevState.state();
 
@@ -156,7 +127,7 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
     }
 
     @Override
-    public List<PutPipelineRequest> fromXContent(XContentParser parser) throws IOException {
+    public ReservedPipelinesData fromXContent(XContentParser parser) throws IOException {
         List<PutPipelineRequest> result = new ArrayList<>();
 
         Map<String, ?> source = parser.map();
@@ -172,6 +143,28 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
             }
         }
 
-        return result;
+        return new ReservedPipelinesData(result, null);
     }
+
+    @Override
+    public void preTransform(Object parsedContent, ActionListener<Tuple<String, ?>> listener) {
+        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+        nodesInfoRequest.clear();
+        nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
+        nodeClient.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(NodesInfoResponse nodesInfoResponse) {
+                listener.onResponse(
+                    new Tuple<>(name(), new ReservedPipelinesData(((ReservedPipelinesData) parsedContent).requests, nodesInfoResponse))
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    record ReservedPipelinesData(List<PutPipelineRequest> requests, NodesInfoResponse nodesInfos) {}
 }

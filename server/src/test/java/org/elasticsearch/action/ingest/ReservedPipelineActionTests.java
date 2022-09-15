@@ -10,6 +10,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.Client;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.FakeProcessor;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.IngestService;
@@ -38,13 +40,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -93,7 +99,23 @@ public class ReservedPipelineActionTests extends ESTestCase {
 
     private TransformState processJSON(ReservedPipelineAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            return action.transform(action.fromXContent(parser), prevState);
+            var data = new AtomicReference<>(action.fromXContent(parser));
+            var latch = new CountDownLatch(1);
+            action.preTransform(data.get(), new ActionListener<>() {
+                @Override
+                public void onResponse(Tuple<String, ?> stringTuple) {
+                    data.set((ReservedPipelineAction.ReservedPipelinesData) stringTuple.v2());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    latch.countDown();
+                    throw new RuntimeException(e);
+                }
+            });
+            assertTrue(latch.await(2, TimeUnit.SECONDS));
+            return action.transform(data.get(), prevState);
         }
     }
 
@@ -186,7 +208,8 @@ public class ReservedPipelineActionTests extends ESTestCase {
         assertThat(updatedState.keys(), empty());
     }
 
-    private ReservedPipelineAction makeSpiedAction() throws Exception {
+    @SuppressWarnings("unchecked")
+    private ReservedPipelineAction makeSpiedAction() {
         ReservedPipelineAction action = spy(new ReservedPipelineAction(ingestService, mock(NodeClient.class)));
 
         DiscoveryNode discoveryNode = new DiscoveryNode(
@@ -215,7 +238,13 @@ public class ReservedPipelineActionTests extends ESTestCase {
         );
         NodesInfoResponse response = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo), List.of());
 
-        doReturn(response).when(action).getNodeInfos();
+        doAnswer(i -> {
+            var data = (ReservedPipelineAction.ReservedPipelinesData) i.getArgument(0);
+            var updatedData = new ReservedPipelineAction.ReservedPipelinesData(data.requests(), response);
+            ((ActionListener<Tuple<String, Object>>) i.getArgument(1)).onResponse(new Tuple<>(action.name(), updatedData));
+            return null;
+        }).when(action).preTransform(any(), any());
+
         return action;
     }
 }

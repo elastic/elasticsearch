@@ -68,6 +68,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.node.LocalHealthMonitor;
+import org.elasticsearch.health.node.action.TransportHealthNodeAction;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -526,7 +527,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT,
         HealthNode.isEnabled() ? HealthNodeTaskExecutor.ENABLED_SETTING : null,
-        HealthNode.isEnabled() ? LocalHealthMonitor.POLL_INTERVAL_SETTING : null
+        HealthNode.isEnabled() ? LocalHealthMonitor.POLL_INTERVAL_SETTING : null,
+        HealthNode.isEnabled() ? TransportHealthNodeAction.HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT : null
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

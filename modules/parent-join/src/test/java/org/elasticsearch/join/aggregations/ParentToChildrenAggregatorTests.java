@@ -193,7 +193,9 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     new ShardId(new Index("foo", "_na_"), 1)
                 )
             ) {
-                var indexSearcher = newSearcher(indexReader, true, false);
+                // maybeWrap should be false here, in ValueSource.java we sometimes cast to DirectoryReader and
+                // these casts can then fail if the maybeWrap is true.
+                var indexSearcher = newSearcher(indexReader, false, true);
                 // invalid usage,
                 {
                     var aggregationBuilder = new ChildrenAggregationBuilder("_name1", CHILD_TYPE);
@@ -246,8 +248,6 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     Terms terms = result.getAggregations().get("_name2");
                     TopHits topHits = terms.getBuckets().get(0).getAggregations().get("_name3");
                     assertThat(topHits.getHits().getHits(), arrayWithSize(1));
-                    topHits = terms.getBuckets().get(1).getAggregations().get("_name3");
-                    assertThat(topHits.getHits().getHits(), arrayWithSize(1));
                 }
             }
         }
@@ -298,7 +298,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             new StringField("join_field", CHILD_TYPE, Field.Store.NO),
             createJoinField(PARENT_TYPE, parentId),
             new SortedNumericDocValuesField("number", value),
-            new SortedSetDocValuesField("string_field", new BytesRef(randomBoolean() ? "1" : "2"))
+            new SortedSetDocValuesField("string_field", new BytesRef("str_value"))
         );
     }
 

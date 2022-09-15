@@ -124,18 +124,19 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 } else if (securityContext.getAuthentication() != null
                     && securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
                         // re-write the authentication since we want the authentication version to match the version of the connection
-                        securityContext.executeAfterRewritingAuthentication(
-                            original -> sendWithUser(
+                        securityContext.executeAfterRewritingAuthentication(original -> {
+                            maybePreAuthorizeChildAction(connection.getNode(), action, request);
+                            sendWithUser(
                                 connection,
                                 action,
                                 request,
                                 options,
                                 new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
                                 sender
-                            ),
-                            minVersion
-                        );
+                            );
+                        }, minVersion);
                     } else {
+                        maybePreAuthorizeChildAction(connection.getNode(), action, request);
                         sendWithUser(connection, action, request, options, handler, sender);
                     }
             }
@@ -156,8 +157,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             assertNoAuthentication(action);
             throw new IllegalStateException("there should always be a user when sending a message for action [" + action + "]");
         }
-
-        maybePreAuthorizeChildAction(connection.getNode(), action, request);
 
         try {
             sender.sendRequest(connection, action, request, options, handler);

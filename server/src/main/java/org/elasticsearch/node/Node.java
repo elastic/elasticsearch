@@ -727,6 +727,7 @@ public class Node implements Closeable {
                 ReservedClusterStateHandlerProvider.class
             );
             pluginHandlers.forEach(h -> reservedStateHandlers.addAll(h.handlers()));
+
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),

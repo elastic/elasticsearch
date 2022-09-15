@@ -34,18 +34,8 @@ public class ShardStats implements Writeable, ToXContentFragment {
     private final CommitStats commitStats;
     @Nullable
     private final SeqNoStats seqNoStats;
-
     @Nullable
     private final RetentionLeaseStats retentionLeaseStats;
-
-    /**
-     * Gets the current retention lease stats.
-     *
-     * @return the current retention lease stats
-     */
-    public RetentionLeaseStats getRetentionLeaseStats() {
-        return retentionLeaseStats;
-    }
 
     private final String dataPath;
     private final String statePath;
@@ -67,21 +57,43 @@ public class ShardStats implements Writeable, ToXContentFragment {
     }
 
     public ShardStats(
-        final ShardRouting routing,
+        final ShardRouting shardRouting,
         final ShardPath shardPath,
         final CommonStats commonStats,
         final CommitStats commitStats,
         final SeqNoStats seqNoStats,
         final RetentionLeaseStats retentionLeaseStats
     ) {
-        this.shardRouting = routing;
-        this.dataPath = shardPath.getRootDataPath().toString();
-        this.statePath = shardPath.getRootStatePath().toString();
-        this.isCustomDataPath = shardPath.isCustomDataPath();
-        this.commitStats = commitStats;
+        this(
+            shardRouting,
+            commonStats,
+            commitStats,
+            seqNoStats,
+            retentionLeaseStats,
+            shardPath.getRootDataPath().toString(),
+            shardPath.getRootStatePath().toString(),
+            shardPath.isCustomDataPath()
+        );
+    }
+
+    public ShardStats(
+        ShardRouting shardRouting,
+        CommonStats commonStats,
+        CommitStats commitStats,
+        SeqNoStats seqNoStats,
+        RetentionLeaseStats retentionLeaseStats,
+        String dataPath,
+        String statePath,
+        boolean isCustomDataPath
+    ) {
+        this.shardRouting = shardRouting;
         this.commonStats = commonStats;
+        this.commitStats = commitStats;
         this.seqNoStats = seqNoStats;
         this.retentionLeaseStats = retentionLeaseStats;
+        this.dataPath = dataPath;
+        this.statePath = statePath;
+        this.isCustomDataPath = isCustomDataPath;
     }
 
     @Override
@@ -123,6 +135,15 @@ public class ShardStats implements Writeable, ToXContentFragment {
     @Nullable
     public SeqNoStats getSeqNoStats() {
         return this.seqNoStats;
+    }
+
+    /**
+     * Gets the current retention lease stats.
+     *
+     * @return the current retention lease stats
+     */
+    public RetentionLeaseStats getRetentionLeaseStats() {
+        return retentionLeaseStats;
     }
 
     public String getDataPath() {

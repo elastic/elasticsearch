@@ -347,7 +347,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             true,
             isInSortOrderExecutionRequired
         );
-        // NOCOMMIT - Turn this back on
+        // NOCOMMIT - turn this back on
         // releasables.add(context);
         return context;
     }
@@ -498,6 +498,26 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         // First run it to find circuit breaker leaks on the aggregator
+        runWithCrankyCircuitBreaker(indexSettings, searcher, query, builder, maxBucket, splitLeavesIntoSeparateAggregators, fieldTypes);
+        // Second run it to the end
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+        return searchAndReduce(
+            indexSettings,
+            searcher,
+            query,
+            builder,
+            maxBucket,
+            splitLeavesIntoSeparateAggregators,
+            breakerService,
+            fieldTypes
+        );
+    }
+
+    /**
+     * This is extracted into a seperate function so that stack traces will indicate if a bad allocation happened in the
+     * cranky CB run or the happy path run.
+     */
+    private void runWithCrankyCircuitBreaker(IndexSettings indexSettings, IndexSearcher searcher, Query query, AggregationBuilder builder, int maxBucket, boolean splitLeavesIntoSeparateAggregators, MappedFieldType[] fieldTypes) throws IOException {
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
         for (int i = 0; i < 5; i++) {
             try {
@@ -517,18 +537,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 throw e;
             }
         }
-        // Second run it to the end
-        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-        return searchAndReduce(
-            indexSettings,
-            searcher,
-            query,
-            builder,
-            maxBucket,
-            splitLeavesIntoSeparateAggregators,
-            breakerService,
-            fieldTypes
-        );
     }
 
     @SuppressWarnings("unchecked")

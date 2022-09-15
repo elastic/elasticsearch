@@ -188,22 +188,15 @@ public class CommonStats implements Writeable, ToXContentFragment {
      * Filters the given flags for {@link CommonStatsFlags#INDEX_LEVEL} flags and calculates the corresponding statistics.
      */
     public static CommonStats getIndexLevelStats(final IndexService indexService, CommonStatsFlags flags) {
-        // Filter index level flags
-        CommonStatsFlags filteredFlags = flags.clone();
-        Arrays.stream(filteredFlags.getFlags()).forEach(x -> filteredFlags.set(x, CommonStatsFlags.INDEX_LEVEL.isSet(x)));
-        CommonStats stats = new CommonStats(filteredFlags);
-
-        for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
-            switch (flag) {
-                case Mappings:
-                    stats.nodeMappings = indexService.getNodeMappingStats();
-                    break;
-                default:
-                    throw new IllegalStateException("Unknown or invalid flag for index-level stats: " + flag);
-            }
+        // Filter index level flags (currently it is just the Mappings flag, so we just filter with an if statement).
+        if (flags.isSet(CommonStatsFlags.Flag.Mappings)) {
+            CommonStatsFlags filteredFlags = new CommonStatsFlags(CommonStatsFlags.Flag.Mappings);
+            CommonStats stats = new CommonStats(filteredFlags);
+            stats.nodeMappings = indexService.getNodeMappingStats();
+            return stats;
+        } else {
+            return new CommonStats(CommonStatsFlags.NONE);
         }
-
-        return stats;
     }
 
     public CommonStats(StreamInput in) throws IOException {
@@ -311,141 +304,142 @@ public class CommonStats implements Writeable, ToXContentFragment {
     }
 
     public void add(CommonStats stats) {
-        if (stats.getDocs() != null) {
-            if (docs == null) {
+        if (docs == null) {
+            if (stats.getDocs() != null) {
                 docs = new DocsStats();
                 docs.add(stats.getDocs());
-            } else {
-                docs.add(stats.getDocs());
             }
+        } else {
+            docs.add(stats.getDocs());
         }
-        if (stats.getStore() != null) {
-            if (store == null) {
+        if (store == null) {
+            if (stats.getStore() != null) {
                 store = new StoreStats();
                 store.add(stats.getStore());
-            } else {
-                store.add(stats.getStore());
             }
+        } else {
+            store.add(stats.getStore());
         }
-        if (stats.getIndexing() != null) {
-            if (indexing == null) {
+        if (indexing == null) {
+            if (stats.getIndexing() != null) {
                 indexing = new IndexingStats();
                 indexing.add(stats.getIndexing());
-            } else {
-                indexing.add(stats.getIndexing());
             }
+        } else {
+            indexing.add(stats.getIndexing());
         }
-        if (stats.getGet() != null) {
-            if (get == null) {
+        if (get == null) {
+            if (stats.getGet() != null) {
                 get = new GetStats();
                 get.add(stats.getGet());
-            } else {
-                get.add(stats.getGet());
             }
+        } else {
+            get.add(stats.getGet());
         }
-        if (stats.getSearch() != null) {
-            if (search == null) {
+        if (search == null) {
+            if (stats.getSearch() != null) {
                 search = new SearchStats();
                 search.add(stats.getSearch());
-            } else {
-                search.add(stats.getSearch());
             }
+        } else {
+            search.add(stats.getSearch());
         }
-        if (stats.getMerge() != null) {
-            if (merge == null) {
+        if (merge == null) {
+            if (stats.getMerge() != null) {
                 merge = new MergeStats();
                 merge.add(stats.getMerge());
-            } else {
-                merge.add(stats.getMerge());
             }
+        } else {
+            merge.add(stats.getMerge());
         }
-        if (stats.getRefresh() != null) {
-            if (refresh == null) {
+        if (refresh == null) {
+            if (stats.getRefresh() != null) {
                 refresh = new RefreshStats();
                 refresh.add(stats.getRefresh());
-            } else {
-                refresh.add(stats.getRefresh());
             }
+        } else {
+            refresh.add(stats.getRefresh());
         }
-        if (stats.getFlush() != null) {
-            if (flush == null) {
+        if (flush == null) {
+            if (stats.getFlush() != null) {
                 flush = new FlushStats();
                 flush.add(stats.getFlush());
-            } else {
-                flush.add(stats.getFlush());
             }
+        } else {
+            flush.add(stats.getFlush());
         }
-        if (stats.getWarmer() != null) {
-            if (warmer == null) {
+        if (warmer == null) {
+            if (stats.getWarmer() != null) {
                 warmer = new WarmerStats();
                 warmer.add(stats.getWarmer());
-            } else {
-                warmer.add(stats.getWarmer());
             }
+        } else {
+            warmer.add(stats.getWarmer());
         }
-        if (stats.getQueryCache() != null) {
-            if (queryCache == null) {
+        if (queryCache == null) {
+            if (stats.getQueryCache() != null) {
                 queryCache = new QueryCacheStats();
                 queryCache.add(stats.getQueryCache());
-            } else {
-                queryCache.add(stats.getQueryCache());
             }
+        } else {
+            queryCache.add(stats.getQueryCache());
         }
-        if (stats.getFieldData() != null) {
-            if (fieldData == null) {
+
+        if (fieldData == null) {
+            if (stats.getFieldData() != null) {
                 fieldData = new FieldDataStats();
                 fieldData.add(stats.getFieldData());
-            } else {
-                fieldData.add(stats.getFieldData());
             }
+        } else {
+            fieldData.add(stats.getFieldData());
         }
-        if (stats.getCompletion() != null) {
-            if (completion == null) {
+        if (completion == null) {
+            if (stats.getCompletion() != null) {
                 completion = new CompletionStats();
                 completion.add(stats.getCompletion());
-            } else {
-                completion.add(stats.getCompletion());
             }
+        } else {
+            completion.add(stats.getCompletion());
         }
-        if (stats.getSegments() != null) {
-            if (segments == null) {
+        if (segments == null) {
+            if (stats.getSegments() != null) {
                 segments = new SegmentsStats();
                 segments.add(stats.getSegments());
-            } else {
-                segments.add(stats.getSegments());
             }
+        } else {
+            segments.add(stats.getSegments());
         }
-        if (stats.getTranslog() != null) {
-            if (translog == null) {
+        if (translog == null) {
+            if (stats.getTranslog() != null) {
                 translog = new TranslogStats();
                 translog.add(stats.getTranslog());
-            } else {
-                translog.add(stats.getTranslog());
             }
+        } else {
+            translog.add(stats.getTranslog());
         }
-        if (stats.getRequestCache() != null) {
-            if (requestCache == null) {
+        if (requestCache == null) {
+            if (stats.getRequestCache() != null) {
                 requestCache = new RequestCacheStats();
                 requestCache.add(stats.getRequestCache());
-            } else {
-                requestCache.add(stats.getRequestCache());
             }
+        } else {
+            requestCache.add(stats.getRequestCache());
         }
-        if (stats.getRecoveryStats() != null) {
-            if (recoveryStats == null) {
+        if (recoveryStats == null) {
+            if (stats.getRecoveryStats() != null) {
                 recoveryStats = new RecoveryStats();
                 recoveryStats.add(stats.getRecoveryStats());
-            } else {
-                recoveryStats.add(stats.getRecoveryStats());
             }
+        } else {
+            recoveryStats.add(stats.getRecoveryStats());
         }
-        if (stats.getBulk() != null) {
-            if (bulk == null) {
+        if (bulk == null) {
+            if (stats.getBulk() != null) {
                 bulk = new BulkStats();
                 bulk.add(stats.getBulk());
-            } else {
-                bulk.add(stats.getBulk());
             }
+        } else {
+            bulk.add(stats.getBulk());
         }
         if (stats.shards != null) {
             if (shards == null) {

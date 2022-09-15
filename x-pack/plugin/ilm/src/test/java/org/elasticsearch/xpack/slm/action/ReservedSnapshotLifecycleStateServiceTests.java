@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -27,10 +29,14 @@ import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -47,6 +53,10 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * Tests the basic functionality of the reserved handler operations for {@link ReservedSnapshotAction},
+ * {@link TransportPutSnapshotLifecycleAction} and {@link TransportDeleteSnapshotLifecycleAction}
+ */
 public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
     private TransformState processJSON(ReservedSnapshotAction action, TransformState prevState, String json) throws Exception {
@@ -345,4 +355,53 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             });
         }
     }
+
+    public void testDeleteSLMReservedStateHandler() {
+        var deleteAction = new TransportDeleteSnapshotLifecycleAction(
+            mock(TransportService.class),
+            mock(ClusterService.class),
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class)
+        );
+        assertEquals(ReservedSnapshotAction.NAME, deleteAction.reservedStateHandlerName().get());
+
+        var request = new DeleteSnapshotLifecycleAction.Request("daily-snapshots1");
+        assertThat(deleteAction.modifiedKeys(request), containsInAnyOrder("daily-snapshots1"));
+    }
+
+    public void testPutSLMReservedStateHandler() throws Exception {
+        var putAction = new TransportPutSnapshotLifecycleAction(
+            mock(TransportService.class),
+            mock(ClusterService.class),
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class)
+        );
+        assertEquals(ReservedSnapshotAction.NAME, putAction.reservedStateHandlerName().get());
+
+        String json = """
+            {
+                "schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo",
+                "config": {
+                    "indices": ["foo-*", "important"],
+                    "ignore_unavailable": true,
+                    "include_global_state": false
+                },
+                "retention": {
+                    "expire_after": "30d",
+                    "min_count": 1,
+                    "max_count": 50
+                }
+            }""";
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            var request = PutSnapshotLifecycleAction.Request.parseRequest("daily-snapshots", parser);
+
+            assertThat(putAction.modifiedKeys(request), containsInAnyOrder("daily-snapshots"));
+        }
+    }
+
 }

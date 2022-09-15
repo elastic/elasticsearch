@@ -1,5 +1,5 @@
 pr: 89934
-summary: Fix deadlock bug exposed by the test
+summary: Implement fix to terminate file Watcher thread to avoid deadlock
 area: Infra/Core
 type: bug
 issues: []

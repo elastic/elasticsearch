@@ -35,10 +35,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.IsSafe;
+import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.NodeResult;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 
 // TODO: action with
@@ -119,15 +119,17 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         ClusterState clusterState,
         ActionListener<PrevalidateNodeRemovalResponse> listener
     ) {
+        assert prevalidationRequest.getConcreteNodes() != null && prevalidationRequest.getConcreteNodes().isEmpty() == false;
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
         Metadata metadata = clusterState.metadata();
         switch (clusterStateHealth.getStatus()) {
             case GREEN, YELLOW -> {
-                Result overall = new Result(IsSafe.YES, "");
-                Map<String, Result> nodeResults = prevalidationRequest.getNodeIds()
+                Result result = new Result(IsSafe.YES, "");
+                List<NodeResult> nodes = prevalidationRequest.getConcreteNodes()
                     .stream()
-                    .collect(Collectors.toMap(Function.identity(), id -> new Result(IsSafe.YES, "")));
-                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(overall, nodeResults)));
+                    .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
+                    .toList();
+                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodes)));
             }
             case RED -> {
                 Set<String> redIndices = clusterStateHealth.getIndices()
@@ -144,17 +146,19 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     .map(Tuple::v1)
                     .collect(Collectors.toSet());
                 if (redNonSSIndices.isEmpty()) {
-                    Result overall = new Result(IsSafe.YES, "");
-                    Map<String, Result> nodeResults = prevalidationRequest.getNodeIds()
+                    Result result = new Result(IsSafe.YES, "all red indices are searchable snapshot indices");
+                    List<NodeResult> nodes = prevalidationRequest.getConcreteNodes()
                         .stream()
-                        .collect(Collectors.toMap(Function.identity(), id -> new Result(IsSafe.YES, "")));
-                    listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(overall, nodeResults)));
+                        .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
+                        .toList();
+                    listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodes)));
                 } else {
-                    Result overall = new Result(IsSafe.UNKNOWN, "cluster health is RED");
-                    Map<String, Result> nodeResults = prevalidationRequest.getNodeIds()
+                    Result result = new Result(IsSafe.UNKNOWN, "cluster health is RED");
+                    List<NodeResult> nodes = prevalidationRequest.getConcreteNodes()
                         .stream()
-                        .collect(Collectors.toMap(Function.identity(), id -> new Result(IsSafe.UNKNOWN, "")));
-                    listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(overall, nodeResults)));
+                        .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.UNKNOWN, "")))
+                        .toList();
+                    listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodes)));
                 }
             }
         }

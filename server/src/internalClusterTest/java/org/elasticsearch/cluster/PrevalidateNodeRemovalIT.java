@@ -26,9 +26,11 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         PrevalidateNodeRemovalRequest req = new PrevalidateNodeRemovalRequest(nodeName);
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
 
-        assertThat(resp.getPrevalidation().getOverallResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
-        assertThat(resp.getPrevalidation().getPerNodeResult().size(), equalTo(1));
-        assertThat(resp.getPrevalidation().getPerNodeResult().containsKey(nodeName), equalTo(true));
-        assertThat(resp.getPrevalidation().getPerNodeResult().get(nodeName).isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
+        assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
+        assertThat(resp.getPrevalidation().getNodes().size(), equalTo(1));
+        NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().getNodes().get(0);
+        assertNotNull(nodeResult);
+        assertThat(nodeResult.name(), equalTo(nodeName));
+        assertThat(nodeResult.result().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
     }
 }

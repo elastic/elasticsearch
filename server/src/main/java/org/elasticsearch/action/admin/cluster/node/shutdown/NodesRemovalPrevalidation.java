@@ -16,50 +16,42 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.List;
 
 public class NodesRemovalPrevalidation implements ToXContentFragment, Writeable {
 
-    private final Result overallResult;
-    private final Map<String, Result> perNodeResult;
+    private final Result result;
+    private final List<NodeResult> nodes;
 
-    public NodesRemovalPrevalidation(Result overallResult, Map<String, Result> perNodeResult) {
-        this.overallResult = overallResult;
-        this.perNodeResult = perNodeResult;
+    public NodesRemovalPrevalidation(Result result, List<NodeResult> nodes) {
+        this.result = result;
+        this.nodes = nodes;
     }
 
     public NodesRemovalPrevalidation(final StreamInput in) throws IOException {
-        this.overallResult = Result.readFrom(in);
-        this.perNodeResult = in.readMap(StreamInput::readString, Result::readFrom);
+        this.result = Result.readFrom(in);
+        this.nodes = in.readList(NodeResult::readFrom);
     }
 
-    public Result getOverallResult() {
-        return overallResult;
+    public Result getResult() {
+        return result;
     }
 
-    public Map<String, Result> getPerNodeResult() {
-        return perNodeResult;
+    public List<NodeResult> getNodes() {
+        return nodes;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("overall_result");
-        overallResult.toXContent(builder, params);
-        builder.endObject();
-        builder.startObject("per_node_result");
-        for (Map.Entry<String, Result> entry : perNodeResult.entrySet()) {
-            builder.startObject(entry.getKey());
-            entry.getValue().toXContent(builder, params);
-            builder.endObject();
-        }
-        builder.endObject();
+        builder.field("result", result);
+        builder.xContentList("nodes", nodes, params);
         return builder;
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        overallResult.writeTo(out);
-        out.writeMap(perNodeResult, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        result.writeTo(out);
+        out.writeList(nodes);
     }
 
     public record Result(IsSafe isSafe, String reason) implements ToXContentObject, Writeable {
@@ -69,15 +61,44 @@ public class NodesRemovalPrevalidation implements ToXContentFragment, Writeable 
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             builder.field("is_safe", isSafe.name());
             builder.field("reason", reason);
+            builder.endObject();
             return builder;
         }
+
+        // TODO: do I need fromXContent?
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(isSafe.isSafe());
             out.writeString(reason);
+        }
+    }
+
+    public record NodeResult(String name, String Id, String externalId, Result result) implements ToXContentObject, Writeable {
+        public static NodeResult readFrom(final StreamInput in) throws IOException {
+            return new NodeResult(in.readString(), in.readString(), in.readString(), Result.readFrom(in));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("id", Id);
+            builder.field("name", name);
+            builder.field("external_id", externalId);
+            builder.field("result", result);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeString(Id);
+            out.writeString(externalId);
+            result.writeTo(out);
         }
     }
 

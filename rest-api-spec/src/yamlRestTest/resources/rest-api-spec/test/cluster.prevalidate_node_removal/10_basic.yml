@@ -14,5 +14,5 @@
       _internal.prevalidate_node_removal:
         node: $node_id
 
-  - match: { overall_result.is_safe: "YES"}
-  - match: { per_node_result.$node_id.is_safe: "YES"}
+  - match: { result.is_safe: "YES"}
+  - match: { result.$node_id.is_safe: "YES"}

@@ -50,6 +50,10 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
         return null;
     }
 
+    public List<DiscoveryNode> getConcreteNodes() {
+        return List.of(concreteNodes);
+    }
+
     public List<String> getNodeIds() {
         return List.of(nodeIds);
     }

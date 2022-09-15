@@ -41,7 +41,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     public static final String HELP_URL = "https://ela.st/fix-ilm";
     public static final Diagnosis ILM_NOT_RUNNING = new Diagnosis(
         new Diagnosis.Definition(
-            "urn:elasticsearch:health:" + NAME + ":diagnosis:ilm_disabled",
+            "elasticsearch:health:" + NAME + ":diagnosis:ilm_disabled",
             "Index Lifecycle Management is stopped",
             "Start Index Lifecycle Management using [POST /_ilm/start].",
             HELP_URL
@@ -49,7 +49,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         null
     );
 
-    public static final String AUTOMATION_DISABLED_IMPACT_URN = "urn:elasticsearch:health:" + NAME + ":impact:automation_disabled";
+    public static final String AUTOMATION_DISABLED_IMPACT_ID = "elasticsearch:health:" + NAME + ":impact:automation_disabled";
 
     private final ClusterService clusterService;
 
@@ -76,7 +76,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         } else if (ilmMetadata.getOperationMode() != OperationMode.RUNNING) {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
-                    AUTOMATION_DISABLED_IMPACT_URN,
+                    AUTOMATION_DISABLED_IMPACT_ID,
                     3,
                     "Automatic index lifecycle and data retention management is disabled. The performance and stability of the cluster "
                         + "could be impacted.",

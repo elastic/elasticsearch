@@ -30,16 +30,16 @@ public class HealthIndicatorResultTests extends ESTestCase {
         detailsMap.put("key", "value");
         HealthIndicatorDetails details = new SimpleHealthIndicatorDetails(detailsMap);
         List<HealthIndicatorImpact> impacts = new ArrayList<>();
-        String impact1Urn = randomAlphaOfLength(30);
+        String impact1Id = randomAlphaOfLength(30);
         int impact1Severity = randomIntBetween(1, 5);
         String impact1Description = randomAlphaOfLength(30);
         ImpactArea firstImpactArea = randomFrom(ImpactArea.values());
-        impacts.add(new HealthIndicatorImpact(impact1Urn, impact1Severity, impact1Description, List.of(firstImpactArea)));
-        String impact2Urn = randomAlphaOfLength(30);
+        impacts.add(new HealthIndicatorImpact(impact1Id, impact1Severity, impact1Description, List.of(firstImpactArea)));
+        String impact2Id = randomAlphaOfLength(30);
         int impact2Severity = randomIntBetween(1, 5);
         String impact2Description = randomAlphaOfLength(30);
         ImpactArea secondImpactArea = randomFrom(ImpactArea.values());
-        impacts.add(new HealthIndicatorImpact(impact2Urn, impact2Severity, impact2Description, List.of(secondImpactArea)));
+        impacts.add(new HealthIndicatorImpact(impact2Id, impact2Severity, impact2Description, List.of(secondImpactArea)));
         List<Diagnosis> actions = new ArrayList<>();
         Diagnosis action1 = new Diagnosis(
             new Diagnosis.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(50), randomAlphaOfLength(30)),
@@ -66,12 +66,12 @@ public class HealthIndicatorResultTests extends ESTestCase {
         assertEquals(detailsMap, xContentMap.get("details"));
         List<Map<String, Object>> expectedImpacts = new ArrayList<>();
         Map<String, Object> expectedImpact1 = new HashMap<>();
-        expectedImpact1.put("id", impact1Urn);
+        expectedImpact1.put("id", impact1Id);
         expectedImpact1.put("severity", impact1Severity);
         expectedImpact1.put("description", impact1Description);
         expectedImpact1.put("impact_areas", List.of(firstImpactArea.displayValue()));
         Map<String, Object> expectedImpact2 = new HashMap<>();
-        expectedImpact2.put("id", impact2Urn);
+        expectedImpact2.put("id", impact2Id);
         expectedImpact2.put("severity", impact2Severity);
         expectedImpact2.put("description", impact2Description);
         expectedImpact2.put("impact_areas", List.of(secondImpactArea.displayValue()));

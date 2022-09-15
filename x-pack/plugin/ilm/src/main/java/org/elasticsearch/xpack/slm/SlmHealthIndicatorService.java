@@ -49,7 +49,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     public static final String HELP_URL = "https://ela.st/fix-slm";
     public static final Diagnosis SLM_NOT_RUNNING = new Diagnosis(
         new Diagnosis.Definition(
-            "urn:elasticsearch:health:" + NAME + ":diagnosis:slm_disabled",
+            "elasticsearch:health:" + NAME + ":diagnosis:slm_disabled",
             "Snapshot Lifecycle Management is stopped",
             "Start Snapshot Lifecycle Management using [POST /_slm/start].",
             HELP_URL
@@ -59,7 +59,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("iso8601").withZone(ZoneOffset.UTC);
 
-    public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_URN = "urn:elasticsearch:health:"
+    public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID = "elasticsearch:health:"
         + NAME
         + ":diagnosis:check_recent_snapshot_failures";
     public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
@@ -67,15 +67,15 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     // Visible for testing
     static Diagnosis.Definition checkRecentlyFailedSnapshots(String causeText, String actionText) {
         return new Diagnosis.Definition(
-            DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_URN,
+            DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID,
             causeText,
             actionText,
             DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL
         );
     }
 
-    public static final String AUTOMATION_DISABLED_IMPACT_URN = "urn:elasticsearch:health:" + NAME + ":impact:automation_disabled";
-    public static final String STALE_SNAPSHOTS_IMPACT_URN = "urn:elasticsearch:health:" + NAME + ":impact:stale_snapshots";
+    public static final String AUTOMATION_DISABLED_IMPACT_ID = "elasticsearch:health:" + NAME + ":impact:automation_disabled";
+    public static final String STALE_SNAPSHOTS_IMPACT_ID = "elasticsearch:health:" + NAME + ":impact:stale_snapshots";
 
     private final ClusterService clusterService;
     private volatile long failedSnapshotWarnThreshold;
@@ -110,7 +110,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
-                    AUTOMATION_DISABLED_IMPACT_URN,
+                    AUTOMATION_DISABLED_IMPACT_ID,
                     3,
                     "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
                     List.of(ImpactArea.BACKUP)
@@ -133,7 +133,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             if (unhealthyPolicies.size() > 0) {
                 List<HealthIndicatorImpact> impacts = Collections.singletonList(
                     new HealthIndicatorImpact(
-                        STALE_SNAPSHOTS_IMPACT_URN,
+                        STALE_SNAPSHOTS_IMPACT_ID,
                         2,
                         "Some automated snapshots have not had a successful execution recently. Indices restored from affected "
                             + "snapshots may not contain recent changes.",

@@ -97,6 +97,10 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         );
     }
 
+    /**
+     * Extracted extension of {@link AckedClusterStateUpdateTask} with only the execute method
+     * implementation, so that the execute() transformation can be reused for {@link ReservedSnapshotAction}
+     */
     public static class UpdateSnapshotPolicyTask extends AckedClusterStateUpdateTask {
         private final PutSnapshotLifecycleAction.Request request;
         private final Map<String, String> filteredHeaders;

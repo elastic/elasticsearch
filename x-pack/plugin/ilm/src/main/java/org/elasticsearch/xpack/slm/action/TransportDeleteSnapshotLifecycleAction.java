@@ -74,6 +74,10 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
         });
     }
 
+    /**
+     * Extracted extension of {@link AckedClusterStateUpdateTask} with only the execute method
+     * implementation, so that the execute() transformation can be reused for {@link ReservedSnapshotAction}
+     */
     public static class DeleteSnapshotPolicyTask extends AckedClusterStateUpdateTask {
         private final DeleteSnapshotLifecycleAction.Request request;
 

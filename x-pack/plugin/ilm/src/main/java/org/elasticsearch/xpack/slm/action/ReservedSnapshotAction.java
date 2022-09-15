@@ -45,10 +45,8 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
         return NAME;
     }
 
-    @SuppressWarnings("unchecked")
-    public Collection<PutSnapshotLifecycleAction.Request> prepare(Object input, ClusterState state) {
+    private Collection<PutSnapshotLifecycleAction.Request> prepare(List<SnapshotLifecyclePolicy> policies, ClusterState state) {
         List<PutSnapshotLifecycleAction.Request> result = new ArrayList<>();
-        List<SnapshotLifecyclePolicy> policies = (List<SnapshotLifecyclePolicy>) input;
 
         for (var policy : policies) {
             PutSnapshotLifecycleAction.Request request = new PutSnapshotLifecycleAction.Request(policy.getId(), policy);
@@ -63,7 +61,8 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
 
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
-        var requests = prepare(source, prevState.state());
+        @SuppressWarnings("unchecked")
+        var requests = prepare((List<SnapshotLifecyclePolicy>)source, prevState.state());
 
         ClusterState state = prevState.state();
 

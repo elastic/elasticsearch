@@ -2,4 +2,5 @@ pr: 89859
 summary: Add the ability to keep track of data streams write load
 area: Autoscaling
 type: enhancement
-issues: []
+issues:
+ - 90102

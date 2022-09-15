@@ -155,7 +155,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     public static boolean shouldInjectMigrateStepForPhase(Phase phase) {
         if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
-            throw new IllegalArgumentException("Timeseries lifecycle does not support phase [" + phase.getName() + "]");
+            return false;
         }
 
         // searchable snapshots automatically set their own allocation rules, no need to configure them with a migrate step.

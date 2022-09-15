@@ -401,7 +401,7 @@ public final class IndicesPermission {
         return new IndicesAccessControl(overallGranted, indexPermissions);
     }
 
-    public Map<String, IndicesAccessControl.IndexAccessControl> buildIndicesAccessControl(
+    private Map<String, IndicesAccessControl.IndexAccessControl> buildIndicesAccessControl(
         final String action,
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
@@ -535,7 +535,7 @@ public final class IndicesPermission {
      * Returns {@code true} if action is granted for all {@code requestedResources}.
      * If action is not granted for at least one resource, this method will return {@code false}.
      */
-    public boolean isActionGranted(final String action, final Map<String, IndexResource> requestedResources) {
+    private boolean isActionGranted(final String action, final Map<String, IndexResource> requestedResources) {
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 

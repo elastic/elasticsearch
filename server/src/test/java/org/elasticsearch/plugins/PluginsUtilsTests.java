@@ -39,14 +39,14 @@ public class PluginsUtilsTests extends ESTestCase {
 
     PluginDescriptor newTestDescriptor(String name, List<String> deps) {
         String javaVersion = Runtime.version().toString();
-        return new PluginDescriptor(name, "desc", "1.0", Version.CURRENT, javaVersion, "MyPlugin", null, deps, false, false);
+        return new PluginDescriptor(name, "desc", "1.0", Version.CURRENT, javaVersion, "MyPlugin", null, deps, false, false, false, false);
     }
 
     public void testExistingPluginMissingDescriptor() throws Exception {
         Path pluginsDir = createTempDir();
         Files.createDirectory(pluginsDir.resolve("plugin-missing-descriptor"));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsUtils.getPluginBundles(pluginsDir));
-        assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [plugin-missing-descriptor]"));
+        assertThat(e.getMessage(), containsString("Plugin [plugin-missing-descriptor] is missing a descriptor properties file"));
     }
 
     public void testSortBundlesCycleSelfReference() throws Exception {
@@ -379,6 +379,8 @@ public class PluginsUtilsTests extends ESTestCase {
             null,
             Collections.emptyList(),
             false,
+            false,
+            false,
             false
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
@@ -395,6 +397,8 @@ public class PluginsUtilsTests extends ESTestCase {
             "FakePlugin",
             null,
             Collections.emptyList(),
+            false,
+            false,
             false,
             false
         );

@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.spatial.search;
 
-import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
-import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.search.geo.BaseShapeQueryTestCase;
@@ -71,8 +69,7 @@ public abstract class CartesianShapeQueryTestCase extends BaseShapeQueryTestCase
     }
 
     protected Polygon nextPolygon() {
-        org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
-        return new Polygon(new LinearRing(randomPoly.getPolyLons(), randomPoly.getPolyLats()));
+        return ShapeTestUtils.randomPolygon(false);
     }
 
     protected Polygon nextPolygon2() {

@@ -307,11 +307,12 @@ public class PersistentCache implements Closeable {
         }
     }
 
-    public long getNumDocs() {
+    // package private for tests
+    long getNumDocs() {
         ensureOpen();
         long count = 0L;
         for (CacheIndexWriter writer : writers) {
-            count += writer.indexWriter.getPendingNumDocs();
+            count += writer.indexWriter.getDocStats().numDocs;
         }
         return count;
     }

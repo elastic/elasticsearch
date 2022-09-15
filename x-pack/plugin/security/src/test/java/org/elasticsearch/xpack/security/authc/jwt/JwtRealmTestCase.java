@@ -213,7 +213,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     }
 
     protected void copyIssuerJwksToRealmConfig(final JwtIssuerAndRealm jwtIssuerAndRealm) throws Exception {
-        if ((jwtIssuerAndRealm.realm.isConfiguredJwkSetPkc) && (jwtIssuerAndRealm.realm.jwkSetPathUri == null)) {
+        if ((jwtIssuerAndRealm.realm.isConfiguredJwkSetPkc) && (jwtIssuerAndRealm.realm.getJwkSetPathUri() == null)) {
             LOGGER.trace("Updating JwtRealm PKC public JWKSet local file");
             final Path path = PathUtils.get(jwtIssuerAndRealm.realm.jwkSetPath);
             Files.writeString(path, jwtIssuerAndRealm.issuer.encodedJwkSetPkcPublic);
@@ -659,7 +659,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 + ", algsPkc="
                 + jwtRealm.allowedJwksAlgsPkc
                 + ", filteredPkc="
-                + jwtRealm.contentAndJwksAlgsPkc.jwksAlgs().algs()
+                + jwtRealm.getJwksAlgsPkc().jwksAlgs().algs()
                 + ", claimPrincipal=["
                 + jwtRealm.claimParserPrincipal.getClaimName()
                 + "], claimGroups=["
@@ -675,7 +675,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         for (final JWK jwk : jwtRealm.contentAndJwksAlgsHmac.jwksAlgs().jwks()) {
             LOGGER.info("REALM HMAC: jwk=[{}]", jwk);
         }
-        for (final JWK jwk : jwtRealm.contentAndJwksAlgsPkc.jwksAlgs().jwks()) {
+        for (final JWK jwk : jwtRealm.getJwksAlgsPkc().jwksAlgs().jwks()) {
             LOGGER.info("REALM PKC: jwk=[{}]", jwk);
         }
     }

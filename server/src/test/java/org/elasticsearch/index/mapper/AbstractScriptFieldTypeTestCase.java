@@ -15,7 +15,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -26,6 +29,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -38,6 +42,7 @@ import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -182,6 +187,10 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return mockContext(true);
     }
 
+    protected static FieldDataContext mockFielddataContext() {
+        return new FieldDataContext("test", mockContext()::lookup, mockContext()::sourcePath, MappedFieldType.FielddataOperation.SCRIPT);
+    }
+
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries) {
         return mockContext(allowExpensiveQueries, null);
     }
@@ -195,6 +204,14 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
+        return mockContext(allowExpensiveQueries, mappedFieldType, new SourceLookup.ReaderSourceProvider());
+    }
+
+    protected static SearchExecutionContext mockContext(
+        boolean allowExpensiveQueries,
+        MappedFieldType mappedFieldType,
+        SourceLookup.SourceProvider sourceProvider
+    ) {
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         if (mappedFieldType != null) {
             when(context.getFieldType(anyString())).thenReturn(mappedFieldType);
@@ -202,9 +219,17 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
-            (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
+            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo))
+                .build(null, null),
+            sourceProvider
         );
         when(context.lookup()).thenReturn(lookup);
+        when(context.getForField(any(), any())).then(args -> {
+            MappedFieldType ft = args.getArgument(0);
+            MappedFieldType.FielddataOperation fdo = args.getArgument(1);
+            return ft.fielddataBuilder(new FieldDataContext("test", context::lookup, context::sourcePath, fdo))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+        });
         return context;
     }
 

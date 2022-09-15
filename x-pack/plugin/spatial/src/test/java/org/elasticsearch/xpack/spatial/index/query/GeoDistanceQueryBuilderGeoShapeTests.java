@@ -61,11 +61,10 @@ public class GeoDistanceQueryBuilderGeoShapeTests extends GeoDistanceQueryBuilde
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
         }
         assertEquals(GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType.class, fieldType.getClass());
-        assertEquals(IndexOrDocValuesQuery.class, query.getClass());
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88712")
-    public void testToQuery() throws IOException {
-        super.testToQuery();
+        if (fieldType.hasDocValues()) {
+            assertEquals(IndexOrDocValuesQuery.class, query.getClass());
+        } else {
+            assertNotEquals(IndexOrDocValuesQuery.class, query.getClass());
+        }
     }
 }

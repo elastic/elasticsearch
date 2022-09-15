@@ -42,6 +42,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
@@ -71,7 +72,6 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAl
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
 
 /**
  * This indicator reports health for shards.
@@ -106,12 +106,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public String component() {
-        return DATA;
-    }
-
-    @Override
-    public HealthIndicatorResult calculate(boolean explain) {
+    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());
@@ -151,6 +146,16 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + "you expect a shard to be allocated, find this node in the node-by-node explanation, and address the reasons which prevent "
             + "Elasticsearch from allocating the shard.",
         DIAGNOSE_SHARDS_ACTION_GUIDE
+    );
+
+    public static final String FIX_DELAYED_SHARDS_GUIDE = "http://ela.st/fix-delayed-shard-allocation";
+    public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS = new Diagnosis.Definition(
+        "delayed_shard_allocations",
+        "Elasticsearch is not allocating some shards because they are marked for delayed allocation. Shards that have become "
+            + "unavailable are usually marked for delayed allocation because it is more efficient to wait and see if the shards return "
+            + "on their own than to recover the shard immediately.",
+        "Elasticsearch will reallocate the shards when the delay has elapsed. No action is required by the user.",
+        FIX_DELAYED_SHARDS_GUIDE
     );
 
     public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "http://ela.st/fix-index-allocation";
@@ -419,10 +424,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     actions.add(ACTION_RESTORE_FROM_SNAPSHOT);
                 }
                 break;
+            case NO_ATTEMPT:
+                if (shardRouting.unassignedInfo().isDelayed()) {
+                    actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
+                } else {
+                    actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
+                }
+                break;
             case DECIDERS_NO:
                 actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 break;
-            default:
+            case DELAYED_ALLOCATION:
+                actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
                 break;
         }
         if (actions.isEmpty()) {

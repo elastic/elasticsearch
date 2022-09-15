@@ -65,7 +65,7 @@ You can use the following settings to control disk-based allocation:
 // tag::cluster-routing-disk-threshold-tag[]
 `cluster.routing.allocation.disk.threshold_enabled`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Defaults to `true`. Set to `false` to disable the disk allocation decider.
+Defaults to `true`. Set to `false` to disable the disk allocation decider. Upon disabling, it will also remove any existing `index.blocks.read_only_allow_delete` index blocks.
 // end::cluster-routing-disk-threshold-tag[]
 
 [[cluster-routing-watermark-low]]

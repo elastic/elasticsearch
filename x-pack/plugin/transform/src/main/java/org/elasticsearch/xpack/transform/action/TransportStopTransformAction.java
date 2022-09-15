@@ -243,13 +243,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                         listener.onFailure(ex);
                     }
                 }, e -> {
-                    logger.debug(
-                        "[{}] Failure updating transform task should_stop_at_checkpoint from [{}] to [{}]",
-                        e,
-                        transformTask.getTransformId(),
-                        transformTask.getState().shouldStopAtNextCheckpoint(),
-                        request.isWaitForCheckpoint()
-                    );
+                    logger.debug("failure setting should_stop_at_checkpoint", e);
                     listener.onFailure(
                         new ElasticsearchStatusException(
                             "Failed to update transform task [{}] state value should_stop_at_checkpoint from [{}] to [{}]",

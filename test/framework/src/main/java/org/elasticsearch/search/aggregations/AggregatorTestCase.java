@@ -21,6 +21,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.Collector;
@@ -56,6 +57,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
@@ -670,14 +672,68 @@ public abstract class AggregatorTestCase extends ESTestCase {
             indexWriter.close();
 
             try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
-                verify.accept(agg);
-
-                verifyOutputFieldNames(aggregationBuilder, agg);
+                runAggregationViaReader(aggregationBuilder, query, verify, indexReader, fieldTypes);
             }
         }
+    }
+
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void multiIndexTestCase(
+        T aggregationBuilder,
+        Query query,
+        List<CheckedConsumer<RandomIndexWriter, IOException>> indexBuilders,
+        Consumer<V> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        Directory[] directories = new Directory[indexBuilders.size()];
+        boolean timeSeries = aggregationBuilder.isInSortOrderExecutionRequired();
+        try {
+            for (int i = 0; i < indexBuilders.size(); i++) {
+                directories[i] = newDirectory();
+                IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+                if (timeSeries) {
+                    Sort sort = new Sort(
+                        new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
+                        new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
+                    );
+                    config.setIndexSort(sort);
+                }
+                RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directories[i], config);
+                indexBuilders.get(i).accept(indexWriter);
+                indexWriter.close();
+            }
+            // construct the multi-reader
+            List<DirectoryReader> directoryReaders = new ArrayList<>();
+            try {
+                for (Directory directory : directories) {
+                    DirectoryReader open = DirectoryReader.open(directory);
+                    directoryReaders.add(open);
+                }
+                DirectoryReader[] readers = directoryReaders.toArray(new DirectoryReader[0]);
+                try (MultiReader multiReader = new MultiReader(readers)) {
+                    runAggregationViaReader(aggregationBuilder, query, verify, multiReader, fieldTypes);
+                }
+            } finally {
+                IOUtils.close(directoryReaders);
+            }
+        } finally {
+            IOUtils.close(directories);
+        }
+
+    }
+
+    private <T extends AggregationBuilder, V extends InternalAggregation> void runAggregationViaReader(
+        T aggregationBuilder,
+        Query query,
+        Consumer<V> verify,
+        IndexReader indexReader,
+        MappedFieldType[] fieldTypes
+    ) throws IOException {
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+        V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
+        verify.accept(agg);
+
+        verifyOutputFieldNames(aggregationBuilder, agg);
     }
 
     protected void withIndex(

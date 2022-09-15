@@ -5,10 +5,37 @@ type: enhancement
 issues:
  - 86203
 highlight:
-  title: ILM don't rollover empty indices
+  title: ILM no longer rolls over empty indices
   body: |-
-    Closes #86203, related to #89283
+    For both new and existing Index Lifecycle Management (ILM) policies,
+    the rollover action will only execute if an index has at least one document.
 
-    TODO: - [ ] Add a test to `RolloverActionIT` - [ ] docs changes - [ ]
-    release highlight notes
+    For indices with a `max_age` condition that are no longer being written
+    to, this will mean that they will no longer roll over every time their
+    `max_age` is reached.
+
+    A policy can override this behavior, and explicitly opt in to rolling over
+    empty indices, by adding a `"min_docs": 0` condition:
+
+    ```
+    PUT _ilm/policy/allow_empty_rollover_policy
+    {
+      "policy": {
+        "phases": {
+          "hot": {
+            "actions": {
+              "rollover" : {
+                "max_age": "7d",
+                "max_size": "100gb",
+                "min_docs": 0
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    This can also be disabled on a cluster-wide basis by setting
+    `indices.lifecycle.rollover.only_if_has_documents` to `false`.
   notable: true

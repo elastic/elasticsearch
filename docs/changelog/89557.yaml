@@ -17,7 +17,8 @@ highlight:
     A policy can override this behavior, and explicitly opt in to rolling over
     empty indices, by adding a `"min_docs": 0` condition:
 
-    ```
+    [source,console]
+    ----
     PUT _ilm/policy/allow_empty_rollover_policy
     {
       "policy": {
@@ -34,7 +35,7 @@ highlight:
         }
       }
     }
-    ```
+    ----
 
     This can also be disabled on a cluster-wide basis by setting
     `indices.lifecycle.rollover.only_if_has_documents` to `false`.

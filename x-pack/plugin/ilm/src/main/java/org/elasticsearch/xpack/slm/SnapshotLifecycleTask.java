@@ -55,7 +55,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     private final SnapshotHistoryStore historyStore;
 
     /**
-     * Set of all currently running  {@link SnapshotLifecyclePolicy} ids, used to prevent starting multiple snapshots for the same policy.
+     * Set of all currently running {@link SnapshotLifecyclePolicy} ids, used to prevent starting multiple snapshots for the same policy.
      */
     private final Set<String> runningPolicies = Collections.synchronizedSet(new HashSet<>());
 

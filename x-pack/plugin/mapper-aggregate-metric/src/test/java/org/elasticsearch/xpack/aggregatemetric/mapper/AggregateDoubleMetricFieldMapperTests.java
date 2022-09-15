@@ -563,20 +563,17 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType ft =
             (AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) mapperService.fieldType("field");
         assertNull(ft.getMetricType());
-
         assertMetricType("gauge", AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType::getMetricType);
-        assertMetricType("counter", AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType::getMetricType);
-        assertMetricType("summary", AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType::getMetricType);
 
         {
             // Test invalid metric type for this field type
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 minimalMapping(b);
-                b.field("time_series_metric", "histogram");
+                b.field("time_series_metric", "counter");
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [histogram] for field [time_series_metric] - accepted values are [gauge, counter, summary]")
+                containsString("Unknown value [counter] for field [time_series_metric] - accepted values are [gauge]")
             );
         }
         {
@@ -587,7 +584,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             })));
             assertThat(
                 e.getCause().getMessage(),
-                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter, summary]")
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge]")
             );
         }
     }

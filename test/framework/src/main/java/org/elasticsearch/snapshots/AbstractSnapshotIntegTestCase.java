@@ -36,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -75,6 +74,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -97,11 +97,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
+    protected static final int LARGE_POOL_SIZE = 5;
+
     // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
     // threads so that blocking some threads on one repository doesn't block other repositories from doing work
     protected static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
-        .put("thread_pool.snapshot.core", 5)
-        .put("thread_pool.snapshot.max", 5)
+        .put("thread_pool.snapshot.core", LARGE_POOL_SIZE)
+        .put("thread_pool.snapshot.max", LARGE_POOL_SIZE)
         .build();
 
     @Override
@@ -528,7 +530,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             SnapshotState.FAILED,
             Collections.emptyMap()
         );
-        PlainActionFuture.<Tuple<RepositoryData, SnapshotInfo>, Exception>get(
+        PlainActionFuture.<RepositoryData, Exception>get(
             f -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
                     ShardGenerations.EMPTY,
@@ -536,7 +538,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     state.metadata(),
                     snapshotInfo,
                     SnapshotsService.OLD_SNAPSHOT_FORMAT,
-                    f
+                    f,
+                    info -> {}
                 )
             )
         );
@@ -795,5 +798,17 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static String[] matchAllPattern() {
         return randomBoolean() ? new String[] { "*" } : new String[] { TransportGetRepositoriesAction.ALL_PATTERN };
+    }
+
+    public RepositoryMetadata getRepositoryMetadata(String repo) {
+        RepositoriesMetadata repositories = clusterService().state()
+            .metadata()
+            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+        Optional<RepositoryMetadata> repositoryMetadata = repositories.repositories()
+            .stream()
+            .filter(x -> x.name().equals(repo))
+            .findFirst();
+        assertTrue(repositoryMetadata.isPresent());
+        return repositoryMetadata.get();
     }
 }

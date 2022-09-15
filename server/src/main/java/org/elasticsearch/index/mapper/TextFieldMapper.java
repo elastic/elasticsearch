@@ -909,7 +909,11 @@ public class TextFieldMapper extends FieldMapper {
             } else if (operation == FielddataOperation.SEARCH) {
                 if (fielddata == false) {
                     throw new IllegalArgumentException(
-                        "Text fields are not optimised for operations that require per-document "
+                        "Fielddata is disabled on ["
+                            + name()
+                            + "] in ["
+                            + fieldDataContext.fullyQualifiedIndexName()
+                            + "]. Text fields are not optimised for operations that require per-document "
                             + "field data like aggregations and sorting, so these operations are disabled by default. Please use a "
                             + "keyword field instead. Alternatively, set fielddata=true on ["
                             + name()

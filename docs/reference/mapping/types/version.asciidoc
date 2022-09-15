@@ -69,7 +69,7 @@ you strongly rely on these kind of queries.
 
 
 [[version-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic `_source`
 `version` fields support <<synthetic-source,synthetic `_source`>> so long as they don't
 declare <<copy-to,`copy_to`>>.
 

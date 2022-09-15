@@ -53,6 +53,11 @@ Name of the repository to delete a snapshot from.
 (Required, string)
 Comma-separated list of snapshot names to delete. Also accepts wildcards (`*`).
 
+[[delete-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
 [[delete-snapshot-api-example]]
 ==== {api-example-title}
 

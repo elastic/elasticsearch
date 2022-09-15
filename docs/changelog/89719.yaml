@@ -1,0 +1,6 @@
+pr: 89719
+summary: Re-registering corrupt repository unblocks it
+area: Snapshot/Restore
+type: bug
+issues:
+ - 89130

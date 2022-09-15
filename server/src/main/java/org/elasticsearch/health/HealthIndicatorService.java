@@ -8,6 +8,8 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.health.node.HealthInfo;
+
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -20,7 +22,7 @@ public interface HealthIndicatorService {
 
     String name();
 
-    HealthIndicatorResult calculate(boolean explain);
+    HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo);
 
     /**
      * This method creates a HealthIndicatorResult with the given information. Note that it sorts the impacts by severity (the lower the

@@ -1,5 +1,5 @@
 pr: 89768
-summary: Autoscaling after clone fix
+summary: Fix issue with autoscaling after a clone or split
 area: Autoscaling
 type: bug
 issues:

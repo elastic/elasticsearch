@@ -16,10 +16,10 @@ Authentication::
 * Fix double sending of response in `TransportOpenIdConnectPrepareAuthenticationAction` {es-pull}89930[#89930]
 
 Autoscaling::
-* Autoscaling after clone fix {es-pull}89768[#89768] (issue: {es-issue}89758[#89758])
+* Fix issue with autoscaling after a clone or split {es-pull}89768[#89768] (issue: {es-issue}89758[#89758])
 
 Health::
-* Fixing the conditions for fetching remote master history {es-pull}89472[#89472] (issue: {es-issue}89431[#89431])
+* Fix the conditions for fetching remote master history {es-pull}89472[#89472] (issue: {es-issue}89431[#89431])
 
 ILM+SLM::
 * Copy `isHidden` during ILM alias swap {es-pull}89650[#89650] (issue: {es-issue}89604[#89604])
@@ -27,10 +27,10 @@ ILM+SLM::
 Infra/Core::
 * Extend the date rounding logic to be conditional {es-pull}89693[#89693] (issues: {es-issue}89096[#89096], {es-issue}58986[#58986])
 * Fix `FileSettingsService` hang on error update {es-pull}89630[#89630]
-* Fix deadlock bug exposed by the test {es-pull}89934[#89934]
+* Implement fix to terminate file Watcher thread to avoid deadlock {es-pull}89934[#89934]
 
 Ingest Node::
-* Fix pipeline id not present in ingest metadata inside `on_failure` block {es-pull}89632[#89632]
+* Fix pipeline `id` not present in ingest metadata inside `on_failure` block {es-pull}89632[#89632]
 
 Machine Learning::
 * Fix memory leak in `TransportDeleteExpiredDataAction` {es-pull}89935[#89935]
@@ -65,6 +65,6 @@ Health::
 === Upgrades
 
 Packaging::
-* Update openjdk to 18.0.2.1 {es-pull}89535[#89535] (issue: {es-issue}89531[#89531])
+* Update OpenJDK to 18.0.2.1 {es-pull}89535[#89535] (issue: {es-issue}89531[#89531])
 
 

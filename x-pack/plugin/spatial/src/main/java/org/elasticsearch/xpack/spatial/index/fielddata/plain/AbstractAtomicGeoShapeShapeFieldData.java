@@ -67,6 +67,16 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData extends LeafShapeFiel
         }
 
         @Override
+        public GeoShapeValues.GeoShapeValue get(int index) {
+            return super.get(index);
+        }
+
+        @Override
+        public GeoShapeValues.GeoShapeValue getValue() {
+            return super.getValue();
+        }
+
+        @Override
         public GeoBoundingBox getBoundingBox() {
             return (GeoBoundingBox) super.getBoundingBox();
         }

@@ -10,7 +10,6 @@ package org.elasticsearch.health.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -24,7 +23,6 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -43,48 +41,6 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     private final ClusterService clusterService;
 
-    private static final HealthIndicatorImpact RED_HEALTH_AFFECTED_INDICES_INGEST_IMPACT = new HealthIndicatorImpact(
-        1,
-        "Cannot insert or update documents in the affected indices.",
-        List.of(ImpactArea.INGEST)
-    );
-
-    private static final HealthIndicatorImpact YELLOW_HEALTH_AFFECTED_INDICES_INGEST_IMPACT = new HealthIndicatorImpact(
-        1,
-        "May not be able to insert or update documents in the affected indices.",
-        List.of(ImpactArea.INGEST)
-    );
-
-    private static final HealthIndicatorImpact HEALTH_INGEST_NODES_PIPELINES_IMPACT = new HealthIndicatorImpact(
-        2,
-        "Cannot run ingest pipelines",
-        List.of(ImpactArea.INGEST)
-    );
-
-    private static final HealthIndicatorImpact HEALTH_INGEST_NODES_MONITORING_IMPACT = new HealthIndicatorImpact(
-        2,
-        "Stack monitoring will not run",
-        List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
-    );
-
-    private static final HealthIndicatorImpact HEALTH_ML_NODES_IMPACT = new HealthIndicatorImpact(
-        2,
-        "Cannot run machine learning jobs",
-        List.of(ImpactArea.ANALYTICS)
-    );
-
-    private static final HealthIndicatorImpact HEALTH_REMOTE_CLUSTER_CLIENT_NODES_IMPACT = new HealthIndicatorImpact(
-        2,
-        "Cannot run cross cluster search",
-        List.of(ImpactArea.SEARCH)
-    );
-
-    private static final HealthIndicatorImpact HEALTH_TRANSFORM_NODES_IMPACT = new HealthIndicatorImpact(
-        2,
-        "Cannot run Fleet, Elasticsearch Security, or transforms",
-        List.of(ImpactArea.ANALYTICS)
-    );
-
     public DiskHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
@@ -100,7 +56,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         if (diskHealthInfoMap == null || diskHealthInfoMap.isEmpty()) {
             return createIndicator(
                 HealthStatus.UNKNOWN,
-                "No disk usage data",
+                "No disk usage data.",
                 HealthIndicatorDetails.EMPTY,
                 Collections.emptyList(),
                 Collections.emptyList()
@@ -116,97 +72,239 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .collect(Collectors.toSet());
         boolean hasAtLeastOneIndexReadOnlyAllowDeleteBlock = indicesWithBlock.isEmpty() == false;
         logMissingHealthInfoData(diskHealthInfoMap);
-        final String symptom;
         HealthIndicatorDetails details = getDetails(explain, diskHealthInfoMap);
-        final List<HealthIndicatorImpact> impacts = new ArrayList<>();
-        final List<Diagnosis> diagnosisList;
-        final HealthStatus healthStatus = hasAtLeastOneIndexReadOnlyAllowDeleteBlock
-            ? HealthStatus.RED
-            : HealthStatus.merge(diskHealthInfoMap.values().stream().map(DiskHealthInfo::healthStatus));
+        final HealthStatus healthStatusFromNodes = HealthStatus.merge(
+            diskHealthInfoMap.values().stream().map(DiskHealthInfo::healthStatus)
+        );
+        final HealthStatus healthStatus = hasAtLeastOneIndexReadOnlyAllowDeleteBlock ? HealthStatus.RED : healthStatusFromNodes;
+        final HealthIndicatorResult healthIndicatorResult;
         if (HealthStatus.GREEN.equals(healthStatus)) {
-            symptom = "Disk usage is within configured thresholds";
-            diagnosisList = List.of();
+            healthIndicatorResult = createIndicator(
+                healthStatus,
+                "The cluster has enough available disk space.",
+                details,
+                List.of(),
+                List.of()
+            );
         } else {
-            final Set<String> problemNodes;
-            final Set<String> problemIndices;
-            if (HealthStatus.RED.equals(healthStatus)) {
-                problemNodes = diskHealthInfoMap.entrySet()
+            if (HealthStatus.RED.equals(healthStatusFromNodes)) {
+                final Set<String> nodesReportingRed = diskHealthInfoMap.entrySet()
                     .stream()
                     .filter(entry -> HealthStatus.RED.equals(entry.getValue().healthStatus()))
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
-                problemIndices = Stream.concat(getIndicesForNodes(problemNodes).stream(), indicesWithBlock.stream())
-                    .collect(Collectors.toSet());
-                symptom = String.format(
-                    Locale.ROOT,
-                    "%d node%s out of disk space.%s",
-                    problemNodes.size(),
-                    problemNodes.size() > 1 ? "s are" : " is",
-                    problemIndices.size() > 0
-                        ? String.format(
-                            Locale.ROOT,
-                            " As a result %d ind%s cannot process any more updates.",
-                            problemIndices.size(),
-                            problemIndices.size() > 1 ? "ices" : "ex"
-                        )
-                        : ""
-                );
-                if (problemIndices.size() > 1) {
-                    impacts.add(RED_HEALTH_AFFECTED_INDICES_INGEST_IMPACT);
+                Set<DiscoveryNodeRole> rolesOnRedNodes = getRolesOnNodes(nodesReportingRed);
+                if (hasAtLeastOneIndexReadOnlyAllowDeleteBlock || rolesOnRedNodes.stream().anyMatch(DiscoveryNodeRole::canContainData)) {
+                    healthIndicatorResult = getResultForRedIndicesOrDataNodes(
+                        nodesReportingRed,
+                        Stream.concat(indicesWithBlock.stream(), getIndicesForNodes(nodesReportingRed).stream())
+                            .collect(Collectors.toSet()),
+                        true,
+                        details,
+                        healthStatus
+                    );
+                } else {
+                    healthIndicatorResult = getResultForNonDataNodeProblem(rolesOnRedNodes, nodesReportingRed, details, healthStatus);
                 }
             } else {
-                problemNodes = diskHealthInfoMap.entrySet()
+                final Set<String> nodesReportingYellow = diskHealthInfoMap.entrySet()
                     .stream()
                     .filter(entry -> HealthStatus.YELLOW.equals(entry.getValue().healthStatus()))
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
-                problemIndices = getIndicesForNodes(problemNodes);
-                symptom = String.format(
-                    Locale.ROOT,
-                    "%d node%s increased disk space.%s",
-                    problemNodes.size(),
-                    problemNodes.size() > 1 ? "s have" : " has",
-                    problemIndices.size() > 0
-                        ? String.format(
-                            Locale.ROOT,
-                            " As a result %d ind%s at risk of not being able to process any more updates.",
-                            problemIndices.size(),
-                            problemIndices.size() > 1 ? "ices are" : "ex is"
-                        )
-                        : ""
-                );
-                if (problemIndices.size() > 1) {
-                    impacts.add(YELLOW_HEALTH_AFFECTED_INDICES_INGEST_IMPACT);
+                Set<DiscoveryNodeRole> rolesOnYellowNodes = getRolesOnNodes(nodesReportingYellow);
+                if (hasAtLeastOneIndexReadOnlyAllowDeleteBlock) {
+                    healthIndicatorResult = getResultForRedIndicesOrDataNodes(
+                        nodesReportingYellow,
+                        indicesWithBlock,
+                        false,
+                        details,
+                        healthStatus
+                    );
+                } else if (rolesOnYellowNodes.stream().anyMatch(DiscoveryNodeRole::canContainData)) {
+                    healthIndicatorResult = getResultForYellowDataNodes(nodesReportingYellow, details, healthStatus);
+                } else {
+                    healthIndicatorResult = getResultForNonDataNodeProblem(rolesOnYellowNodes, nodesReportingYellow, details, healthStatus);
                 }
             }
-            Set<DiscoveryNodeRole> roles = clusterService.state()
+        }
+        return healthIndicatorResult;
+    }
+
+    private HealthIndicatorResult getResultForNonDataNodeProblem(
+        Set<DiscoveryNodeRole> roles,
+        Set<String> problemNodes,
+        HealthIndicatorDetails details,
+        HealthStatus status
+    ) {
+        String symptom;
+        final List<HealthIndicatorImpact> impacts;
+        final List<Diagnosis> diagnosisList;
+        if (roles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
+            Set<DiscoveryNode> problemMasterNodes = clusterService.state()
                 .nodes()
                 .getNodes()
                 .values()
                 .stream()
                 .filter(node -> problemNodes.contains(node.getId()))
-                .map(DiscoveryNode::getRoles)
-                .flatMap(Collection::stream)
+                .filter(node -> node.getRoles().contains(DiscoveryNodeRole.MASTER_ROLE))
                 .collect(Collectors.toSet());
-            if (roles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
-                impacts.addAll(StableMasterHealthIndicatorService.UNSTABLE_MASTER_IMPACTS);
-            }
-            if (roles.contains(DiscoveryNodeRole.INGEST_ROLE)) {
-                impacts.add(HEALTH_INGEST_NODES_PIPELINES_IMPACT);
-                impacts.add(HEALTH_INGEST_NODES_MONITORING_IMPACT);
-            }
-            if (roles.contains(DiscoveryNodeRole.ML_ROLE)) {
-                impacts.add(HEALTH_ML_NODES_IMPACT);
-            }
-            if (roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)) {
-                impacts.add(HEALTH_REMOTE_CLUSTER_CLIENT_NODES_IMPACT);
-            }
-            if (roles.contains(DiscoveryNodeRole.TRANSFORM_ROLE)) {
-                impacts.add(HEALTH_TRANSFORM_NODES_IMPACT);
-            }
-            diagnosisList = getDiskProblemsDiagnosis(explain, problemNodes, problemIndices);
+            symptom = String.format(
+                Locale.ROOT,
+                "%d node%s with role master %s out of disk space. As a result %s functions might be impaired.",
+                problemMasterNodes.size(),
+                problemMasterNodes.size() == 1 ? "" : "s",
+                problemMasterNodes.size() == 1 ? "is" : "are",
+                problemMasterNodes.size() == 1 ? "its" : "their"
+            );
+            impacts = List.of(
+                new HealthIndicatorImpact(2, "Cluster stability might be impaired.", List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
+            );
+            diagnosisList = List.of(
+                new Diagnosis(
+                    new Diagnosis.Definition(
+                        "free-disk-space-or-add-capacity-master-nodes",
+                        "Disk is almost full.",
+                        "Please, add capacity to the current nodes, or replace them with ones with higher capacity.",
+                        "https://ela.st/free-disk-space-or-add-capacity-master-nodes"
+                    ),
+                    problemMasterNodes.stream().map(DiscoveryNode::getId).toList()
+                )
+            );
+        } else {
+            symptom = String.format(
+                Locale.ROOT,
+                "%d node%s with roles [%s] %s out of disk space. As a result %s functions might be impaired.",
+                problemNodes.size(),
+                problemNodes.size() == 1 ? "" : "s",
+                roles.stream().map(DiscoveryNodeRole::roleName).sorted().collect(Collectors.joining(", ")),
+                problemNodes.size() == 1 ? "is" : "are",
+                problemNodes.size() == 1 ? "its" : "their"
+            );
+            impacts = List.of(
+                new HealthIndicatorImpact(2, "Some cluster functionality might be unavailable.", List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
+            );
+            diagnosisList = List.of(
+                new Diagnosis(
+                    new Diagnosis.Definition(
+                        "free-disk-space-or-add-capacity-other-nodes",
+                        "Disk is almost full.",
+                        "Please, add capacity to the current nodes, or replace them with ones with higher capacity.",
+                        "https://ela.st/free-disk-space-or-add-capacity-other-nodes"
+                    ),
+                    problemNodes.stream().toList()
+                )
+            );
         }
-        return createIndicator(healthStatus, symptom, details, impacts, diagnosisList);
+        return createIndicator(status, symptom, details, impacts, diagnosisList);
+    }
+
+    public HealthIndicatorResult getResultForRedIndicesOrDataNodes(
+        Set<String> nodesReportingProblems,
+        Set<String> impactedIndices,
+        boolean statusFromNodesWasRed,
+        HealthIndicatorDetails details,
+        HealthStatus status
+    ) {
+        final String symptom;
+        if (impactedIndices.isEmpty()) {
+            symptom = String.format(
+                Locale.ROOT,
+                "%d data node%s %s disk space.",
+                nodesReportingProblems.size(),
+                nodesReportingProblems.size() == 1 ? " is" : "s are",
+                statusFromNodesWasRed ? "out of" : "running low on"
+            );
+        } else {
+            symptom = String.format(
+                Locale.ROOT,
+                "%d %s blocked and cannot be updated %s.",
+                impactedIndices.size(),
+                impactedIndices.size() == 1 ? "index is" : "indices are",
+                nodesReportingProblems.isEmpty()
+                    ? "but 0 nodes are currently out of space"
+                    : String.format(
+                        Locale.ROOT,
+                        "because %d node%s %s disk space",
+                        nodesReportingProblems.size(),
+                        nodesReportingProblems.size() == 1 ? " is" : "s are",
+                        statusFromNodesWasRed ? "out of" : "running low on"
+                    )
+            );
+        }
+        List<HealthIndicatorImpact> impacts = List.of(
+            new HealthIndicatorImpact(1, "Cannot insert or update documents in the affected indices.", List.of(ImpactArea.INGEST))
+        );
+        List<Diagnosis> diagnosisList = List.of(
+            new Diagnosis(
+                new Diagnosis.Definition(
+                    "free-disk-space-or-add-capacity-data-nodes",
+                    String.format(
+                        "%d %s reside%s on nodes that have run out of space and writing has been blocked by the system.",
+                        impactedIndices.size(),
+                        impactedIndices.size() == 1 ? "index" : "indices",
+                        impactedIndices.size() == 1 ? "s" : ""
+                    ),
+                    "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
+                        + "this. If you have already taken action please wait for the rebalancing to complete.",
+                    "https://ela.st/free-disk-space-or-add-capacity-data-nodes"
+                ),
+                nodesReportingProblems.stream().toList()
+            )
+        );
+        return createIndicator(status, symptom, details, impacts, diagnosisList);
+    }
+
+    public HealthIndicatorResult getResultForYellowDataNodes(
+        Set<String> problemNodes,
+        HealthIndicatorDetails details,
+        HealthStatus status
+    ) {
+        final Set<String> problemIndices = getIndicesForNodes(problemNodes);
+        final String symptom = String.format(
+            "%d data node%s increased disk usage. As a result %d %s at risk of not being able to process any more " + "updates.",
+            problemNodes.size(),
+            problemNodes.size() == 1 ? " has" : "s have",
+            problemIndices.size(),
+            problemIndices.size() == 1 ? "index is" : "indices are"
+        );
+        final List<HealthIndicatorImpact> impacts = List.of(
+            new HealthIndicatorImpact(
+                1,
+                "At risk of not being able to insert or update documents in the affected indices.",
+                List.of(ImpactArea.INGEST)
+            )
+        );
+        final List<Diagnosis> diagnosisList = List.of(
+            new Diagnosis(
+                new Diagnosis.Definition(
+                    "free-disk-space-or-add-capacity-data-nodes",
+                    String.format(
+                        "%d %s reside%s on nodes that have run out of space and writing has been blocked by the system.",
+                        problemIndices.size(),
+                        problemIndices.size() == 1 ? "index" : "indices",
+                        problemIndices.size() == 1 ? "s" : ""
+                    ),
+                    "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
+                        + "this. If you have already taken action please wait for the rebalancing to complete.",
+                    "https://ela.st/free-disk-space-or-add-capacity-data-nodes"
+                ),
+                problemNodes.stream().toList()
+            )
+        );
+        return createIndicator(status, symptom, details, impacts, diagnosisList);
+    }
+
+    private Set<DiscoveryNodeRole> getRolesOnNodes(Set<String> nodeIds) {
+        return clusterService.state()
+            .nodes()
+            .getNodes()
+            .values()
+            .stream()
+            .filter(node -> nodeIds.contains(node.getId()))
+            .map(DiscoveryNode::getRoles)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
     }
 
     private Set<String> getIndicesForNodes(Set<String> nodes) {
@@ -281,22 +379,5 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             String nodeName = node.getName();
             return Objects.requireNonNullElse(nodeName, null);
         }
-    }
-
-    private List<Diagnosis> getDiskProblemsDiagnosis(boolean explain, Set<String> nodeIds, Set<String> indices) {
-        if (explain == false) {
-            return List.of();
-        }
-        return List.of(
-            new Diagnosis(
-                new Diagnosis.Definition(
-                    "free-disk-space-or-add-capacity",
-                    "Disk thresholds have been exceeded",
-                    "Free up disk space or add disk capacity",
-                    "https://ela.st/free-disk-space-or-add-capacity"
-                ),
-                Stream.concat(nodeIds.stream(), indices.stream()).toList()
-            )
-        );
     }
 }

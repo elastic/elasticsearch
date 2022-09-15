@@ -42,7 +42,7 @@ public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
                 assertThat(resultList.size(), equalTo(1));
                 HealthIndicatorResult testIndicatorResult = resultList.get(0);
                 assertThat(testIndicatorResult.status(), equalTo(HealthStatus.GREEN));
-                assertThat(testIndicatorResult.symptom(), equalTo("Disk usage is within configured thresholds"));
+                assertThat(testIndicatorResult.symptom(), equalTo("The cluster has enough available disk space."));
             }
         }
     }
@@ -60,7 +60,7 @@ public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
                 assertThat(resultList.size(), equalTo(1));
                 HealthIndicatorResult testIndicatorResult = resultList.get(0);
                 assertThat(testIndicatorResult.status(), equalTo(HealthStatus.RED));
-                assertThat(testIndicatorResult.symptom(), equalTo("2 nodes are out of disk space."));
+                assertThat(testIndicatorResult.symptom(), equalTo("2 data nodes are out of disk space."));
             }
         }
     }

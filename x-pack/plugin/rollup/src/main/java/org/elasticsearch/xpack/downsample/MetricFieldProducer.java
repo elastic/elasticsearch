@@ -310,10 +310,10 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
     }
 
     /**
-     * Produce a collection of metric field producers based on the metric_type mapping parameter in the field
+     * Create a collection of metric field producers based on the metric_type mapping parameter in the field
      * mapping.
      */
-    static Map<String, MetricFieldProducer> buildMetricFieldProducers(SearchExecutionContext context, String[] metricFields) {
+    static Map<String, MetricFieldProducer> createMetricFieldProducers(SearchExecutionContext context, String[] metricFields) {
         final Map<String, MetricFieldProducer> fields = new LinkedHashMap<>();
         for (String field : metricFields) {
             MappedFieldType fieldType = context.getFieldType(field);
@@ -321,8 +321,9 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
             assert fieldType.getMetricType() != null : "Unknown metric type for metric field: [" + field + "]";
 
             if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
+                // If the field is an aggregate_metric_double field, we should use the correct subfields
+                // for each aggregation. This is a rollup-of-rollup case
                 AggregateMetricFieldProducer producer = new AggregateMetricFieldProducer(field);
-
                 for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
                     AggregateDoubleMetricFieldMapper.Metric metric = e.getKey();
                     NumberFieldMapper.NumberFieldType metricSubField = e.getValue();
@@ -339,7 +340,6 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
                 MetricFieldProducer producer = switch (fieldType.getMetricType()) {
                     case gauge -> new GaugeMetricFieldProducer(field);
                     case counter -> new CounterMetricFieldProducer(field);
-                    default -> throw new IllegalArgumentException("Unsupported metric type [" + fieldType.getMetricType() + "]");
                 };
                 fields.put(field, producer);
             }

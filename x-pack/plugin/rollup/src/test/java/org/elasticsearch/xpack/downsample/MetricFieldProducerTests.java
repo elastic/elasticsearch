@@ -218,7 +218,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
             }
         };
 
-        Map<String, MetricFieldProducer> producers = MetricFieldProducer.buildMetricFieldProducers(
+        Map<String, MetricFieldProducer> producers = MetricFieldProducer.createMetricFieldProducers(
             searchExecutionContext,
             new String[] { "gauge_field", "counter_field" }
         );

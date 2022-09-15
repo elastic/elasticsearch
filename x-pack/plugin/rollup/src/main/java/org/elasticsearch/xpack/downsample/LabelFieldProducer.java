@@ -126,9 +126,9 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
     }
 
     /**
-     * Produce a collection of label field producers.
+     * Create a collection of label field producers.
      */
-    static Map<String, LabelFieldProducer> buildLabelFieldProducers(SearchExecutionContext context, String[] labelFields) {
+    static Map<String, LabelFieldProducer> createLabelFieldProducers(SearchExecutionContext context, String[] labelFields) {
         final Map<String, LabelFieldProducer> fields = new LinkedHashMap<>();
         for (String field : labelFields) {
             LabelFieldProducer producer = new LabelLastValueFieldProducer(field);

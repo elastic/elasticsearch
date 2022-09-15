@@ -327,7 +327,6 @@ class RollupShardIndexer {
                                     } catch (IOException ex) {
                                         throw new ElasticsearchException("Failed to read values for field [" + fieldName + "]");
                                     }
-
                                 }
                                 return values;
                             });
@@ -378,8 +377,8 @@ class RollupShardIndexer {
         private final Map<String, LabelFieldProducer> labelFieldProducers;
 
         RollupBucketBuilder() {
-            this.metricFieldProducers = MetricFieldProducer.buildMetricFieldProducers(searchExecutionContext, metricFields);
-            this.labelFieldProducers = LabelFieldProducer.buildLabelFieldProducers(searchExecutionContext, labelFields);
+            this.metricFieldProducers = MetricFieldProducer.createMetricFieldProducers(searchExecutionContext, metricFields);
+            this.labelFieldProducers = LabelFieldProducer.createLabelFieldProducers(searchExecutionContext, labelFields);
         }
 
         /**
@@ -472,12 +471,12 @@ class RollupShardIndexer {
             }
 
             // Serialize all metric fields
-            for (MetricFieldProducer producer : new HashSet<>(metricFieldProducers.values())) {
+            for (var producer : new HashSet<>(metricFieldProducers.values())) {
                 producer.write(builder);
             }
 
             // Serialize all label fields
-            for (var producer : labelFieldProducers.values()) {
+            for (var producer : new HashSet<>(labelFieldProducers.values())) {
                 producer.write(builder);
             }
 

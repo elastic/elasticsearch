@@ -297,9 +297,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 unassignedShards.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum(),
                 unassignedShards.stream().map(e -> e.shard.shardId()).collect(Collectors.toCollection(TreeSet::new)),
                 unassignedShards.stream()
-                    .filter(e -> e.nodeDecisions.size() > 0)
+                    .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
                     .min(Comparator.comparing(e -> e.shard.shardId()))
-                    .map(e -> e.nodeDecisions)
+                    .map(shardNodeDecisions -> shardNodeDecisions.nodeDecisions)
                     .orElse(List.of()),
                 List.of()
             );
@@ -374,14 +374,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     .map(e -> e.shard.shardId())
                     .collect(Collectors.toCollection(TreeSet::new)),
                 Stream.concat(unallocatedShardNodeDecisions.stream(), otherNodesOnTierAllocationDecisions.stream())
-                    .filter(e -> e.nodeDecisions.size() > 0)
+                    .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
                     .min(Comparator.comparing(e -> e.shard.shardId()))
-                    .map(e -> e.nodeDecisions)
+                    .map(shardNodeDecisions -> shardNodeDecisions.nodeDecisions)
                     .orElse(List.of()),
                 Stream.concat(unmovableShardNodeDecisions.stream(), canRemainDecisionsForUnallocatedShards.stream())
-                    .filter(e -> e.nodeDecisions.size() > 0)
+                    .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
                     .min(Comparator.comparing(e -> e.shard.shardId()))
-                    .map(e -> e.nodeDecisions)
+                    .map(shardNodeDecisions -> shardNodeDecisions.nodeDecisions)
                     .orElse(List.of())
             );
         }

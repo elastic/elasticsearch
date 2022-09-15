@@ -174,8 +174,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Shards ->
                         // Setting to 1 because the single IndexShard passed to this method implies 1 shard
                         stats.shards = new ShardCountStats(1);
-                    case Mappings -> throw new IllegalStateException("Flag: " + flag + " must not be used at shard level");
-                    default -> throw new IllegalStateException("Unknown Flag: " + flag);
+                    default -> throw new IllegalStateException("Unknown or invalid flag for shard-level stats: " + flag);
                 }
             } catch (AlreadyClosedException e) {
                 // shard is closed - no stats is fine
@@ -189,7 +188,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
      * Filters the given flags for {@link CommonStatsFlags#INDEX_LEVEL} flags and calculates the corresponding statistics.
      */
     public static CommonStats getIndexLevelStats(final IndexService indexService, CommonStatsFlags flags) {
-        // Filter shard level flags
+        // Filter index level flags
         CommonStatsFlags filteredFlags = flags.clone();
         Arrays.stream(filteredFlags.getFlags()).forEach(x -> filteredFlags.set(x, CommonStatsFlags.INDEX_LEVEL.isSet(x)));
         CommonStats stats = new CommonStats(filteredFlags);
@@ -199,27 +198,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Mappings:
                     stats.nodeMappings = indexService.getNodeMappingStats();
                     break;
-                case Docs:
-                case Store:
-                case Indexing:
-                case Get:
-                case Search:
-                case Merge:
-                case Refresh:
-                case Flush:
-                case Warmer:
-                case QueryCache:
-                case FieldData:
-                case Completion:
-                case Segments:
-                case Translog:
-                case RequestCache:
-                case Recovery:
-                case Bulk:
-                case Shards:
-                    throw new IllegalStateException("Flag: " + flag + " must not be used at index level");
                 default:
-                    throw new IllegalStateException("Unknown Flag: " + flag);
+                    throw new IllegalStateException("Unknown or invalid flag for index-level stats: " + flag);
             }
         }
 

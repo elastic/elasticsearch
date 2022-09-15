@@ -15,10 +15,26 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
+
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class NodeDecisionWireSerializationTests extends AbstractWireSerializingTestCase<NodeDecision> {
+
+    @Override
+    protected NodeDecision mutateInstance(NodeDecision instance) throws IOException {
+        if (randomBoolean()) {
+            return new NodeDecision(
+                new DiscoveryNode(randomAlphaOfLength(6), buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                instance.decision()
+            );
+        } else if (randomBoolean()) {
+            return new NodeDecision(instance.node(), randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES));
+        } else {
+            return randomValueOtherThan(instance, this::createTestInstance);
+        }
+    }
 
     @Override
     protected Writeable.Reader<NodeDecision> instanceReader() {

@@ -672,7 +672,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
             indexWriter.close();
 
             try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
-                runAggregationViaReader(aggregationBuilder, query, verify, indexReader, fieldTypes);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
+                verify.accept(agg);
+
+                verifyOutputFieldNames(aggregationBuilder, agg);
             }
         }
     }
@@ -710,7 +715,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 }
                 DirectoryReader[] readers = directoryReaders.toArray(new DirectoryReader[0]);
                 try (MultiReader multiReader = new MultiReader(readers)) {
-                    runAggregationViaReader(aggregationBuilder, query, verify, multiReader, fieldTypes);
+                    IndexSearcher indexSearcher = newIndexSearcher(multiReader);
+
+                    V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
+                    verify.accept(agg);
+
+                    verifyOutputFieldNames(aggregationBuilder, agg);
                 }
             } finally {
                 IOUtils.close(directoryReaders);
@@ -719,21 +729,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             IOUtils.close(directories);
         }
 
-    }
-
-    private <T extends AggregationBuilder, V extends InternalAggregation> void runAggregationViaReader(
-        T aggregationBuilder,
-        Query query,
-        Consumer<V> verify,
-        IndexReader indexReader,
-        MappedFieldType[] fieldTypes
-    ) throws IOException {
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-        V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
-        verify.accept(agg);
-
-        verifyOutputFieldNames(aggregationBuilder, agg);
     }
 
     protected void withIndex(

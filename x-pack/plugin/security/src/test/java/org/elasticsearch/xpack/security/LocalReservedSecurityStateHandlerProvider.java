@@ -13,6 +13,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 
 /**
  * Mock Security Provider implementation for the {@link ReservedClusterStateHandlerProvider} service interface. This is used
@@ -27,6 +28,19 @@ public class LocalReservedSecurityStateHandlerProvider implements ReservedCluste
 
     public LocalReservedSecurityStateHandlerProvider(LocalStateSecurity plugin) {
         this.plugin = plugin;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LocalReservedSecurityStateHandlerProvider that = (LocalReservedSecurityStateHandlerProvider) o;
+        return plugin.equals(that.plugin);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(plugin);
     }
 
     @Override

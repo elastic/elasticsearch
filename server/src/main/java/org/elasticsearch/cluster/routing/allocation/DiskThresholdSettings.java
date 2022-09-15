@@ -134,6 +134,8 @@ public class DiskThresholdSettings {
         CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING,
         CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING,
         CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
+        // The headroom validator also depends on the low and frozen flood watermark settings to check whether they are ratios/percentages
+        // (we do not need to check the other watermarks, since the watermark validator checks that they are all ratios/percentages or not)
         CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
         CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING
     );

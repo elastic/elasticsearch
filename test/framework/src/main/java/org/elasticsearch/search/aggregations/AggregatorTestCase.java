@@ -27,7 +27,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -53,6 +52,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
@@ -347,7 +347,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             true,
             isInSortOrderExecutionRequired
         );
-        releasables.add(context);
+        // NOCOMMIT - Turn this back on
+        // releasables.add(context);
         return context;
     }
 
@@ -546,6 +547,94 @@ public abstract class AggregatorTestCase extends ESTestCase {
         List<InternalAggregation> aggs = new ArrayList<>();
         Query rewritten = searcher.rewrite(query);
 
+        if (splitLeavesIntoSeparateAggregators
+            && searcher.getIndexReader().leaves().size() > 0
+            && builder.isInSortOrderExecutionRequired() == false) {
+            assertThat(ctx, instanceOf(CompositeReaderContext.class));
+            final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
+            final int size = compCTX.leaves().size();
+            final ShardSearcher[] subSearchers = new ShardSearcher[size];
+            for (int searcherIDX = 0; searcherIDX < subSearchers.length; searcherIDX++) {
+                final LeafReaderContext leave = compCTX.leaves().get(searcherIDX);
+                subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
+            }
+            for (ShardSearcher subSearcher : subSearchers) {
+                aggs.add(
+                    buildAndRunAggregation(builder, subSearcher, rewritten, indexSettings, query, breakerService, maxBucket, fieldTypes)
+                );
+            }
+        } else {
+            aggs.add(buildAndRunAggregation(builder, searcher, rewritten, indexSettings, query, breakerService, maxBucket, fieldTypes));
+        }
+
+        assertRoundTrip(aggs);
+
+        BigArrays bigArraysForReduction = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
+        try {
+            if (randomBoolean() && aggs.size() > 1) {
+                // sometimes do an incremental reduce
+                int toReduceSize = aggs.size();
+                Collections.shuffle(aggs, random());
+                int r = randomIntBetween(1, toReduceSize);
+                List<InternalAggregation> toReduce = aggs.subList(0, r);
+                AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
+                    bigArraysForReduction,
+                    getMockScriptService(),
+                    () -> false,
+                    builder
+                );
+                A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
+                aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
+                aggs.add(reduced);
+                assertRoundTrip(aggs);
+            }
+
+            // now do the final reduce
+            MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
+                maxBucket,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+            );
+            AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+                bigArraysForReduction,
+                getMockScriptService(),
+                () -> false,
+                builder,
+                reduceBucketConsumer,
+                pipelines
+            );
+
+            @SuppressWarnings("unchecked")
+            A internalAgg = (A) aggs.get(0).reduce(aggs, reduceContext);
+            assertRoundTrip(internalAgg);
+
+            // materialize any parent pipelines
+            internalAgg = (A) internalAgg.reducePipelines(internalAgg, reduceContext, pipelines);
+
+            // materialize any sibling pipelines at top level
+            for (PipelineAggregator pipelineAggregator : pipelines.aggregators()) {
+                internalAgg = (A) pipelineAggregator.reduce(internalAgg, reduceContext);
+            }
+            doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+            assertRoundTrip(internalAgg);
+            if (builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) {
+                verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) builder, internalAgg);
+            }
+            return internalAgg;
+        } finally {
+            Releasables.close(breakerService);
+        }
+    }
+
+    private <C extends Aggregator> InternalAggregation buildAndRunAggregation(
+        AggregationBuilder builder,
+        IndexSearcher searcher,
+        Query rewritten,
+        IndexSettings indexSettings,
+        Query query,
+        CircuitBreakerService breakerService,
+        int maxBucket,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
         AggregationContext context = createAggregationContext(
             searcher,
             indexSettings,
@@ -556,92 +645,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
             builder.isInSortOrderExecutionRequired(),
             fieldTypes
         );
-        C root = createAggregator(builder, context);
-
-        if (splitLeavesIntoSeparateAggregators
-            && searcher.getIndexReader().leaves().size() > 0
-            && context.isInSortOrderExecutionRequired() == false) {
-            assertThat(ctx, instanceOf(CompositeReaderContext.class));
-            final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
-            final int size = compCTX.leaves().size();
-            final ShardSearcher[] subSearchers = new ShardSearcher[size];
-            for (int searcherIDX = 0; searcherIDX < subSearchers.length; searcherIDX++) {
-                final LeafReaderContext leave = compCTX.leaves().get(searcherIDX);
-                subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
-            }
-            for (ShardSearcher subSearcher : subSearchers) {
-                C a = createAggregator(builder, context);
-                a.preCollection();
-                if (context.isInSortOrderExecutionRequired()) {
-                    new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
-                } else {
-                    Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
-                    subSearcher.search(weight, a.asCollector());
-                }
-                a.postCollection();
-                aggs.add(a.buildTopLevel());
-            }
-        } else {
-            root.preCollection();
+        try {
+            C agg = createAggregator(builder, context);
+            agg.preCollection();
             if (context.isInSortOrderExecutionRequired()) {
-                new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+                new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(agg)));
             } else {
-                searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)).asCollector());
+                searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(agg)).asCollector());
             }
-            root.postCollection();
-            aggs.add(root.buildTopLevel());
+            agg.postCollection();
+            InternalAggregation result = agg.buildTopLevel();
+            return result;
+        } finally {
+            Releasables.close(context);
         }
-        assertRoundTrip(aggs);
-        if (randomBoolean() && aggs.size() > 1) {
-            // sometimes do an incremental reduce
-            int toReduceSize = aggs.size();
-            Collections.shuffle(aggs, random());
-            int r = randomIntBetween(1, toReduceSize);
-            List<InternalAggregation> toReduce = aggs.subList(0, r);
-            AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
-                context.bigArrays(),
-                getMockScriptService(),
-                () -> false,
-                builder
-            );
-            A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
-            aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
-            aggs.add(reduced);
-            assertRoundTrip(aggs);
-        }
-
-        // now do the final reduce
-        MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
-            maxBucket,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-        );
-        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
-            context.bigArrays(),
-            getMockScriptService(),
-            () -> false,
-            builder,
-            reduceBucketConsumer,
-            pipelines
-        );
-
-        @SuppressWarnings("unchecked")
-        A internalAgg = (A) aggs.get(0).reduce(aggs, reduceContext);
-        assertRoundTrip(internalAgg);
-
-        // materialize any parent pipelines
-        internalAgg = (A) internalAgg.reducePipelines(internalAgg, reduceContext, pipelines);
-
-        // materialize any sibling pipelines at top level
-        for (PipelineAggregator pipelineAggregator : pipelines.aggregators()) {
-            internalAgg = (A) pipelineAggregator.reduce(internalAgg, reduceContext);
-        }
-        doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
-        assertRoundTrip(internalAgg);
-
-        if (builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) {
-            verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) builder, internalAgg);
-        }
-        return internalAgg;
     }
 
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {

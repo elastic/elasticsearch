@@ -69,6 +69,9 @@ public class ClusterInfoSimulator {
     private void increaseTargetDiskUsage(String nodeId, long size) {
         var leastUsage = leastAvailableSpaceUsage.get(nodeId);
         var mostUsage = mostAvailableSpaceUsage.get(nodeId);
+        if (leastUsage == null || mostUsage == null) {
+            return;
+        }
 
         // if single data path is used then it is present (and needs to be updated in both maps)
         // otherwise conservatively decrease only lest available space
@@ -82,6 +85,9 @@ public class ClusterInfoSimulator {
     private void decreaseSourceDiskUsage(String nodeId, long size) {
         var leastUsage = leastAvailableSpaceUsage.get(nodeId);
         var mostUsage = mostAvailableSpaceUsage.get(nodeId);
+        if (leastUsage == null || mostUsage == null) {
+            return;
+        }
 
         // if single data path is used then it is present (and needs to be updated in both maps)
         // otherwise conservatively increase only most available space

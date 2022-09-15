@@ -24,7 +24,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -53,12 +53,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -91,9 +89,7 @@ class RollupShardIndexer {
     private final String[] dimensionFields;
     private final String[] metricFields;
     private final String[] labelFields;
-    private final Map<String, FieldValueFetcher> metricFieldFetchers;
-    private final Map<String, FieldValueFetcher> labelFieldFetchers;
-
+    private final Map<String, FieldValueFetcher> fieldValueFetchers;
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
     private final AtomicLong numFailed = new AtomicLong();
@@ -130,8 +126,7 @@ class RollupShardIndexer {
             this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
-            this.metricFieldFetchers = FieldValueFetcher.forMetrics(searchExecutionContext, metricFields);
-            this.labelFieldFetchers = FieldValueFetcher.forLabels(searchExecutionContext, labelFields);
+            this.fieldValueFetchers = FieldValueFetcher.create(searchExecutionContext, ArrayUtils.concat(metricFields, labelFields));
             toClose = null;
         } finally {
             IOUtils.closeWhileHandlingException(toClose);
@@ -234,20 +229,7 @@ class RollupShardIndexer {
             final LeafReaderContext ctx = aggCtx.getLeafReaderContext();
             final DocCountProvider docCountProvider = new DocCountProvider();
             docCountProvider.setLeafReaderContext(ctx);
-            final Map<String, FormattedDocValues> metricsFieldLeaves = new HashMap<>(metricFieldFetchers.size());
-            for (FieldValueFetcher fetcher : metricFieldFetchers.values()) {
-                metricsFieldLeaves.put(fetcher.name(), fetcher.getLeaf(ctx));
-            }
-
-            final Map<String, FormattedDocValues> labelFieldLeaves = new HashMap<>(labelFieldFetchers.size());
-            for (FieldValueFetcher fetcher : labelFieldFetchers.values()) {
-                labelFieldLeaves.put(fetcher.name(), fetcher.getLeaf(ctx));
-            }
-
-            Set<Map.Entry<String, FormattedDocValues>> fieldFetchers = Sets.union(
-                metricsFieldLeaves.entrySet(),
-                labelFieldLeaves.entrySet()
-            );
+            final Map<String, FormattedDocValues> docValuesFetchers = FieldValueFetcher.docValuesFetchers(ctx, fieldValueFetchers);
 
             return new LeafBucketCollector() {
                 @Override
@@ -314,7 +296,7 @@ class RollupShardIndexer {
 
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
-                    for (Map.Entry<String, FormattedDocValues> e : fieldFetchers) {
+                    for (Map.Entry<String, FormattedDocValues> e : docValuesFetchers.entrySet()) {
                         final String fieldName = e.getKey();
                         final FormattedDocValues leafField = e.getValue();
 
@@ -437,7 +419,7 @@ class RollupShardIndexer {
         }
 
         private void collectMetric(final String field, final Object[] values) {
-            for (var value : values) {
+            for (Object value : values) {
                 if (value instanceof Number number) {
                     metricFieldProducers.get(field).collect(field, number);
                 } else {

@@ -17,7 +17,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -57,10 +57,10 @@ class FieldValueFetcher {
     }
 
     /**
-     * Retrieve field fetchers for a list of fields.
+     * Retrieve field value fetchers for a list of fields.
      */
-    private static Map<String, FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
-        Map<String, FieldValueFetcher> fetchers = new HashMap<>();
+    static Map<String, FieldValueFetcher> create(SearchExecutionContext context, String[] fields) {
+        Map<String, FieldValueFetcher> fetchers = new LinkedHashMap<>();
         for (String field : fields) {
             MappedFieldType fieldType = context.getFieldType(field);
             assert fieldType != null : "Unknown field type for field: [" + field + "]";
@@ -84,12 +84,11 @@ class FieldValueFetcher {
         return Collections.unmodifiableMap(fetchers);
     }
 
-    static Map<String, FieldValueFetcher> forMetrics(SearchExecutionContext context, String[] metricFields) {
-        return build(context, metricFields);
+    static Map<String, FormattedDocValues> docValuesFetchers(LeafReaderContext ctx, Map<String, FieldValueFetcher> fieldValueFetchers) {
+        final Map<String, FormattedDocValues> docValuesFetchers = new LinkedHashMap<>(fieldValueFetchers.size());
+        for (FieldValueFetcher fetcher : fieldValueFetchers.values()) {
+            docValuesFetchers.put(fetcher.name(), fetcher.getLeaf(ctx));
+        }
+        return Collections.unmodifiableMap(docValuesFetchers);
     }
-
-    static Map<String, FieldValueFetcher> forLabels(SearchExecutionContext context, String[] labelFields) {
-        return build(context, labelFields);
-    }
-
 }

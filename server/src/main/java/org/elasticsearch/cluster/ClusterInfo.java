@@ -255,7 +255,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());
 
         ReservedSpace(StreamInput in) throws IOException {
-            this(in.readLong(), in.readSet(ShardId::new));
+            this(in.readVLong(), in.readSet(ShardId::new));
         }
 
         @Override

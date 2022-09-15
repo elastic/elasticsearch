@@ -214,6 +214,10 @@ setup:
 
 ---
 "Rollup no metric index":
+  - skip:
+      version: " - 8.4.99"
+      reason: "rollup renamed to downsample in 8.5.0"
+
   - do:
       indices.create:
         index: no-metric-index

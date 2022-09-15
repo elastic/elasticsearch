@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
+import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -51,6 +53,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
@@ -721,6 +724,19 @@ public class Node implements Closeable {
 
             // add all reserved state handlers from server
             reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
+
+            var templateService = new MetadataIndexTemplateService(
+                clusterService,
+                metadataCreateIndexService,
+                indicesService,
+                settingsModule.getIndexScopedSettings(),
+                xContentRegistry,
+                systemIndices,
+                indexSettingProviders
+            );
+
+            reservedStateHandlers.add(new ReservedComponentTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
+            reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService));
 
             // add all reserved state handlers from plugins
             List<? extends ReservedClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(

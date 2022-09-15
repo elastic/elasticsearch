@@ -395,7 +395,8 @@ public class MetadataIndexTemplateService {
         );
     }
 
-    static ClusterState innerRemoveComponentTemplate(ClusterState currentState, String... names) {
+    // Exposed for ReservedComponentTemplateAction
+    public static ClusterState innerRemoveComponentTemplate(ClusterState currentState, String... names) {
         validateNotInUse(currentState.metadata(), names);
 
         final Set<String> templateNames = new HashSet<>();
@@ -889,8 +890,8 @@ public class MetadataIndexTemplateService {
         );
     }
 
-    // Package visible for testing
-    static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String... names) {
+    // Public because it's used by ReservedComposableIndexTemplateAction
+    public static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String... names) {
         Set<String> templateNames = new HashSet<>();
 
         if (names.length > 1) {

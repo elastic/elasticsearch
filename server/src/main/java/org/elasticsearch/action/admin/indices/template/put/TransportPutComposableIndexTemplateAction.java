@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -23,6 +24,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Optional;
+import java.util.Set;
 
 public class TransportPutComposableIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<
     PutComposableIndexTemplateAction.Request> {
@@ -72,5 +76,15 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             indexTemplate,
             listener
         );
+    }
+
+    @Override
+    protected Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedComposableIndexTemplateAction.NAME);
+    }
+
+    @Override
+    protected Set<String> modifiedKeys(PutComposableIndexTemplateAction.Request request) {
+        return Set.of(request.name());
     }
 }

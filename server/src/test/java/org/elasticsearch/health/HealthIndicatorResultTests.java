@@ -66,12 +66,12 @@ public class HealthIndicatorResultTests extends ESTestCase {
         assertEquals(detailsMap, xContentMap.get("details"));
         List<Map<String, Object>> expectedImpacts = new ArrayList<>();
         Map<String, Object> expectedImpact1 = new HashMap<>();
-        expectedImpact1.put("urn", impact1Urn);
+        expectedImpact1.put("id", impact1Urn);
         expectedImpact1.put("severity", impact1Severity);
         expectedImpact1.put("description", impact1Description);
         expectedImpact1.put("impact_areas", List.of(firstImpactArea.displayValue()));
         Map<String, Object> expectedImpact2 = new HashMap<>();
-        expectedImpact2.put("urn", impact2Urn);
+        expectedImpact2.put("id", impact2Urn);
         expectedImpact2.put("severity", impact2Severity);
         expectedImpact2.put("description", impact2Description);
         expectedImpact2.put("impact_areas", List.of(secondImpactArea.displayValue()));

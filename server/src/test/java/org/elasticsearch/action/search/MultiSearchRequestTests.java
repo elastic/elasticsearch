@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -483,6 +484,24 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertCriticalWarnings(
             "support for empty first line before any action metadata in msearch API is deprecated and will be removed "
                 + "in the next major version"
+        );
+    }
+
+    public void testTaskDescription() {
+        MultiSearchRequest request = new MultiSearchRequest();
+        request.add(new SearchRequest().preference("abc"));
+        request.add(new SearchRequest().routing("r").preference("xyz"));
+        request.add(new SearchRequest().indices("index-1"));
+
+        String description = request.createTask(0, "type", "action", TaskId.EMPTY_TASK_ID, Map.of()).getDescription();
+        assertThat(
+            description,
+            equalTo(
+                "requests[3]: "
+                    + "indices[], search_type[QUERY_THEN_FETCH], source[], preference[abc] | "
+                    + "indices[], search_type[QUERY_THEN_FETCH], source[], routing[r], preference[xyz] | "
+                    + "indices[index-1], search_type[QUERY_THEN_FETCH], source[]"
+            )
         );
     }
 

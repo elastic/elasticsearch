@@ -47,7 +47,7 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
     public static Request createRandom() {
         Request request = new Request(randomAlphaOfLength(10));
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), Request.TIMEOUT.getPreferredName()));
+            request.setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), Request.TIMEOUT.getPreferredName()));
         }
         if (randomBoolean()) {
             request.setWaitForState(randomFrom(AllocationStatus.State.values()));
@@ -167,6 +167,26 @@ public class StartTrainedModelDeploymentRequestTests extends AbstractSerializing
 
         assertThat(e, is(not(nullValue())));
         assertThat(e.getMessage(), containsString("[queue_capacity] must be less than 1000000"));
+    }
+
+    public void testValidate_GivenTimeoutIsNegative() {
+        Request request = createRandom();
+        request.setTimeout(TimeValue.parseTimeValue("-1s", "timeout"));
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("[timeout] must be positive"));
+    }
+
+    public void testValidate_GivenTimeoutIsZero() {
+        Request request = createRandom();
+        request.setTimeout(TimeValue.parseTimeValue("0s", "timeout"));
+
+        ActionRequestValidationException e = request.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(e.getMessage(), containsString("[timeout] must be positive"));
     }
 
     public void testDefaults() {

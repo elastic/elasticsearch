@@ -157,8 +157,22 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     @SuppressForbidden(reason = "SPNEGO relies on hostnames and we need to ensure host isn't a IP address")
     protected HttpHost buildHttpHost(String host, int port) {
         try {
-            InetAddress inetAddress = InetAddress.getByName(host);
-            return super.buildHttpHost(inetAddress.getCanonicalHostName(), port);
+            final InetAddress address = InetAddress.getByName(host);
+            final String hostname = address.getCanonicalHostName();
+            // InetAddress#getCanonicalHostName depends on the system configuration (e.g. /etc/hosts) to return the FQDN.
+            // In case InetAddress cannot resolve the FQDN it will return the textual representation of the IP address.
+            if (hostname.equals(address.getHostAddress())) {
+                if (address.isLoopbackAddress()) {
+                    // Fall-back and return "localhost" for loopback address if it's not resolved.
+                    // This is safe because InetAddress implements a reverse fall-back to loopback address
+                    // in case the resolution of "localhost" hostname fails.
+                    return super.buildHttpHost("localhost", port);
+                } else {
+                    throw new IllegalStateException("failed to resolve [" + host + "] to FQDN");
+                }
+            } else {
+                return super.buildHttpHost(hostname, port);
+            }
         } catch (UnknownHostException e) {
             assumeNoException("failed to resolve host [" + host + "]", e);
         }

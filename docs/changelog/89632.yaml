@@ -1,0 +1,5 @@
+pr: 89632
+summary: Fix pipeline id not present in ingest metadata inside `on_failure` block
+area: Ingest Node
+type: bug
+issues: []

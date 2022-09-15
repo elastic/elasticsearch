@@ -299,11 +299,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public String familyTypeName() {
-            return NumberFieldMapper.NumberType.DOUBLE.typeName();
-        }
-
-        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }

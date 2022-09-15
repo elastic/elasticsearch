@@ -76,6 +76,10 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
             this.name = name;
         }
 
+        public String name() {
+            return name;
+        }
+
         abstract void collect(Number number);
 
         abstract Number get();
@@ -264,7 +268,7 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
                 builder.startObject(name());
                 for (MetricFieldProducer.Metric metric : metrics()) {
                     if (metric.get() != null) {
-                        builder.field(metric.name, metric.get());
+                        builder.field(metric.name(), metric.get());
                     }
                 }
                 builder.endObject();
@@ -296,7 +300,7 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
                 builder.startObject(name());
                 for (MetricFieldProducer.Metric metric : metrics()) {
                     if (metric.get() != null) {
-                        builder.field(metric.name, metric.get());
+                        builder.field(metric.name(), metric.get());
                     }
                 }
                 builder.endObject();
@@ -331,7 +335,8 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
                         case max -> new Max();
                         case min -> new Min();
                         case sum -> new Sum();
-                        case value_count -> new Sum("value_count"); // To aggregate value_count summary, we must sum all field values
+                        // To compute value_count summary, we must sum all field values
+                        case value_count -> new Sum(AggregateDoubleMetricFieldMapper.Metric.value_count.name());
                     };
                     producer.addMetric(metricSubField.name(), metricOperation);
                     fields.put(metricSubField.name(), producer);

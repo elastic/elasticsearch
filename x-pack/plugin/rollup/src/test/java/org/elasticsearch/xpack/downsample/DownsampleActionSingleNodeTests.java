@@ -269,6 +269,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_LABEL_DATE, labelDateValue)
                 .field(FIELD_LABEL_KEYWORD_ARRAY, keywordArray)
                 .field(FIELD_LABEL_DOUBLE_ARRAY, doubleArray)
+                .startObject(FIELD_LABEL_AGG_METRIC)
+                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
                 .endObject();
         };
         bulkIndex(sourceSupplier);
@@ -298,6 +304,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .endObject()
                 .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
                 .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
+                .startObject(FIELD_LABEL_AGG_METRIC)
+                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
                 .endObject();
         };
         bulkIndex(sourceSupplier);
@@ -768,8 +780,18 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                             // `counter`. This way we can actually check that the label value stored in the rollup index
                             // is the last value (which is what we store for a metric of type counter) by comparing the metric
                             // field value to the label field value.
-                            originalFieldsList.forEach(field -> assertTrue(rollupFieldsList.contains(field)));
-                            rollupFieldsList.forEach(field -> assertTrue(originalFieldsList.contains(field)));
+                            originalFieldsList.forEach(
+                                field -> assertTrue(
+                                    "Field [" + field + "] is not included in the rollup fields: " + rollupFieldsList,
+                                    rollupFieldsList.contains(field)
+                                )
+                            );
+                            rollupFieldsList.forEach(
+                                field -> assertTrue(
+                                    "Field [" + field + "] is not included in the source fields: " + originalFieldsList,
+                                    originalFieldsList.contains(field)
+                                )
+                            );
                             Object originalLabelValue = originalHit.getDocumentFields().values().stream().toList().get(0).getValue();
                             Object rollupLabelValue = rollupHit.getDocumentFields().values().stream().toList().get(0).getValue();
                             Optional<Aggregation> labelAsMetric = nonTopHitsOriginalAggregations.stream()

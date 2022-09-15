@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -64,6 +68,10 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
             this.name = name;
         }
 
+        public String name() {
+            return name;
+        }
+
         abstract void collect(Object value);
 
         abstract Object get();
@@ -80,6 +88,10 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
      */
     static class LastValueLabel extends Label {
         private Object lastValue;
+
+        LastValueLabel(String name) {
+            super(name);
+        }
 
         LastValueLabel() {
             super("last_value");
@@ -125,14 +137,76 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
         }
     }
 
+    static class AggregateMetricFieldProducer extends LabelFieldProducer {
+
+        private Map<String, Label> labelsByField = new LinkedHashMap<>();
+
+        AggregateMetricFieldProducer(String name) {
+            super(name, null);
+        }
+
+        public void addLabel(String field, Label label) {
+            labelsByField.put(field, label);
+        }
+
+        @Override
+        public void collect(String field, Object value) {
+            labelsByField.get(field).collect(value);
+            isEmpty = false;
+        }
+
+        @Override
+        public void write(XContentBuilder builder) throws IOException {
+            if (isEmpty() == false) {
+                builder.startObject(name());
+                for (Label label : labels()) {
+                    if (label.get() != null) {
+                        builder.field(label.name(), label.get());
+                    }
+                }
+                builder.endObject();
+            }
+        }
+
+        public Collection<Label> labels() {
+            return labelsByField.values();
+        }
+
+        @Override
+        public Object value() {
+            return labelsByField;
+        }
+
+        @Override
+        public void reset() {
+            labels().forEach(Label::reset);
+            isEmpty = true;
+        }
+    }
+
     /**
      * Create a collection of label field producers.
      */
     static Map<String, LabelFieldProducer> createLabelFieldProducers(SearchExecutionContext context, String[] labelFields) {
         final Map<String, LabelFieldProducer> fields = new LinkedHashMap<>();
         for (String field : labelFields) {
-            LabelFieldProducer producer = new LabelLastValueFieldProducer(field);
-            fields.put(field, producer);
+            MappedFieldType fieldType = context.getFieldType(field);
+            assert fieldType != null : "Unknown field type for field: [" + field + "]";
+
+            if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
+                // If the field is an aggregate_metric_double field, we should use the correct subfields
+                // for each aggregation. This is a rollup-of-rollup case
+                AggregateMetricFieldProducer producer = new AggregateMetricFieldProducer.AggregateMetricFieldProducer(field);
+                for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
+                    AggregateDoubleMetricFieldMapper.Metric metric = e.getKey();
+                    NumberFieldMapper.NumberFieldType metricSubField = e.getValue();
+                    producer.addLabel(metricSubField.name(), new LastValueLabel(metric.name()));
+                    fields.put(metricSubField.name(), producer);
+                }
+            } else {
+                LabelFieldProducer producer = new LabelLastValueFieldProducer(field);
+                fields.put(field, producer);
+            }
         }
         return Collections.unmodifiableMap(fields);
     }

@@ -24,7 +24,6 @@ public class ClusterInfoSimulator {
     private final Map<String, Long> shardSizes;
     private final Map<ShardId, Long> shardDataSetSizes;
     private final Map<ShardRouting, String> routingToDataPath;
-    private final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace;
 
     public ClusterInfoSimulator(ClusterInfo clusterInfo) {
         this.leastAvailableSpaceUsage = new HashMap<>(clusterInfo.getNodeLeastAvailableDiskUsages());
@@ -32,7 +31,6 @@ public class ClusterInfoSimulator {
         this.shardSizes = new HashMap<>(clusterInfo.shardSizes);
         this.shardDataSetSizes = new HashMap<>(clusterInfo.shardDataSetSizes);
         this.routingToDataPath = new HashMap<>(clusterInfo.routingToDataPath);
-        this.reservedSpace = new HashMap<>(clusterInfo.reservedSpace);
     }
 
     public void simulate(ShardRouting shard) {
@@ -105,7 +103,7 @@ public class ClusterInfoSimulator {
             shardSizes,
             shardDataSetSizes,
             routingToDataPath,
-            reservedSpace
+            Map.of()
         );
     }
 }

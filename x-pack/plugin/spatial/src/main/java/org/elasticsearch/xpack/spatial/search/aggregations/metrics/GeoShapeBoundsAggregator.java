@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 
 import java.io.IOException;
@@ -67,13 +66,13 @@ public final class GeoShapeBoundsAggregator extends MetricsAggregator {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final ShapeValues values = valuesSource.shapeValues(aggCtx.getLeafReaderContext());
+        final GeoShapeValues values = valuesSource.shapeValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
                     maybeResize(bucket);
-                    final GeoShapeValues.ShapeValue value = values.value();
+                    final GeoShapeValues.GeoShapeValue value = values.value();
                     final GeoShapeValues.BoundingBox bounds = value.boundingBox();
                     tops.set(bucket, Math.max(tops.get(bucket), bounds.top));
                     bottoms.set(bucket, Math.min(bottoms.get(bucket), bounds.bottom));

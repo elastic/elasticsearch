@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -360,7 +359,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 // Currently the assumption is that the newest index (highest generation) is the write index.
                 // (just appending an older backing index to the list of backing indices would break that assumption)
                 // (string sorting works because of the naming backing index naming scheme)
-                backingIndices.sort(Comparator.comparing(Index::getName));
+                backingIndices.sort(Index.COMPARE_BY_NAME);
             } else {
                 // edge case where the index was closed on the follower and was already in the datastream's index list
                 backingIndices = localDataStream.getIndices();

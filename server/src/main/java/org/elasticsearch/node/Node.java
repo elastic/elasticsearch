@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -825,6 +826,8 @@ public class Node implements Closeable {
                 indicesService
             );
 
+            actionModule.getReservedClusterStateService().installStateHandler(new ReservedRepositoryAction(repositoryService));
+
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,
                 actionModule.getReservedClusterStateService(),
@@ -1159,7 +1162,7 @@ public class Node implements Closeable {
         CoordinationDiagnosticsService coordinationDiagnosticsService
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new StableMasterHealthIndicatorService(coordinationDiagnosticsService)
+            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
         );
         var serverHealthIndicatorServices = List.of(
             new RepositoryIntegrityHealthIndicatorService(clusterService),

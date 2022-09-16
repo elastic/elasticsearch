@@ -21,7 +21,9 @@ have all the requested privileges.
 [[security-api-has-privileges-user-profile-prereqs]]
 ==== {api-prereq-title}
 
-To use this API, you must have the `manage_user_profile` cluster privilege.
+To use this API, you must have _at least_ the `read_security`
+<<privileges-list-cluster,cluster privilege>> (or a greater privilege
+such as `manage_user_profile` or `manage_security`).
 
 [[security-api-has-privileges-user-profile-desc]]
 ==== {api-description-title}

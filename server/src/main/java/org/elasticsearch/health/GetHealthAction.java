@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -144,26 +145,34 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         private final ClusterService clusterService;
         private final HealthService healthService;
+        private final NodeClient client;
 
         @Inject
         public TransportAction(
             ActionFilters actionFilters,
             TransportService transportService,
             ClusterService clusterService,
-            HealthService healthService
+            HealthService healthService,
+            NodeClient client
         ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.clusterService = clusterService;
             this.healthService = healthService;
+            this.client = client;
         }
 
         @Override
-        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            listener.onResponse(
-                new Response(
-                    clusterService.getClusterName(),
-                    healthService.getHealth(request.indicatorName, request.explain),
-                    request.indicatorName == null
+        protected void doExecute(Task task, Request request, ActionListener<Response> responseListener) {
+            healthService.getHealth(
+                client,
+                request.indicatorName,
+                request.explain,
+                responseListener.map(
+                    healthIndicatorResults -> new Response(
+                        clusterService.getClusterName(),
+                        healthIndicatorResults,
+                        request.indicatorName == null
+                    )
                 )
             );
         }

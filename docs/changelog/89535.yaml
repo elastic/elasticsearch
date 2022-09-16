@@ -1,0 +1,6 @@
+pr: 89535
+summary: Update openjdk to 18.0.2.1
+area: Packaging
+type: upgrade
+issues:
+ - 89531

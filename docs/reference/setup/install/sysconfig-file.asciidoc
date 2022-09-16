@@ -9,7 +9,7 @@
     `jvm.options`, and `log4j2.properties` files); defaults to
     `/etc/elasticsearch`.
 
-`CLI_JAVA_OPTS`::
+`ES_JAVA_OPTS`::
 
     Any additional JVM system properties you may want to apply.
 

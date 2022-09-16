@@ -40,7 +40,7 @@ import java.util.function.Predicate;
 
 public interface Role {
 
-    Role EMPTY = builder(new RestrictedIndices(Automatons.EMPTY), "__empty").build();
+    Role EMPTY = builder(new RestrictedIndices(Automatons.EMPTY)).build();
 
     String[] names();
 

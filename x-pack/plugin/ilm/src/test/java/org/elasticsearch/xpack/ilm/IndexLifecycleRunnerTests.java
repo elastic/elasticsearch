@@ -508,11 +508,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState before = clusterService.state();
 
         // When policy name not found, it would throw an exception, and run into markPolicyRetrievalError
-        // then setStepInfo with ExceptionWrapper, and manual trigger run twice
         runner.runPeriodicStep(policyNameNoExist, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
+        // Then setStepInfo with ExceptionWrapper, and manual trigger run twice
         runner.runPeriodicStep(policyNameNoExist, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        //with submitUnlessAlreadyQueued size must be 1 with duplicated submit
+        // With submitUnlessAlreadyQueued size must be 1 with duplicated submit
         assertEquals(runner.getExecutingTasksSize(), 1);
         // The cluster state can take a few extra milliseconds to update after the steps are executed
         assertBusy(() -> assertEquals(before, clusterService.state()));
@@ -525,9 +525,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertThat(newExecutionState.step(), equalTo("cluster_state_action_step"));
         assertThat(step.getExecuteCount(), equalTo(0L));
         assertThat(nextStep.getExecuteCount(), equalTo(0L));
-        assertNull(
-            newExecutionState.stepInfo()
-        );
+        assertNull(newExecutionState.stepInfo());
         clusterService.close();
         threadPool.shutdownNow();
     }

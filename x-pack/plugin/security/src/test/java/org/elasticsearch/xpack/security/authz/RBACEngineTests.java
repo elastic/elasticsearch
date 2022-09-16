@@ -155,6 +155,7 @@ public class RBACEngineTests extends ESTestCase {
                 AuthenticationTestHelper.builder().build(),
                 mock(TransportRequest.class),
                 randomAlphaOfLengthBetween(20, 30),
+                null,
                 null
             ),
             future

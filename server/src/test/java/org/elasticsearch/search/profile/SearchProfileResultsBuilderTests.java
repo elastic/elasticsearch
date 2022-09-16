@@ -8,23 +8,10 @@
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-import java.util.Map;
-
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.matchesPattern;
-
 public class SearchProfileResultsBuilderTests extends ESTestCase {
-    public void testFetchWithoutQuery() {
+    /*public void testFetchWithoutQuery() {
         Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults(rarely() ? 0 : between(1, 2));
         FetchSearchResult fetchPhase = fetchResult(
             randomValueOtherThanMany(searchPhase::containsKey, SearchProfileResultsBuilderTests::randomTarget),
@@ -90,5 +77,5 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
 
     private static SearchShardTarget randomTarget() {
         return new SearchShardTarget(randomAlphaOfLength(5), new ShardId(randomAlphaOfLength(5), "uuid", randomInt(6)), null);
-    }
+    }*/
 }

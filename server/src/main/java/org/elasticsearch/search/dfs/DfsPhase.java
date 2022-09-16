@@ -19,12 +19,14 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -88,6 +90,12 @@ public class DfsPhase {
             // If kNN search is requested, perform kNN query and gather top docs
             SearchSourceBuilder source = context.request().source();
             if (source != null && source.knnSearch() != null) {
+                long start = 0;
+
+                if (context.getProfilers() != null) {
+                    start = System.nanoTime();
+                }
+
                 SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
                 KnnSearchBuilder knnSearch = source.knnSearch();
 
@@ -100,6 +108,14 @@ public class DfsPhase {
                 TopDocs topDocs = searcher.search(query.query(), knnSearch.k());
                 DfsKnnResults knnResults = new DfsKnnResults(topDocs.scoreDocs);
                 context.dfsResult().knnResults(knnResults);
+
+                if (context.getProfilers() != null) {
+                    long total = System.nanoTime() - start;
+                    context.dfsResult()
+                        .profileResult(
+                            new ProfileResult("KnnVectorQuery", query.query().toString(), Collections.emptyMap(), null, total, null)
+                        );
+                }
             }
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);

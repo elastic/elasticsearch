@@ -247,7 +247,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 0,
                 true,
                 InternalAggregationTestCase.emptyReduceContextBuilder(),
-                true
+                true,
+                null
             );
             List<SearchShardTarget> shards = queryResults.asList().stream().map(SearchPhaseResult::getSearchShardTarget).collect(toList());
             AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(

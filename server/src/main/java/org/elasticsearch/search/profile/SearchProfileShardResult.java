@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,24 +27,42 @@ import java.util.Objects;
  * Profile results from a particular shard for all search phases.
  */
 public class SearchProfileShardResult implements Writeable, ToXContentFragment {
-    private final SearchProfileQueryPhaseResult queryPhase;
 
+    private final ProfileResult dfsPhase;
+    private final SearchProfileQueryPhaseResult queryPhase;
     private final ProfileResult fetchPhase;
 
-    public SearchProfileShardResult(SearchProfileQueryPhaseResult queryPhase, @Nullable ProfileResult fetch) {
+    public SearchProfileShardResult(
+        @Nullable ProfileResult dfsPhase,
+        SearchProfileQueryPhaseResult queryPhase,
+        @Nullable ProfileResult fetch
+    ) {
+        this.dfsPhase = dfsPhase;
         this.queryPhase = queryPhase;
         this.fetchPhase = fetch;
     }
 
     public SearchProfileShardResult(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            dfsPhase = in.readOptionalWriteable(ProfileResult::new);
+        } else {
+            dfsPhase = null;
+        }
         queryPhase = new SearchProfileQueryPhaseResult(in);
         fetchPhase = in.readOptionalWriteable(ProfileResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            out.writeOptionalWriteable(dfsPhase);
+        }
         queryPhase.writeTo(out);
         out.writeOptionalWriteable(fetchPhase);
+    }
+
+    public ProfileResult getDfsPhase() {
+        return dfsPhase;
     }
 
     public SearchProfileQueryPhaseResult getQueryPhase() {
@@ -64,6 +83,10 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (dfsPhase != null) {
+            builder.field("dfs");
+            dfsPhase.toXContent(builder, params);
+        }
         builder.startArray("searches");
         for (QueryProfileShardResult result : queryPhase.getQueryProfileResults()) {
             result.toXContent(builder, params);
@@ -78,17 +101,18 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        SearchProfileShardResult other = (SearchProfileShardResult) obj;
-        return queryPhase.equals(other.queryPhase) && Objects.equals(fetchPhase, other.fetchPhase);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchProfileShardResult that = (SearchProfileShardResult) o;
+        return Objects.equals(dfsPhase, that.dfsPhase)
+            && Objects.equals(queryPhase, that.queryPhase)
+            && Objects.equals(fetchPhase, that.fetchPhase);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(queryPhase, fetchPhase);
+        return Objects.hash(dfsPhase, queryPhase, fetchPhase);
     }
 
     @Override

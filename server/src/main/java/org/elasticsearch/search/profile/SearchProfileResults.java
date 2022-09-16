@@ -51,7 +51,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             // Before 8.0.0 we only send the query phase result
             shardResults = in.readMap(
                 StreamInput::readString,
-                i -> new SearchProfileShardResult(new SearchProfileQueryPhaseResult(i), null)
+                i -> new SearchProfileShardResult(null, new SearchProfileQueryPhaseResult(i), null)
             );
         }
     }
@@ -129,6 +129,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+        ProfileResult dfsResult = null;
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
         ProfileResult fetchResult = null;
@@ -145,7 +146,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("searches".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         queryProfileResults.add(QueryProfileShardResult.fromXContent(parser));
                     }
                 } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
@@ -154,12 +155,17 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                fetchResult = ProfileResult.fromXContent(parser);
+                if ("dfs".equals(currentFieldName)) {
+                    dfsResult = ProfileResult.fromXContent(parser);
+                } else if ("fetch".equals(currentFieldName)) {
+                    fetchResult = ProfileResult.fromXContent(parser);
+                }
             } else {
                 parser.skipChildren();
             }
         }
         SearchProfileShardResult result = new SearchProfileShardResult(
+            dfsResult,
             new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult),
             fetchResult
         );

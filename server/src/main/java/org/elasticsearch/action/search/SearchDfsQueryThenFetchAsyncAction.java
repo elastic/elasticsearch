@@ -89,6 +89,10 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final AggregatedDfs aggregatedDfs = SearchPhaseController.aggregateDfs(dfsSearchResults);
         final DfsKnnResults mergedKnnResults = SearchPhaseController.mergeKnnResults(getRequest(), dfsSearchResults);
 
+        if (queryPhaseResultConsumer.getSearchProfileResultsBuilder() != null) {
+            queryPhaseResultConsumer.getSearchProfileResultsBuilder().setDfsProfileResults(dfsSearchResults);
+        }
+
         return new DfsQueryPhase(
             dfsSearchResults,
             aggregatedDfs,

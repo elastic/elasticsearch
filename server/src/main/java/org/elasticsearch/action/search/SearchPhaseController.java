@@ -23,7 +23,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -39,7 +38,6 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -469,7 +467,17 @@ public final class SearchPhaseController {
                 topDocs.add(td.topDocs);
             }
         }
-        return reducedQueryPhase(queryResults, Collections.emptyList(), topDocs, topDocsStats, 0, true, aggReduceContextBuilder, true);
+        return reducedQueryPhase(
+            queryResults,
+            Collections.emptyList(),
+            topDocs,
+            topDocsStats,
+            0,
+            true,
+            aggReduceContextBuilder,
+            true,
+            null
+        );
     }
 
     /**
@@ -489,7 +497,8 @@ public final class SearchPhaseController {
         int numReducePhases,
         boolean isScrollRequest,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        boolean performFinalReduce
+        boolean performFinalReduce,
+        SearchProfileResultsBuilder searchProfileResultsBuilder
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
@@ -521,13 +530,9 @@ public final class SearchPhaseController {
         }
         validateMergeSortValueFormats(queryResults);
         final boolean hasSuggest = queryResults.stream().anyMatch(res -> res.queryResult().suggest() != null);
-        final boolean hasProfileResults = queryResults.stream().anyMatch(res -> res.queryResult().hasProfileResults());
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
-        final Map<String, SearchProfileQueryPhaseResult> profileShardResults = hasProfileResults
-            ? Maps.newMapWithExpectedSize(queryResults.size())
-            : Collections.emptyMap();
         int from = 0;
         int size = 0;
         DocValueFormat[] sortValueFormats = null;
@@ -553,10 +558,6 @@ public final class SearchPhaseController {
             if (bufferedTopDocs.isEmpty() == false) {
                 assert result.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
             }
-            if (hasProfileResults) {
-                String key = result.getSearchShardTarget().toString();
-                profileShardResults.put(key, result.consumeProfileResult());
-            }
         }
         final Suggest reducedSuggest;
         final List<CompletionSuggestion> reducedCompletionSuggestions;
@@ -568,9 +569,9 @@ public final class SearchPhaseController {
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
-            ? null
-            : new SearchProfileResultsBuilder(profileShardResults);
+        if (searchProfileResultsBuilder != null) {
+            searchProfileResultsBuilder.setQueryProfileResults(queryResults);
+        }
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
         return new ReducedQueryPhase(
@@ -581,7 +582,7 @@ public final class SearchPhaseController {
             topDocsStats.terminatedEarly,
             reducedSuggest,
             aggregations,
-            profileBuilder,
+            searchProfileResultsBuilder,
             sortedTopDocs,
             sortValueFormats,
             numReducePhases,
@@ -711,7 +712,8 @@ public final class SearchPhaseController {
                 return null;
 
             }
-            return profileBuilder.build(fetchResults);
+            profileBuilder.setFetchProfileResults(fetchResults);
+            return profileBuilder.build();
         }
     }
 

@@ -616,6 +616,11 @@ class IndexLifecycleRunner {
         );
     }
 
+    // used for unit testing
+    int getExecutingTasksSize() {
+        return executingTasks.size();
+    }
+
     private final Set<IndexLifecycleClusterStateUpdateTask> executingTasks = Collections.synchronizedSet(new HashSet<>());
 
     /**

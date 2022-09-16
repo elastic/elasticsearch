@@ -254,9 +254,10 @@ class RollupShardIndexer {
                 public void collect(int docId, long owningBucketOrd) throws IOException {
                     final BytesRef tsid = aggCtx.getTsid();
                     assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
+                    final int tsidOrd = aggCtx.getTsidOrd();
                     final long timestamp = aggCtx.getTimestamp();
 
-                    boolean tsidChanged = tsid.equals(rollupBucketBuilder.tsid()) == false;
+                    boolean tsidChanged = tsidOrd != rollupBucketBuilder.tsidOrd();
                     if (tsidChanged || timestamp < lastHistoTimestamp) {
                         lastHistoTimestamp = Math.max(
                             rounding.round(timestamp),
@@ -303,7 +304,7 @@ class RollupShardIndexer {
 
                         // Create new rollup bucket
                         if (tsidChanged) {
-                            rollupBucketBuilder.resetTsid(tsid, lastHistoTimestamp);
+                            rollupBucketBuilder.resetTsid(tsid, tsidOrd, lastHistoTimestamp);
                         } else {
                             rollupBucketBuilder.resetTimestamp(lastHistoTimestamp);
                         }
@@ -370,6 +371,7 @@ class RollupShardIndexer {
 
     private class RollupBucketBuilder {
         private BytesRef tsid;
+        private int tsidOrd = -1;
         private long timestamp;
         private int docCount;
         private final Map<String, MetricFieldProducer> metricFieldProducers;
@@ -383,8 +385,9 @@ class RollupShardIndexer {
         /**
          * tsid changed, reset tsid and timestamp
          */
-        public RollupBucketBuilder resetTsid(BytesRef tsid, long timestamp) {
+        public RollupBucketBuilder resetTsid(BytesRef tsid, int tsidOrd, long timestamp) {
             this.tsid = BytesRef.deepCopyOf(tsid);
+            this.tsidOrd = tsidOrd;
             return resetTimestamp(timestamp);
         }
 
@@ -491,6 +494,10 @@ class RollupShardIndexer {
 
         public BytesRef tsid() {
             return tsid;
+        }
+
+        public int tsidOrd() {
+            return tsidOrd;
         }
 
         public int docCount() {

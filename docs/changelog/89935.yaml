@@ -1,0 +1,5 @@
+pr: 89935
+summary: Fix memory leak in `TransportDeleteExpiredDataAction`
+area: Machine Learning
+type: bug
+issues: []

@@ -158,7 +158,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingTestCase {
                 .map(
                     nodeName -> new DesiredNode(
                         Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
-                        processorsPrecision == ProcessorsPrecision.DOUBLE ? randomDoubleProcessorCount() : randomFloatProcessorCount(),
+                        processorsPrecision == ProcessorsPrecision.DOUBLE ? randomDoubleProcessorCount() : 0.5f,
                         ByteSizeValue.ofGb(randomIntBetween(10, 24)),
                         ByteSizeValue.ofGb(randomIntBetween(128, 256)),
                         Version.CURRENT

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerS
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 import org.junit.Before;
 
@@ -340,58 +338,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
             category3.getExamples(),
             equalTo(Collections.singletonList("Failed to shutdown [error but this time completely different]"))
         );
-    }
-
-    public void testCategorizationPerformance() {
-        // To compare Java/C++ tokenization performance:
-        // 1. Change false to true in this assumption
-        // 2. Run the test several times
-        // 3. Change MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA to false
-        // 4. Run the test several more times
-        // 5. Check the timings that get logged
-        // 6. Revert the changes to this assumption and MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
-        assumeTrue("This is time consuming to run on every build - it should be run manually when comparing Java/C++ tokenization", false);
-
-        int testBatchSize = 1000;
-        int testNumBatches = 1000;
-        String[] possibleMessages = new String[] {
-            "<sol13m-9402.1.p2ps: Info: Tue Apr 06  19:00:16 2010> Source LOTS on 33080:817 has shut down.<END>",
-            "<lnl00m-8601.1.p2ps: Alert: Tue Apr 06  18:57:24 2010> P2PS failed to connect to the hrm server. "
-                + "Reason: Failed to connect to hrm server - No ACK from SIPC<END>",
-            "<sol00m-8607.1.p2ps: Debug: Tue Apr 06  18:56:43 2010>  Did not receive an image data for IDN_SELECTFEED:7630.T on 493. "
-                + "Recalling item. <END>",
-            "<lnl13m-8602.1.p2ps.rrcpTransport.0.sinkSide.rrcp.transmissionBus: Warning: Tue Apr 06  18:36:32 2010> "
-                + "RRCP STATUS MSG: RRCP_REBOOT: node 33191 has rebooted<END>",
-            "<sol00m-8608.1.p2ps: Info: Tue Apr 06  18:30:02 2010> Source PRISM_VOBr on 33069:757 has shut down.<END>",
-            "<lnl06m-9402.1.p2ps: Info: Thu Mar 25  18:30:01 2010> Service PRISM_VOB has shut down.<END>" };
-
-        String jobId = "categorization-performance";
-        Job.Builder job = newJobBuilder(jobId, Collections.emptyList(), false);
-        putJob(job);
-        openJob(job.getId());
-
-        long startTime = System.currentTimeMillis();
-
-        for (int batchNum = 0; batchNum < testNumBatches; ++batchNum) {
-            StringBuilder json = new StringBuilder(testBatchSize * 100);
-            for (int docNum = 0; docNum < testBatchSize; ++docNum) {
-                json.append(
-                    String.format(Locale.ROOT, "{\"time\":1000000,\"msg\":\"%s\"}\n", possibleMessages[docNum % possibleMessages.length])
-                );
-            }
-            postData(jobId, json.toString());
-        }
-        flushJob(jobId, false);
-
-        long duration = System.currentTimeMillis() - startTime;
-        LogManager.getLogger(CategorizationIT.class)
-            .info(
-                "Performance test with tokenization in "
-                    + (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA ? "Java" : "C++")
-                    + " took "
-                    + duration
-                    + "ms"
-            );
     }
 
     public void testStopOnWarn() throws IOException {

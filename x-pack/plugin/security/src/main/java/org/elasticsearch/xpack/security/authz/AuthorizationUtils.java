@@ -207,7 +207,7 @@ public final class AuthorizationUtils {
             return;
         }
 
-        if (clusterState.nodes().nodeExists(destinationNode)) {
+        if (clusterState.nodes().nodeExists(destinationNode) == false) {
             // We can only pre-authorize actions targeting node which belongs to the same cluster.
             return;
         }
@@ -219,7 +219,7 @@ public final class AuthorizationUtils {
                 parentContext.getIndicesAccessControl().isGranted()
             ).writeToThreadContext(threadContext);
         } catch (Exception e) {
-            logger.debug("Failed to write authorization to thread context.", e);
+            logger.error("Failed to write authorization to thread context.", e);
             throw internalError(
                 "Failed to write pre-authorization for child action ["
                     + childAction

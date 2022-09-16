@@ -1,5 +1,5 @@
 pr: 90116
-summary: "[TSDB] Remove time-series feature flag"
-area: "TSDB, Rollup"
+summary: "Release time-series (TSDB) functionality"
+area: "TSDB"
 type: feature
 issues: []

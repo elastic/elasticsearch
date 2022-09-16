@@ -871,12 +871,15 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                     .add(newNode("A-2", singletonMap("zone", "a")))
                     .add(newNode("A-3", singletonMap("zone", "a")))
                     .add(newNode("A-4", singletonMap("zone", "a")))
-                    .add(newNode("B-0", singletonMap("zone", "b")))
             )
             .build();
         clusterState = strategy.reroute(clusterState, "reroute");
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(0));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).size(), equalTo(1));
+
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("B-0", singletonMap("zone", "b"))))
+            .build();
 
         logger.info("--> start the shard (primary)");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);

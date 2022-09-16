@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.template.delete;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -24,8 +24,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class TransportDeleteComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<DeleteComponentTemplateAction.Request> {
 
@@ -69,12 +71,12 @@ public class TransportDeleteComponentTemplateAction extends AcknowledgedTranspor
     }
 
     @Override
-    protected Optional<String> reservedStateHandlerName() {
-        return Optional.of(ReservedComponentTemplateAction.NAME);
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedComposableIndexTemplateAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(DeleteComponentTemplateAction.Request request) {
-        return Set.of(request.names());
+    public Set<String> modifiedKeys(DeleteComponentTemplateAction.Request request) {
+        return Arrays.stream(request.names()).map(n -> ReservedComposableIndexTemplateAction.componentName(n)).collect(Collectors.toSet());
     }
 }

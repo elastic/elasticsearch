@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -102,12 +102,12 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
     }
 
     @Override
-    protected Optional<String> reservedStateHandlerName() {
-        return Optional.of(ReservedComponentTemplateAction.NAME);
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedComposableIndexTemplateAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(PutComponentTemplateAction.Request request) {
-        return Set.of(request.name());
+    public Set<String> modifiedKeys(PutComponentTemplateAction.Request request) {
+        return Set.of(ReservedComposableIndexTemplateAction.componentName(request.name()));
     }
 }

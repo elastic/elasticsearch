@@ -534,33 +534,22 @@ public class MetadataIndexTemplateService {
         final String name,
         final ComposableIndexTemplate template
     ) throws Exception {
+        return addIndexTemplateV2(currentState, create, name, template, true);
+    }
+
+    public ClusterState addIndexTemplateV2(
+        final ClusterState currentState,
+        final boolean create,
+        final String name,
+        final ComposableIndexTemplate template,
+        final boolean validateV2Overlaps
+    ) throws Exception {
         final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
 
-        Map<String, List<String>> overlaps = findConflictingV2Templates(
-            currentState,
-            name,
-            template.indexPatterns(),
-            true,
-            template.priorityOrZero()
-        );
-        overlaps.remove(name);
-        if (overlaps.size() > 0) {
-            String error = String.format(
-                Locale.ROOT,
-                "index template [%s] has index patterns %s matching patterns from "
-                    + "existing templates [%s] with patterns (%s) that have the same priority [%d], multiple index templates may not "
-                    + "match during index creation, please use a different priority",
-                name,
-                template.indexPatterns(),
-                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
-                overlaps.entrySet().stream().map(e -> e.getKey() + " => " + e.getValue()).collect(Collectors.joining(",")),
-                template.priorityOrZero()
-            );
-            throw new IllegalArgumentException(error);
-        }
+        Map<String, List<String>> overlaps = v2TemplateOverlaps(currentState, name, template, validateV2Overlaps);
 
         overlaps = findConflictingV1Templates(currentState, name, template.indexPatterns());
         if (overlaps.size() > 0) {
@@ -616,6 +605,38 @@ public class MetadataIndexTemplateService {
             template.indexPatterns()
         );
         return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate)).build();
+    }
+
+    public Map<String, List<String>> v2TemplateOverlaps(
+        ClusterState currentState,
+        String name,
+        final ComposableIndexTemplate template,
+        boolean validate
+    ) {
+        Map<String, List<String>> overlaps = findConflictingV2Templates(
+            currentState,
+            name,
+            template.indexPatterns(),
+            true,
+            template.priorityOrZero()
+        );
+        overlaps.remove(name);
+        if (validate && overlaps.size() > 0) {
+            String error = String.format(
+                Locale.ROOT,
+                "index template [%s] has index patterns %s matching patterns from "
+                    + "existing templates [%s] with patterns (%s) that have the same priority [%d], multiple index templates may not "
+                    + "match during index creation, please use a different priority",
+                name,
+                template.indexPatterns(),
+                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                overlaps.entrySet().stream().map(e -> e.getKey() + " => " + e.getValue()).collect(Collectors.joining(",")),
+                template.priorityOrZero()
+            );
+            throw new IllegalArgumentException(error);
+        }
+
+        return overlaps;
     }
 
     private void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {

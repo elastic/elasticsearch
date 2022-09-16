@@ -24,8 +24,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<
     DeleteComposableIndexTemplateAction.Request> {
@@ -70,12 +72,14 @@ public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTr
     }
 
     @Override
-    protected Optional<String> reservedStateHandlerName() {
+    public Optional<String> reservedStateHandlerName() {
         return Optional.of(ReservedComposableIndexTemplateAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(DeleteComposableIndexTemplateAction.Request request) {
-        return Set.of(request.names());
+    public Set<String> modifiedKeys(DeleteComposableIndexTemplateAction.Request request) {
+        return Arrays.stream(request.names())
+            .map(n -> ReservedComposableIndexTemplateAction.composableIndexName(n))
+            .collect(Collectors.toSet());
     }
 }

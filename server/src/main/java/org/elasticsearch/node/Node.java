@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
-import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
@@ -735,8 +734,7 @@ public class Node implements Closeable {
                 indexSettingProviders
             );
 
-            reservedStateHandlers.add(new ReservedComponentTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
-            reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService));
+            reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
 
             // add all reserved state handlers from plugins
             List<? extends ReservedClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(

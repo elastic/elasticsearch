@@ -41,6 +41,12 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
+// workaround for (/com/fasterxml/jackson/core/JsonFactory.class): warning: Cannot find annotation method
+// 'value()' in type 'ServiceProvider': class file for aQute.bnd.annotation.spi.ServiceProvider not found
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs.add("-Xlint:-classfile")
+}
+
 // not published, so no need for javadoc
 tasks.named("javadoc").configure { enabled = false }
 

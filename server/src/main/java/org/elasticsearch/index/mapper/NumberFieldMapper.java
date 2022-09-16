@@ -14,11 +14,8 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -67,6 +64,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -115,6 +113,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final NumberType type;
 
+        private boolean allowMultipleValues = true;
         private final Version indexCreatedVersion;
 
         public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings, Version indexCreatedVersion) {
@@ -213,6 +212,11 @@ public class NumberFieldMapper extends FieldMapper {
 
         public Builder metric(MetricType metric) {
             this.metric.setValue(metric);
+            return this;
+        }
+
+        public Builder allowMultipleValues(boolean allowMultipleValues) {
+            this.allowMultipleValues = allowMultipleValues;
             return this;
         }
 
@@ -396,7 +400,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
-                return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+                return new SortedNumericDocValuesSyntheticFieldLoader(fieldName, fieldSimpleName) {
                     @Override
                     protected void writeValue(XContentBuilder b, long value) throws IOException {
                         b.value(HalfFloatPoint.sortableShortToHalfFloat((short) value));
@@ -546,7 +550,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
-                return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+                return new SortedNumericDocValuesSyntheticFieldLoader(fieldName, fieldSimpleName) {
                     @Override
                     protected void writeValue(XContentBuilder b, long value) throws IOException {
                         b.value(NumericUtils.sortableIntToFloat((int) value));
@@ -674,7 +678,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
-                return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+                return new SortedNumericDocValuesSyntheticFieldLoader(fieldName, fieldSimpleName) {
                     @Override
                     protected void writeValue(XContentBuilder b, long value) throws IOException {
                         b.value(NumericUtils.sortableLongToDouble(value));
@@ -1381,7 +1385,7 @@ public class NumberFieldMapper extends FieldMapper {
         abstract SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName);
 
         private static SourceLoader.SyntheticFieldLoader syntheticLongFieldLoader(String fieldName, String fieldSimpleName) {
-            return new NumericSyntheticFieldLoader(fieldName, fieldSimpleName) {
+            return new SortedNumericDocValuesSyntheticFieldLoader(fieldName, fieldSimpleName) {
                 @Override
                 protected void writeValue(XContentBuilder b, long value) throws IOException {
                     b.value(value);
@@ -1616,6 +1620,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final Script script;
     private final MetricType metricType;
+    private boolean allowMultipleValues;
     private final Version indexCreatedVersion;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
@@ -1634,6 +1639,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
+        this.allowMultipleValues = builder.allowMultipleValues;
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
@@ -1700,6 +1706,15 @@ public class NumberFieldMapper extends FieldMapper {
         }
         fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
 
+        if (false == allowMultipleValues && (indexed || hasDocValues || stored)) {
+            // the last field is the current field, Add to the key map, so that we can validate if it has been added
+            List<IndexableField> fields = context.doc().getFields();
+            IndexableField last = fields.get(fields.size() - 1);
+            assert last.name().equals(fieldType().name())
+                : "last field name [" + last.name() + "] mis match field name [" + fieldType().name() + "]";
+            context.doc().onlyAddKey(fieldType().name(), fields.get(fields.size() - 1));
+        }
+
         if (hasDocValues == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());
         }
@@ -1719,7 +1734,7 @@ public class NumberFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion).dimension(
             dimension
-        ).metric(metricType).init(this);
+        ).metric(metricType).allowMultipleValues(allowMultipleValues).init(this);
     }
 
     @Override
@@ -1754,140 +1769,8 @@ public class NumberFieldMapper extends FieldMapper {
         return type.syntheticFieldLoader(name(), simpleName());
     }
 
-    public abstract static class NumericSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
-        private final String name;
-        private final String simpleName;
-
-        protected NumericSyntheticFieldLoader(String name, String simpleName) {
-            this.name = name;
-            this.simpleName = simpleName;
-        }
-
-        @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            SortedNumericDocValues dv = docValuesOrNull(reader, name);
-            if (dv == null) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
-            }
-            if (docIdsInLeaf.length > 1) {
-                /*
-                 * The singleton optimization is mostly about looking up all
-                 * values for the field at once. If there's just a single
-                 * document then it's just extra overhead.
-                 */
-                NumericDocValues single = DocValues.unwrapSingleton(dv);
-                if (single != null) {
-                    return singletonLeaf(single, docIdsInLeaf);
-                }
-            }
-            return new ImmediateLeaf(dv);
-        }
-
-        private class ImmediateLeaf implements Leaf {
-            private final SortedNumericDocValues dv;
-            private boolean hasValue;
-
-            ImmediateLeaf(SortedNumericDocValues dv) {
-                this.dv = dv;
-            }
-
-            @Override
-            public boolean empty() {
-                return false;
-            }
-
-            @Override
-            public boolean advanceToDoc(int docId) throws IOException {
-                return hasValue = dv.advanceExact(docId);
-            }
-
-            @Override
-            public void write(XContentBuilder b) throws IOException {
-                if (false == hasValue) {
-                    return;
-                }
-                if (dv.docValueCount() == 1) {
-                    b.field(simpleName);
-                    writeValue(b, dv.nextValue());
-                    return;
-                }
-                b.startArray(simpleName);
-                for (int i = 0; i < dv.docValueCount(); i++) {
-                    writeValue(b, dv.nextValue());
-                }
-                b.endArray();
-            }
-        }
-
-        /**
-         * Load all values for all docs up front. This should be much more
-         * disk and cpu-friendly than {@link ImmediateLeaf} because it resolves
-         * the values all at once, always scanning forwards on the disk.
-         */
-        private Leaf singletonLeaf(NumericDocValues singleton, int[] docIdsInLeaf) throws IOException {
-            long[] values = new long[docIdsInLeaf.length];
-            boolean[] hasValue = new boolean[docIdsInLeaf.length];
-            boolean found = false;
-            for (int d = 0; d < docIdsInLeaf.length; d++) {
-                if (false == singleton.advanceExact(docIdsInLeaf[d])) {
-                    hasValue[d] = false;
-                    continue;
-                }
-                hasValue[d] = true;
-                values[d] = singleton.longValue();
-                found = true;
-            }
-            if (found == false) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
-            }
-            return new Leaf() {
-                private int idx = -1;
-
-                @Override
-                public boolean empty() {
-                    return false;
-                }
-
-                @Override
-                public boolean advanceToDoc(int docId) throws IOException {
-                    idx++;
-                    if (docIdsInLeaf[idx] != docId) {
-                        throw new IllegalArgumentException(
-                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
-                        );
-                    }
-                    return hasValue[idx];
-                }
-
-                @Override
-                public void write(XContentBuilder b) throws IOException {
-                    if (hasValue[idx] == false) {
-                        return;
-                    }
-                    b.field(simpleName);
-                    writeValue(b, values[idx]);
-                }
-            };
-        }
-
-        /**
-         * Returns a {@link SortedNumericDocValues} or null if it doesn't have any doc values.
-         * See {@link DocValues#getSortedNumeric} which is *nearly* the same, but it returns
-         * an "empty" implementation if there aren't any doc values. We need to be able to
-         * tell if there aren't any and return our empty leaf source loader.
-         */
-        public static SortedNumericDocValues docValuesOrNull(LeafReader reader, String fieldName) throws IOException {
-            SortedNumericDocValues dv = reader.getSortedNumericDocValues(fieldName);
-            if (dv != null) {
-                return dv;
-            }
-            NumericDocValues single = reader.getNumericDocValues(fieldName);
-            if (single != null) {
-                return DocValues.singleton(single);
-            }
-            return null;
-        }
-
-        protected abstract void writeValue(XContentBuilder b, long value) throws IOException;
+    // For testing only:
+    void setAllowMultipleValues(boolean allowMultipleValues) {
+        this.allowMultipleValues = allowMultipleValues;
     }
 }

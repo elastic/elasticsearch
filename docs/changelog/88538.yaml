@@ -1,6 +1,0 @@
-pr: 88538
-summary: Improve EQL Sequence circuit breaker precision
-area: EQL
-type: bug
-issues:
- - 88300

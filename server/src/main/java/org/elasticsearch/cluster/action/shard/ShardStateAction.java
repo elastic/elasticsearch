@@ -405,7 +405,8 @@ public class ShardStateAction {
             assert tasksToBeApplied.size() == failedShardsToBeApplied.size() + staleShardsToBeApplied.size();
 
             ClusterState maybeUpdatedState = initialState;
-            try {
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                // drop deprecation warnings arising from the computation (reroute etc).
                 maybeUpdatedState = applyFailedShards(initialState, failedShardsToBeApplied, staleShardsToBeApplied);
                 for (final var taskContext : tasksToBeApplied) {
                     taskContext.success(() -> taskContext.getTask().listener().onResponse(TransportResponse.Empty.INSTANCE));
@@ -537,7 +538,6 @@ public class ShardStateAction {
     public record FailedShardUpdateTask(FailedShardEntry entry, ActionListener<TransportResponse.Empty> listener)
         implements
             ClusterStateTaskListener {
-
         @Override
         public void onFailure(Exception e) {
             logger.log(
@@ -546,11 +546,6 @@ public class ShardStateAction {
                 e
             );
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "should not be called";
         }
     }
 
@@ -856,11 +851,6 @@ public class ShardStateAction {
                 logger.error(() -> format("%s unexpected failure while starting shard [%s]", entry.shardId, entry), e);
             }
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "should not be called";
         }
 
         @Override

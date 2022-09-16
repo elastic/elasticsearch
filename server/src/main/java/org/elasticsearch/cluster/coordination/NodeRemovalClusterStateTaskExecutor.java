@@ -33,11 +33,6 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
         }
 
         @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
-        }
-
-        @Override
         public String toString() {
             final StringBuilder stringBuilder = new StringBuilder();
             node.appendDescriptionWithoutAttributes(stringBuilder);
@@ -66,22 +61,22 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
             taskContext.success(task.onClusterStateProcessed::run);
         }
 
-        final ClusterState finalState;
+        if (removed == false) {
+            // no nodes to remove, keep the current cluster state
+            return initialState;
+        }
 
-        if (removed) {
-            final ClusterState remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder);
-            final ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
-            finalState = allocationService.disassociateDeadNodes(
+        try (var ignored = batchExecutionContext.dropHeadersContext()) {
+            // suppress deprecation warnings e.g. from reroute()
+
+            final var remainingNodesClusterState = remainingNodesClusterState(initialState, remainingNodesBuilder);
+            final var ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
+            return allocationService.disassociateDeadNodes(
                 ptasksDisassociatedState,
                 true,
                 describeTasks(batchExecutionContext.taskContexts().stream().map(TaskContext::getTask).toList())
             );
-        } else {
-            // no nodes to remove, keep the current cluster state
-            finalState = initialState;
         }
-
-        return finalState;
     }
 
     // visible for testing

@@ -150,6 +150,7 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 
 /**
@@ -376,6 +377,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private final int maxSnapshotCount;
 
+    private final ShardSnapshotTaskRunner shardSnapshotTaskRunner;
+
     /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
@@ -405,6 +408,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.basePath = basePath;
         this.maxSnapshotCount = MAX_SNAPSHOTS_SETTING.get(metadata.settings());
         this.repoDataDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
+        shardSnapshotTaskRunner = new ShardSnapshotTaskRunner(
+            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+            threadPool.executor(ThreadPool.Names.SNAPSHOT),
+            this::doSnapshotShard,
+            this::snapshotFile
+        );
     }
 
     @Override
@@ -1133,10 +1142,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotIds
         );
         return Stream.concat(deleteResults.stream().flatMap(shardResult -> {
-            final String shardPath = shardContainer(shardResult.indexId, shardResult.shardId).path().buildAsString();
+            final String shardPath = shardPath(shardResult.indexId, shardResult.shardId).buildAsString();
             return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
         }), indexMetaGenerations.entrySet().stream().flatMap(entry -> {
-            final String indexContainerPath = indexContainer(entry.getKey()).path().buildAsString();
+            final String indexContainerPath = indexPath(entry.getKey()).buildAsString();
             return entry.getValue().stream().map(id -> indexContainerPath + INDEX_METADATA_FORMAT.blobName(id));
         })).map(absolutePath -> {
             assert absolutePath.startsWith(basePath);
@@ -1404,10 +1413,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryMetaVersion,
                     finalizeSnapshotContext::updatedClusterState,
                     ActionListener.wrap(newRepoData -> {
+                        finalizeSnapshotContext.onResponse(newRepoData);
                         if (writeShardGens) {
-                            cleanupOldShardGens(existingRepositoryData, newRepoData, finalizeSnapshotContext);
+                            cleanupOldShardGens(existingRepositoryData, newRepoData, finalizeSnapshotContext, snapshotInfo);
+                        } else {
+                            finalizeSnapshotContext.onDone(snapshotInfo);
                         }
-                        finalizeSnapshotContext.onResponse(Tuple.tuple(newRepoData, snapshotInfo));
                     }, onUpdateFailure)
                 );
             }, onUpdateFailure), 2 + indices.size());
@@ -1463,7 +1474,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void cleanupOldShardGens(
         RepositoryData existingRepositoryData,
         RepositoryData updatedRepositoryData,
-        FinalizeSnapshotContext finalizeSnapshotContext
+        FinalizeSnapshotContext finalizeSnapshotContext,
+        SnapshotInfo snapshotInfo
     ) {
         final Set<String> toDelete = new HashSet<>();
         final int prefixPathLen = basePath().buildAsString().length();
@@ -1472,23 +1484,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             .forEach(
                 (indexId, gens) -> gens.forEach(
                     (shardId, oldGen) -> toDelete.add(
-                        shardContainer(indexId, shardId).path().buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
+                        shardPath(indexId, shardId).buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
                     )
                 )
             );
         for (Map.Entry<RepositoryShardId, Set<ShardGeneration>> obsoleteEntry : finalizeSnapshotContext.obsoleteShardGenerations()
             .entrySet()) {
-            final String containerPath = shardContainer(obsoleteEntry.getKey().index(), obsoleteEntry.getKey().shardId()).path()
-                .buildAsString()
+            final String containerPath = shardPath(obsoleteEntry.getKey().index(), obsoleteEntry.getKey().shardId()).buildAsString()
                 .substring(prefixPathLen) + INDEX_FILE_PREFIX;
             for (ShardGeneration shardGeneration : obsoleteEntry.getValue()) {
                 toDelete.add(containerPath + shardGeneration);
             }
         }
-        try {
-            deleteFromContainer(blobContainer(), toDelete.iterator());
-        } catch (Exception e) {
-            logger.warn("Failed to clean up old shard generation blobs", e);
+        if (toDelete.isEmpty() == false) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                try {
+                    deleteFromContainer(blobContainer(), toDelete.iterator());
+                } catch (Exception e) {
+                    logger.warn("Failed to clean up old shard generation blobs", e);
+                } finally {
+                    finalizeSnapshotContext.onDone(snapshotInfo);
+                }
+            });
+        } else {
+            finalizeSnapshotContext.onDone(snapshotInfo);
         }
     }
 
@@ -1598,15 +1617,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private BlobContainer indexContainer(IndexId indexId) {
-        return blobStore().blobContainer(indicesPath().add(indexId.getId()));
+        return blobStore().blobContainer(indexPath(indexId));
     }
 
     private BlobContainer shardContainer(IndexId indexId, ShardId shardId) {
         return shardContainer(indexId, shardId.getId());
     }
 
+    private BlobPath indexPath(IndexId indexId) {
+        return indicesPath().add(indexId.getId());
+    }
+
+    private BlobPath shardPath(IndexId indexId, int shardId) {
+        return indexPath(indexId).add(Integer.toString(shardId));
+    }
+
     public BlobContainer shardContainer(IndexId indexId, int shardId) {
-        return blobStore().blobContainer(indicesPath().add(indexId.getId()).add(Integer.toString(shardId)));
+        return blobStore().blobContainer(shardPath(indexId, shardId));
     }
 
     /**
@@ -1992,12 +2019,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private RepositoryException corruptedStateException(@Nullable Exception cause, @Nullable Tuple<Long, String> previousWriterInfo) {
         return new RepositoryException(
             metadata.name(),
-            "Could not read repository data because the contents of the repository do not match its "
-                + "expected state. This is likely the result of either concurrently modifying the contents of the "
-                + "repository by a process other than this cluster or an issue with the repository's underlying storage. "
-                + "The repository has been disabled to prevent corrupting its contents. To re-enable it "
-                + "and continue using it please remove the repository from the cluster and add it again to make "
-                + "the cluster recover the known state of the repository from its physical contents."
+            "The repository has been disabled to prevent data corruption because its contents were found not to match its expected state. "
+                + "This is either because something other than this cluster modified the repository contents, or because the repository's "
+                + "underlying storage behaves incorrectly. To re-enable this repository, first ensure that this cluster has exclusive "
+                + "write access to it, and then re-register the repository with this cluster. "
+                + "See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                + Version.CURRENT.major
+                + "."
+                + Version.CURRENT.minor
+                + "/add-repository.html for further information."
                 + previousWriterMessage(previousWriterInfo),
             cause
         );
@@ -2611,6 +2641,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(SnapshotShardContext context) {
+        shardSnapshotTaskRunner.enqueueShardSnapshot(context);
+    }
+
+    private void doSnapshotShard(SnapshotShardContext context) {
         if (isReadOnly()) {
             context.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
             return;
@@ -2871,42 +2905,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
                 context.onResponse(shardSnapshotResult);
             }, context::onFailure);
-            if (indexIncrementalFileCount == 0) {
+            if (indexIncrementalFileCount == 0 || filesToSnapshot.isEmpty()) {
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;
             }
-            final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-            // Start as many workers as fit into the snapshot pool at once at the most
-            final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), indexIncrementalFileCount);
-            final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, workers, allFilesUploadedListener);
-            for (int i = 0; i < workers; ++i) {
-                executeOneFileSnapshot(store, snapshotId, context.indexId(), snapshotStatus, filesToSnapshot, executor, filesListener);
-            }
+            snapshotFiles(context, filesToSnapshot, allFilesUploadedListener);
         } catch (Exception e) {
             context.onFailure(e);
         }
     }
 
-    private void executeOneFileSnapshot(
-        Store store,
-        SnapshotId snapshotId,
-        IndexId indexId,
-        IndexShardSnapshotStatus snapshotStatus,
-        BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot,
-        Executor executor,
-        ActionListener<Void> listener
-    ) throws InterruptedException {
-        final ShardId shardId = store.shardId();
-        final BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
-        if (snapshotFileInfo == null) {
-            listener.onResponse(null);
-        } else {
-            executor.execute(ActionRunnable.wrap(listener, l -> {
-                try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
-                    snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
-                    executeOneFileSnapshot(store, snapshotId, indexId, snapshotStatus, filesToSnapshot, executor, l);
-                }
-            }));
+    protected void snapshotFiles(
+        SnapshotShardContext context,
+        BlockingQueue<FileInfo> filesToSnapshot,
+        ActionListener<Collection<Void>> allFilesUploadedListener
+    ) {
+        final int noOfFilesToSnapshot = filesToSnapshot.size();
+        final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, noOfFilesToSnapshot, allFilesUploadedListener);
+        for (int i = 0; i < noOfFilesToSnapshot; i++) {
+            shardSnapshotTaskRunner.enqueueFileSnapshot(context, filesToSnapshot::poll, filesListener);
         }
     }
 
@@ -3098,10 +3115,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static ActionListener<Void> fileQueueListener(
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files,
-        int workers,
+        int numberOfFiles,
         ActionListener<Collection<Void>> listener
     ) {
-        return new GroupedActionListener<>(listener, workers).delegateResponse((l, e) -> {
+        return new GroupedActionListener<>(listener, numberOfFiles).delegateResponse((l, e) -> {
             files.clear(); // Stop uploading the remaining files if we run into any exception
             l.onFailure(e);
         });
@@ -3408,19 +3425,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     /**
      * Snapshot individual file
-     * @param fileInfo file to be snapshotted
+     * @param fileInfo file to snapshot
      */
-    private void snapshotFile(
-        BlobStoreIndexShardSnapshot.FileInfo fileInfo,
-        IndexId indexId,
-        ShardId shardId,
-        SnapshotId snapshotId,
-        IndexShardSnapshotStatus snapshotStatus,
-        Store store
-    ) throws IOException {
+    protected void snapshotFile(SnapshotShardContext context, FileInfo fileInfo) throws IOException {
+        final IndexId indexId = context.indexId();
+        final Store store = context.store();
+        final ShardId shardId = store.shardId();
+        final IndexShardSnapshotStatus snapshotStatus = context.status();
+        final SnapshotId snapshotId = context.snapshotId();
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
         final String file = fileInfo.physicalName();
-        try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
+        try (
+            Releasable ignored = BlobStoreRepository.incrementStoreRef(store, snapshotStatus, store.shardId());
+            IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())
+        ) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);
 

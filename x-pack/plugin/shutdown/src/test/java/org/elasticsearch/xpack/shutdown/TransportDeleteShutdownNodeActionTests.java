@@ -78,7 +78,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
         ClusterState gotState = taskExecutor.getValue()
-            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext)));
+            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext), () -> null));
         assertThat(gotState, sameInstance(ClusterState.EMPTY_STATE));
     }
 }

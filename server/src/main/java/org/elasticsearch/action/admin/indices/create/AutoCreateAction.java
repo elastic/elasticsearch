@@ -113,7 +113,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 ClusterState state = batchExecutionContext.initialState();
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
-                    try {
+                    try (var ignored = taskContext.captureResponseHeaders()) {
                         state = task.execute(state, successfulRequests, taskContext);
                         assert successfulRequests.containsKey(task.request);
                     } catch (Exception e) {
@@ -121,7 +121,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     }
                 }
                 if (state != batchExecutionContext.initialState()) {
-                    state = allocationService.reroute(state, "auto-create");
+                    try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                        state = allocationService.reroute(state, "auto-create");
+                    }
                 }
                 return state;
             };
@@ -159,11 +161,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             @Override
             public void onFailure(Exception e) {
                 listener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                assert false : "should not be called";
             }
 
             private ClusterStateAckListener getAckListener(String indexName) {

@@ -49,11 +49,6 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
         this.clock = clock;
     }
 
-    @Override
-    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        assert false : "never called";
-    }
-
     public LicensesMetadata execute(
         LicensesMetadata currentLicensesMetadata,
         DiscoveryNodes discoveryNodes,
@@ -133,7 +128,9 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
             final LicensesMetadata originalLicensesMetadata = initialState.metadata().custom(LicensesMetadata.TYPE);
             var currentLicensesMetadata = originalLicensesMetadata;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
-                currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, initialState.nodes(), taskContext);
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, initialState.nodes(), taskContext);
+                }
             }
             if (currentLicensesMetadata == originalLicensesMetadata) {
                 return initialState;

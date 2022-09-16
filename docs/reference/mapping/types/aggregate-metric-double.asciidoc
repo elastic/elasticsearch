@@ -57,7 +57,6 @@ specify at least one value.
 Default metric sub-field to use for queries, scripts, and aggregations that
 don't use a sub-field. Must be a value from the `metrics` array.
 
-ifeval::["{release-state}"=="unreleased"]
 `time_series_metric`::
 preview:[] (Optional, string)
 include::numeric.asciidoc[tag=time_series_metric]
@@ -65,15 +64,11 @@ include::numeric.asciidoc[tag=time_series_metric]
 .Valid `time_series_metric` values for `aggregate_metric_double` fields
 [%collapsible%open]
 ====
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-counter]
 
 include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
 
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-summary]
-
 include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
 ====
-endif::[]
 
 [[aggregate-metric-double-uses]]
 ==== Uses
@@ -252,9 +247,8 @@ The search returns the following hit. The value of the `default_metric` field,
 ----
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
 
-ifeval::["{release-state}"=="unreleased"]
 [[aggregate-metric-double-synthetic-source]]
-==== Synthetic source
+==== Synthetic `_source`
 `aggregate_metric-double` fields support <<synthetic-source,synthetic `_source`>> in their default
 configuration. Synthetic `_source` cannot be used together with <<ignore-malformed,`ignore_malformed`>>.
 
@@ -301,5 +295,3 @@ Will become:
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
-
-endif::[]

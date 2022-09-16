@@ -24,9 +24,9 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -286,7 +286,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void addError(String spanId, Throwable throwable) {
-        final var span = spanFromContextOrNullWithoutLogging(spans.get(spanId));
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.recordException(throwable);
         }
@@ -294,7 +294,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void setAttribute(String spanId, String key, boolean value) {
-        final var span = spanFromContextOrNullWithoutLogging(spans.get(spanId));
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
         }
@@ -302,7 +302,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void setAttribute(String spanId, String key, double value) {
-        final var span = spanFromContextOrNullWithoutLogging(spans.get(spanId));
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
         }
@@ -310,7 +310,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void setAttribute(String spanId, String key, long value) {
-        final var span = spanFromContextOrNullWithoutLogging(spans.get(spanId));
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
         }
@@ -318,7 +318,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void setAttribute(String spanId, String key, String value) {
-        final var span = spanFromContextOrNullWithoutLogging(spans.get(spanId));
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
         }
@@ -326,7 +326,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void stopTrace(String spanId) {
-        final var span = spanFromContextOrNullWithoutLogging(spans.remove(spanId));
+        final var span = Span.fromContextOrNull(spans.remove(spanId));
         if (span != null) {
             logger.trace("Finishing trace [{}]", spanId);
             span.end();
@@ -335,16 +335,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void addEvent(String spanId, String eventName) {
-        final var span = spanFromContextOrNullWithoutLogging(spans.get(spanId));
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.addEvent(eventName);
         }
-    }
-
-    private static Span spanFromContextOrNullWithoutLogging(Context context) {
-        // Span.fromContextOrNull(null) is super-expensive today, see https://github.com/elastic/elasticsearch/issues/89107
-        // and https://github.com/open-telemetry/opentelemetry-java/pull/4663
-        return context == null ? null : Span.fromContextOrNull(context);
     }
 
     private static class MapKeyGetter implements TextMapGetter<Map<String, String>> {

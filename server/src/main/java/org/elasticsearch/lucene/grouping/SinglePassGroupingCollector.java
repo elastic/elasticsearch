@@ -393,10 +393,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
                 // Definitely not competitive.
                 return;
             } else if (c > 0) {
-                // Definitely competitive; set remaining comparators:
-                for (int compIDX2 = compIDX + 1; compIDX2 < collapseComparators.length; compIDX2++) {
-                    collapseLeafComparators[compIDX2].copy(spareSlot, doc);
-                }
+                // Definitely competitive.
                 break;
             } else if (compIDX == collapseCompIDXEnd) {
                 // Here c=0. If we're at the last comparator, this doc is not

@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.sort.SortBuilderTests;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -79,6 +80,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
 
             builder.setInnerHits(innerHits);
         }
+        builder.setSorts(SortBuilderTests.randomSortBuilderList());
 
         return builder;
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -88,6 +89,11 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         this.field = in.readString();
         this.maxConcurrentGroupRequests = in.readVInt();
         this.innerHits = in.readList(InnerHitBuilder::new);
+        int size = in.readVInt();
+        sorts = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            sorts.add(in.readNamedWriteable(SortBuilder.class));
+        }
     }
 
     @Override
@@ -95,6 +101,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         out.writeString(field);
         out.writeVInt(maxConcurrentGroupRequests);
         out.writeList(innerHits);
+        out.writeNamedWriteableList(sorts);
     }
 
     public static CollapseBuilder fromXContent(XContentParser parser) {

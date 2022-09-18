@@ -61,7 +61,7 @@
     - match:  { detail.tokenfilters.0.tokens.0.token: abc }
 
 ---
-"Custom analyzer with not supported param in request":
+"Custom analyzer with unsupported param in request":
   - do:
       catch: bad_request
       indices.create:
@@ -77,4 +77,4 @@
 
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Custom Analyzer not support [foo] now" }
+  - match: { error.reason: "Custom analyzer [my_analyzer] does not support [foo]" }

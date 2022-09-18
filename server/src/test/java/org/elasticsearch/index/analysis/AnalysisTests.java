@@ -14,9 +14,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
@@ -31,18 +31,10 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.index.analysis.AnalyzerComponents.createComponents;
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.is;
 
 public class AnalysisTests extends ESTestCase {
-    private static TestAnalysis testAnalysis;
-    private static Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
-
-    @BeforeClass
-    public static void setup() throws IOException {
-        testAnalysis = createTestAnalysis(new Index("test", "_na_"), settings);
-    }
-
     public void testParseStemExclusion() {
         /* Comma separated list */
         Settings settings = Settings.builder().put("stem_exclusion", "foo,bar").build();
@@ -117,14 +109,35 @@ public class AnalysisTests extends ESTestCase {
         assertEquals(Arrays.asList("hello", "world"), wordList);
     }
 
-    public void testCustomAnalyzerWithNotSupportKey() {
-        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").put("foo", "bar").put("type", "custom").build();
+    public void testCustomAnalyzerWithUnsupportedKey() {
+        Settings analyzerSettings = Settings.builder().
+            put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").
+            put("index.analysis.analyzer.my_analyzer.type", "custom").
+            put("index.analysis.analyzer.my_analyzer.foo", "bar").
+            build();
+        Settings settings = Settings.builder().
+            put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0).
+            put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).
+            put(analyzerSettings).
+            build();
 
-        try {
-            createComponents("my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter, testAnalysis.tokenFilter);
-            fail("expected failure");
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Custom Analyzer not support [foo] now");
-        }
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(
+            TestEnvironment.newEnvironment(settings),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap()
+        );
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> emptyAnalysisRegistry.build(idxSettings)
+        );
+        assertEquals(ex.getMessage(), "Custom analyzer [my_analyzer] does not support [foo]");
     }
 }

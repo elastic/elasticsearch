@@ -44,12 +44,6 @@ public final class AnalyzerComponents {
         final Map<String, CharFilterFactory> charFilters,
         final Map<String, TokenFilterFactory> tokenFilters
     ) {
-        for (String key : analyzerSettings.keySet()) {
-            switch (key) {
-                case "tokenizer", "char_filter", "filter", "type", "position_increment_gap" -> {}
-                default -> throw new IllegalArgumentException("Custom Analyzer not support [" + key + "] now");
-            }
-        }
         String tokenizerName = analyzerSettings.get("tokenizer");
         if (tokenizerName == null) {
             throw new IllegalArgumentException("Custom Analyzer [" + name + "] must be configured with a tokenizer");

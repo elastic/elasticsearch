@@ -60,6 +60,7 @@ public final class AnalysisRegistry implements Closeable {
     private final Map<String, AnalysisProvider<TokenizerFactory>> tokenizers;
     private final Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers;
     private final Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers;
+    private static final Version CUSTOM_ANALYZER_KEY_CHECK_VERSION = Version.V_8_5_0;
 
     public AnalysisRegistry(
         Environment environment,
@@ -457,6 +458,14 @@ public final class AnalysisRegistry implements Closeable {
             Settings currentSettings = entry.getValue();
             String typeName = currentSettings.get("type");
             if (component == Component.ANALYZER) {
+                if (settings.getIndexVersionCreated().onOrAfter(CUSTOM_ANALYZER_KEY_CHECK_VERSION)) {
+                    for (String key : currentSettings.keySet()) {
+                        switch (key) {
+                            case "tokenizer", "char_filter", "filter", "type", "position_increment_gap" -> {}
+                            default -> throw new IllegalArgumentException("Custom analyzer [" + name + "] does not support [" + key + "]");
+                        }
+                    }
+                }
                 T factory = null;
                 if (typeName == null) {
                     if (currentSettings.get("tokenizer") != null) {

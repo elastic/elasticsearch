@@ -24,7 +24,13 @@ class SecurityUsageServices {
     final IPFilter ipFilter;
     final ProfileService profileService;
 
-    SecurityUsageServices(Realms realms, CompositeRolesStore rolesStore, NativeRoleMappingStore roleMappingStore, IPFilter ipFilter, ProfileService profileService) {
+    SecurityUsageServices(
+        Realms realms,
+        CompositeRolesStore rolesStore,
+        NativeRoleMappingStore roleMappingStore,
+        IPFilter ipFilter,
+        ProfileService profileService
+    ) {
         this.realms = realms;
         this.rolesStore = rolesStore;
         this.roleMappingStore = roleMappingStore;

@@ -171,8 +171,14 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             settings.put("xpack.security.operator_privileges.enabled", true);
         }
 
-        final Map<String, Object> userProfileUsage =
-            Map.of("total", randomIntBetween(100, 200), "enabled", randomIntBetween(50, 99), "recent", randomIntBetween(1, 42));
+        final Map<String, Object> userProfileUsage = Map.of(
+            "total",
+            randomIntBetween(100, 200),
+            "enabled",
+            randomIntBetween(50, 99),
+            "recent",
+            randomIntBetween(1, 42)
+        );
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final var listener = (ActionListener<Map<String, Object>>) invocation.getArguments()[0];

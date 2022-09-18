@@ -1,0 +1,16 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+periodic+single-processor-node-tests
+    display-name: "elastic / elasticsearch # %BRANCH% - single processor node tests"
+    description: "Testing with node.processors set to '1' for the Elasticsearch %BRANCH% branch.\n"
+    node: "general-purpose && docker"
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA11_HOME=$HOME/.java/java11
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true check

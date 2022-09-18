@@ -263,6 +263,9 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.RestGetHealthAction;
+import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
+import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
@@ -485,6 +488,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
             Stream.of(
                 new RestHeaderDefinition(Task.X_OPAQUE_ID_HTTP_HEADER, false),
+                new RestHeaderDefinition(Task.TRACE_STATE, false),
                 new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false),
                 new RestHeaderDefinition(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, false)
             )
@@ -699,6 +703,11 @@ public class ActionModule extends AbstractModule {
         actions.register(UpdateDesiredNodesAction.INSTANCE, TransportUpdateDesiredNodesAction.class);
         actions.register(DeleteDesiredNodesAction.INSTANCE, TransportDeleteDesiredNodesAction.class);
 
+        if (HealthNode.isEnabled()) {
+            actions.register(UpdateHealthInfoCacheAction.INSTANCE, UpdateHealthInfoCacheAction.TransportAction.class);
+            actions.register(FetchHealthInfoCacheAction.INSTANCE, FetchHealthInfoCacheAction.TransportAction.class);
+        }
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -738,7 +747,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteRepositoryAction());
         registerHandler.accept(new RestVerifyRepositoryAction());
         registerHandler.accept(new RestCleanupRepositoryAction());
-        registerHandler.accept(new RestGetSnapshotsAction(threadPool));
+        registerHandler.accept(new RestGetSnapshotsAction());
         registerHandler.accept(new RestCreateSnapshotAction());
         registerHandler.accept(new RestCloneSnapshotAction());
         registerHandler.accept(new RestRestoreSnapshotAction());
@@ -784,7 +793,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSimulateTemplateAction());
 
         registerHandler.accept(new RestPutMappingAction());
-        registerHandler.accept(new RestGetMappingAction(threadPool));
+        registerHandler.accept(new RestGetMappingAction());
         registerHandler.accept(new RestGetFieldMappingAction());
 
         registerHandler.accept(new RestRefreshAction());

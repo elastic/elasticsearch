@@ -120,6 +120,15 @@ public class TaskManager implements ClusterStateApplier {
      * Registers a task without parent task
      */
     public Task register(String type, String action, TaskAwareRequest request) {
+        return register(type, action, request, true);
+    }
+
+    /**
+     * Registers a task without a parent task, and specifies whether to trace the request. You should prefer
+     * to call {@link #register(String, String, TaskAwareRequest)}, since it is rare to want to avoid
+     * tracing a task.
+     */
+    public Task register(String type, String action, TaskAwareRequest request, boolean traceRequest) {
         Map<String, String> headers = new HashMap<>();
         long headerSize = 0;
         long maxSize = maxHeaderSize.getBytes();
@@ -149,7 +158,9 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
-            startTrace(threadContext, task);
+            if (traceRequest) {
+                startTrace(threadContext, task);
+            }
         }
         return task;
     }

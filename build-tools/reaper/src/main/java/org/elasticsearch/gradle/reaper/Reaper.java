@@ -83,17 +83,17 @@ public class Reaper implements Closeable {
                     delete(inputFile);
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            failed = true;
             logFailure("Failed to reap inputs", e);
         }
     }
 
-    private void logFailure(String message, Exception e) {
+    private void logFailure(String message, Throwable e) {
         System.err.println(message);
         if (e != null) {
             e.printStackTrace(System.err);
         }
-        failed = true;
     }
 
     private void delete(Path toDelete) {

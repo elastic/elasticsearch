@@ -67,7 +67,7 @@ abstract class ProcrunCommand extends Command {
         preExecute(terminal, processInfo, serviceId);
 
         List<String> procrunCmd = new ArrayList<>();
-        procrunCmd.add(procrun.toString());
+        procrunCmd.add(quote(procrun.toString()));
         procrunCmd.add("//%s/%s".formatted(cmd, serviceId));
         if (includeLogArgs()) {
             procrunCmd.add(getLogArgs(serviceId, processInfo.workingDir(), processInfo.envVars()));
@@ -84,6 +84,11 @@ abstract class ProcrunCommand extends Command {
         } else {
             terminal.println(getSuccessMessage(serviceId));
         }
+    }
+
+    /** Quotes the given String. */
+    static String quote(String s) {
+        return '"' + s + '"';
     }
 
     /** Determines the service id for the Elasticsearch service that should be used */

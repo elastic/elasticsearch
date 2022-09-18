@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,12 +43,15 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -298,9 +302,9 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                     final Authentication authentication = assembleAuthentication(username, randomRealmRef());
                     final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
                     final PlainActionFuture<Profile> future = new PlainActionFuture<>();
-                    profileService.activateProfile(authentication, future);
                     readyLatch.countDown();
                     startLatch.await();
+                    profileService.activateProfile(authentication, future);
                     try {
                         final String uid = future.actionGet().uid();
                         logger.info("created profile [{}] for authentication [{}]", uid, authentication);
@@ -336,6 +340,68 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             final Profile profile1 = getProfile(uid, Set.of());
             assertThat(profile1.uid(), equalTo(uid));
             assertThat(profile1.user().username(), equalTo(username));
+        } else {
+            fail("Not all threads are ready after waiting");
+        }
+    }
+
+    public void testConcurrentActivateUpdates() throws InterruptedException {
+        final Authentication.RealmRef realmRef = randomRealmRef();
+        final User originalUser = new User(randomAlphaOfLengthBetween(5, 12));
+        final Authentication originalAuthentication = Authentication.newRealmAuthentication(originalUser, realmRef);
+
+        final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
+        final PlainActionFuture<Profile> originalFuture = new PlainActionFuture<>();
+        profileService.activateProfile(originalAuthentication, originalFuture);
+        final Profile originalProfile = originalFuture.actionGet();
+
+        final Thread[] threads = new Thread[randomIntBetween(5, 10)];
+        final CountDownLatch readyLatch = new CountDownLatch(threads.length);
+        final CountDownLatch startLatch = new CountDownLatch(1);
+        final Set<Profile> updatedProfiles = ConcurrentHashMap.newKeySet();
+        final Authentication updatedAuthentication = Authentication.newRealmAuthentication(
+            new User(originalUser.principal(), "foo"),
+            realmRef
+        );
+        // All concurrent activations should succeed because we handle version conflict error and check whether update
+        // can be skipped. In this case, they can be skipped because all updates are for the same content.
+        // Due to the concurrency nature, there is no guarantee whether an update can succeed or succeed with error handling.
+        // We can only be sure that at least one of them will succeed.
+        // Other updates may succeed or they may succeed with the error handling. So we cannot assert that the document
+        // is only updated once. What we can assert is that they will all be successful (one way or another).
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    final PlainActionFuture<Profile> future = new PlainActionFuture<>();
+                    readyLatch.countDown();
+                    startLatch.await();
+                    profileService.activateProfile(updatedAuthentication, future);
+                    final Profile updatedProfile = future.actionGet();
+                    assertThat(updatedProfile.uid(), equalTo(originalProfile.uid()));
+                    assertThat(updatedProfile.user().roles(), contains("foo"));
+                    updatedProfiles.add(updatedProfile);
+                } catch (Exception e) {
+                    logger.error(e);
+                    fail("caught error when activating existing profile: " + e);
+                }
+            });
+            threads[i].start();
+        }
+
+        if (readyLatch.await(20, TimeUnit.SECONDS)) {
+            startLatch.countDown();
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            assertThat(updatedProfiles, not(emptyIterable()));
+            // Find the most recent version of the updated profile document using the seqNo which is monotonically increasing
+            final Profile updatedProfile = updatedProfiles.stream()
+                .max(Comparator.comparingLong(p -> p.versionControl().seqNo()))
+                .orElseThrow();
+            // Update again, this time it should simply skip due to grace period of 30 seconds
+            final PlainActionFuture<Profile> future = new PlainActionFuture<>();
+            profileService.activateProfile(updatedAuthentication, future);
+            assertThat(future.actionGet(), equalTo(updatedProfile));
         } else {
             fail("Not all threads are ready after waiting");
         }

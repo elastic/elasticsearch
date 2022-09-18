@@ -357,7 +357,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 aggregator.preCollection();
                 assertThat(indexReader.leaves(), hasSize(1));
                 LeafBucketCollector leaf = aggregator.getLeafCollector(
-                    new AggregationExecutionContext(indexReader.leaves().get(0), null, null)
+                    new AggregationExecutionContext(indexReader.leaves().get(0), null, null, null)
                 );
 
                 /*

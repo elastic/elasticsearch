@@ -1063,7 +1063,7 @@ public class ProfileServiceTests extends ESTestCase {
         when(profileIndex.indexExists()).thenReturn(false);
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         profileService.usageStats(future);
-        assertThat(future.actionGet(), equalTo(Map.of("total", 0, "enabled", 0, "recent", 0)));
+        assertThat(future.actionGet(), equalTo(Map.of("total", 0L, "enabled", 0L, "recent", 0L)));
     }
 
     record SampleDocumentParameter(String uid, String username, List<String> roles, long lastSynchronized) {}

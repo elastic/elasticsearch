@@ -332,7 +332,7 @@ public class ProfileService {
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         tryFreezeAndCheckIndex(listener.map(response -> { // index does not exist
             assert response == null : "only null response can reach here";
-            return Map.of("total", 0, "enabled", 0, "recent", 0);
+            return Map.of("total", 0L, "enabled", 0L, "recent", 0L);
         })).ifPresent(frozenProfileIndex -> {
             final MultiSearchRequest multiSearchRequest = client.prepareMultiSearch()
                 .add(
@@ -378,19 +378,19 @@ public class ProfileService {
                         final Map<String, Object> usage = new HashMap<>();
                         if (items[0].isFailure()) {
                             logger.debug("error on counting total profiles", items[0].getFailure());
-                            usage.put("total", 0);
+                            usage.put("total", 0L);
                         } else {
                             usage.put("total", items[0].getResponse().getHits().getTotalHits().value);
                         }
                         if (items[1].isFailure()) {
                             logger.debug("error on counting enabled profiles", items[0].getFailure());
-                            usage.put("enabled", 0);
+                            usage.put("enabled", 0L);
                         } else {
                             usage.put("enabled", items[1].getResponse().getHits().getTotalHits().value);
                         }
                         if (items[2].isFailure()) {
                             logger.debug("error on counting recent profiles", items[0].getFailure());
-                            usage.put("recent", 0);
+                            usage.put("recent", 0L);
                         } else {
                             usage.put("recent", items[2].getResponse().getHits().getTotalHits().value);
                         }

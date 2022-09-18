@@ -6,8 +6,13 @@ on:
     paths:
       - '**.asciidoc'
 
+permissions:
+  contents: read
+
 jobs:
   doc-preview:
+    permissions:
+      issues: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6

@@ -157,7 +157,8 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     }
                 }
                 StringTerms result = searchAndReduce(
-                    new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), request, withJoinFields(longField("number"), kwd)));
+                    new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), request, withJoinFields(longField("number"), kwd))
+                );
 
                 StringTerms.Bucket evenBucket = result.getBucketByKey("even");
                 InternalChildren evenChildren = evenBucket.getAggregations().get("children");
@@ -205,7 +206,13 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     var e = expectThrows(
                         RuntimeException.class,
                         () -> searchAndReduce(
-                            new AggTestConfig(indexSearcher, new TermQuery(new Term("join_field", "parent_type")), aggregationBuilder, withJoinFields(fieldType, fieldType2)))
+                            new AggTestConfig(
+                                indexSearcher,
+                                new TermQuery(new Term("join_field", "parent_type")),
+                                aggregationBuilder,
+                                withJoinFields(fieldType, fieldType2)
+                            )
+                        )
                     );
                     assertThat(
                         e.getMessage(),
@@ -231,7 +238,13 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     var fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
                     var fieldType2 = new KeywordFieldMapper.KeywordFieldType("string_field", false, true, Map.of());
                     InternalChildren result = searchAndReduce(
-                        new AggTestConfig(indexSearcher, new TermQuery(new Term("join_field", "parent_type")), aggregationBuilder, withJoinFields(fieldType, fieldType2)));
+                        new AggTestConfig(
+                            indexSearcher,
+                            new TermQuery(new Term("join_field", "parent_type")),
+                            aggregationBuilder,
+                            withJoinFields(fieldType, fieldType2)
+                        )
+                    );
 
                     Terms terms = result.getAggregations().get("_name2");
                     TopHits topHits = terms.getBuckets().get(0).getAggregations().get("_name3");

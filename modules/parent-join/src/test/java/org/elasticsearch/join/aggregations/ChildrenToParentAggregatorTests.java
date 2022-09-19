@@ -293,7 +293,9 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         MappedFieldType subFieldType = new NumberFieldMapper.NumberFieldType("subNumber", NumberFieldMapper.NumberType.LONG);
-        LongTerms result = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType, subFieldType)));
+        LongTerms result = searchAndReduce(
+            new AggTestConfig(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType, subFieldType))
+        );
         verify.accept(result);
     }
 

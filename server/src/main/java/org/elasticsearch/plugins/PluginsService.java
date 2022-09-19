@@ -508,15 +508,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             UberModuleClassLoader uberModuleLoader = UberModuleClassLoader.getInstance(
                 pluginParentLoader,
                 "org.elasticsearch.synthetic.repository.azure",
-                bundle.urls.stream()
-                    .map(url -> {
-                        try {
-                            return Path.of(url.toURI());
-                        } catch (URISyntaxException e) {
-                            throw new RuntimeException(e);
-                        }
-                    })
-                    .toList()
+                bundle.urls
             );
             return new LayerAndLoader(uberModuleLoader.getLayer(), uberModuleLoader);
         } else {

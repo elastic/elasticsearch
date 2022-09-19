@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -58,8 +59,29 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     private final ModuleLayer.Controller moduleController;
     private final Set<String> packageNames;
 
+    static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls) {
+        return getInstance(parent, moduleName, jarUrls.stream()
+            .map(url -> {
+                try {
+                    return Path.of(url.toURI());
+                } catch (URISyntaxException e) {
+                    throw new RuntimeException(e);
+                }
+            })
+            .toList(),
+            Set.of()
+        );
+    }
+
+    @Deprecated
     static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, List<Path> jarPaths) {
-        return getInstance(parent, moduleName, jarPaths, Set.of());
+        return getInstance(parent, moduleName, jarPaths.stream().map(Path::toUri).map(uri -> {
+            try {
+                return uri.toURL();
+            } catch (MalformedURLException e) {
+                throw new RuntimeException(e);
+            }
+        }).collect(Collectors.toSet()));
     }
 
     @SuppressForbidden(reason = "need access to the jar file")

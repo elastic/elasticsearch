@@ -47,8 +47,6 @@ public class NamedRegistry<T> {
     }
 
     public void register(Map<String, T> collect) {
-        for (Map.Entry<String, T> entry : collect.entrySet()) {
-            register(entry.getKey(), entry.getValue());
-        }
+        collect.forEach(this::register);
     }
 }

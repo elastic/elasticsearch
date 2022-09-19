@@ -44,7 +44,8 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * circular dependency makes it impossible for separation of the two handlers.
  */
 public class ReservedComposableIndexTemplateAction
-    implements ReservedClusterStateHandler<ReservedComposableIndexTemplateAction.ComponentsAndComposables> {
+    implements
+        ReservedClusterStateHandler<ReservedComposableIndexTemplateAction.ComponentsAndComposables> {
     public static final String NAME = "index_templates";
     public static final String COMPONENTS = "component_templates";
     private static final String COMPONENT_PREFIX = "component_template:";
@@ -85,9 +86,7 @@ public class ReservedComposableIndexTemplateAction
         return name.substring(COMPOSABLE_PREFIX.length());
     }
 
-    private ComponentsAndComposables prepare(
-        ComponentsAndComposables componentsAndComposables
-    ) {
+    private ComponentsAndComposables prepare(ComponentsAndComposables componentsAndComposables) {
         for (var request : componentsAndComposables.componentTemplates) {
             validate(request);
         }
@@ -106,12 +105,12 @@ public class ReservedComposableIndexTemplateAction
         ClusterState state = prevState.state();
 
         // We transform in the following order:
-        //    1. create or update component templates (composable templates depend on them)
-        //    2. create or update composable index templates (with disabled v2 overlap validation, we might delete some at step 3,
-        //       while, 2 and 3 cannot be reversed because of data streams)
-        //    3. delete composable index templates (this will fail on attached data streams, unless we added higher priority one)
-        //    4. validate for v2 composable template overlaps
-        //    5. delete component templates (this will check if there are any related composable index templates and fail)
+        // 1. create or update component templates (composable templates depend on them)
+        // 2. create or update composable index templates (with disabled v2 overlap validation, we might delete some at step 3,
+        // while, 2 and 3 cannot be reversed because of data streams)
+        // 3. delete composable index templates (this will fail on attached data streams, unless we added higher priority one)
+        // 4. validate for v2 composable template overlaps
+        // 5. delete component templates (this will check if there are any related composable index templates and fail)
 
         var components = requests.componentTemplates;
         var composables = requests.composableTemplates;
@@ -128,6 +127,7 @@ public class ReservedComposableIndexTemplateAction
 
         // 2. create or update composable index templates, no overlap validation
         for (var request : composables) {
+            MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), request.name(), request.indexTemplate());
             state = indexTemplateService.addIndexTemplateV2(state, false, request.name(), request.indexTemplate(), false);
         }
 
@@ -169,6 +169,7 @@ public class ReservedComposableIndexTemplateAction
         List<PutComposableIndexTemplateAction.Request> composableTemplates = new ArrayList<>();
         Map<String, ?> source = parser.map();
 
+        @SuppressWarnings("unchecked")
         Map<String, ?> components = (Map<String, ?>) source.get(COMPONENTS);
 
         if (components != null) {
@@ -183,7 +184,8 @@ public class ReservedComposableIndexTemplateAction
             }
         }
 
-        Map<String, ?> composables = (Map<String, ?>)source.get(COMPOSABLES);
+        @SuppressWarnings("unchecked")
+        Map<String, ?> composables = (Map<String, ?>) source.get(COMPOSABLES);
 
         if (composables != null) {
             for (var entry : composables.entrySet()) {

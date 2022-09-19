@@ -8,9 +8,7 @@
 
 package org.elasticsearch.reservedstate.service;
 
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -27,7 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -42,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.composableIndexName;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.hamcrest.Matchers.allOf;
@@ -57,16 +55,16 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
     private static AtomicLong versionCounter = new AtomicLong(1);
 
     private static String emptyJSON = """
-         {
-              "metadata": {
-                  "version": "%s",
-                  "compatibility": "8.4.0"
-              },
-              "state": {
-                 "component_templates": {},
-                 "index_templates": {}
-              }
-         }""";
+        {
+             "metadata": {
+                 "version": "%s",
+                 "compatibility": "8.4.0"
+             },
+             "state": {
+                "index_templates": {
+                }
+             }
+        }""";
 
     private static String testJSON = """
         {
@@ -75,6 +73,149 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
                  "compatibility": "8.4.0"
              },
              "state": {
+               "index_templates": {
+                 "component_templates": {
+                    "component_template1": {
+                      "template": {
+                        "mappings": {
+                          "properties": {
+                            "@timestamp": {
+                              "type": "date"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "runtime_component_template": {
+                      "template": {
+                        "mappings": {
+                          "runtime": {
+                            "day_of_week": {
+                              "type": "keyword"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "other_component_template": {
+                      "template": {
+                        "mappings": {
+                          "runtime": {
+                            "day_of_week": {
+                              "type": "keyword"
+                            }
+                          }
+                        }
+                      }
+                    }
+                 },
+                 "composable_index_templates": {
+                    "template_1": {
+                        "index_patterns": ["te*", "bar*"],
+                        "template": {
+                          "settings": {
+                            "number_of_shards": 1
+                          },
+                          "mappings": {
+                            "_source": {
+                              "enabled": true
+                            },
+                            "properties": {
+                              "host_name": {
+                                "type": "keyword"
+                              },
+                              "created_at": {
+                                "type": "date",
+                                "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                              }
+                            }
+                          },
+                          "aliases": {
+                            "mydata": { }
+                          }
+                        },
+                        "priority": 500,
+                        "composed_of": ["component_template1", "runtime_component_template"],
+                        "version": 3,
+                        "_meta": {
+                          "description": "my custom"
+                        }
+                    },
+                    "template_2": {
+                        "index_patterns": ["foo*", "mar*"],
+                        "template": {
+                          "settings": {
+                            "number_of_shards": 1
+                          },
+                          "mappings": {
+                            "_source": {
+                              "enabled": true
+                            },
+                            "properties": {
+                              "host_name": {
+                                "type": "keyword"
+                              },
+                              "created_at": {
+                                "type": "date",
+                                "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                              }
+                            }
+                          },
+                          "aliases": {
+                            "mydata": { }
+                          }
+                        },
+                        "priority": 100,
+                        "composed_of": ["component_template1", "runtime_component_template"],
+                        "version": 3,
+                        "_meta": {
+                          "description": "my custom"
+                        }
+                    },
+                    "template_other": {
+                        "index_patterns": ["foo*", "mar*"],
+                        "template": {
+                          "settings": {
+                            "number_of_shards": 1
+                          },
+                          "mappings": {
+                            "_source": {
+                              "enabled": true
+                            },
+                            "properties": {
+                              "host_name": {
+                                "type": "keyword"
+                              },
+                              "created_at": {
+                                "type": "date",
+                                "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                              }
+                            }
+                          },
+                          "aliases": {
+                            "mydata": { }
+                          }
+                        },
+                        "priority": 50,
+                        "composed_of": ["other_component_template"],
+                        "version": 3,
+                        "_meta": {
+                          "description": "my custom"
+                        }
+                    }
+                 }
+               }
+             }
+        }""";
+
+    private static String testJSONLess = """
+        {
+             "metadata": {
+                 "version": "%s",
+                 "compatibility": "8.4.0"
+             },
+             "state": {
+               "index_templates": {
                  "component_templates": {
                     "component_template1": {
                       "template": {
@@ -99,7 +240,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
                       }
                     }
                  },
-                 "index_templates": {
+                 "composable_index_templates": {
                     "template_1": {
                         "index_patterns": ["te*", "bar*"],
                         "template": {
@@ -163,6 +304,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
                         }
                     }
                  }
+               }
              }
         }""";
 
@@ -173,14 +315,41 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
                  "compatibility": "8.4.0"
              },
              "state": {
-                 "snapshot_repositories": {
-                    "err-repo": {
-                       "type": "interstelar",
-                       "settings": {
-                          "location": "my_backup_location"
-                       }
+               "index_templates": {
+                 "composable_index_templates": {
+                    "err_template": {
+                        "index_patterns": ["te*", "bar*"],
+                        "template": {
+                          "settings": {
+                            "number_of_shards": 1
+                          },
+                          "mappings": {
+                            "_source": {
+                              "enabled": true
+                            },
+                            "properties": {
+                              "host_name": {
+                                "type": "keyword"
+                              },
+                              "created_at": {
+                                "type": "date",
+                                "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                              }
+                            }
+                          },
+                          "aliases": {
+                            "mydata": { }
+                          }
+                        },
+                        "priority": 500,
+                        "composed_of": ["component_template1", "runtime_component_template"],
+                        "version": 3,
+                        "_meta": {
+                          "description": "my custom"
+                        }
                     }
                  }
+               }
              }
         }""";
 
@@ -210,7 +379,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
                 if (reservedState != null) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedComposableIndexTemplateAction.NAME);
-                    if (handlerMetadata != null && handlerMetadata.keys().contains("template_1")) {
+                    if (handlerMetadata != null && handlerMetadata.keys().contains(composableIndexName("template_1"))) {
                         clusterService.removeListener(this);
                         metadataVersion.set(event.state().metadata().version());
                         savedClusterState.countDown();
@@ -237,21 +406,106 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         assertThat(
             response.indexTemplates().keySet().stream().collect(Collectors.toSet()),
-            containsInAnyOrder("template_1", "template_2")
+            containsInAnyOrder("template_1", "template_2", "template_other")
         );
 
         assertTrue(
             expectThrows(
                 IllegalArgumentException.class,
                 () -> client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1")).actionGet()
-            ).getMessage().contains("[[component_template1] set as read-only by [file_settings]]")
+            ).getMessage().contains("[[component_template:component_template1] set as read-only by [file_settings]]")
         );
 
         assertTrue(
             expectThrows(
                 IllegalArgumentException.class,
                 () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_1")).actionGet()
-            ).getMessage().contains("[[template_1] set as read-only by [file_settings]]")
+            ).getMessage().contains("[[composable_index_template:template_1] set as read-only by [file_settings]]")
+        );
+    }
+
+    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForOtherDelete(String node) {
+        ClusterService clusterService = internalCluster().clusterService(node);
+        CountDownLatch savedClusterState = new CountDownLatch(1);
+        AtomicLong metadataVersion = new AtomicLong(-1);
+        clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+                if (reservedState != null) {
+                    ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedComposableIndexTemplateAction.NAME);
+                    if (handlerMetadata != null
+                        && handlerMetadata.keys().isEmpty() == false
+                        && handlerMetadata.keys().contains(composableIndexName("other_template")) == false) {
+                        clusterService.removeListener(this);
+                        metadataVersion.set(event.state().metadata().version());
+                        savedClusterState.countDown();
+                    } else if (reservedState.errorMetadata() != null) {
+                        clusterService.removeListener(this);
+                        savedClusterState.countDown();
+                        throw new IllegalStateException(String.join(",", reservedState.errorMetadata().errors()));
+                    }
+                }
+            }
+        });
+
+        return new Tuple<>(savedClusterState, metadataVersion);
+    }
+
+    private void assertComponentAndIndexTemplateDelete(CountDownLatch savedClusterState, AtomicLong metadataVersion) throws Exception {
+        boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        final var response = client().execute(
+            GetComposableIndexTemplateAction.INSTANCE,
+            new GetComposableIndexTemplateAction.Request("template*")
+        ).get();
+
+        assertThat(response.indexTemplates().keySet().stream().collect(Collectors.toSet()), containsInAnyOrder("template_1", "template_2"));
+
+        final var componentResponse = client().execute(
+            GetComponentTemplateAction.INSTANCE,
+            new GetComponentTemplateAction.Request("other*")
+        ).get();
+
+        assertTrue(componentResponse.getComponentTemplates().isEmpty());
+
+        // this should just work, other is not locked
+        client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("other_component_template")).get();
+
+        // this will fail now because sampleIndexTemplateRestRequest wants use the component templates
+        // ["component_template1", "runtime_component_template"], which are not allowed to be used by REST requests, since they
+        // are written by file based settings, e.g. in operator mode. Allowing REST requests to use these components would mean that
+        // we would be unable to delete these components with file based settings, since they would be used by various composable
+        // index templates not managed by file based settings.
+        assertTrue(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_other"))
+                    .actionGet()
+            ).getMessage()
+                .contains(
+                    "with errors: [[component_template:runtime_component_template, "
+                        + "component_template:component_template1] is reserved by [file_settings]]"
+                )
+        );
+
+        // this will work now, we are saving template without components
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequestNoComponents("template_other")).get();
+
+        // the rest are still locked
+        assertTrue(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> client().execute(PutComponentTemplateAction.INSTANCE, sampleComponentRestRequest("component_template1")).actionGet()
+            ).getMessage().contains("[[component_template:component_template1] set as read-only by [file_settings]]")
+        );
+
+        assertTrue(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequest("template_1")).actionGet()
+            ).getMessage().contains("[[composable_index_template:template_1] set as read-only by [file_settings]]")
         );
     }
 
@@ -285,6 +539,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         var savedClusterState = setupClusterStateListener(dataNode);
         // In internal cluster tests, the nodes share the config directory, so when we write with the data node path
         // the master will pick it up on start
+        logger.info("--> write the initial settings json with all component templates and composable index templates");
         writeJSONFile(dataNode, testJSON);
 
         logger.info("--> start master node");
@@ -293,7 +548,14 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
 
+        savedClusterState = setupClusterStateListenerForOtherDelete(internalCluster().getMasterName());
+        logger.info("--> write the the reduced JSON, so we delete template_other and other_component_template");
+        writeJSONFile(internalCluster().getMasterName(), testJSONLess);
+
+        assertComponentAndIndexTemplateDelete(savedClusterState.v1(), savedClusterState.v2());
+
         logger.info("---> cleanup file based settings...");
+        // if clean-up doesn't succeed correctly, TestCluster.wipeAllComposableIndexTemplates will fail
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
         writeJSONFile(internalCluster().getMasterName(), emptyJSON);
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
@@ -313,7 +575,10 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
                     assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
                     assertThat(
                         reservedState.errorMetadata().errors().get(0),
-                        containsString("[err-repo] repository type [interstelar] does not exist")
+                        containsString(
+                            "index_template [err_template] invalid, cause [index template [err_template] specifies "
+                                + "component templates [component_template1, runtime_component_template] that do not exist]"
+                        )
                     );
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
@@ -329,16 +594,15 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        assertEquals(
-            "[err-repo] missing",
-            expectThrows(
-                RepositoryMissingException.class,
-                () -> client().execute(GetRepositoriesAction.INSTANCE, new GetRepositoriesRequest(new String[] { "err-repo" })).actionGet()
-            ).getMessage()
-        );
+        final var response = client().execute(
+            GetComposableIndexTemplateAction.INSTANCE,
+            new GetComposableIndexTemplateAction.Request("err*")
+        ).get();
+
+        assertTrue(response.indexTemplates().isEmpty());
 
         // This should succeed, nothing was reserved
-        client().execute(PutRepositoryAction.INSTANCE, sampleComponentRestRequest("err-repo")).get();
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, sampleIndexTemplateRestRequestNoComponents("err_template")).get();
     }
 
     public void testErrorSaved() throws Exception {
@@ -418,4 +682,46 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
             return new PutComposableIndexTemplateAction.Request(name).indexTemplate(ComposableIndexTemplate.parse(parser));
         }
     }
+
+    private PutComposableIndexTemplateAction.Request sampleIndexTemplateRestRequestNoComponents(String name) throws Exception {
+        var json = """
+            {
+                "index_patterns": ["aa*", "vv*"],
+                "template": {
+                  "settings": {
+                    "number_of_shards": 1
+                  },
+                  "mappings": {
+                    "_source": {
+                      "enabled": true
+                    },
+                    "properties": {
+                      "host_name": {
+                        "type": "keyword"
+                      },
+                      "created_at": {
+                        "type": "date",
+                        "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                      }
+                    }
+                  },
+                  "aliases": {
+                    "mydata": { }
+                  }
+                },
+                "priority": 500,
+                "version": 3,
+                "_meta": {
+                  "description": "my custom"
+                }
+            }""";
+
+        try (
+            var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
+        ) {
+            return new PutComposableIndexTemplateAction.Request(name).indexTemplate(ComposableIndexTemplate.parse(parser));
+        }
+    }
+
 }

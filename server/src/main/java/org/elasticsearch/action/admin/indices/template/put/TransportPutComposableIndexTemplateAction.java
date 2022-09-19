@@ -90,9 +90,9 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         ClusterState state,
         ComposableIndexTemplate indexTemplate
     ) {
-        Set<String> composedOfKeys = indexTemplate
-            .composedOf()
-            .stream().map(c -> ReservedComposableIndexTemplateAction.componentName(c))
+        Set<String> composedOfKeys = indexTemplate.composedOf()
+            .stream()
+            .map(c -> ReservedComposableIndexTemplateAction.componentName(c))
             .collect(Collectors.toSet());
 
         List<String> errors = new ArrayList<>();

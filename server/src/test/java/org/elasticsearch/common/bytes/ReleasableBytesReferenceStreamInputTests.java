@@ -25,7 +25,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ReleasableBytesReferenceStreamTests extends AbstractStreamTests {
+public class ReleasableBytesReferenceStreamInputTests extends AbstractStreamTests {
     private final List<ReleasableBytesReference> opened = new ArrayList<>();
     private final Set<Exception> openTraces = Collections.newSetFromMap(new IdentityHashMap<>());
 

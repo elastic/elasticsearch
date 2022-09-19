@@ -10,6 +10,7 @@ package org.elasticsearch.health.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -29,7 +30,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -62,8 +62,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 Collections.emptyList()
             );
         }
-        Set<String> indicesWithBlock = clusterService.state()
-            .blocks()
+        ClusterState clusterState = clusterService.state();
+        Set<String> indicesWithBlock = clusterState.blocks()
             .indices()
             .entrySet()
             .stream()
@@ -71,8 +71,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
         boolean hasAtLeastOneIndexReadOnlyAllowDeleteBlock = indicesWithBlock.isEmpty() == false;
-        logMissingHealthInfoData(diskHealthInfoMap);
-        HealthIndicatorDetails details = getDetails(explain, diskHealthInfoMap);
+        logMissingHealthInfoData(diskHealthInfoMap, clusterState);
+        HealthIndicatorDetails details = getDetails(explain, diskHealthInfoMap, clusterState);
         final HealthStatus healthStatusFromNodes = HealthStatus.merge(
             diskHealthInfoMap.values().stream().map(DiskHealthInfo::healthStatus)
         );
@@ -93,18 +93,24 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     .filter(entry -> HealthStatus.RED.equals(entry.getValue().healthStatus()))
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
-                Set<DiscoveryNodeRole> rolesOnRedNodes = getRolesOnNodes(nodesReportingRed);
+                Set<DiscoveryNodeRole> rolesOnRedNodes = getRolesOnNodes(nodesReportingRed, clusterState);
                 if (hasAtLeastOneIndexReadOnlyAllowDeleteBlock || rolesOnRedNodes.stream().anyMatch(DiscoveryNodeRole::canContainData)) {
                     healthIndicatorResult = getResultForRedIndicesOrDataNodes(
                         nodesReportingRed,
-                        Stream.concat(indicesWithBlock.stream(), getIndicesForNodes(nodesReportingRed).stream())
+                        Stream.concat(indicesWithBlock.stream(), getIndicesForNodes(nodesReportingRed, clusterState).stream())
                             .collect(Collectors.toSet()),
                         true,
                         details,
                         healthStatus
                     );
                 } else {
-                    healthIndicatorResult = getResultForNonDataNodeProblem(rolesOnRedNodes, nodesReportingRed, details, healthStatus);
+                    healthIndicatorResult = getResultForNonDataNodeProblem(
+                        rolesOnRedNodes,
+                        nodesReportingRed,
+                        details,
+                        healthStatus,
+                        clusterState
+                    );
                 }
             } else {
                 final Set<String> nodesReportingYellow = diskHealthInfoMap.entrySet()
@@ -112,7 +118,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     .filter(entry -> HealthStatus.YELLOW.equals(entry.getValue().healthStatus()))
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
-                Set<DiscoveryNodeRole> rolesOnYellowNodes = getRolesOnNodes(nodesReportingYellow);
+                Set<DiscoveryNodeRole> rolesOnYellowNodes = getRolesOnNodes(nodesReportingYellow, clusterState);
                 if (hasAtLeastOneIndexReadOnlyAllowDeleteBlock) {
                     healthIndicatorResult = getResultForRedIndicesOrDataNodes(
                         nodesReportingYellow,
@@ -122,9 +128,15 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         healthStatus
                     );
                 } else if (rolesOnYellowNodes.stream().anyMatch(DiscoveryNodeRole::canContainData)) {
-                    healthIndicatorResult = getResultForYellowDataNodes(nodesReportingYellow, details, healthStatus);
+                    healthIndicatorResult = getResultForYellowDataNodes(nodesReportingYellow, details, healthStatus, clusterState);
                 } else {
-                    healthIndicatorResult = getResultForNonDataNodeProblem(rolesOnYellowNodes, nodesReportingYellow, details, healthStatus);
+                    healthIndicatorResult = getResultForNonDataNodeProblem(
+                        rolesOnYellowNodes,
+                        nodesReportingYellow,
+                        details,
+                        healthStatus,
+                        clusterState
+                    );
                 }
             }
         }
@@ -135,14 +147,14 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         Set<DiscoveryNodeRole> roles,
         Set<String> problemNodes,
         HealthIndicatorDetails details,
-        HealthStatus status
+        HealthStatus status,
+        ClusterState clusterState
     ) {
         String symptom;
         final List<HealthIndicatorImpact> impacts;
         final List<Diagnosis> diagnosisList;
         if (roles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
-            Set<DiscoveryNode> problemMasterNodes = clusterService.state()
-                .nodes()
+            Set<DiscoveryNode> problemMasterNodes = clusterState.nodes()
                 .getNodes()
                 .values()
                 .stream()
@@ -259,9 +271,10 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     public HealthIndicatorResult getResultForYellowDataNodes(
         Set<String> problemNodes,
         HealthIndicatorDetails details,
-        HealthStatus status
+        HealthStatus status,
+        ClusterState clusterState
     ) {
-        final Set<String> problemIndices = getIndicesForNodes(problemNodes);
+        final Set<String> problemIndices = getIndicesForNodes(problemNodes, clusterState);
         final String symptom = String.format(
             Locale.ROOT,
             "%d data node%s increased disk usage. As a result %d %s at risk of not being able to process any more " + "updates.",
@@ -298,9 +311,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         return createIndicator(status, symptom, details, impacts, diagnosisList);
     }
 
-    private Set<DiscoveryNodeRole> getRolesOnNodes(Set<String> nodeIds) {
-        return clusterService.state()
-            .nodes()
+    private Set<DiscoveryNodeRole> getRolesOnNodes(Set<String> nodeIds, ClusterState clusterState) {
+        return clusterState.nodes()
             .getNodes()
             .values()
             .stream()
@@ -310,9 +322,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .collect(Collectors.toSet());
     }
 
-    private Set<String> getIndicesForNodes(Set<String> nodes) {
-        return clusterService.state()
-            .routingTable()
+    private Set<String> getIndicesForNodes(Set<String> nodes, ClusterState clusterState) {
+        return clusterState.routingTable()
             .allShards()
             .stream()
             .filter(routing -> nodes.contains(routing.currentNodeId()))
@@ -325,9 +336,9 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
      * not ordinarly important, but could be useful in tracking down problems where nodes have stopped reporting health node information.
      * @param diskHealthInfoMap A map of nodeId to DiskHealthInfo
      */
-    private void logMissingHealthInfoData(Map<String, DiskHealthInfo> diskHealthInfoMap) {
+    private void logMissingHealthInfoData(Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
         if (logger.isDebugEnabled()) {
-            Set<DiscoveryNode> nodesInClusterState = new HashSet<>(clusterService.state().nodes());
+            Set<DiscoveryNode> nodesInClusterState = new HashSet<>(clusterState.nodes());
             Set<String> nodeIdsInClusterState = nodesInClusterState.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             Set<String> nodeIdsInHealthInfo = diskHealthInfoMap.keySet();
             if (nodeIdsInHealthInfo.containsAll(nodeIdsInClusterState) == false) {
@@ -340,7 +351,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
-    private HealthIndicatorDetails getDetails(boolean explain, Map<String, DiskHealthInfo> diskHealthInfoMap) {
+    private HealthIndicatorDetails getDetails(boolean explain, Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
         if (explain == false) {
             return HealthIndicatorDetails.EMPTY;
         }
@@ -351,7 +362,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     builder.startObject();
                     String nodeId = entry.getKey();
                     builder.field("node_id", nodeId);
-                    String nodeName = getNameForNodeId(nodeId);
+                    String nodeName = getNameForNodeId(nodeId, clusterState);
                     if (nodeName != null) {
                         builder.field("name", nodeName);
                     }
@@ -374,13 +385,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
      * @return The current name of the node, or null if the node is not in the cluster state or does not have a name
      */
     @Nullable
-    private String getNameForNodeId(String nodeId) {
-        DiscoveryNode node = clusterService.state().nodes().get(nodeId);
-        if (node == null) {
-            return null;
-        } else {
-            String nodeName = node.getName();
-            return Objects.requireNonNullElse(nodeName, null);
-        }
+    private String getNameForNodeId(String nodeId, ClusterState clusterState) {
+        DiscoveryNode node = clusterState.nodes().get(nodeId);
+        return node == null ? null : node.getName();
     }
 }

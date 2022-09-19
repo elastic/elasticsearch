@@ -41,6 +41,12 @@ public class DfsPhase {
 
     public void execute(SearchContext context) {
         try {
+            long start = 0;
+
+            if (context.getProfilers() != null) {
+                start = System.nanoTime();
+            }
+
             Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
             Map<Term, TermStatistics> stats = new HashMap<>();
             IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
@@ -90,11 +96,6 @@ public class DfsPhase {
             // If kNN search is requested, perform kNN query and gather top docs
             SearchSourceBuilder source = context.request().source();
             if (source != null && source.knnSearch() != null) {
-                long start = 0;
-
-                if (context.getProfilers() != null) {
-                    start = System.nanoTime();
-                }
 
                 SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
                 KnnSearchBuilder knnSearch = source.knnSearch();
@@ -108,14 +109,15 @@ public class DfsPhase {
                 TopDocs topDocs = searcher.search(query.query(), knnSearch.k());
                 DfsKnnResults knnResults = new DfsKnnResults(topDocs.scoreDocs);
                 context.dfsResult().knnResults(knnResults);
+            }
 
-                if (context.getProfilers() != null) {
-                    long total = System.nanoTime() - start;
-                    context.dfsResult()
-                        .profileResult(
-                            new ProfileResult("KnnVectorQuery", query.query().toString(), Collections.emptyMap(), null, total, null)
-                        );
-                }
+            if (context.getProfilers() != null) {
+                long total = System.nanoTime() - start;
+                context.dfsResult()
+                    .profileResult(
+                        new ProfileResult("DFS TEST RESULT", "Test Description", Collections.emptyMap(), null, total, null)
+                        //new ProfileResult("KnnVectorQuery", query.query().toString(), Collections.emptyMap(), null, total, null)
+                    );
             }
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);

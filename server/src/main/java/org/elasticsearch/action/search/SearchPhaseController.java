@@ -475,8 +475,7 @@ public final class SearchPhaseController {
             0,
             true,
             aggReduceContextBuilder,
-            true,
-            new SearchProfileResultsBuilder()
+            true
         );
     }
 
@@ -497,8 +496,7 @@ public final class SearchPhaseController {
         int numReducePhases,
         boolean isScrollRequest,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        boolean performFinalReduce,
-        SearchProfileResultsBuilder searchProfileResultsBuilder
+        boolean performFinalReduce
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
@@ -569,6 +567,9 @@ public final class SearchPhaseController {
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
+        SearchProfileResultsBuilder searchProfileResultsBuilder =
+            queryResults.stream().anyMatch(result -> result.queryResult().hasProfileResults()) ?
+            new SearchProfileResultsBuilder() : null;
         if (searchProfileResultsBuilder != null) {
             searchProfileResultsBuilder.setQueryProfileResults(queryResults);
         }

@@ -24,7 +24,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.ArrayDeque;
@@ -67,8 +66,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final PendingMerges pendingMerges;
     private final Consumer<Exception> onPartialMergeFailure;
 
-    private final SearchProfileResultsBuilder searchProfileResultsBuilder;
-
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
      * as shard results are consumed.
@@ -97,12 +94,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
-
-        searchProfileResultsBuilder = request.source().profile() ? new SearchProfileResultsBuilder() : null;
-    }
-
-    public SearchProfileResultsBuilder getSearchProfileResultsBuilder() {
-        return searchProfileResultsBuilder;
     }
 
     @Override
@@ -144,8 +135,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             pendingMerges.numReducePhases,
             false,
             aggReduceContextBuilder,
-            performFinalReduce,
-            searchProfileResultsBuilder
+            performFinalReduce
         );
         if (hasAggs
             // reduced aggregations can be null if all shards failed

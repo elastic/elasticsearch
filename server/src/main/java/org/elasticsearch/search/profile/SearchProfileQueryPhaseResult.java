@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,6 +26,8 @@ import java.util.Objects;
  */
 public class SearchProfileQueryPhaseResult implements Writeable {
 
+    private ProfileResult dfsProfileResult;
+
     private final List<QueryProfileShardResult> queryProfileResults;
 
     private final AggregationProfileShardResult aggProfileShardResult;
@@ -33,11 +36,15 @@ public class SearchProfileQueryPhaseResult implements Writeable {
         List<QueryProfileShardResult> queryProfileResults,
         AggregationProfileShardResult aggProfileShardResult
     ) {
+        this.dfsProfileResult = null;
         this.aggProfileShardResult = aggProfileShardResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
     }
 
     public SearchProfileQueryPhaseResult(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            dfsProfileResult = in.readOptionalWriteable(ProfileResult::new);
+        }
         int profileSize = in.readVInt();
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>(profileSize);
         for (int i = 0; i < profileSize; i++) {
@@ -50,11 +57,22 @@ public class SearchProfileQueryPhaseResult implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            out.writeOptionalWriteable(dfsProfileResult);
+        }
         out.writeVInt(queryProfileResults.size());
         for (QueryProfileShardResult queryShardResult : queryProfileResults) {
             queryShardResult.writeTo(out);
         }
         aggProfileShardResult.writeTo(out);
+    }
+
+    public void setDfsProfileResult(ProfileResult dfsProfileResult) {
+        this.dfsProfileResult = dfsProfileResult;
+    }
+
+    public ProfileResult getDfsProfileResult() {
+        return dfsProfileResult;
     }
 
     public List<QueryProfileShardResult> getQueryProfileResults() {

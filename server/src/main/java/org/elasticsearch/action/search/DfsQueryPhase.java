@@ -16,6 +16,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
@@ -23,6 +24,7 @@ import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
@@ -98,6 +100,9 @@ final class DfsQueryPhase extends SearchPhase {
                     @Override
                     protected void innerOnResponse(QuerySearchResult response) {
                         try {
+                            if (dfsResult.profileResult() != null) {
+                                response.setDfsProfileResult(dfsResult.profileResult());
+                            }
                             counter.onResult(response);
                         } catch (Exception e) {
                             context.onPhaseFailure(DfsQueryPhase.this, "", e);

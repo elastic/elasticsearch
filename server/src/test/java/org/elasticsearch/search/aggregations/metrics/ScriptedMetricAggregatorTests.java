@@ -439,12 +439,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     .mapScript(MAP_SCRIPT_PARAMS)
                     .combineScript(COMBINE_SCRIPT_PARAMS)
                     .reduceScript(REDUCE_SCRIPT_PARAMS);
-                ScriptedMetric scriptedMetric = searchAndReduce(
-                    newSearcher(indexReader, true, true),
-                    new MatchAllDocsQuery(),
-                    aggregationBuilder,
-                    0
-                );
+                ScriptedMetric scriptedMetric = searchAndReduce(new AggTestConfig(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder).withMaxBuckets(0));
 
                 // The result value depends on the script params.
                 assertEquals(4803, scriptedMetric.aggregation());

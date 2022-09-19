@@ -400,7 +400,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
              * lets us create a fairly small test index.
              */
             int maxBuckets = 200;
-            StringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggregationBuilder, maxBuckets, s1ft, s2ft);
+            StringTerms result = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggregationBuilder, s1ft, s2ft).withMaxBuckets(maxBuckets));
             assertThat(
                 result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
                 equalTo(List.of("b007", "b107", "b207", "b307", "b407", "b507", "b607", "b707", "b807", "b907", "b000"))
@@ -1886,17 +1886,15 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 LongTerms terms = searchAndReduce(
-                    createIndexSettings(),
+                    new AggTestConfig(
                     indexSearcher,
                     new MatchAllDocsQuery(),
                     aggregationBuilder,
-                    Integer.MAX_VALUE,
-                    false,
                     new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER),
                     bIsString
                         ? new KeywordFieldMapper.KeywordFieldType("b")
                         : new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER)
-                );
+                    ).withSplitLeavesIntoSeperateAggregators(false).withMaxBuckets(Integer.MAX_VALUE));
                 assertThat(
                     terms.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(toList()),
                     equalTo(List.of(9L, 8L, 7L))

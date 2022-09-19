@@ -434,7 +434,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             aggTestConfig.searcher(),
             aggTestConfig.query(),
             aggTestConfig.builder(),
-            DEFAULT_MAX_BUCKETS,
+            aggTestConfig.maxBuckets(),
             aggTestConfig.fieldTypes()
         );
     }
@@ -447,16 +447,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         return searchAndReduce(indexSettings, searcher, query, builder, DEFAULT_MAX_BUCKETS, fieldTypes);
-    }
-
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        int maxBucket,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduce(createIndexSettings(), searcher, query, builder, maxBucket, fieldTypes);
     }
 
     /**
@@ -1474,12 +1464,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     public record AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder,
+                                boolean splitLeavesIntoSeparateAggregators, int maxBuckets,
                                        MappedFieldType... fieldTypes) {
         public AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this.searcher = searcher;
-            this.query = query;
-            this.builder = builder;
-            this.fieldTypes = fieldTypes;
+            this(searcher, query, builder, randomBoolean(), DEFAULT_MAX_BUCKETS, fieldTypes);
+        }
+
+        public AggTestConfig withSplitLeavesIntoSeperateAggregators(boolean splitLeavesIntoSeparateAggregators) {
+            return new AggTestConfig(searcher, query, builder, splitLeavesIntoSeparateAggregators, maxBuckets, fieldTypes);
+        }
+
+        public AggTestConfig withMaxBuckets(int maxBuckets) {
+            return new AggTestConfig(searcher, query, builder, splitLeavesIntoSeparateAggregators, maxBuckets, fieldTypes);
         }
     }
 }

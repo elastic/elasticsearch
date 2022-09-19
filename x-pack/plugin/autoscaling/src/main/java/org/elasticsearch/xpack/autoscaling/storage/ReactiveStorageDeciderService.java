@@ -167,11 +167,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 assignedBytesUnmovableShards.shardIds(),
                 CollectionUtils.concatLists(
                     unassignedBytesUnassignedShards.canAllocateDecisions(),
-                    assignedBytesUnmovableShards.canAllocateDecisions()
+                    unassignedBytesUnassignedShards.canRemainDecisions()
                 ),
                 CollectionUtils.concatLists(
-                    unassignedBytesUnassignedShards.canRemainDecisions(),
-                    assignedBytesUnmovableShards.canRemainDecisions()
+                    assignedBytesUnmovableShards.canRemainDecisions(),
+                    assignedBytesUnmovableShards.canAllocateDecisions()
                 )
             )
         );

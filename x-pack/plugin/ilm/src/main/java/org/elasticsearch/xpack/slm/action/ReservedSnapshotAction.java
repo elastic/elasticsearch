@@ -65,6 +65,7 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
         if (exceptions.isEmpty() == false) {
             var illegalArgumentException = new IllegalArgumentException("Error on validating SLM requests");
             exceptions.forEach(illegalArgumentException::addSuppressed);
+            throw illegalArgumentException;
         }
 
         return result;

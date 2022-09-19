@@ -1472,4 +1472,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
         }
     }
+
+    public record AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder,
+                                       MappedFieldType... fieldTypes) {
+        public AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder, MappedFieldType... fieldTypes) {
+            this.searcher = searcher;
+            this.query = query;
+            this.builder = builder;
+            this.fieldTypes = fieldTypes;
+        }
+    }
 }

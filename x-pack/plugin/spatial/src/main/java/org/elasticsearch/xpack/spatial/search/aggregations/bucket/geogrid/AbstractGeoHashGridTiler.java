@@ -12,7 +12,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
 import java.io.IOException;
 
@@ -34,7 +33,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     @Override
-    public int setValues(GeoShapeCellValues values, ShapeValues.ShapeValue geoValue) throws IOException {
+    public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
 
         if (precision == 0) {
             return 1;
@@ -52,8 +51,11 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         return setValuesByRasterization("", values, 0, geoValue);
     }
 
-    protected int setValuesByBruteForceScan(GeoShapeCellValues values, ShapeValues.ShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
-        throws IOException {
+    protected int setValuesByBruteForceScan(
+        GeoShapeCellValues values,
+        GeoShapeValues.GeoShapeValue geoValue,
+        GeoShapeValues.BoundingBox bounds
+    ) throws IOException {
         // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I can
         // see that eventually we will be visiting twice the same cell which should not happen.
         int idx = 0;
@@ -78,9 +80,9 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     /**
-     * Sets a singular doc-value for the {@link ShapeValues.ShapeValue}.
+     * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}.
      */
-    protected int setValue(GeoShapeCellValues docValues, ShapeValues.ShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
+    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
         throws IOException {
         String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
         if (relateTile(geoValue, hash) != GeoRelation.QUERY_DISJOINT) {
@@ -91,7 +93,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         return 0;
     }
 
-    private GeoRelation relateTile(ShapeValues.ShapeValue geoValue, String hash) throws IOException {
+    private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String hash) throws IOException {
         if (validHash(hash)) {
             final Rectangle rectangle = Geohash.toBoundingBox(hash);
             int minX = GeoEncodingUtils.encodeLongitude(rectangle.getMinLon());
@@ -103,7 +105,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         return GeoRelation.QUERY_DISJOINT;
     }
 
-    protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex, ShapeValues.ShapeValue geoValue)
+    protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex, GeoShapeValues.GeoShapeValue geoValue)
         throws IOException {
         String[] hashes = Geohash.getSubGeohashes(hash);
         for (String s : hashes) {

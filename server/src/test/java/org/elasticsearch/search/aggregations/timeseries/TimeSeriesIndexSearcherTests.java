@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
@@ -175,9 +176,10 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
     private BucketCollector getBucketCollector(long totalCount) {
         return new BucketCollector() {
 
-            boolean tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
-            boolean timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+            final boolean tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
+            final boolean timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
             BytesRef currentTSID = null;
+            int currentTSIDord = -1;
             long currentTimestamp = 0;
             long total = 0;
 
@@ -197,7 +199,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                         BytesRef latestTSID = tsid.lookupOrd(tsid.ordValue());
                         long latestTimestamp = timestamp.longValue();
                         assertEquals(latestTSID, aggCtx.getTsid());
-                        assertEquals(latestTimestamp, aggCtx.getTimestamp().longValue());
+                        assertEquals(latestTimestamp, aggCtx.getTimestamp());
 
                         if (currentTSID != null) {
                             assertTrue(
@@ -209,22 +211,26 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                                     currentTimestamp + "->" + latestTimestamp,
                                     timestampReverse ? latestTimestamp <= currentTimestamp : latestTimestamp >= currentTimestamp
                                 );
+                                assertEquals(currentTSIDord, aggCtx.getTsidOrd());
+                            } else {
+                                assertThat(aggCtx.getTsidOrd(), greaterThan(currentTSIDord));
                             }
                         }
                         currentTimestamp = latestTimestamp;
                         currentTSID = BytesRef.deepCopyOf(latestTSID);
+                        currentTSIDord = aggCtx.getTsidOrd();
                         total++;
                     }
                 };
             }
 
             @Override
-            public void preCollection() throws IOException {
+            public void preCollection() {
 
             }
 
             @Override
-            public void postCollection() throws IOException {
+            public void postCollection() {
                 assertEquals(totalCount, total);
             }
 

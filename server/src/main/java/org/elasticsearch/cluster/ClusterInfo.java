@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -265,31 +264,15 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     /**
      * Represents a data path on a node
      */
-    public static class NodeAndPath implements Writeable {
-        public final String nodeId;
-        public final String path;
+    public record NodeAndPath(String nodeId, String path) implements Writeable {
 
-        public NodeAndPath(String nodeId, String path) {
-            this.nodeId = Objects.requireNonNull(nodeId);
-            this.path = Objects.requireNonNull(path);
+        public NodeAndPath {
+            Objects.requireNonNull(nodeId);
+            Objects.requireNonNull(path);
         }
 
         public NodeAndPath(StreamInput in) throws IOException {
-            this.nodeId = in.readString();
-            this.path = in.readString();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NodeAndPath that = (NodeAndPath) o;
-            return nodeId.equals(that.nodeId) && path.equals(that.path);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(nodeId, path);
+            this(in.readString(), in.readString());
         }
 
         @Override
@@ -302,25 +285,12 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     /**
      * Represents the total amount of "reserved" space on a particular data path, together with the set of shards considered.
      */
-    public static class ReservedSpace implements Writeable {
+    public record ReservedSpace(long total, Set<ShardId> shardIds) implements Writeable {
 
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());
 
-        private final long total;
-        private final Set<ShardId> shardIds;
-
-        private ReservedSpace(long total, HashSet<ShardId> shardIds) {
-            this.total = total;
-            this.shardIds = shardIds;
-        }
-
         ReservedSpace(StreamInput in) throws IOException {
-            total = in.readVLong();
-            final int shardIdCount = in.readVInt();
-            shardIds = Sets.newHashSetWithExpectedSize(shardIdCount);
-            for (int i = 0; i < shardIdCount; i++) {
-                shardIds.add(new ShardId(in));
-            }
+            this(in.readVLong(), in.readSet(ShardId::new));
         }
 
         @Override
@@ -335,19 +305,6 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
 
         public boolean containsShardId(ShardId shardId) {
             return shardIds.contains(shardId);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ReservedSpace that = (ReservedSpace) o;
-            return total == that.total && shardIds.equals(that.shardIds);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(total, shardIds);
         }
 
         void toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -381,5 +338,4 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             }
         }
     }
-
 }

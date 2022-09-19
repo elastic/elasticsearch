@@ -697,47 +697,83 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertThat(cause, hasToString(containsString("flood disk max headroom [500mb] more than high disk max headroom [400mb]")));
     }
 
+    public void testInvalidHeadroomSetToMinusOne() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        new DiskThresholdSettings(Settings.EMPTY, clusterSettings);
+
+        Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder = builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "-1");
+        } else if (randomBoolean()) {
+            builder = builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "-1");
+        } else {
+            builder = builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "-1");
+        }
+        final Settings newSettings = builder.build();
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
+        final String expected = "illegal value can't update";
+        assertThat(e, hasToString(containsString(expected)));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
+        assertThat(cause, hasToString(containsString("setting a headroom value to less than 0 is not supported")));
+    }
+
     public void testInvalidLowHeadroomSetAndHighNotSet() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        new DiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
+        new DiskThresholdSettings(Settings.EMPTY, clusterSettings);
 
-        final Settings newSettings = Settings.builder()
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "-1")
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "100GB")
-            .build();
+        Settings.Builder builder = Settings.builder()
+            // The following settings combination for a 1000TiB hard disk would result in the required minimum free disk space for the low
+            // watermark to be 150GiB, and for the high 100TiB. So it could hit the high watermark before the low watermark.
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "85%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "95%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "150GB");
+        if (randomBoolean()) {
+            builder = builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "20GB");
+        }
+        final Settings newSettings = builder.build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected =
-            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [200GB] to [100GB]";
+            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [200GB] to [150GB]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         assertThat(
             cause,
-            hasToString(containsString("high disk max headroom [-1] is not set, while the low disk max headroom is set [100gb]"))
+            hasToString(containsString("high disk max headroom [-1] is not set, while the low disk max headroom is set [150gb]"))
         );
     }
 
     public void testInvalidHighHeadroomSetAndFloodNotSet() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        new DiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
+        new DiskThresholdSettings(Settings.EMPTY, clusterSettings);
 
-        final Settings newSettings = Settings.builder()
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "-1")
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "90GB")
-            .build();
+        Settings.Builder builder = Settings.builder()
+            // The following settings combination for a 1000TiB hard disk would result in the required minimum free disk space for the high
+            // watermark to be 150GiB and for the flood 50TiB. So it could hit the flood watermark before the high watermark.
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "85%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "90%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "95%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "150GB");
+        if (randomBoolean()) {
+            builder = builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "200GB");
+        }
+        final Settings newSettings = builder.build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
-        final String expected =
-            "illegal value can't update [cluster.routing.allocation.disk.watermark.high.max_headroom] from [150GB] to [90GB]";
+        final String expected = "illegal value can't update";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         assertThat(
             cause,
-            hasToString(containsString("flood disk max headroom [-1] is not set, while the high disk max headroom is set [90gb]"))
+            hasToString(containsString("flood disk max headroom [-1] is not set, while the high disk max headroom is set [150gb]"))
         );
     }
 

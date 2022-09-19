@@ -287,7 +287,11 @@ public class DiskThresholdSettings {
         }
 
         @Override
-        public void validate(final ByteSizeValue value, final Map<Setting<?>, Object> settings) {
+        public void validate(final ByteSizeValue value, final Map<Setting<?>, Object> settings, boolean isPresent) {
+            if (isPresent && value.equals(ByteSizeValue.MINUS_ONE)) {
+                throw new IllegalArgumentException("setting a headroom value to less than 0 is not supported");
+            }
+
             final ByteSizeValue lowHeadroom = (ByteSizeValue) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING);
             final ByteSizeValue highHeadroom = (ByteSizeValue) settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING);
             final ByteSizeValue floodHeadroom = (ByteSizeValue) settings.get(
@@ -354,6 +358,7 @@ public class DiskThresholdSettings {
             }
 
             // For the comparisons, we need to mind that headroom values can default to -1.
+
             if (highHeadroom.compareTo(lowHeadroom) > 0 && lowHeadroom.equals(ByteSizeValue.MINUS_ONE) == false) {
                 throw new IllegalArgumentException(
                     "high disk max headroom ["

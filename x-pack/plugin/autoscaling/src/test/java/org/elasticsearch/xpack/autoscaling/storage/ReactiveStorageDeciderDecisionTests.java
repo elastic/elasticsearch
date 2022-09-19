@@ -471,12 +471,17 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static Decision singleNoDecision(NodeDecision nodeAllocationResult) {
-        return nodeAllocationResult.decision()
+        List<Decision> noDecisions = nodeAllocationResult.decision()
             .getDecisions()
             .stream()
             .filter(d -> d.type() == Decision.Type.NO)
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("Unable to find NO can_remain decision"));
+            .toList();
+        if (noDecisions.isEmpty()) {
+            throw new IllegalStateException("Unable to find NO can_remain decision");
+        } else if (noDecisions.size() > 1) {
+            throw new IllegalStateException("Found multiple NO can_remain decisions");
+        }
+        return noDecisions.get(0);
     }
 
     private interface VerificationSubject {

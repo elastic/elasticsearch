@@ -277,6 +277,16 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             writeJSONFile(internalCluster().getMasterName(), emptyJSON);
             boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
             assertTrue(awaitSuccessful);
+
+            final ClusterStateResponse clusterStateResponse = client().admin()
+                .cluster()
+                .state(new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get()))
+                .get();
+
+            assertNull(
+                clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
+            );
+
             var request = new GetRoleMappingsRequest();
             request.setNames("everyone_kibana", "everyone_fleet");
             var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
@@ -378,6 +388,10 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             .cluster()
             .state(new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get()))
             .get();
+
+        assertNull(
+            clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
+        );
 
         ReservedStateMetadata reservedState = clusterStateResponse.getState()
             .metadata()

@@ -314,12 +314,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         };
         bulkIndex(sourceSupplier);
 
-        // Downsample the source indexe
+        // Downsample the source index
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
 
-        // Downsample the rollupIndex. The downsampling interval is a multiple of the previous downsampling interval.
+        // Downsample the rollup index. The downsampling interval is a multiple of the previous downsampling interval.
         String rollupIndex2 = rollupIndex + "-2";
         DownsampleConfig config2 = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)));
         rollup(rollupIndex, rollupIndex2, config2);
@@ -649,12 +649,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
             .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndex + "]"));
 
-        IndexMetadata indexMetadata = client().admin().cluster().prepareState().get().getState().getMetadata().index(sourceIndex);
-        TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(
-            getInstanceFromNode(IndicesService.class),
-            sourceIndexMappings,
-            indexMetadata
-        ).build(config.getTimestampField());
+        final IndexMetadata indexMetadata = client().admin().cluster().prepareState().get().getState().getMetadata().index(sourceIndex);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
+        final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+        TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(mapperService).build(config.getTimestampField());
+
         Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {

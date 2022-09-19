@@ -431,8 +431,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     // For resize shards only allow autoscaling if there is no other node where the shard could fit had it not been
                     // a resize shard. Notice that we already removed any initial_recovery filters.
                     boolean hasResizeOnly = nodesInTier(allocation.routingNodes()).map(
-                        node -> new NodeDecision(node.node(), allocationDeciders.canAllocate(shard, node, allocation))
-                    ).anyMatch(nar -> ReactiveStorageDeciderService.isResizeOnlyNoDecision(nar.decision()));
+                        node -> allocationDeciders.canAllocate(shard, node, allocation)
+                    ).anyMatch(ReactiveStorageDeciderService::isResizeOnlyNoDecision);
                     if (hasResizeOnly) {
                         return Optional.empty();
                     }

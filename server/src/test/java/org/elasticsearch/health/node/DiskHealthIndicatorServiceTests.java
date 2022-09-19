@@ -477,6 +477,82 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    public void testBlockedIndexWithRedNonDataNodesAndYellowDataNodes() {
+        /*
+         * In this test, there are indices with blocks on them, non-data nodes that report RED, and data nodes that report YELLOW. We
+         * expect the index blocks to take priority. So the status will be RED, and we'll report the problem indices on the YELLOW data
+         * nodes. The problems on the non-data nodes will not be reported.
+         */
+        Set<DiscoveryNodeRole> allNonDataRoles = Set.of(
+            DiscoveryNodeRole.MASTER_ROLE,
+            DiscoveryNodeRole.ML_ROLE,
+            DiscoveryNodeRole.INGEST_ROLE,
+            DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
+            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+            DiscoveryNodeRole.TRANSFORM_ROLE
+        );
+        Set<DiscoveryNodeRole> nonDataRoles = new HashSet<>(randomSubsetOf(randomIntBetween(1, allNonDataRoles.size()), allNonDataRoles));
+        Set<DiscoveryNodeRole> allDataRoles = Set.of(
+            DiscoveryNodeRole.DATA_ROLE,
+            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
+            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
+            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_WARM_NODE_ROLE
+        );
+        Set<DiscoveryNodeRole> dataRoles = new HashSet<>(randomSubsetOf(randomIntBetween(1, allDataRoles.size()), allDataRoles));
+        Set<DiscoveryNode> nonDataDiscoveryNodes = createNodes(nonDataRoles);
+        Set<DiscoveryNode> dataDiscoveryNodes = createNodes(dataRoles);
+        ClusterService clusterService = createClusterService(
+            true,
+            Stream.concat(nonDataDiscoveryNodes.stream(), dataDiscoveryNodes.stream()).collect(Collectors.toSet())
+        );
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
+        int numberOfRedNonDataNodes = randomIntBetween(1, nonDataDiscoveryNodes.size());
+        int numberOfYellowDataNodes = randomIntBetween(1, dataDiscoveryNodes.size());
+        HealthInfo healthInfo = createHealthInfo(
+            HealthStatus.RED,
+            numberOfRedNonDataNodes,
+            nonDataDiscoveryNodes,
+            HealthStatus.YELLOW,
+            numberOfYellowDataNodes,
+            dataDiscoveryNodes
+        );
+        HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
+        assertThat(result.status(), equalTo(HealthStatus.RED));
+        assertThat(
+            result.symptom(),
+            equalTo(
+                "1 index is blocked and cannot be updated because "
+                    + numberOfYellowDataNodes
+                    + " node"
+                    + (numberOfYellowDataNodes == 1 ? " is" : "s are")
+                    + " running low on disk space."
+            )
+        );
+        List<HealthIndicatorImpact> impacts = result.impacts();
+        assertThat(impacts.size(), equalTo(1));
+        assertThat(impacts.get(0).impactDescription(), equalTo("Cannot insert or update documents in the affected indices."));
+        assertThat(impacts.get(0).severity(), equalTo(1));
+        assertThat(impacts.get(0).impactAreas(), equalTo(List.of(ImpactArea.INGEST)));
+        List<Diagnosis> diagnosisList = result.diagnosisList();
+        assertThat(diagnosisList.size(), equalTo(1));
+        Diagnosis diagnosis = diagnosisList.get(0);
+        List<String> affectedResults = diagnosis.affectedResources();
+        assertThat(affectedResults.size(), equalTo(numberOfYellowDataNodes));
+        Diagnosis.Definition diagnosisDefinition = diagnosis.definition();
+        assertThat(
+            diagnosisDefinition.cause(),
+            equalTo("1 index resides on nodes that have run out of space and writing has been blocked by the system.")
+        );
+        assertThat(
+            diagnosisDefinition.action(),
+            equalTo(
+                "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve this. If you have already "
+                    + "taken action please wait for the rebalancing to complete."
+            )
+        );
+    }
+
     private Set<DiscoveryNode> createNodesWithAllRoles() {
         return createNodes(DiscoveryNodeRole.roles());
     }
@@ -514,6 +590,60 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                     ? new DiskHealthInfo(expectedStatus)
                     : new DiskHealthInfo(expectedStatus, randomFrom(DiskHealthInfo.Cause.values()));
                 numberWithNonGreenStatus++;
+            } else {
+                diskHealthInfo = randomBoolean()
+                    ? new DiskHealthInfo(HealthStatus.GREEN)
+                    : new DiskHealthInfo(HealthStatus.GREEN, randomFrom(DiskHealthInfo.Cause.values()));
+            }
+            diskInfoByNode.put(node.getId(), diskHealthInfo);
+        }
+        return new HealthInfo(diskInfoByNode);
+    }
+
+    /**
+     * This version of the method is similar to the one above, except it applies two different statuses to two different sets of nodes.
+     * @param expectedStatus1
+     * @param numberOfNodesWithExpectedStatus1
+     * @param nodes1
+     * @param expectedStatus2
+     * @param numberOfNodesWithExpectedStatus2
+     * @param nodes2
+     * @return
+     */
+    private HealthInfo createHealthInfo(
+        HealthStatus expectedStatus1,
+        int numberOfNodesWithExpectedStatus1,
+        Set<DiscoveryNode> nodes1,
+        HealthStatus expectedStatus2,
+        int numberOfNodesWithExpectedStatus2,
+        Set<DiscoveryNode> nodes2
+    ) {
+        assert numberOfNodesWithExpectedStatus1 <= nodes1.size();
+        assert numberOfNodesWithExpectedStatus2 <= nodes2.size();
+        Map<String, DiskHealthInfo> diskInfoByNode = new HashMap<>();
+        int numberWithNonGreenStatus1 = 0;
+        for (DiscoveryNode node : nodes1) {
+            final DiskHealthInfo diskHealthInfo;
+            if (numberWithNonGreenStatus1 < numberOfNodesWithExpectedStatus1) {
+                diskHealthInfo = randomBoolean()
+                    ? new DiskHealthInfo(expectedStatus1)
+                    : new DiskHealthInfo(expectedStatus1, randomFrom(DiskHealthInfo.Cause.values()));
+                numberWithNonGreenStatus1++;
+            } else {
+                diskHealthInfo = randomBoolean()
+                    ? new DiskHealthInfo(HealthStatus.GREEN)
+                    : new DiskHealthInfo(HealthStatus.GREEN, randomFrom(DiskHealthInfo.Cause.values()));
+            }
+            diskInfoByNode.put(node.getId(), diskHealthInfo);
+        }
+        int numberWithNonGreenStatus2 = 0;
+        for (DiscoveryNode node : nodes2) {
+            final DiskHealthInfo diskHealthInfo;
+            if (numberWithNonGreenStatus2 < numberOfNodesWithExpectedStatus2) {
+                diskHealthInfo = randomBoolean()
+                    ? new DiskHealthInfo(expectedStatus2)
+                    : new DiskHealthInfo(expectedStatus2, randomFrom(DiskHealthInfo.Cause.values()));
+                numberWithNonGreenStatus2++;
             } else {
                 diskHealthInfo = randomBoolean()
                     ? new DiskHealthInfo(HealthStatus.GREEN)

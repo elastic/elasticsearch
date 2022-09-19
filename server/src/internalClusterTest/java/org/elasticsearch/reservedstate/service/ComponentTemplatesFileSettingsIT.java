@@ -436,7 +436,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedComposableIndexTemplateAction.NAME);
                     if (handlerMetadata != null
                         && handlerMetadata.keys().isEmpty() == false
-                        && handlerMetadata.keys().contains(composableIndexName("other_template")) == false) {
+                        && handlerMetadata.keys().contains(composableIndexName("template_other")) == false) {
                         clusterService.removeListener(this);
                         metadataVersion.set(event.state().metadata().version());
                         savedClusterState.countDown();

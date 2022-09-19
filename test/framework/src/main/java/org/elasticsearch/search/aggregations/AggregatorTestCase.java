@@ -428,17 +428,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return null;
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(AggTestConfig aggTestConfig) throws IOException {
-        return searchAndReduce(
-            aggTestConfig.searcher(),
-            aggTestConfig.query(),
-            aggTestConfig.builder(),
-            aggTestConfig.maxBuckets(),
-            aggTestConfig.splitLeavesIntoSeparateAggregators(),
-            aggTestConfig.fieldTypes()
-        );
-    }
-
     /**
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
@@ -449,18 +438,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
      * in order to mak sure the implementation does not leak.
      *
-     * @param splitLeavesIntoSeparateAggregators If true this creates a new {@link Aggregator}
-     *                                           for each leaf as though it were a separate index. If false this aggregates
-     *                                           all leaves together, like we do in production.
+     * @param aggTestConfig
      */
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        int maxBucket,
-        boolean splitLeavesIntoSeparateAggregators,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
+        AggTestConfig aggTestConfig) throws IOException {
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
@@ -468,13 +449,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
             try {
                 searchAndReduce(
                     indexSettings,
-                    searcher,
-                    query,
-                    builder,
-                    maxBucket,
-                    splitLeavesIntoSeparateAggregators,
+                    aggTestConfig.searcher(),
+                    aggTestConfig.query(),
+                    aggTestConfig.builder(),
+                    aggTestConfig.maxBuckets(),
+                    aggTestConfig.splitLeavesIntoSeparateAggregators(),
                     crankyService,
-                    fieldTypes
+                    aggTestConfig.fieldTypes()
                 );
             } catch (CircuitBreakingException e) {
                 // expected
@@ -486,13 +467,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         return searchAndReduce(
             indexSettings,
-            searcher,
-            query,
-            builder,
-            maxBucket,
-            splitLeavesIntoSeparateAggregators,
+            aggTestConfig.searcher(),
+            aggTestConfig.query(),
+            aggTestConfig.builder(),
+            aggTestConfig.maxBuckets(),
+            aggTestConfig.splitLeavesIntoSeparateAggregators(),
             breakerService,
-            fieldTypes
+            aggTestConfig.fieldTypes()
         );
     }
 

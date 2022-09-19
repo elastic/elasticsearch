@@ -25,6 +25,12 @@ import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
  * configurable length.
  */
 final class BigIntArray extends AbstractBigArray implements IntArray {
+    static {
+        if (ByteOrder.nativeOrder() != ByteOrder.LITTLE_ENDIAN) {
+            throw new Error("The deserialization assumes this class is written with little-endian ints.");
+        }
+    }
+
     private static final BigIntArray ESTIMATOR = new BigIntArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     static final VarHandle VH_PLATFORM_NATIVE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
@@ -53,12 +59,6 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         }
         int end = intSize % INT_PAGE_SIZE;
         out.write(pages[pages.length - 1], 0, end * Integer.BYTES);
-    }
-
-    static {
-        if (ByteOrder.nativeOrder() != ByteOrder.LITTLE_ENDIAN) {
-            throw new Error("The deserialization assumes this class is written with little-endian ints.");
-        }
     }
 
     @Override

@@ -226,7 +226,11 @@ GET _cat/shards?v=true
 
 The exact resource usage of each mapped field depends on its type, but a rule
 of thumb is to allow for approximately 1kB of heap overhead per mapped field
-per index held by each data node. You must also allow enough heap for {es}'s
+per index held by each data node. In a running cluster, you can also consult the
+<<cluster-nodes-stats,Nodes stats API>>'s `mappings` indices statistic, which
+reports the number of field mappings and an estimation of their heap overhead.
+
+Additionally, you must also allow enough heap for {es}'s
 baseline usage as well as your workload such as indexing, searches and
 aggregations. 0.5GB of extra heap will suffice for many reasonable workloads,
 and you may need even less if your workload is very light while heavy workloads

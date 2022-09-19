@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.geo.BoundingBox;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -16,50 +15,20 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
-import java.util.Collection;
-import java.util.Collections;
-
 /**
  * {@link LeafFieldData} specialization for geo-shapes and shapes.
  */
-public abstract class LeafShapeFieldData implements LeafFieldData {
-    protected final ToScriptFieldFactory<ShapeValues> toScriptFieldFactory;
+public abstract class LeafShapeFieldData<T extends ShapeValues<?>> implements LeafFieldData {
+    protected final ToScriptFieldFactory<T> toScriptFieldFactory;
 
-    public LeafShapeFieldData(ToScriptFieldFactory<ShapeValues> toScriptFieldFactory) {
+    public LeafShapeFieldData(ToScriptFieldFactory<T> toScriptFieldFactory) {
         this.toScriptFieldFactory = toScriptFieldFactory;
-    }
-
-    public static class Empty<T extends SpatialPoint> extends LeafShapeFieldData {
-        private final ShapeValues emptyValues;
-
-        public Empty(ToScriptFieldFactory<ShapeValues> toScriptFieldFactory, ShapeValues emptyValues) {
-            super(toScriptFieldFactory);
-            this.emptyValues = emptyValues;
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return 0;
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public void close() {}
-
-        @Override
-        public ShapeValues getShapeValues() {
-            return emptyValues;
-        }
     }
 
     /**
      * Return geo-shape or shape values.
      */
-    public abstract ShapeValues getShapeValues();
+    public abstract T getShapeValues();
 
     @Override
     public final SortedBinaryDocValues getBytesValues() {
@@ -71,11 +40,13 @@ public abstract class LeafShapeFieldData implements LeafFieldData {
         return toScriptFieldFactory.getScriptFieldFactory(getShapeValues(), name);
     }
 
-    public static class ShapeScriptValues<T extends SpatialPoint> extends ScriptDocValues.BaseGeometry<T, ShapeValues.ShapeValue> {
+    public static class ShapeScriptValues<T extends SpatialPoint, V extends ShapeValues.ShapeValue> extends ScriptDocValues.BaseGeometry<
+        T,
+        V> {
 
-        private final GeometrySupplier<T, ShapeValues.ShapeValue> gsSupplier;
+        private final GeometrySupplier<T, V> gsSupplier;
 
-        protected ShapeScriptValues(GeometrySupplier<T, ShapeValues.ShapeValue> supplier) {
+        protected ShapeScriptValues(GeometrySupplier<T, V> supplier) {
             super(supplier);
             this.gsSupplier = supplier;
         }
@@ -101,11 +72,11 @@ public abstract class LeafShapeFieldData implements LeafFieldData {
         }
 
         @Override
-        public ShapeValues.ShapeValue get(int index) {
+        public V get(int index) {
             return gsSupplier.getInternal(0);
         }
 
-        public ShapeValues.ShapeValue getValue() {
+        public V getValue() {
             return gsSupplier.getInternal(0);
         }
 

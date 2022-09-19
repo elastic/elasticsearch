@@ -384,7 +384,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         boolean floodHeadroomEnabled = highHeadroomEnabled ? true : ((watermarksAbsolute == false) && randomBoolean());
         boolean frozenFloodHeadroomEnabled = (watermarksAbsolute == false) && randomBoolean();
 
-        Settings newSettings = Settings.builder()
+        Settings.Builder builder = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
             .put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
@@ -402,25 +402,23 @@ public class DiskThresholdSettingsTests extends ESTestCase {
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey(),
                 watermarksAbsolute ? "15b" : randomBoolean() ? "85%" : "0.85"
             )
-            .put(
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(),
-                lowHeadroomEnabled ? "1000mb" : "-1"
-            )
-            .put(
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                highHeadroomEnabled ? "500mb" : "-1"
-            )
-            .put(
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(),
-                floodHeadroomEnabled ? "250mb" : "-1"
-            )
-            .put(
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "30s");
+        if (lowHeadroomEnabled) {
+            builder = builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "1000mb");
+        }
+        if (highHeadroomEnabled) {
+            builder = builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "500mb");
+        }
+        if (floodHeadroomEnabled) {
+            builder = builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "250mb");
+        }
+        if (frozenFloodHeadroomEnabled) {
+            builder = builder.put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(),
-                frozenFloodHeadroomEnabled ? "150mb" : "-1"
-            )
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "30s")
-            .build();
-        nss.applySettings(newSettings);
+                "150mb"
+            );
+        }
+        nss.applySettings(builder.build());
 
         // Test that watermark values apply
         ByteSizeValue hundredBytes = ByteSizeValue.parseBytesSizeValue("100b", "test");

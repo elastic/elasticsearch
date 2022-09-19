@@ -85,19 +85,20 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     private void doTestDiskThreshold(boolean testMaxHeadroom) {
-        Settings diskSettings = Settings.builder()
+        Settings.Builder diskSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
-            .put(
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8);
+        if (testMaxHeadroom) {
+            diskSettings = diskSettings.put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(200).toString() : "-1")
+                ByteSizeValue.ofGb(200).toString()
             )
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8)
-            .put(
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(150).toString() : "-1")
-            )
-            .build();
+                .put(
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
+                    ByteSizeValue.ofGb(150).toString()
+                );
+        }
 
         Map<String, DiskUsage> usages = new HashMap<>();
         final long totalBytes = testMaxHeadroom ? ByteSizeValue.ofGb(10000).getBytes() : 100;
@@ -123,7 +124,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AllocationDeciders deciders = new AllocationDeciders(
-            new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY, clusterSettings), makeDecider(diskSettings)))
+            new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY, clusterSettings), makeDecider(diskSettings.build())))
         );
 
         ClusterInfoService cis = () -> {
@@ -204,8 +205,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), ByteSizeValue.ofGb(250))
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), ByteSizeValue.ofGb(150))
-                .build();
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), ByteSizeValue.ofGb(150));
         } else {
             // Set the low threshold to 60 instead of 70
             // Set the high threshold to 70 instead of 80
@@ -213,12 +213,11 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.7)
-                .build();
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.7);
         }
 
         deciders = new AllocationDeciders(
-            new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY, clusterSettings), makeDecider(diskSettings)))
+            new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY, clusterSettings), makeDecider(diskSettings.build())))
         );
 
         strategy = new AllocationService(
@@ -248,8 +247,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), ByteSizeValue.ofGb(500))
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), ByteSizeValue.ofGb(400))
-                .build();
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), ByteSizeValue.ofGb(400));
         } else {
             // Set the low threshold to 50 instead of 60
             // Set the high threshold to 60 instead of 70
@@ -258,12 +256,11 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.5)
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.6)
-                .build();
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.6);
         }
 
         deciders = new AllocationDeciders(
-            new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY, clusterSettings), makeDecider(diskSettings)))
+            new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY, clusterSettings), makeDecider(diskSettings.build())))
         );
 
         strategy = new AllocationService(
@@ -558,19 +555,20 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     private void doTestDiskThresholdWithShardSizes(boolean testMaxHeadroom) {
-        Settings diskSettings = Settings.builder()
+        Settings.Builder diskSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
-            .put(
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "71%");
+        if (testMaxHeadroom) {
+            diskSettings = diskSettings.put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(200).toString() : "-1")
+                ByteSizeValue.ofGb(200).toString()
             )
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "71%")
-            .put(
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(199).toString() : "-1")
-            )
-            .build();
+                .put(
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
+                    ByteSizeValue.ofGb(199).toString()
+                );
+        }
 
         Map<String, DiskUsage> usages = new HashMap<>();
         final long totalBytes = testMaxHeadroom ? ByteSizeValue.ofGb(10000).getBytes() : 100;
@@ -595,7 +593,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         Settings.EMPTY,
                         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                     ),
-                    makeDecider(diskSettings)
+                    makeDecider(diskSettings.build())
                 )
             )
         );
@@ -740,19 +738,20 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     private void doTestShardRelocationsTakenIntoAccount(boolean testMaxHeadroom) {
-        Settings diskSettings = Settings.builder()
+        Settings.Builder diskSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
-            .put(
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8);
+        if (testMaxHeadroom) {
+            diskSettings = diskSettings.put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(150).toString() : "-1")
+                ByteSizeValue.ofGb(150).toString()
             )
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8)
-            .put(
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(110).toString() : "-1")
-            )
-            .build();
+                .put(
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
+                    ByteSizeValue.ofGb(110).toString()
+                );
+        }
 
         Map<String, DiskUsage> usages = new HashMap<>();
         final long totalBytes = testMaxHeadroom ? ByteSizeValue.ofGb(10000).getBytes() : 100;
@@ -776,7 +775,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         shardSizes.put("[test2][0][r]", testMaxHeadroom ? ByteSizeValue.ofGb(1).getBytes() : 1L);
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
-        DiskThresholdDecider decider = makeDecider(diskSettings);
+        DiskThresholdDecider decider = makeDecider(diskSettings.build());
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AllocationDeciders deciders = new AllocationDeciders(
             new HashSet<>(
@@ -951,19 +950,20 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     private void doTestCanRemainWithShardRelocatingAway(boolean testMaxHeadroom) {
-        Settings diskSettings = Settings.builder()
+        Settings.Builder diskSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
-            .put(
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%");
+        if (testMaxHeadroom) {
+            diskSettings = diskSettings.put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(150).toString() : "-1")
+                ByteSizeValue.ofGb(150).toString()
             )
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
-            .put(
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(110).toString() : "-1")
-            )
-            .build();
+                .put(
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
+                    ByteSizeValue.ofGb(110).toString()
+                );
+        }
 
         Map<String, DiskUsage> usages = new HashMap<>();
         final long totalBytes = testMaxHeadroom ? ByteSizeValue.ofGb(10000).getBytes() : 100;
@@ -983,7 +983,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
-        DiskThresholdDecider diskThresholdDecider = makeDecider(diskSettings);
+        DiskThresholdDecider diskThresholdDecider = makeDecider(diskSettings.build());
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
             .put(IndexMetadata.builder("foo").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
@@ -1162,17 +1162,19 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         Settings.Builder builder = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
-            .put(
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%");
+        if (testMaxHeadroom) {
+            builder = builder.put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(150).toString() : "-1")
+                ByteSizeValue.ofGb(150).toString()
             )
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
-            .put(
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(110).toString() : "-1")
-            );
+                .put(
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
+                    ByteSizeValue.ofGb(110).toString()
+                );
+        }
         if (randomBoolean()) {
-            builder.put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true);
+            builder = builder.put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true);
         }
         Settings diskSettings = builder.build();
 
@@ -1325,25 +1327,26 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             : (testMaxHeadroom ? ByteSizeValue.ofGb(350).getBytes() : 50L); // does not fit free space of node1
         logger.info("--> using shard size [{}]", shardSizeInBytes);
 
-        final Settings diskSettings = Settings.builder()
+        Settings.Builder diskSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
-            .put(
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "95%");
+        if (testMaxHeadroom) {
+            diskSettings = diskSettings.put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(150).toString() : "-1")
+                ByteSizeValue.ofGb(150).toString()
             )
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "95%")
-            .put(
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(110).toString() : "-1")
-            )
-            .build();
+                .put(
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
+                    ByteSizeValue.ofGb(110).toString()
+                );
+        }
 
         Map<String, DiskUsage> usages = new HashMap<>();
         final long totalBytes = testMaxHeadroom ? ByteSizeValue.ofGb(10000).getBytes() : 100;
         usages.put(
             "node1",
-            new DiskUsage("node1", "n1", "/dev/null", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(200).getBytes() : 21)
+            new DiskUsage("node1", "n1", "/dev/null", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(210).getBytes() : 21)
         );
         usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", totalBytes, testMaxHeadroom ? ByteSizeValue.ofGb(1).getBytes() : 1));
         final ClusterInfoService clusterInfoService = () -> new DevNullClusterInfo(usages, usages, Map.of());
@@ -1356,7 +1359,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         Settings.EMPTY,
                         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                     ),
-                    makeDecider(diskSettings)
+                    makeDecider(diskSettings.build())
                 )
             )
         );

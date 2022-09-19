@@ -98,35 +98,28 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(initialWatermark));
                 assertThat(diskMetadata.highMaxHeadroom(), equalTo(initialMaxHeadroom));
             }
+            Settings.Builder builder = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), updatedLowWatermark)
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), updatedHighWatermark)
+                .put(
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
+                    updatedFloodStageWatermark
+                );
+            if (percentageMode) {
+                builder = builder.put(
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(),
+                    updatedLowMaxHeadroom
+                )
+                    .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), updatedHighMaxHeadroom)
+                    .put(
+                        DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(),
+                        updatedFloodStageMaxHeadroom
+                    );
+            }
             internalCluster.client()
                 .admin()
                 .cluster()
-                .updateSettings(
-                    new ClusterUpdateSettingsRequest().persistentSettings(
-                        Settings.builder()
-                            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), updatedLowWatermark)
-                            .put(
-                                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(),
-                                updatedLowMaxHeadroom
-                            )
-                            .put(
-                                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
-                                updatedHighWatermark
-                            )
-                            .put(
-                                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                                updatedHighMaxHeadroom
-                            )
-                            .put(
-                                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
-                                updatedFloodStageWatermark
-                            )
-                            .put(
-                                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(),
-                                updatedFloodStageMaxHeadroom
-                            )
-                    )
-                )
+                .updateSettings(new ClusterUpdateSettingsRequest().persistentSettings(builder))
                 .actionGet();
             assertBusy(() -> {
                 HealthMetadata.Disk diskMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state())
@@ -163,9 +156,14 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             );
         if (percentageMode) {
             settings = settings.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "20b")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), highMaxHeadroom)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "1b")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(), "5b");
+            if (highMaxHeadroom.equals("-1") == false) {
+                settings = settings.put(
+                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
+                    highMaxHeadroom
+                );
+            }
         }
         return settings.build();
     }

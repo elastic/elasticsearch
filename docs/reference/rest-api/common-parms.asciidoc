@@ -627,11 +627,6 @@ applied regardless of other match predicates defined in the template. And if a f
 already defined in the mapping, then this parameter won't be used.
 end::bulk-dynamic-templates[]
 
-tag::missing-bucket[]
-If `true`, documents without a value in the respective `group_by` field are 
-included. Defaults to `false`.
-end::missing-bucket[]
-
 tag::node-filter[]
 `<node_filter>`::
 (Optional, string)
@@ -734,6 +729,9 @@ The following groupings are currently supported:
 * <<_histogram,Histogram>>
 * <<_terms,Terms>>
 
+The grouping properties can optionally have a `missing_bucket` property. If 
+it's `true`, documents without a value in the respective `group_by` field are 
+included. Defaults to `false`.
 --
 end::pivot-group-by[]
 

@@ -14,12 +14,18 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public record HealthIndicatorImpact(String id, int severity, String impactDescription, List<ImpactArea> impactAreas)
     implements
         ToXContentObject {
 
+    private static final Pattern ID_PATTERN = Pattern.compile("elasticsearch:health:[a-z_]+:impact:[a-z_:]+");
+
     public HealthIndicatorImpact {
+        if (ID_PATTERN.matcher(id).matches() == false) {
+            throw new IllegalArgumentException("Invalid hierarchical id prefix");
+        }
         if (severity < 0) {
             throw new IllegalArgumentException("Severity cannot be less than 0");
         }

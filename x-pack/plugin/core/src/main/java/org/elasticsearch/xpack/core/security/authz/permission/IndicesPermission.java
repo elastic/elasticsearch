@@ -40,7 +40,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * A permission that is based on privileges for index related actions executed
@@ -480,15 +479,15 @@ public final class IndicesPermission {
 
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedBuilder.size());
         for (Map.Entry<String, Boolean> entry : grantedBuilder.entrySet()) {
-            String index = entry.getKey();
-            DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
-            final Set<BytesReference> roleQueries;
+            final String index = entry.getKey();
+            final boolean granted = entry.getValue();
+            final DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
+            final DocumentPermissions documentPermissions;
             if (permissions != null && permissions.isAllowAll() == false) {
-                roleQueries = unmodifiableSet(permissions.queries);
+                documentPermissions = DocumentPermissions.filteredBy(permissions.queries);
             } else {
-                roleQueries = null;
+                documentPermissions = DocumentPermissions.allowAll();
             }
-
             final FieldPermissions fieldPermissions;
             final Set<FieldPermissions> indexFieldPermissions = fieldPermissionsByIndex.get(index);
             if (indexFieldPermissions != null && indexFieldPermissions.isEmpty() == false) {
@@ -498,14 +497,7 @@ public final class IndicesPermission {
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
-            indexPermissions.put(
-                index,
-                new IndicesAccessControl.IndexAccessControl(
-                    entry.getValue(),
-                    fieldPermissions,
-                    (roleQueries != null) ? DocumentPermissions.filteredBy(roleQueries) : DocumentPermissions.allowAll()
-                )
-            );
+            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(granted, fieldPermissions, documentPermissions));
         }
         return unmodifiableMap(indexPermissions);
     }

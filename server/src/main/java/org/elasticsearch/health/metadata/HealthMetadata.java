@@ -50,7 +50,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_4_0;
+        return Version.V_8_5_0;
     }
 
     @Override

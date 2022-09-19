@@ -1162,7 +1162,7 @@ public class Node implements Closeable {
         CoordinationDiagnosticsService coordinationDiagnosticsService
     ) {
         List<HealthIndicatorService> preflightHealthIndicatorServices = Collections.singletonList(
-            new StableMasterHealthIndicatorService(coordinationDiagnosticsService)
+            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService)
         );
         var serverHealthIndicatorServices = List.of(
             new RepositoryIntegrityHealthIndicatorService(clusterService),

@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -42,7 +41,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 public class CommonStats implements Writeable, ToXContentFragment {
@@ -145,7 +143,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     public static CommonStats getShardLevelStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
         // Filter shard level flags
         CommonStatsFlags filteredFlags = flags.clone();
-        Arrays.stream(filteredFlags.getFlags()).forEach(x -> filteredFlags.set(x, CommonStatsFlags.SHARD_LEVEL.isSet(x)));
+        for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
+            filteredFlags.set(flag, CommonStatsFlags.SHARD_LEVEL.isSet(flag));
+        }
         CommonStats stats = new CommonStats(filteredFlags);
 
         for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
@@ -182,21 +182,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
         }
 
         return stats;
-    }
-
-    /**
-     * Filters the given flags for {@link CommonStatsFlags#INDEX_LEVEL} flags and calculates the corresponding statistics.
-     */
-    public static CommonStats getIndexLevelStats(final IndexService indexService, CommonStatsFlags flags) {
-        // Filter index level flags (currently it is just the Mappings flag, so we just filter with an if statement).
-        if (flags.isSet(CommonStatsFlags.Flag.Mappings)) {
-            CommonStatsFlags filteredFlags = new CommonStatsFlags(CommonStatsFlags.Flag.Mappings);
-            CommonStats stats = new CommonStats(filteredFlags);
-            stats.nodeMappings = indexService.getNodeMappingStats();
-            return stats;
-        } else {
-            return new CommonStats(CommonStatsFlags.NONE);
-        }
     }
 
     public CommonStats(StreamInput in) throws IOException {

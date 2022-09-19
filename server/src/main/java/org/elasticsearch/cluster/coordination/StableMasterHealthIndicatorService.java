@@ -61,7 +61,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final String CLUSTER_FORMATION = "cluster_formation";
     private static final String CLUSTER_FORMATION_MESSAGE = "cluster_formation_message";
 
-    // Impact URNs
+    // Impact IDs
     public static final String INGEST_DISABLED_IMPACT_ID = "elasticsearch:health:" + NAME + ":impact:ingest_disabled";
     public static final String AUTOMATION_DISABLED_IMPACT_ID = "elasticsearch:health:" + NAME + ":impact:automation_disabled";
     public static final String BACKUP_DISABLED_IMPACT_ID = "elasticsearch:health:" + NAME + ":impact:backup_disabled";

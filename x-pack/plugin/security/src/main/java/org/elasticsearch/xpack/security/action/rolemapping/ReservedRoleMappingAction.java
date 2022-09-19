@@ -59,18 +59,18 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
     private Collection<PutRoleMappingRequest> prepare(List<ExpressionRoleMapping> roleMappings) {
         List<PutRoleMappingRequest> requests = roleMappings.stream().map(rm -> PutRoleMappingRequest.fromMapping(rm)).toList();
 
-        var exceptions = new ArrayList<String>();
+        var exceptions = new ArrayList<Exception>();
         for (var request : requests) {
             // File based defined role mappings are allowed to use MetadataUtils.RESERVED_PREFIX
             var exception = request.validate(false);
             if (exception != null) {
-                exceptions.add(exception.getMessage());
+                exceptions.add(exception);
             }
         }
 
         if (exceptions.isEmpty() == false) {
-            var illegalStateException = new IllegalStateException("error on validating put role mapping requests");
-            exceptions.forEach(illegalStateException::addSuppressed);
+            var illegalArgumentException = new IllegalArgumentException("error on validating put role mapping requests");
+            exceptions.forEach(illegalArgumentException::addSuppressed);
         }
 
         return requests;

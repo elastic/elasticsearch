@@ -66,7 +66,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                  "compatibility": "8.4.0"
              },
              "state": {
-                "cluster_settings": {}
+                "cluster_settings": {},
+                "role_mappings": {}
              }
         }""";
 
@@ -86,7 +87,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                           "roles": [ "kibana_user" ],
                           "rules": { "field": { "username": "*" } },
                           "metadata": {
-                             "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7"
+                             "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
+                             "_foo": "something"
                           }
                        },
                        "everyone_fleet": {
@@ -94,7 +96,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                           "roles": [ "fleet_user" ],
                           "rules": { "field": { "username": "*" } },
                           "metadata": {
-                             "uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7"
+                             "uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7",
+                             "_foo": "something_else"
                           }
                        }
                  }
@@ -271,6 +274,10 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             writeJSONFile(internalCluster().getMasterName(), emptyJSON);
             boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
             assertTrue(awaitSuccessful);
+            var request = new GetRoleMappingsRequest();
+            request.setNames("everyone_kibana", "everyone_fleet");
+            var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
+            assertFalse(response.hasMappings());
         }
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
@@ -195,9 +196,15 @@ public class RolloverActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    public void testRolloverActionWithEmptyIndex() throws Exception {
+    /**
+     * There are multiple scenarios where we want to set up an empty index, make sure that it *doesn't* roll over, then change something
+     * about the cluster, and verify that now the index does roll over. This is a 'template method' that allows you to provide a runnable
+     * which will accomplish that end. Each invocation of this should live in its own top-level `public void test...` method.
+     */
+    private void templateTestRolloverActionWithEmptyIndex(CheckedRunnable<Exception> allowEmptyIndexToRolloverRunnable) throws Exception {
         String originalIndex = index + "-000001";
         String secondIndex = index + "-000002";
+
         createIndexWithSettings(
             client(),
             originalIndex,
@@ -230,32 +237,8 @@ public class RolloverActionIT extends ESRestTestCase {
             assertTrue(indexExists(originalIndex));
         }, 30, TimeUnit.SECONDS);
 
-        switch (between(0, 2)) {
-            case 0:
-                // index document {"foo": "bar"} to trigger rollover
-                index(client(), originalIndex, "_id", "foo", "bar");
-                break;
-
-            case 1:
-                // change the policy to permit empty rollovers -- with either min_docs or min_primary_shard_docs set to 0
-                createNewSingletonPolicy(
-                    client(),
-                    policy,
-                    "hot",
-                    randomBoolean()
-                        ? new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null, null, 0L, null)
-                        : new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null, null, null, 0L)
-                );
-                break;
-
-            case 2:
-                // change the cluster-wide setting to permit empty rollovers
-                setLifecycleRolloverOnlyIfHasDocumentsSetting(false);
-                break;
-
-            default:
-                throw new AssertionError("failure, got illegal switch case");
-        }
+        // run the passed in runnable that will somehow make it so the index rolls over
+        allowEmptyIndexToRolloverRunnable.run();
 
         // now the index rolls over as expected
         assertBusy(() -> {
@@ -267,6 +250,34 @@ public class RolloverActionIT extends ESRestTestCase {
 
         // reset to null so that the post-test cleanup doesn't fail because it sees a deprecated setting
         setLifecycleRolloverOnlyIfHasDocumentsSetting(null);
+    }
+
+    public void testRolloverActionWithEmptyIndexThenADocIsIndexed() throws Exception {
+        templateTestRolloverActionWithEmptyIndex(() -> {
+            // index document {"foo": "bar"} to trigger rollover
+            index(client(), index + "-000001", "_id", "foo", "bar");
+        });
+    }
+
+    public void testRolloverActionWithEmptyIndexThenThePolicyIsChanged() throws Exception {
+        templateTestRolloverActionWithEmptyIndex(() -> {
+            // change the policy to permit empty rollovers -- with either min_docs or min_primary_shard_docs set to 0
+            createNewSingletonPolicy(
+                client(),
+                policy,
+                "hot",
+                randomBoolean()
+                    ? new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null, null, 0L, null)
+                    : new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null, null, null, 0L)
+            );
+        });
+    }
+
+    public void testRolloverActionWithEmptyIndexThenTheClusterSettingIsChanged() throws Exception {
+        templateTestRolloverActionWithEmptyIndex(() -> {
+            // change the cluster-wide setting to permit empty rollovers
+            setLifecycleRolloverOnlyIfHasDocumentsSetting(false);
+        });
     }
 
     private void setLifecycleRolloverOnlyIfHasDocumentsSetting(@Nullable Boolean value) throws IOException {

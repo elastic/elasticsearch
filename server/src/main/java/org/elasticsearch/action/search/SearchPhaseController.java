@@ -476,7 +476,7 @@ public final class SearchPhaseController {
             true,
             aggReduceContextBuilder,
             true,
-            null
+            new SearchProfileResultsBuilder()
         );
     }
 

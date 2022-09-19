@@ -48,12 +48,23 @@ public class ReservedSnapshotAction implements ReservedClusterStateHandler<List<
     private Collection<PutSnapshotLifecycleAction.Request> prepare(List<SnapshotLifecyclePolicy> policies, ClusterState state) {
         List<PutSnapshotLifecycleAction.Request> result = new ArrayList<>();
 
+        List<Exception> exceptions = new ArrayList<>();
+
         for (var policy : policies) {
             PutSnapshotLifecycleAction.Request request = new PutSnapshotLifecycleAction.Request(policy.getId(), policy);
-            validate(request);
-            SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
-            SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
-            result.add(request);
+            try {
+                validate(request);
+                SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
+                SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
+                result.add(request);
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+        }
+
+        if (exceptions.isEmpty() == false) {
+            var illegalArgumentException = new IllegalArgumentException("Error on validating SLM requests");
+            exceptions.forEach(illegalArgumentException::addSuppressed);
         }
 
         return result;

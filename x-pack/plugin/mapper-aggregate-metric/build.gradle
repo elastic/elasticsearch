@@ -26,8 +26,3 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
-}

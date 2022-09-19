@@ -66,15 +66,17 @@ public class SequenceKey implements Accountable, Comparable<SequenceKey> {
 
     @Override
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public int compareTo(SequenceKey o) {
-        for (int i = 0; i < keys.length && i < o.keys.length; i++) {
+    public int compareTo(SequenceKey other) {
+        int length = keys.length;
+        int otherLength = other.keys.length;
+        for (int i = 0; i < length && i < otherLength; i++) {
             if (keys[i] instanceof Comparable) {
-                int result = ((Comparable) keys[i]).compareTo(o.keys[i]);
+                int result = ((Comparable) keys[i]).compareTo(other.keys[i]);
                 if (result != 0) {
                     return result;
                 }
             }
         }
-        return keys.length - o.keys.length;
+        return length - otherLength;
     }
 }

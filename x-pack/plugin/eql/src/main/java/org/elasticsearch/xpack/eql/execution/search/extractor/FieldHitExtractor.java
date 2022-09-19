@@ -27,12 +27,16 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
 
     public FieldHitExtractor(StreamInput in) throws IOException {
         super(in);
-        this.allowMultiValue = true;
     }
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName, boolean arrayLeniency) {
-        super(name, dataType, zoneId, hitName, arrayLeniency, true);
-        this.allowMultiValue = true;
+    public FieldHitExtractor(
+        String name,
+        DataType dataType,
+        ZoneId zoneId,
+        String hitName,
+        AbstractFieldHitExtractor.MultiValueSupport multiValueSupport
+    ) {
+        super(name, dataType, zoneId, hitName, multiValueSupport);
     }
 
     @Override

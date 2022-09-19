@@ -96,6 +96,8 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.LENIENT;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.NONE;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 
 // TODO: add retry/back-off
@@ -254,7 +256,7 @@ public class Querier {
 
     /**
      * Listener used for local sorting (typically due to aggregations used inside `ORDER BY`).
-     *
+     * <p>
      * This listener consumes the whole result set, sorts it in memory then sends the paginated
      * results back to the client.
      */
@@ -629,11 +631,23 @@ public class Querier {
 
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef f) {
-                return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), multiValueFieldLeniency);
+                return new FieldHitExtractor(
+                    f.name(),
+                    f.getDataType(),
+                    cfg.zoneId(),
+                    f.hitName(),
+                    multiValueFieldLeniency ? LENIENT : NONE
+                );
             }
 
             if (ref instanceof ScriptFieldRef f) {
-                return new FieldHitExtractor(f.name(), null, cfg.zoneId(), multiValueFieldLeniency);
+                FieldHitExtractor fieldHitExtractor = new FieldHitExtractor(
+                    f.name(),
+                    null,
+                    cfg.zoneId(),
+                    multiValueFieldLeniency ? LENIENT : NONE
+                );
+                return fieldHitExtractor;
             }
 
             if (ref instanceof ComputedRef computedRef) {
@@ -727,14 +741,13 @@ public class Querier {
          *         If no tuple exists in {@code sortingColumns} for an output column, it means this column
          *         is not included at all in the ORDER BY
          *     </li>
-         *</ul>
-         *
+         * </ul>
+         * <p>
          * Take for example ORDER BY a, x, b, y
          * a, b - are sorted in ES
          * x, y - need to be sorted client-side
          * sorting on x kicks in only if the values for a are equal.
          * sorting on y kicks in only if the values for a, x and b are all equal
-         *
          */
         // thanks to @jpountz for the row ordering idea as a way to preserve ordering
         @SuppressWarnings("unchecked")

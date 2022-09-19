@@ -638,26 +638,30 @@ public class TumblingWindow implements Executable {
                     Object[] originalKeys = criterion.key(hit);
 
                     List<Object[]> partial = new ArrayList<>();
-                    partial.add(originalKeys == null ? null : new Object[originalKeys.length]);
-
-                    for (int i = 0; originalKeys != null && i < originalKeys.length; i++) {
-                        if (originalKeys[i] instanceof List<?>) {
-                            List<?> possibleValues = (List<?>) originalKeys[i];
-                            List<Object[]> newPartial = new ArrayList<>(possibleValues.size() * partial.size());
-                            for (Object possibleValue : possibleValues) {
-                                for (Object[] partialKey : partial) {
-                                    Object[] newKey = new Object[originalKeys.length];
-                                    if (i > 0) {
-                                        System.arraycopy(partialKey, 0, newKey, 0, i);
+                    if (originalKeys == null) {
+                        partial.add(null);
+                    } else {
+                        int keySize = originalKeys.length;
+                        partial.add(new Object[keySize]);
+                        for (int i = 0; i < keySize; i++) {
+                            if (originalKeys[i] instanceof List<?>) {
+                                List<?> possibleValues = (List<?>) originalKeys[i];
+                                List<Object[]> newPartial = new ArrayList<>(possibleValues.size() * partial.size());
+                                for (Object possibleValue : possibleValues) {
+                                    for (Object[] partialKey : partial) {
+                                        Object[] newKey = new Object[keySize];
+                                        if (i > 0) {
+                                            System.arraycopy(partialKey, 0, newKey, 0, i);
+                                        }
+                                        newKey[i] = possibleValue;
+                                        newPartial.add(newKey);
                                     }
-                                    newKey[i] = possibleValue;
-                                    newPartial.add(newKey);
                                 }
-                            }
-                            partial = newPartial;
-                        } else {
-                            for (Object[] key : partial) {
-                                key[i] = originalKeys[i];
+                                partial = newPartial;
+                            } else {
+                                for (Object[] key : partial) {
+                                    key[i] = originalKeys[i];
+                                }
                             }
                         }
                     }

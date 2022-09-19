@@ -94,7 +94,7 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null) {
+                if (reservedState != null && reservedState.version() != 0L) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedClusterSettingsAction.NAME);
                     if (handlerMetadata == null) {
                         fail("Should've found cluster settings in this metadata");

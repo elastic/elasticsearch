@@ -33,10 +33,12 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -302,6 +304,18 @@ public class RestNodesAction extends AbstractCatAction {
             "alias:basi,bulkAvgSizeInBytes;default:false;text-align:right;desc:average size in bytes of shard bulk"
         );
 
+        table.addCell(
+            "shard_stats.total_count",
+            "alias:sstc,shardStatsTotalCount;default:false;text-align:right;desc:number of shards assigned"
+        );
+
+        table.addCell("mappings.total_count", "alias:mtc,mappingsTotalCount;default:false;text-align:right;desc:number of mappings");
+        table.addCell(
+            "mappings.total_estimated_overhead_in_bytes",
+            "alias:mteoi,mappingsTotalEstimatedOverheadInBytes;default:false;text-align:right;desc:estimated"
+                + " overhead in bytes of mappings"
+        );
+
         table.endHeaders();
         return table;
     }
@@ -499,6 +513,13 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(bulkStats == null ? null : bulkStats.getTotalSizeInBytes());
             table.addCell(bulkStats == null ? null : bulkStats.getAvgTime());
             table.addCell(bulkStats == null ? null : bulkStats.getAvgSizeInBytes());
+
+            ShardCountStats shardCountStats = indicesStats == null ? null : indicesStats.getShardCount();
+            table.addCell(shardCountStats == null ? null : shardCountStats.getTotalCount());
+
+            NodeMappingStats nodeMappingStats = indicesStats == null ? null : indicesStats.getNodeMappingStats();
+            table.addCell(nodeMappingStats == null ? null : nodeMappingStats.getTotalCount());
+            table.addCell(nodeMappingStats == null ? null : nodeMappingStats.getTotalEstimatedOverhead());
 
             table.endRow();
         }

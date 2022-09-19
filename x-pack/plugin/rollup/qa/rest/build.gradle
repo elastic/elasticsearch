@@ -25,7 +25,6 @@ testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.enabled', 'false'
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.3.0")
 }
 
 if (BuildParams.inFipsJvm){

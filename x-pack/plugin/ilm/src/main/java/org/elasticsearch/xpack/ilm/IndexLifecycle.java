@@ -29,7 +29,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
@@ -291,56 +290,48 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     }
 
     private static List<NamedXContentRegistry.Entry> xContentEntries() {
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(
-            Arrays.asList(
-                // Custom Metadata
-                new NamedXContentRegistry.Entry(
-                    Metadata.Custom.class,
-                    new ParseField(IndexLifecycleMetadata.TYPE),
-                    parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)
-                ),
-                new NamedXContentRegistry.Entry(
-                    Metadata.Custom.class,
-                    new ParseField(SnapshotLifecycleMetadata.TYPE),
-                    parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)
-                ),
-                // Lifecycle Types
-                new NamedXContentRegistry.Entry(
-                    LifecycleType.class,
-                    new ParseField(TimeseriesLifecycleType.TYPE),
-                    (p, c) -> TimeseriesLifecycleType.INSTANCE
-                ),
-                // Lifecycle Actions
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
-                new NamedXContentRegistry.Entry(
-                    LifecycleAction.class,
-                    new ParseField(WaitForSnapshotAction.NAME),
-                    WaitForSnapshotAction::parse
-                ),
-                new NamedXContentRegistry.Entry(
-                    LifecycleAction.class,
-                    new ParseField(SearchableSnapshotAction.NAME),
-                    SearchableSnapshotAction::parse
-                ),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse)
-            )
+        return Arrays.asList(
+            // Custom Metadata
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(IndexLifecycleMetadata.TYPE),
+                parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)
+            ),
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(SnapshotLifecycleMetadata.TYPE),
+                parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)
+            ),
+            // Lifecycle Types
+            new NamedXContentRegistry.Entry(
+                LifecycleType.class,
+                new ParseField(TimeseriesLifecycleType.TYPE),
+                (p, c) -> TimeseriesLifecycleType.INSTANCE
+            ),
+            // Lifecycle Actions
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
+            new NamedXContentRegistry.Entry(
+                LifecycleAction.class,
+                new ParseField(WaitForSnapshotAction.NAME),
+                WaitForSnapshotAction::parse
+            ),
+            new NamedXContentRegistry.Entry(
+                LifecycleAction.class,
+                new ParseField(SearchableSnapshotAction.NAME),
+                SearchableSnapshotAction::parse
+            ),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse),
+            // TSDB Downsampling
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
         );
-
-        // TSDB Downsampling / Rollup
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            entries.add(
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
-            );
-        }
-        return List.copyOf(entries);
     }
 
     @Override

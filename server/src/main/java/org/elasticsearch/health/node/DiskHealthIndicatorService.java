@@ -118,24 +118,45 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
              * there are no data nodes reporting YELLOW, we report problems with any master nodes reporting YELLOW. If there are no
              * master nodes reporting YELLOW, we report on the non-data non-master nodes that report YELLOW.
              */
-            if (HealthStatus.RED.equals(healthStatusFromNodes)) {
+            if (hasAtLeastOneIndexReadOnlyAllowDeleteBlock) {
+                /*
+                 * If there is an index block, we report RED, and report on any indices that are on RED nodes, or on any indices that are
+                 *  on YELLOW nodes if there are no RED nodes.
+                 */
                 final Set<String> nodesReportingRed = getNodesReportingStatus(diskHealthInfoMap, HealthStatus.RED);
                 Set<DiscoveryNodeRole> rolesOnRedNodes = getRolesOnNodes(nodesReportingRed, clusterState);
-                // First check the highest priority: we had an index block or a data node reported RED:
-                if (hasAtLeastOneIndexReadOnlyAllowDeleteBlock || rolesOnRedNodes.stream().anyMatch(DiscoveryNodeRole::canContainData)) {
-                    /*
-                     * We want to report on both indices with blocks and on indices that were on nodes that reported RED, so we combine
-                     * them here.
-                     */
+                boolean atLeastOneRedDataNode = rolesOnRedNodes.stream().anyMatch(DiscoveryNodeRole::canContainData);
+                final Set<String> impactedNodes;
+                if (atLeastOneRedDataNode) {
+                    impactedNodes = getNodesWithDataRole(nodesReportingRed, clusterState);
+                } else {
+                    final Set<String> nodesReportingYellow = getNodesReportingStatus(diskHealthInfoMap, HealthStatus.YELLOW);
+                    impactedNodes = getNodesWithDataRole(nodesReportingYellow, clusterState);
+                }
+                Set<String> indicesOnImpactedNodes = getIndicesForNodes(impactedNodes, clusterState);
+                /*
+                 * We want to report on both indices with blocks and on indices that were on nodes that reported RED (or YELLOW if none
+                 * were RED), so we combine them here.
+                 */
+                Set<String> allImpactedIndices = Stream.concat(indicesWithBlock.stream(), indicesOnImpactedNodes.stream())
+                    .collect(Collectors.toSet());
+                healthIndicatorResult = getResultForBlockedIndicesOrRedDataNodes(
+                    impactedNodes,
+                    allImpactedIndices,
+                    atLeastOneRedDataNode,
+                    details
+                );
+            } else if (HealthStatus.RED.equals(healthStatusFromNodes)) {
+                final Set<String> nodesReportingRed = getNodesReportingStatus(diskHealthInfoMap, HealthStatus.RED);
+                Set<DiscoveryNodeRole> rolesOnRedNodes = getRolesOnNodes(nodesReportingRed, clusterState);
+                // First check the highest priority: we had a data node that reported RED:
+                if (rolesOnRedNodes.stream().anyMatch(DiscoveryNodeRole::canContainData)) {
                     Set<String> indicesOnRedNodes = getIndicesForNodes(nodesReportingRed, clusterState);
-                    Set<String> allRedIndices = Stream.concat(indicesWithBlock.stream(), indicesOnRedNodes.stream())
-                        .collect(Collectors.toSet());
-                    healthIndicatorResult = getResultForBlockedIndicesOrDataNodes(
-                        nodesReportingRed,
-                        allRedIndices,
+                    healthIndicatorResult = getResultForBlockedIndicesOrRedDataNodes(
+                        getNodesWithDataRole(nodesReportingRed, clusterState),
+                        indicesOnRedNodes,
                         true,
-                        details,
-                        healthStatus
+                        details
                     );
                 } else {
                     healthIndicatorResult = getResultForNonDataNodeProblem(
@@ -149,16 +170,14 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             } else {
                 final Set<String> nodesReportingYellow = getNodesReportingStatus(diskHealthInfoMap, HealthStatus.YELLOW);
                 Set<DiscoveryNodeRole> rolesOnYellowNodes = getRolesOnNodes(nodesReportingYellow, clusterState);
-                if (hasAtLeastOneIndexReadOnlyAllowDeleteBlock) {
-                    healthIndicatorResult = getResultForBlockedIndicesOrDataNodes(
-                        nodesReportingYellow,
-                        indicesWithBlock,
-                        false,
+                // First check the highest priority: we had a data node that reported YELLOW:
+                if (rolesOnYellowNodes.stream().anyMatch(DiscoveryNodeRole::canContainData)) {
+                    healthIndicatorResult = getResultForYellowDataNodes(
+                        getNodesWithDataRole(nodesReportingYellow, clusterState),
                         details,
-                        healthStatus
+                        healthStatus,
+                        clusterState
                     );
-                } else if (rolesOnYellowNodes.stream().anyMatch(DiscoveryNodeRole::canContainData)) {
-                    healthIndicatorResult = getResultForYellowDataNodes(nodesReportingYellow, details, healthStatus, clusterState);
                 } else {
                     healthIndicatorResult = getResultForNonDataNodeProblem(
                         rolesOnYellowNodes,
@@ -250,21 +269,20 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     }
 
     /**
-     * This creates a result in the case when either there are indices that have blocks on them or problems on data nodes (or both).
-     * @param nodesReportingProblems These are nodes that are reporting either a RED or YELLOW status. Can be empty
+     * This creates a result with a RED status in the case when either there are indices that have blocks on them or there are RED data
+     * nodes (or both).
+     * @param nodesReportingProblems These are data nodes that are reporting either a RED or YELLOW status. Can be empty
      * @param impactedIndices These are either indices that have a block on them or that are on data nodes that have reported RED or
      *                        YELLOW (or both)
-     * @param statusFromNodesWasRed True if at least one node reported a RED status
+     * @param statusFromNodesWasRed True if at least one data node reported a RED status
      * @param details The details for the result
-     * @param status The status for the result
      * @return The result
      */
-    public HealthIndicatorResult getResultForBlockedIndicesOrDataNodes(
+    public HealthIndicatorResult getResultForBlockedIndicesOrRedDataNodes(
         Set<String> nodesReportingProblems,
         Set<String> impactedIndices,
         boolean statusFromNodesWasRed,
-        HealthIndicatorDetails details,
-        HealthStatus status
+        HealthIndicatorDetails details
     ) {
         final String symptom;
         if (impactedIndices.isEmpty()) {
@@ -313,7 +331,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 nodesReportingProblems.stream().toList()
             )
         );
-        return createIndicator(status, symptom, details, impacts, diagnosisList);
+        return createIndicator(HealthStatus.RED, symptom, details, impacts, diagnosisList);
     }
 
     public HealthIndicatorResult getResultForYellowDataNodes(
@@ -367,6 +385,17 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .filter(node -> nodeIds.contains(node.getId()))
             .map(DiscoveryNode::getRoles)
             .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
+    }
+
+    private Set<String> getNodesWithDataRole(Set<String> nodeIds, ClusterState clusterState) {
+        return clusterState.nodes()
+            .getNodes()
+            .values()
+            .stream()
+            .filter(node -> nodeIds.contains(node.getId()))
+            .filter(node -> node.getRoles().stream().anyMatch(DiscoveryNodeRole::canContainData))
+            .map(DiscoveryNode::getId)
             .collect(Collectors.toSet());
     }
 

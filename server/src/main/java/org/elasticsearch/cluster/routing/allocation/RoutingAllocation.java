@@ -363,6 +363,9 @@ public class RoutingAllocation {
         this.hasPendingAsyncFetch = true;
     }
 
+    /**
+     * Returns an approximation of the size (in bytes) of the unaccounted searchable snapshots before the allocation
+     */
     public long unaccountedSearchableSnapshotSize(RoutingNode routingNode) {
         return unaccountedSearchableSnapshotSizes.getOrDefault(routingNode.nodeId(), 0L);
     }

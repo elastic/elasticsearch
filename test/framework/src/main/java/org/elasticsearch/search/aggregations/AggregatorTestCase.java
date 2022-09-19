@@ -430,11 +430,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(AggTestConfig aggTestConfig) throws IOException {
         return searchAndReduce(
-            createIndexSettings(),
             aggTestConfig.searcher(),
             aggTestConfig.query(),
             aggTestConfig.builder(),
             aggTestConfig.maxBuckets(),
+            aggTestConfig.splitLeavesIntoSeparateAggregators(),
             aggTestConfig.fieldTypes()
         );
     }
@@ -446,31 +446,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Half the time it aggregates each leaf individually and reduces all
      * results together. The other half the time it aggregates across the entire
      * index at once and runs a final reduction on the single resulting agg.
-     */
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSettings indexSettings,
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        int maxBucket,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduce(indexSettings, searcher, query, builder, maxBucket, randomBoolean(), fieldTypes);
-    }
-
-    /**
-     * Collects all documents that match the provided query {@link Query} and
-     * returns the reduced {@link InternalAggregation}.
-     *
      * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
      * in order to mak sure the implementation does not leak.
      *
      * @param splitLeavesIntoSeparateAggregators If true this creates a new {@link Aggregator}
-     *          for each leaf as though it were a separate index. If false this aggregates
-     *          all leaves together, like we do in production.
+     *                                           for each leaf as though it were a separate index. If false this aggregates
+     *                                           all leaves together, like we do in production.
      */
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSettings indexSettings,
         IndexSearcher searcher,
         Query query,
         AggregationBuilder builder,
@@ -478,6 +461,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         boolean splitLeavesIntoSeparateAggregators,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
         for (int i = 0; i < 5; i++) {
@@ -1454,18 +1438,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     public record AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder,
-                                boolean splitLeavesIntoSeparateAggregators, int maxBuckets,
-                                       MappedFieldType... fieldTypes) {
+                                int maxBuckets, boolean splitLeavesIntoSeparateAggregators,
+                                MappedFieldType... fieldTypes) {
         public AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this(searcher, query, builder, randomBoolean(), DEFAULT_MAX_BUCKETS, fieldTypes);
+            this(searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
         }
 
         public AggTestConfig withSplitLeavesIntoSeperateAggregators(boolean splitLeavesIntoSeparateAggregators) {
-            return new AggTestConfig(searcher, query, builder, splitLeavesIntoSeparateAggregators, maxBuckets, fieldTypes);
+            return new AggTestConfig(searcher, query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, fieldTypes);
         }
 
         public AggTestConfig withMaxBuckets(int maxBuckets) {
-            return new AggTestConfig(searcher, query, builder, splitLeavesIntoSeparateAggregators, maxBuckets, fieldTypes);
+            return new AggTestConfig(searcher, query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, fieldTypes);
         }
     }
 }

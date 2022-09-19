@@ -212,6 +212,18 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             );
     }
 
+    /**
+     * Builds a RolloverRequest that captures the various max_* and min_* conditions of this {@link WaitForRolloverReadyStep}.
+     *
+     * To prevent empty indices from rolling over, a `min_docs: 1` condition will be injected if `rolloverOnlyIfHasDocuments` is true
+     * and the request doesn't already have an associated min_docs or min_primary_shard_docs condition.
+     *
+     * @param rolloverTarget the index to rollover
+     * @param masterTimeout the master timeout to use with the request
+     * @param rolloverOnlyIfHasDocuments whether to inject a min_docs 1 condition if there is not already a min_docs
+     *                                   (or min_primary_shard_docs) condition
+     * @return A RolloverRequest suitable for passing to {@code rolloverIndex(...) }.
+     */
     // visible for testing
     RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);

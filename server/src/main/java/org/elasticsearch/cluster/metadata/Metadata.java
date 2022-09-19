@@ -98,7 +98,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
 
     public enum XContentContext {
-        /* Custom metadata should be returns as part of API call */
+        /* Custom metadata should be returned as part of API call */
         API,
 
         /* Custom metadata should be stored as part of the persistent cluster state */

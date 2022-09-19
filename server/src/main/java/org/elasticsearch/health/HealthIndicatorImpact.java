@@ -24,7 +24,7 @@ public record HealthIndicatorImpact(String id, int severity, String impactDescri
 
     public HealthIndicatorImpact {
         if (ID_PATTERN.matcher(id).matches() == false) {
-            throw new IllegalArgumentException("Invalid hierarchical id prefix");
+            throw new IllegalArgumentException("Invalid hierarchical id prefix [" + id + "]");
         }
         if (severity < 0) {
             throw new IllegalArgumentException("Severity cannot be less than 0");

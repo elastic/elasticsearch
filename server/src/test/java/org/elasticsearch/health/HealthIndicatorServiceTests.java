@@ -26,7 +26,7 @@ public class HealthIndicatorServiceTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             impacts.add(
                 new HealthIndicatorImpact(
-                    randomAlphaOfLength(20),
+                    "elasticsearch:health:" + randomAlphaOfLength(10).toLowerCase() + ":impact:" + randomAlphaOfLength(10).toLowerCase(),
                     randomIntBetween(5, 20),
                     randomAlphaOfLength(20),
                     List.of(randomFrom(ImpactArea.values()))
@@ -34,19 +34,19 @@ public class HealthIndicatorServiceTests extends ESTestCase {
             );
         }
         HealthIndicatorImpact impact1 = new HealthIndicatorImpact(
-            randomAlphaOfLength(20),
+            "elasticsearch:health:" + randomAlphaOfLength(10).toLowerCase() + ":impact:" + randomAlphaOfLength(10).toLowerCase(),
             1,
             randomAlphaOfLength(20),
             List.of(randomFrom(ImpactArea.values()))
         );
         HealthIndicatorImpact impact2 = new HealthIndicatorImpact(
-            randomAlphaOfLength(20),
+            "elasticsearch:health:" + randomAlphaOfLength(10).toLowerCase() + ":impact:" + randomAlphaOfLength(10).toLowerCase(),
             2,
             randomAlphaOfLength(20),
             List.of(randomFrom(ImpactArea.values()))
         );
         HealthIndicatorImpact impact3 = new HealthIndicatorImpact(
-            randomAlphaOfLength(20),
+            "elasticsearch:health:" + randomAlphaOfLength(10).toLowerCase() + ":impact:" + randomAlphaOfLength(10).toLowerCase(),
             3,
             randomAlphaOfLength(20),
             List.of(randomFrom(ImpactArea.values()))
@@ -57,7 +57,7 @@ public class HealthIndicatorServiceTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             impacts.add(
                 new HealthIndicatorImpact(
-                    randomAlphaOfLength(20),
+                    "elasticsearch:health:" + randomAlphaOfLength(10).toLowerCase() + ":impact:" + randomAlphaOfLength(10).toLowerCase(),
                     randomIntBetween(5, 20),
                     randomAlphaOfLength(20),
                     List.of(randomFrom(ImpactArea.values()))

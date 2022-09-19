@@ -437,8 +437,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * index at once and runs a final reduction on the single resulting agg.
      * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
      * in order to mak sure the implementation does not leak.
-     *
-     * @param aggTestConfig
      */
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(AggTestConfig aggTestConfig) throws IOException {
         IndexSettings indexSettings = createIndexSettings();

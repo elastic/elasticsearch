@@ -34,6 +34,7 @@ Ingest Node::
 
 Machine Learning::
 * Fix memory leak in `TransportDeleteExpiredDataAction` {es-pull}89935[#89935]
+* Do not retain categorization tokens when existing category matches {ml-pull}2398[#2398]
 
 Network::
 * Fix memory leak when double invoking `RestChannel.sendResponse` {es-pull}89873[#89873]

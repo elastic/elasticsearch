@@ -54,6 +54,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
         Map<String, DiskHealthInfo> diskHealthInfoMap = healthInfo.diskInfoByNode();
         if (diskHealthInfoMap == null || diskHealthInfoMap.isEmpty()) {
+            /*
+             * If there is no disk health info, that either means that a new health node was just elected, or something is seriously
+             * wrong with health data collection on the health node. Either way, we immediately return UNKNOWN. If there are at least
+             * some health info results then we work with what we have (and log any missing ones at debug level immediately below this).
+             */
             return createIndicator(
                 HealthStatus.UNKNOWN,
                 "No disk usage data.",
@@ -63,6 +68,12 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             );
         }
         ClusterState clusterState = clusterService.state();
+        logMissingHealthInfoData(diskHealthInfoMap, clusterState);
+
+        /*
+         * If there are any index blocks in the cluster state, that makes the overall status automatically red, regardless of the statuses
+         * returned by the nodes. If there is no cluster block, we just use the merged statuses of the nodes.
+         */
         Set<String> indicesWithBlock = clusterState.blocks()
             .indices()
             .entrySet()
@@ -71,12 +82,12 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
         boolean hasAtLeastOneIndexReadOnlyAllowDeleteBlock = indicesWithBlock.isEmpty() == false;
-        logMissingHealthInfoData(diskHealthInfoMap, clusterState);
         HealthIndicatorDetails details = getDetails(explain, diskHealthInfoMap, clusterState);
         final HealthStatus healthStatusFromNodes = HealthStatus.merge(
             diskHealthInfoMap.values().stream().map(DiskHealthInfo::healthStatus)
         );
         final HealthStatus healthStatus = hasAtLeastOneIndexReadOnlyAllowDeleteBlock ? HealthStatus.RED : healthStatusFromNodes;
+
         final HealthIndicatorResult healthIndicatorResult;
         if (HealthStatus.GREEN.equals(healthStatus)) {
             healthIndicatorResult = createIndicator(
@@ -87,18 +98,41 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 List.of()
             );
         } else {
+            /*
+             * Something is unhealthy. We only report on the highest-priority problem. Basically:
+             *
+             * RED > YELLOW
+             * data nodes (including index locks from the cluster state) > master nodes > nodes of all other roles
+             *
+             * The highest priority problem is when we detect that there is an index with a block in the cluster state or a node that has
+             * a data role reporting a RED status (meaning it has exceeded the flood stage). This means that there is likely an index that
+             * cannot be written to.
+             * The next highest priority problem is when we detect that there is a non-data node that has a master role reporting a RED
+             * status (meaning it has exceeded the flood stage). This could lead to problems with cluster formation, discovery, etc.
+             * The next highest priority problem is when we detect that there is a non-data non-master node reporting a RED status
+             * (meaning it has exceeded the flood stage). This could lead to problems with certain features.
+             *
+             * The next tier down is when there are no nodes reporting RED, but some are reporting YELLOW. There will be no index
+             * blocks in the cluster state if we get here because the status would have automatically been RED. Similar to above, we only
+             * report problems with data nodes if there are any data nodes reporting YELLOW (the high watermark has been exceeded). If
+             * there are no data nodes reporting YELLOW, we report problems with any master nodes reporting YELLOW. If there are no
+             * master nodes reporting YELLOW, we report on the non-data non-master nodes that report YELLOW.
+             */
             if (HealthStatus.RED.equals(healthStatusFromNodes)) {
-                final Set<String> nodesReportingRed = diskHealthInfoMap.entrySet()
-                    .stream()
-                    .filter(entry -> HealthStatus.RED.equals(entry.getValue().healthStatus()))
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toSet());
+                final Set<String> nodesReportingRed = getNodesReportingStatus(diskHealthInfoMap, HealthStatus.RED);
                 Set<DiscoveryNodeRole> rolesOnRedNodes = getRolesOnNodes(nodesReportingRed, clusterState);
+                // First check the highest priority: we had an index block or a data node reported RED:
                 if (hasAtLeastOneIndexReadOnlyAllowDeleteBlock || rolesOnRedNodes.stream().anyMatch(DiscoveryNodeRole::canContainData)) {
-                    healthIndicatorResult = getResultForRedIndicesOrDataNodes(
+                    /*
+                     * We want to report on both indices with blocks and on indices that were on nodes that reported RED, so we combine
+                     * them here.
+                     */
+                    Set<String> indicesOnRedNodes = getIndicesForNodes(nodesReportingRed, clusterState);
+                    Set<String> allRedIndices = Stream.concat(indicesWithBlock.stream(), indicesOnRedNodes.stream())
+                        .collect(Collectors.toSet());
+                    healthIndicatorResult = getResultForBlockedIndicesOrDataNodes(
                         nodesReportingRed,
-                        Stream.concat(indicesWithBlock.stream(), getIndicesForNodes(nodesReportingRed, clusterState).stream())
-                            .collect(Collectors.toSet()),
+                        allRedIndices,
                         true,
                         details,
                         healthStatus
@@ -113,14 +147,10 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     );
                 }
             } else {
-                final Set<String> nodesReportingYellow = diskHealthInfoMap.entrySet()
-                    .stream()
-                    .filter(entry -> HealthStatus.YELLOW.equals(entry.getValue().healthStatus()))
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toSet());
+                final Set<String> nodesReportingYellow = getNodesReportingStatus(diskHealthInfoMap, HealthStatus.YELLOW);
                 Set<DiscoveryNodeRole> rolesOnYellowNodes = getRolesOnNodes(nodesReportingYellow, clusterState);
                 if (hasAtLeastOneIndexReadOnlyAllowDeleteBlock) {
-                    healthIndicatorResult = getResultForRedIndicesOrDataNodes(
+                    healthIndicatorResult = getResultForBlockedIndicesOrDataNodes(
                         nodesReportingYellow,
                         indicesWithBlock,
                         false,
@@ -141,6 +171,14 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             }
         }
         return healthIndicatorResult;
+    }
+
+    private Set<String> getNodesReportingStatus(Map<String, DiskHealthInfo> diskHealthInfoMap, HealthStatus status) {
+        return diskHealthInfoMap.entrySet()
+            .stream()
+            .filter(entry -> status.equals(entry.getValue().healthStatus()))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
     }
 
     private HealthIndicatorResult getResultForNonDataNodeProblem(
@@ -211,7 +249,17 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         return createIndicator(status, symptom, details, impacts, diagnosisList);
     }
 
-    public HealthIndicatorResult getResultForRedIndicesOrDataNodes(
+    /**
+     * This creates a result in the case when either there are indices that have blocks on them or problems on data nodes (or both).
+     * @param nodesReportingProblems These are nodes that are reporting either a RED or YELLOW status. Can be empty
+     * @param impactedIndices These are either indices that have a block on them or that are on data nodes that have reported RED or
+     *                        YELLOW (or both)
+     * @param statusFromNodesWasRed True if at least one node reported a RED status
+     * @param details The details for the result
+     * @param status The status for the result
+     * @return The result
+     */
+    public HealthIndicatorResult getResultForBlockedIndicesOrDataNodes(
         Set<String> nodesReportingProblems,
         Set<String> impactedIndices,
         boolean statusFromNodesWasRed,

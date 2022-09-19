@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
@@ -27,6 +28,11 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
@@ -306,6 +312,26 @@ public class ExpressionTests extends ESTestCase {
             expression("true and false or true and c/12+x*5-y%2>=50"),
             equalTo(expression("((true and false) or (true and (((c/12)+(x*5)-(y%2))>=50)))"))
         );
+    }
+
+    public void testFunctionExpressions() {
+        assertEquals(new UnresolvedFunction(EMPTY, "fn", DEFAULT, new ArrayList<>()), expression("fn()"));
+        assertEquals(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                DEFAULT,
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, "b"), new UnresolvedAttribute(EMPTY, "c"))
+                    )
+                )
+            ),
+            expression("invoke(a, b + c)")
+        );
+        assertEquals(expression("(invoke((a + b)))"), expression("invoke(a+b)"));
+        assertEquals(expression("((fn()) + fn(fn()))"), expression("fn() + fn(fn())"));
     }
 
     private Expression expression(String e) {

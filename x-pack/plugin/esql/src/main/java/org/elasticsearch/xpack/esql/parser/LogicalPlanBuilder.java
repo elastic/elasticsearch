@@ -8,13 +8,17 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -26,17 +30,14 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
-import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
-
-    protected static final UnresolvedRelation RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
 
     protected LogicalPlan plan(ParseTree ctx) {
         return typedParsing(this, ctx, LogicalPlan.class);
@@ -44,26 +45,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSingleStatement(EsqlBaseParser.SingleStatementContext ctx) {
-        LogicalPlan plan = plan(ctx.query().sourceCommand());
-        LogicalPlan previous = plan;
-
-        for (EsqlBaseParser.PipeContext processingCommand : ctx.query().pipe()) {
-            plan = plan(processingCommand.processingCommand());
-            plan = plan.replaceChildrenSameSize(singletonList(previous));
-            previous = plan;
-        }
-
-        return plan;
+        return plan(ctx.query());
     }
 
     @Override
-    public Row visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
+    public LogicalPlan visitCompositeQuery(EsqlBaseParser.CompositeQueryContext ctx) {
+        LogicalPlan input = typedParsing(this, ctx.query(), LogicalPlan.class);
+        PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
+        return makePlan.apply(input);
+    }
+
+    @Override
+    public PlanFactory visitEvalCommand(EsqlBaseParser.EvalCommandContext ctx) {
+        return p -> new Eval(source(ctx), p, visitFields(ctx.fields()));
+    }
+
+    @Override
+    public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
         return new Row(source(ctx), visitFields(ctx.fields()));
-    }
-
-    @Override
-    public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
-        return ctx.field().stream().map(this::visitField).collect(Collectors.toList());
     }
 
     @Override
@@ -79,36 +78,50 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public Alias visitField(EsqlBaseParser.FieldContext ctx) {
-        String id = this.visitQualifiedName(ctx.qualifiedName());
-        Literal constant = (Literal) this.visit(ctx.constant());
-        if (id == null) {
-            id = ctx.getText();
-        }
-        return new Alias(source(ctx), id, constant);
+    public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
+        List<NamedExpression> aggregates = visitFields(ctx.fields());
+        List<Expression> groupings = ctx.qualifiedNames() == null
+            ? List.of()
+            : visitQualifiedNames(ctx.qualifiedNames()).stream().map(q -> (Expression) q).toList();
+        return input -> new Aggregate(source(ctx), input, groupings, aggregates);
     }
 
     @Override
-    public Filter visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx) {
+    public PlanFactory visitWhereCommand(EsqlBaseParser.WhereCommandContext ctx) {
         Expression expression = expression(ctx.booleanExpression());
-        return new Filter(source(ctx), RELATION, expression);
+        return input -> new Filter(source(ctx), input, expression);
     }
 
     @Override
-    public Limit visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
+    public Alias visitField(EsqlBaseParser.FieldContext ctx) {
+        UnresolvedAttribute id = this.visitQualifiedName(ctx.qualifiedName());
+        Expression value = (Expression) this.visit(ctx.booleanExpression());
+        String name = id == null ? ctx.getText() : id.qualifiedName();
+        return new Alias(source(ctx), name, value);
+    }
+
+    @Override
+    public List<NamedExpression> visitFields(EsqlBaseParser.FieldsContext ctx) {
+        return ctx.field().stream().map(this::visitField).collect(Collectors.toList());
+    }
+
+    @Override
+    public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         int limit = Integer.parseInt(ctx.INTEGER_LITERAL().getText());
-        return new Limit(source, new Literal(source, limit, DataTypes.INTEGER), RELATION);
+        return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
     }
 
     @Override
-    public OrderBy visitSortCommand(EsqlBaseParser.SortCommandContext ctx) {
+    public PlanFactory visitSortCommand(EsqlBaseParser.SortCommandContext ctx) {
         List<Order> orders = visitList(this, ctx.orderExpression(), Order.class);
         Source source = source(ctx);
-        return new OrderBy(source, RELATION, orders);
+        return input -> new OrderBy(source, input, orders);
     }
 
     private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {
         return ctx.sourceIdentifier().stream().map(this::visitSourceIdentifier).collect(Collectors.joining(","));
     }
+
+    interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}
 }

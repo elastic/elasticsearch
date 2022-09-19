@@ -1,7 +1,9 @@
 lexer grammar EsqlBaseLexer;
 
+EVAL : 'eval' -> pushMode(EXPRESSION);
 FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
 ROW : 'row' -> pushMode(EXPRESSION);
+STATS : 'stats' -> pushMode(EXPRESSION);
 WHERE : 'where' -> pushMode(EXPRESSION);
 SORT : 'sort' -> pushMode(EXPRESSION);
 LIMIT : 'limit' -> pushMode(EXPRESSION);
@@ -60,6 +62,8 @@ DECIMAL_LITERAL
     | DIGIT+ (DOT DIGIT*)? EXPONENT
     | DOT DIGIT+ EXPONENT
     ;
+
+BY : 'by';
 
 AND : 'and';
 ASC : 'asc';

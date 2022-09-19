@@ -15,11 +15,8 @@ singleStatement
     ;
 
 query
-    : sourceCommand pipe*
-    ;
-
-pipe
-    : PIPE processingCommand
+    : sourceCommand                 #singleCommandQuery
+    | query PIPE processingCommand  #compositeQuery
     ;
 
 sourceCommand
@@ -28,9 +25,11 @@ sourceCommand
     ;
 
 processingCommand
-    : whereCommand
+    : evalCommand
     | limitCommand
     | sortCommand
+    | statsCommand
+    | whereCommand
     ;
 
 whereCommand
@@ -60,6 +59,7 @@ primaryExpression
     : constant                                                                          #constantDefault
     | qualifiedName                                                                     #dereference
     | LP booleanExpression RP                                                           #parenthesizedExpression
+    | identifier LP (booleanExpression (COMMA booleanExpression)*)? RP                  #functionExpression
     ;
 
 rowCommand
@@ -71,12 +71,20 @@ fields
     ;
 
 field
-    : constant
-    | qualifiedName ASSIGN constant
+    : booleanExpression
+    | qualifiedName ASSIGN booleanExpression
     ;
 
 fromCommand
     : FROM sourceIdentifier (COMMA sourceIdentifier)*
+    ;
+
+evalCommand
+    : EVAL fields
+    ;
+
+statsCommand
+    : STATS fields (BY qualifiedNames)?
     ;
 
 sourceIdentifier
@@ -86,6 +94,10 @@ sourceIdentifier
 
 qualifiedName
     : identifier (DOT identifier)*
+    ;
+
+qualifiedNames
+    : qualifiedName (COMMA qualifiedName)*
     ;
 
 identifier

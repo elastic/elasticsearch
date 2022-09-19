@@ -23,6 +23,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitQuery(EsqlBaseParser.QueryContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#pipe}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitPipe(EsqlBaseParser.PipeContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#sourceCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -187,6 +193,24 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitStringLiteral(EsqlBaseParser.StringLiteralContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#limitCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#sortCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSortCommand(EsqlBaseParser.SortCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#orderExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitOrderExpression(EsqlBaseParser.OrderExpressionContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#booleanValue}.
    * @param ctx the parse tree

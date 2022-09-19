@@ -132,13 +132,10 @@ public class RoutingAllocation {
         Map<String, Long> unaccountedSearchableSnapshotSizes = new HashMap<>();
         if (clusterInfo != null) {
             for (RoutingNode node : clusterState.getRoutingNodes()) {
+                DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
+                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
                 long totalSize = 0;
                 for (ShardRouting shard : node.started()) {
-                    DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
-                    ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(
-                        node.nodeId(),
-                        usage != null ? usage.getPath() : ""
-                    );
                     if (shard.getExpectedShardSize() > 0
                         && clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
                         && reservedSpace.containsShardId(shard.shardId()) == false

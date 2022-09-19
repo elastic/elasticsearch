@@ -411,25 +411,17 @@ public final class IndicesPermission {
         for (IndexResource resource : requestedResources.values()) {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
-            // true if ANY group, which contains certain ingest privileges, covers the given index AND the action is a mapping update for
-            // an index or an alias (but not for a data stream)
-            boolean bwcGrantMappingUpdate = false;
 
             final Collection<String> concreteIndices = resource.resolveConcreteIndices();
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {
-                    boolean actionCheck = group.checkAction(action);
-                    granted = granted || actionCheck;
-
-                    // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
-                    // outside of the privilege definition
-                    boolean bwcMappingActionCheck = isMappingUpdateAction
-                        && false == resource.isPartOfDataStream()
-                        && containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
-                    bwcGrantMappingUpdate = bwcGrantMappingUpdate || bwcMappingActionCheck;
-
-                    if (actionCheck || bwcMappingActionCheck) {
+                    if (group.checkAction(action)
+                        || (isMappingUpdateAction // for BWC reasons, mapping updates are exceptionally allowed for certain privileges on
+                            // indices and aliases (but not on data streams)
+                            && false == resource.isPartOfDataStream()
+                            && containsPrivilegeThatGrantsMappingUpdatesForBwc(group))) {
+                        granted = true;
                         // propagate DLS and FLS permissions over the concrete indices
                         for (String index : concreteIndices) {
                             final Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.compute(index, (k, existingSet) -> {
@@ -473,11 +465,6 @@ public final class IndicesPermission {
                         }
                     }
                 }
-            }
-
-            if (false == granted && bwcGrantMappingUpdate) {
-                // the action is granted only due to the deprecated behaviour of certain privileges
-                granted = true;
             }
 
             grantedBuilder.put(resource.name, granted);

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiffable;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -1132,6 +1133,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     }
 
     public static Diff<Metadata> readDiffFrom(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(MetadataDiff.NOOP_METADATA_DIFF_VERSION) && in.readBoolean()) {
+            return SimpleDiffable.empty();
+        }
         return new MetadataDiff(in);
     }
 
@@ -1165,18 +1169,20 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private final Diff<ImmutableOpenMap<String, Custom>> customs;
         private final Diff<Map<String, ReservedStateMetadata>> reservedStateMetadata;
 
-        // true if this diff is a noop because before and after were the same instance
-        private final boolean noop;
+        /**
+         * true if this diff is a noop because before and after were the same instance
+         */
+        private final boolean empty;
 
         MetadataDiff(Metadata before, Metadata after) {
-            this.noop = before == after;
+            this.empty = before == after;
             clusterUUID = after.clusterUUID;
             clusterUUIDCommitted = after.clusterUUIDCommitted;
             version = after.version;
             coordinationMetadata = after.coordinationMetadata;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
-            if (noop) {
+            if (empty) {
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
                 indices = DiffableUtils.emptyDiff();
                 templates = DiffableUtils.emptyDiff();
@@ -1207,27 +1213,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         private static final DiffableUtils.DiffableValueReader<String, ReservedStateMetadata> RESERVED_DIFF_VALUE_READER =
             new DiffableUtils.DiffableValueReader<>(ReservedStateMetadata::readFrom, ReservedStateMetadata::readDiffFrom);
 
-        MetadataDiff(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(NOOP_METADATA_DIFF_VERSION)) {
-                noop = in.readBoolean();
-                if (noop) {
-                    // noop diff, other fields are irrelevant
-                    clusterUUID = null;
-                    clusterUUIDCommitted = false;
-                    version = -1L;
-                    coordinationMetadata = null;
-                    transientSettings = null;
-                    persistentSettings = null;
-                    hashesOfConsistentSettings = DiffableUtils.emptyDiff();
-                    indices = DiffableUtils.emptyDiff();
-                    templates = DiffableUtils.emptyDiff();
-                    customs = DiffableUtils.emptyDiff();
-                    reservedStateMetadata = DiffableUtils.emptyDiff();
-                    return;
-                }
-            } else {
-                noop = false;
-            }
+        private MetadataDiff(StreamInput in) throws IOException {
+            empty = false;
             clusterUUID = in.readString();
             clusterUUIDCommitted = in.readBoolean();
             version = in.readLong();
@@ -1256,8 +1243,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getVersion().onOrAfter(NOOP_METADATA_DIFF_VERSION)) {
-                out.writeBoolean(noop);
-                if (noop) {
+                out.writeBoolean(empty);
+                if (empty) {
                     // noop diff
                     return;
                 }
@@ -1281,7 +1268,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         @Override
         public Metadata apply(Metadata part) {
-            if (noop) {
+            if (empty) {
                 return part;
             }
             // create builder from existing mappings hashes so we don't change existing index metadata instances when deduplicating

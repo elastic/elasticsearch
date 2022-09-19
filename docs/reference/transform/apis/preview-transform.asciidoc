@@ -145,14 +145,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
 `group_by`:::
 (Required, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
-+
-.Properties of `group_by`
-[%collapsible%open]
-=====
-`missing_bucket`::::
-(Optional, boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=missing-bucket]
-=====
 ====
 //End pivot
 

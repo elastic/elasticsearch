@@ -40,18 +40,26 @@ import java.util.Set;
  * The {@link DiskThresholdDecider} checks that the node a shard is potentially
  * being allocated to has enough disk space.
  *
- * It has three configurable settings, all of which can be changed dynamically:
+ * It has the following configurable settings, all of which can be changed dynamically:
  *
  * <code>cluster.routing.allocation.disk.watermark.low</code> is the low disk
  * watermark. New shards will not allocated to a node with usage higher than this,
  * although this watermark may be passed by allocating a shard. It defaults to
  * 0.85 (85.0%).
  *
+ * <code>cluster.routing.allocation.disk.watermark.low.max_headroom</code> is the
+ * max headroom for the low watermark. Defaults to 200GB when the low watermark
+ * is not explicitly set. This caps the amount of free space required.
+ *
  * <code>cluster.routing.allocation.disk.watermark.high</code> is the high disk
  * watermark. If a node has usage higher than this, shards are not allowed to
  * remain on the node. In addition, if allocating a shard to a node causes the
  * node to pass this watermark, it will not be allowed. It defaults to
  * 0.90 (90.0%).
+ *
+ * <code>cluster.routing.allocation.disk.watermark.high.max_headroom</code> is the
+ * max headroom for the high watermark. Defaults to 150GB when the high watermark
+ * is not explicitly set. This caps the amount of free space required.
  *
  * The watermark settings are expressed in terms of used disk percentage/ratio, or
  * exact byte values for free space (like "500mb").
@@ -101,18 +109,20 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     /**
-     * Returns the size of all shards that are currently being relocated to
-     * the node, but may not be finished transferring yet.
+     * Returns the size of all unaccounted shards that are currently being relocated to
+     * the node, but may not be finished transferring yet. Also accounts for started searchable
+     * snapshot shards that have been allocated, but not present in the stale cluster info.
      *
      * If subtractShardsMovingAway is true then the size of shards moving away is subtracted from the total size of all shards
      */
-    public static long sizeOfRelocatingShards(
+    public static long sizeOfUnaccountedShards(
         RoutingNode node,
         boolean subtractShardsMovingAway,
         String dataPath,
         ClusterInfo clusterInfo,
         Metadata metadata,
-        RoutingTable routingTable
+        RoutingTable routingTable,
+        long sizeOfUnaccountableSearchableSnapshotShards
     ) {
         // Account for reserved space wherever it is available
         final ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), dataPath);
@@ -122,8 +132,9 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         // Where reserved space is unavailable (e.g. stats are out-of-sync) compute a conservative estimate for initialising shards
         for (ShardRouting routing : node.initializing()) {
-            if (routing.relocatingNodeId() == null) {
-                // in practice the only initializing-but-not-relocating shards with a nonzero expected shard size will be ones created
+            if (routing.relocatingNodeId() == null && metadata.getIndexSafe(routing.index()).isSearchableSnapshot() == false) {
+                // in practice the only initializing-but-not-relocating non-searchable-snapshot shards with a nonzero expected shard size
+                // will be ones created
                 // by a resize (shrink/split/clone) operation which we expect to happen using hard links, so they shouldn't be taking
                 // any additional space and can be ignored here
                 continue;
@@ -131,14 +142,22 @@ public class DiskThresholdDecider extends AllocationDecider {
             if (reservedSpace.containsShardId(routing.shardId())) {
                 continue;
             }
-
             final String actualPath = clusterInfo.getDataPath(routing);
             // if we don't yet know the actual path of the incoming shard then conservatively assume it's going to the path with the least
             // free space
             if (actualPath == null || actualPath.equals(dataPath)) {
-                totalSize += getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable);
+                totalSize += getExpectedShardSize(
+                    routing,
+                    Math.max(routing.getExpectedShardSize(), 0L),
+                    clusterInfo,
+                    null,
+                    metadata,
+                    routingTable
+                );
             }
         }
+
+        totalSize += sizeOfUnaccountableSearchableSnapshotShards;
 
         if (subtractShardsMovingAway) {
             for (ShardRouting routing : node.relocating()) {
@@ -188,13 +207,14 @@ public class DiskThresholdDecider extends AllocationDecider {
         long freeBytes = usage.getFreeBytes();
         final ByteSizeValue total = ByteSizeValue.ofBytes(usage.getTotalBytes());
         if (freeBytes < 0L) {
-            final long sizeOfRelocatingShards = sizeOfRelocatingShards(
+            final long sizeOfRelocatingShards = sizeOfUnaccountedShards(
                 node,
                 false,
                 usage.getPath(),
                 allocation.clusterInfo(),
                 allocation.metadata(),
-                allocation.routingTable()
+                allocation.routingTable(),
+                allocation.unaccountedSearchableSnapshotSize(node)
             );
             logger.debug(
                 "fewer free bytes remaining than the size of all incoming shards: "
@@ -407,13 +427,14 @@ public class DiskThresholdDecider extends AllocationDecider {
             return YES_NOT_MOST_UTILIZED_DISK;
         }
         if (freeBytes < 0L) {
-            final long sizeOfRelocatingShards = sizeOfRelocatingShards(
+            final long sizeOfRelocatingShards = sizeOfUnaccountedShards(
                 node,
                 true,
                 usage.getPath(),
                 allocation.clusterInfo(),
                 allocation.metadata(),
-                allocation.routingTable()
+                allocation.routingTable(),
+                allocation.unaccountedSearchableSnapshotSize(node)
             );
             logger.debug(
                 "fewer free bytes remaining than the size of all incoming shards: "
@@ -485,13 +506,14 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         final DiskUsageWithRelocations diskUsageWithRelocations = new DiskUsageWithRelocations(
             usage,
-            sizeOfRelocatingShards(
+            sizeOfUnaccountedShards(
                 node,
                 subtractLeavingShards,
                 usage.getPath(),
                 allocation.clusterInfo(),
                 allocation.metadata(),
-                allocation.routingTable()
+                allocation.routingTable(),
+                allocation.unaccountedSearchableSnapshotSize(node)
             )
         );
         logger.trace("getDiskUsage(subtractLeavingShards={}) returning {}", subtractLeavingShards, diskUsageWithRelocations);

@@ -20,8 +20,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +47,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.componentName;
@@ -716,5 +720,100 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             delComponentAction.modifiedKeys(new DeleteComponentTemplateAction.Request("a", "b")),
             containsInAnyOrder(componentName("a"), componentName("b"))
         );
+    }
+
+    public void testBlockUsingReservedComponentTemplates() throws Exception {
+        ClusterState state = clusterService.state();
+        TransformState prevState = new TransformState(state, Collections.emptySet());
+        var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
+
+        String settingsJSON = """
+            {
+              "component_templates": {
+                "template_1": {
+                  "template": {
+                    "mappings": {
+                      "properties": {
+                        "@timestamp": {
+                          "type": "date"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
+
+        var updatedState = processJSON(action, prevState, settingsJSON);
+
+        Metadata metadata = Metadata.builder(updatedState.state().metadata())
+            .put(
+                ReservedStateMetadata.builder("test")
+                    .putHandler(new ReservedStateHandlerMetadata(ReservedComposableIndexTemplateAction.NAME, updatedState.keys()))
+                    .build()
+            )
+            .build();
+
+        ClusterState withReservedState = new ClusterState.Builder(updatedState.state()).metadata(metadata).build();
+
+        String composableTemplate = """
+            {
+              "composable_index_templates": {
+                "composable_template_1": {
+                    "index_patterns": ["te*", "bar*"],
+                    "template": {
+                      "settings": {
+                        "number_of_shards": 1
+                      },
+                      "mappings": {
+                        "_source": {
+                          "enabled": true
+                        },
+                        "properties": {
+                          "host_name": {
+                            "type": "keyword"
+                          },
+                          "created_at": {
+                            "type": "date",
+                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                          }
+                        }
+                      },
+                      "aliases": {
+                        "mydata": { }
+                      }
+                    },
+                    "priority": 500,
+                    "composed_of": ["%s"],
+                    "version": 3,
+                    "_meta": {
+                      "description": "my custom"
+                    }
+                  }
+                }
+              }
+            }""";
+
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, String.format(Locale.ROOT, composableTemplate, "template_1"))
+        ) {
+            var request = action.fromXContent(parser).composableTemplates().get(0);
+            assertTrue(
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> TransportPutComposableIndexTemplateAction.verifyIfUsingReservedComponentTemplates(request, withReservedState)
+                ).getMessage().contains("errors: [[component_template:template_1] is reserved by [test]]")
+            );
+        }
+
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, String.format(Locale.ROOT, composableTemplate, "template_2"))
+        ) {
+            var request = action.fromXContent(parser).composableTemplates().get(0);
+            // this should just work, no failure
+            TransportPutComposableIndexTemplateAction.verifyIfUsingReservedComponentTemplates(request, withReservedState);
+        }
     }
 }

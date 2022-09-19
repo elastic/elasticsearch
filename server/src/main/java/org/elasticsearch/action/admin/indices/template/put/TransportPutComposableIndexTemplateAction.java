@@ -73,8 +73,8 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
+        verifyIfUsingReservedComponentTemplates(request, state);
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
-        verifyIfUsingReservedComponentTemplates(request, state, indexTemplate);
         indexTemplateService.putIndexTemplateV2(
             request.cause(),
             request.create(),
@@ -85,11 +85,11 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         );
     }
 
-    private void verifyIfUsingReservedComponentTemplates(
+    public static void verifyIfUsingReservedComponentTemplates(
         final PutComposableIndexTemplateAction.Request request,
-        ClusterState state,
-        ComposableIndexTemplate indexTemplate
+        final ClusterState state
     ) {
+        ComposableIndexTemplate indexTemplate = request.indexTemplate();
         Set<String> composedOfKeys = indexTemplate.composedOf()
             .stream()
             .map(c -> ReservedComposableIndexTemplateAction.componentName(c))

@@ -729,6 +729,9 @@ The following groupings are currently supported:
 * <<_histogram,Histogram>>
 * <<_terms,Terms>>
 
+The grouping properties can optionally have a `missing_bucket` property. If 
+it's `true`, documents without a value in the respective `group_by` field are 
+included. Defaults to `false`.
 --
 end::pivot-group-by[]
 

@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -52,6 +53,17 @@ import static org.hamcrest.Matchers.equalTo;
  * Unit tests for the DiskThresholdDecider
  */
 public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
+
+    private static long getExpectedShardSize(ShardRouting shardRouting, long defaultSize, RoutingAllocation allocation) {
+        return DiskThresholdDecider.getExpectedShardSize(
+            shardRouting,
+            defaultSize,
+            allocation.clusterInfo(),
+            allocation.snapshotShardSizeInfo(),
+            allocation.metadata(),
+            allocation.routingTable()
+        );
+    }
 
     public void testCanAllocateUsesMaxAvailableSpace() {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -134,7 +146,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
     }
 
-    public void testCannotAllocateDueToLackOfDiskResources() {
+    private void doTestCannotAllocateDueToLackOfDiskResources(boolean testMaxHeadroom) {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
 
@@ -176,12 +188,17 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         // actual test -- after all that bloat :)
 
-        Map<String, DiskUsage> leastAvailableUsages = Map.of("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
-        final int freeBytes = randomIntBetween(20, 100);
-        Map<String, DiskUsage> mostAvailableUsage = Map.of("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, freeBytes));
+        final long totalBytes = testMaxHeadroom ? ByteSizeValue.ofGb(10000).getBytes() : 100;
+
+        Map<String, DiskUsage> leastAvailableUsages = Map.of("node_0", new DiskUsage("node_0", "node_0", "_na_", totalBytes, 0)); // all
+                                                                                                                                  // full
+        final long freeBytes = testMaxHeadroom
+            ? ByteSizeValue.ofGb(randomIntBetween(500, 10000)).getBytes()
+            : randomLongBetween(50, totalBytes);
+        Map<String, DiskUsage> mostAvailableUsage = Map.of("node_0", new DiskUsage("node_0", "node_0", "_na_", totalBytes, freeBytes));
 
         // way bigger than available space
-        final long shardSize = randomIntBetween(110, 1000);
+        final long shardSize = randomLongBetween(totalBytes + 10, totalBytes * 10);
         ClusterInfo clusterInfo = new ClusterInfo(
             leastAvailableUsages,
             mostAvailableUsage,
@@ -201,26 +218,45 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Decision decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.NO, decision.type());
 
-        double usedPercentage = 100.0 * (100 - freeBytes) / 100;
+        double usedPercentage = 100.0 * (totalBytes - freeBytes) / totalBytes;
 
         assertThat(
             decision.getExplanation(),
             containsString(
-                "allocating the shard to this node will bring the node above the high watermark cluster setting "
-                    + "[cluster.routing.allocation.disk.watermark.high=90%] "
-                    + "and cause it to have less than the minimum required [10b] of free space "
-                    + "(free: ["
-                    + freeBytes
-                    + "b], used: ["
-                    + Strings.format1Decimals(usedPercentage, "%")
-                    + "], estimated shard size: ["
-                    + shardSize
-                    + "b])"
+                testMaxHeadroom
+                    ? "allocating the shard to this node will bring the node above the high watermark cluster setting "
+                        + "[cluster.routing.allocation.disk.watermark.high.max_headroom=150gb] "
+                        + "and cause it to have less than the minimum required [150gb] of free space "
+                        + "(free: ["
+                        + ByteSizeValue.ofBytes(freeBytes)
+                        + "], used: ["
+                        + Strings.format1Decimals(usedPercentage, "%")
+                        + "], estimated shard size: ["
+                        + ByteSizeValue.ofBytes(shardSize)
+                        + "])"
+                    : "allocating the shard to this node will bring the node above the high watermark cluster setting "
+                        + "[cluster.routing.allocation.disk.watermark.high=90%] "
+                        + "and cause it to have less than the minimum required [10b] of free space "
+                        + "(free: ["
+                        + freeBytes
+                        + "b], used: ["
+                        + Strings.format1Decimals(usedPercentage, "%")
+                        + "], estimated shard size: ["
+                        + shardSize
+                        + "b])"
             )
         );
     }
 
-    public void testCanRemainUsesLeastAvailableSpace() {
+    public void testCannotAllocateDueToLackOfDiskResourcesWithPercentages() {
+        doTestCannotAllocateDueToLackOfDiskResources(false);
+    }
+
+    public void testCannotAllocateDueToLackOfDiskResourcesWithMaxHeadroom() {
+        doTestCannotAllocateDueToLackOfDiskResources(true);
+    }
+
+    private void doTestCanRemainUsesLeastAvailableSpace(boolean testMaxHeadroom) {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
         Map<ShardRouting, String> shardRoutingMap = new HashMap<>();
@@ -295,18 +331,28 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node_0).add(node_1)).build();
 
         // actual test -- after all that bloat :)
+
+        final long totalBytes = testMaxHeadroom ? ByteSizeValue.ofGb(10000).getBytes() : 100;
+        final long exactFreeSpaceForHighWatermark = testMaxHeadroom ? ByteSizeValue.ofGb(150).getBytes() : 10;
+        final long exactFreeSpaceForBelowHighWatermark = exactFreeSpaceForHighWatermark - 1;
+        final double exactUsedSpaceForBelowHighWatermark = 100.0 * (totalBytes - exactFreeSpaceForBelowHighWatermark) / totalBytes;
+        final long ninetyPercentFreeSpace = (long) (totalBytes * 0.9);
+
         Map<String, DiskUsage> leastAvailableUsages = new HashMap<>();
-        leastAvailableUsages.put("node_0", new DiskUsage("node_0", "node_0", "/node0/least", 100, 10)); // 90% used
-        leastAvailableUsages.put("node_1", new DiskUsage("node_1", "node_1", "/node1/least", 100, 9)); // 91% used
+        leastAvailableUsages.put("node_0", new DiskUsage("node_0", "node_0", "/node0/least", totalBytes, exactFreeSpaceForHighWatermark));
+        leastAvailableUsages.put(
+            "node_1",
+            new DiskUsage("node_1", "node_1", "/node1/least", totalBytes, exactFreeSpaceForBelowHighWatermark)
+        );
 
         Map<String, DiskUsage> mostAvailableUsage = new HashMap<>();
-        mostAvailableUsage.put("node_0", new DiskUsage("node_0", "node_0", "/node0/most", 100, 90)); // 10% used
-        mostAvailableUsage.put("node_1", new DiskUsage("node_1", "node_1", "/node1/most", 100, 90)); // 10% used
+        mostAvailableUsage.put("node_0", new DiskUsage("node_0", "node_0", "/node0/most", totalBytes, ninetyPercentFreeSpace));
+        mostAvailableUsage.put("node_1", new DiskUsage("node_1", "node_1", "/node1/most", totalBytes, ninetyPercentFreeSpace));
 
         Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        shardSizes.put("[test][1][p]", 10L);
-        shardSizes.put("[test][2][p]", 10L);
+        shardSizes.put("[test][0][p]", exactFreeSpaceForHighWatermark);
+        shardSizes.put("[test][1][p]", exactFreeSpaceForHighWatermark);
+        shardSizes.put("[test][2][p]", exactFreeSpaceForHighWatermark);
 
         final ClusterInfo clusterInfo = new ClusterInfo(
             leastAvailableUsages,
@@ -328,7 +374,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertEquals(Decision.Type.YES, decision.type());
         assertThat(
             ((Decision.Single) decision).getExplanation(),
-            containsString("there is enough disk on this node for the shard to remain, free: [10b]")
+            containsString(
+                "there is enough disk on this node for the shard to remain, free: ["
+                    + ByteSizeValue.ofBytes(exactFreeSpaceForHighWatermark)
+                    + "]"
+            )
         );
         decision = decider.canRemain(indexMetadata, test_1, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
         assertEquals(Decision.Type.NO, decision.type());
@@ -336,8 +386,16 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             ((Decision.Single) decision).getExplanation(),
             containsString(
                 "the shard cannot remain on this node because it is above the high watermark cluster setting "
-                    + "[cluster.routing.allocation.disk.watermark.high=90%] and there is less than the required [10b] "
-                    + "free space on node, actual free: [9b], actual used: [91%]"
+                    + "[cluster.routing.allocation.disk.watermark.high"
+                    + (testMaxHeadroom ? ".max_headroom=150gb" : "=90%")
+                    + "] and there is less than the required ["
+                    + ByteSizeValue.ofBytes(exactFreeSpaceForHighWatermark)
+                    + "] free space on "
+                    + "node, actual free: ["
+                    + ByteSizeValue.ofBytes(exactFreeSpaceForBelowHighWatermark)
+                    + "], actual used: ["
+                    + Strings.format1Decimals(exactUsedSpaceForBelowHighWatermark, "%")
+                    + "]"
             )
         );
         try {
@@ -366,6 +424,14 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             ((Decision.Single) decision).getExplanation(),
             containsString("this shard is not allocated on the most utilized disk and can remain")
         );
+    }
+
+    public void testCanRemainUsesLeastAvailableSpaceWithPercentages() {
+        doTestCanRemainUsesLeastAvailableSpace(false);
+    }
+
+    public void testCanRemainUsesLeastAvailableSpaceWithMaxHeadroom() {
+        doTestCanRemainUsesLeastAvailableSpace(true);
     }
 
     public void testShardSizeAndRelocatingSize() {
@@ -620,17 +686,6 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(null, clusterStateWithMissingSourceIndex, info, null, 0);
         assertEquals(42L, getExpectedShardSize(target, 42L, allocationWithMissingSourceIndex));
         assertEquals(42L, getExpectedShardSize(target2, 42L, allocationWithMissingSourceIndex));
-    }
-
-    private static long getExpectedShardSize(ShardRouting shardRouting, long defaultSize, RoutingAllocation allocation) {
-        return DiskThresholdDecider.getExpectedShardSize(
-            shardRouting,
-            defaultSize,
-            allocation.clusterInfo(),
-            allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
-        );
     }
 
     public void testDiskUsageWithRelocations() {

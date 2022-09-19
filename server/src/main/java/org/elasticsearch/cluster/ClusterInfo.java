@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -225,6 +226,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      */
     public static String shardIdentifierFromRouting(ShardRouting shardRouting) {
         return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, false);
     }
 
     /**

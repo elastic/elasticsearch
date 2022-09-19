@@ -120,7 +120,7 @@ Alternatively, you can use a Gradle init script to inject custom build logic wit
 
 For example:
 
-To use a custom certificate for HTTPS with ./gradlew run.
+To use a custom certificate for HTTPS with `./gradlew run`, you can do the following.
 Create a file (for example ~/custom-run.gradle) with the following contents:
 -------------------------------------
 rootProject {

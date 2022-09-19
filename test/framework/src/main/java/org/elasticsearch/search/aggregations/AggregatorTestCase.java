@@ -428,9 +428,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return null;
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        AggTestConfig aggTestConfig) throws IOException {
-        return searchAndReduce(createIndexSettings(), aggTestConfig.searcher(), aggTestConfig.query(), aggTestConfig.builder(), DEFAULT_MAX_BUCKETS, aggTestConfig.fieldTypes());
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(AggTestConfig aggTestConfig) throws IOException {
+        return searchAndReduce(
+            createIndexSettings(),
+            aggTestConfig.searcher(),
+            aggTestConfig.query(),
+            aggTestConfig.builder(),
+            DEFAULT_MAX_BUCKETS,
+            aggTestConfig.fieldTypes()
+        );
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
@@ -1006,7 +1012,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     AssertionError failure = null;
                     try {
                         InternalAggregation internalAggregation = searchAndReduce(
-                            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType));
+                            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType)
+                        );
                         // We should make sure if the builder says it supports sampling, that the internal aggregations returned override
                         // finalizeSampling
                         if (aggregationBuilder.supportsSampling()) {

@@ -206,9 +206,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeIndicesStats that = (NodeIndicesStats) o;
-        return Objects.equals(stats, that.stats)
-            && Objects.equals(statsByShard, that.statsByShard)
-            && Objects.equals(statsByIndex, that.statsByIndex);
+        return stats.equals(that.stats) && statsByShard.equals(that.statsByShard) && statsByIndex.equals(that.statsByIndex);
     }
 
     @Override

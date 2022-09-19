@@ -21,16 +21,13 @@ import java.util.EnumSet;
 /**
  * Contains flags that can be used to regulate the presence and calculation of different stat fields in {@link CommonStats}.
  *
- * The flags are split in two categories:
- * - INDEX_LEVEL flags for stat fields that can be calculated only at the index level, but not at the shard level.
- * - SHARD_LEVEL flags for stat fields that can be calculated at the shard level and then may be later aggregated at the index level
- *   along with INDEX_LEVEL stat fields.
+ * The SHARD_LEVEL flags are for stat fields that can be calculated at the shard level and then may be later aggregated at the index level
+ * along with index-level flag stat fields (e.g., Mappings).
  */
 public class CommonStatsFlags implements Writeable, Cloneable {
 
     public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
     public static final CommonStatsFlags SHARD_LEVEL = new CommonStatsFlags().all().set(Flag.Mappings, false);
-    public static final CommonStatsFlags INDEX_LEVEL = new CommonStatsFlags().clear().set(Flag.Mappings, true);
     public static final CommonStatsFlags NONE = new CommonStatsFlags().clear();
 
     private EnumSet<Flag> flags = EnumSet.allOf(Flag.class);

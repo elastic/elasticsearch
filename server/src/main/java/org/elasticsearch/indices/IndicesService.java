@@ -462,19 +462,18 @@ public class IndicesService extends AbstractLifecycleComponent
 
     static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
         // Currently only the Mappings flag is the only possible index-level flag.
-        boolean mappingsEnabled = flags.isSet(CommonStatsFlags.Flag.Mappings);
-        final Map<Index, CommonStats> statsByIndex = Maps.newHashMapWithExpectedSize(mappingsEnabled ? indicesService.indices.size() : 0);
-
-        if (mappingsEnabled) {
-            for (final IndexService indexService : indicesService) {
-                Index index = indexService.index();
-                CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
-                commonStats.nodeMappings = indexService.getNodeMappingStats();
-                var existing = statsByIndex.putIfAbsent(index, commonStats);
-                assert existing == null;
-            }
+        if (flags.isSet(CommonStatsFlags.Flag.Mappings) == false) {
+            return Map.of();
         }
 
+        final Map<Index, CommonStats> statsByIndex = Maps.newHashMapWithExpectedSize(indicesService.indices.size());
+        for (final IndexService indexService : indicesService) {
+            Index index = indexService.index();
+            CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+            commonStats.nodeMappings = indexService.getNodeMappingStats();
+            var existing = statsByIndex.putIfAbsent(index, commonStats);
+            assert existing == null;
+        }
         return statsByIndex;
     }
 

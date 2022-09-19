@@ -50,8 +50,9 @@ public class NodeMappingStats implements Writeable, ToXContentFragment {
     }
 
     public void add(@Nullable NodeMappingStats other) {
-        this.totalCount += other == null ? 0 : other.totalCount;
-        this.totalEstimatedOverhead += other == null ? 0 : other.totalEstimatedOverhead;
+        if (other == null) return;
+        this.totalCount += other.totalCount;
+        this.totalEstimatedOverhead += other.totalEstimatedOverhead;
     }
 
     public long getTotalCount() {

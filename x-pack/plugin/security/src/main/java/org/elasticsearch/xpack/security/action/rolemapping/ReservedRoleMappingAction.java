@@ -71,6 +71,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         if (exceptions.isEmpty() == false) {
             var illegalArgumentException = new IllegalArgumentException("error on validating put role mapping requests");
             exceptions.forEach(illegalArgumentException::addSuppressed);
+            throw illegalArgumentException;
         }
 
         return requests;

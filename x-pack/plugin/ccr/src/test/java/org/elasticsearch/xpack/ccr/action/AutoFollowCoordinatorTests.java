@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -743,7 +742,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
 
         List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, Collections.emptyList());
-        result.sort(Comparator.comparing(Index::getName));
+        result.sort(Index.COMPARE_BY_NAME);
         assertThat(result.size(), equalTo(5));
         assertThat(result.get(0).getName(), equalTo("metrics-0"));
         assertThat(result.get(1).getName(), equalTo("metrics-1"));
@@ -753,7 +752,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         final List<String> followedIndexUUIDs = Collections.singletonList(remoteState.metadata().index("metrics-2").getIndexUUID());
         result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, followedIndexUUIDs);
-        result.sort(Comparator.comparing(Index::getName));
+        result.sort(Index.COMPARE_BY_NAME);
         assertThat(result.size(), equalTo(4));
         assertThat(result.get(0).getName(), equalTo("metrics-0"));
         assertThat(result.get(1).getName(), equalTo("metrics-1"));
@@ -816,7 +815,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, Collections.emptyList());
         assertThat(result.size(), equalTo(2));
-        result.sort(Comparator.comparing(Index::getName));
+        result.sort(Index.COMPARE_BY_NAME);
         assertThat(result.get(0).getName(), equalTo("index1"));
         assertThat(result.get(1).getName(), equalTo("index2"));
     }

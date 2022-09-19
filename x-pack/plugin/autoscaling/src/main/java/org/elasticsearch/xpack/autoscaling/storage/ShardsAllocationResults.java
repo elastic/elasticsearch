@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.cluster.routing.allocation.NodeDecision;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.List;

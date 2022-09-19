@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -21,17 +21,17 @@ import java.util.Objects;
 
 import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
 
-public class NodeDecision implements ToXContentObject, Writeable {
+class NodeDecision implements ToXContentObject, Writeable {
 
     private final DiscoveryNode node;
     private final Decision decision;
 
-    public NodeDecision(DiscoveryNode node, Decision decision) {
+    NodeDecision(DiscoveryNode node, Decision decision) {
         this.node = node;
         this.decision = decision;
     }
 
-    public NodeDecision(StreamInput in) throws IOException {
+    NodeDecision(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
         decision = Decision.readFrom(in);
     }
@@ -42,11 +42,11 @@ public class NodeDecision implements ToXContentObject, Writeable {
         decision.writeTo(out);
     }
 
-    public DiscoveryNode node() {
+    DiscoveryNode node() {
         return node;
     }
 
-    public Decision decision() {
+    Decision decision() {
         return decision;
     }
 

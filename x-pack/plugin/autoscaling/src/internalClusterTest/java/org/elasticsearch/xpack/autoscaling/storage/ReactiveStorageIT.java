@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.NodeDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;

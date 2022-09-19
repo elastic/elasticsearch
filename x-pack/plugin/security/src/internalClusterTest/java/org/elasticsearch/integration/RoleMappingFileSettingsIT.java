@@ -385,7 +385,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             .get(FileSettingsService.NAMESPACE);
 
         ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
-        assertNull(handlerMetadata);
+        assertTrue(handlerMetadata == null || handlerMetadata.keys().isEmpty());
     }
 
     private PutRoleMappingRequest sampleRestRequest(String name) throws Exception {

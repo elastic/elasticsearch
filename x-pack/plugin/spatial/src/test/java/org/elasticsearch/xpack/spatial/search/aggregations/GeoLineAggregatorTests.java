@@ -412,7 +412,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("sort_field", fieldNumberType);
 
             Terms terms = searchAndReduce(
-                    new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType, fieldType2, groupFieldType)
+                new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType, fieldType2, groupFieldType)
             );
             verify.accept(terms);
         } finally {

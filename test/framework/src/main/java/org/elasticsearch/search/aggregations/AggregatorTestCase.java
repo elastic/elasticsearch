@@ -440,8 +440,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      *
      * @param aggTestConfig
      */
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        AggTestConfig aggTestConfig) throws IOException {
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(AggTestConfig aggTestConfig) throws IOException {
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
@@ -1418,9 +1417,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    public record AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder,
-                                int maxBuckets, boolean splitLeavesIntoSeparateAggregators,
-                                MappedFieldType... fieldTypes) {
+    public record AggTestConfig(
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        int maxBuckets,
+        boolean splitLeavesIntoSeparateAggregators,
+        MappedFieldType... fieldTypes
+    ) {
         public AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder, MappedFieldType... fieldTypes) {
             this(searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
         }

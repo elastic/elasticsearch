@@ -593,6 +593,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             root.postCollection();
             aggs.add(root.buildTopLevel());
         }
+        assertTrue(context.isCacheable());
         assertRoundTrip(aggs);
         if (randomBoolean() && aggs.size() > 1) {
             // sometimes do an incremental reduce

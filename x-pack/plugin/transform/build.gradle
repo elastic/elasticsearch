@@ -12,7 +12,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
 
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(path: xpackModule('analytics'))
+  testImplementation project(':modules:analytics')
   testImplementation project(path: ':modules:aggs-matrix-stats')
   testImplementation project(path: xpackModule('spatial'))
   testImplementation project(":test:x-content")

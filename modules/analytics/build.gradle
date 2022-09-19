@@ -1,0 +1,19 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+esplugin {
+  description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
+  classname 'org.elasticsearch.xpack.analytics.AnalyticsPlugin'
+}
+
+dependencies {
+  api 'org.apache.commons:commons-math3:3.6.1'
+  compileOnly project(":server")
+  testImplementation(project(":client:rest-high-level"))
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}
+

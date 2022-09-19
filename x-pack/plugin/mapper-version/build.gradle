@@ -20,7 +20,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':modules:lang-painless:spi')
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(path: xpackModule('analytics'))
+  testImplementation project(':modules:analytics')
 }
 
 if (BuildParams.isSnapshotBuild() == false) {

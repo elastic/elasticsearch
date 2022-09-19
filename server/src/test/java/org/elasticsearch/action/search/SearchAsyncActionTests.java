@@ -729,7 +729,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             );
             if (primaryNode != null) {
                 routing = routing.initialize(primaryNode.getId(), i + "p", 0);
-                routing = routing.moveToStarted();
+                routing = routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 started.add(routing);
             }
             if (doReplicas && primaryNode != null) {
@@ -742,7 +742,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 if (replicaNode != null) {
                     routing = routing.initialize(replicaNode.getId(), i + "r", 0);
                     if (randomBoolean()) {
-                        routing = routing.moveToStarted();
+                        routing = routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                         started.add(routing);
                     } else {
                         initializing.add(routing);

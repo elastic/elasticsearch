@@ -28,18 +28,6 @@ testClusters.register("runTask") {
       // Not enabled by default in the build, otherwise all integration tests will download the databases from our geoip download service:
       systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
       setting 'xpack.security.enabled', 'true'
-      setting 'xpack.security.transport.ssl.enabled',  'true'
-      setting 'xpack.security.transport.ssl.client_authentication', 'required'
-      extraConfigFile 'transport-tls-keystore.p12', new File(projectDir, "build-tools-internal/src/main/resources/run.ssl/private-cert1.p12")
-      extraConfigFile 'public-ca.pem', new File(projectDir, "build-tools-internal/src/main/resources/run.ssl/public-ca.pem")
-      setting 'xpack.security.transport.ssl.keystore.path', 'transport-tls-keystore.p12'
-      setting 'xpack.security.transport.ssl.certificate_authorities', 'public-ca.pem'
-      if (providers.systemProperty('https').isPresent()) {
-        setting 'xpack.security.http.ssl.enabled',  'true'
-        setting 'xpack.security.http.ssl.certificate_authorities', 'public-ca.pem'
-        extraConfigFile 'http.p12', new File(projectDir, "build-tools-internal/src/main/resources/run.ssl/private-cert1.p12")
-        setting 'xpack.security.http.ssl.keystore.path', 'http.p12'
-      }
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
       numberOfNodes = 1
@@ -53,4 +41,3 @@ tasks.register("run", RunTask) {
 
   impliesSubProjects = true
 }
-

@@ -17,6 +17,7 @@ import org.gradle.api.tasks.options.Option;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,6 +41,20 @@ public class RunTask extends DefaultTestClustersTask {
     private Path dataDir = null;
 
     private String keystorePassword = "";
+
+    private Boolean useHttps = false;
+
+    private Boolean useTransportTls = true;
+
+    private final Path tlsBasePath = Path.of(
+        new File(getProject().getProjectDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
+    );
+
+    private final String tlsCertificateAuthority = "public-ca.pem";
+
+    private final String httpsCertificate = "private-cert1.p12";
+
+    private final String transportCertificate = "private-cert2.p12";
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
@@ -86,6 +101,28 @@ public class RunTask extends DefaultTestClustersTask {
         return dataDir.toString();
     }
 
+    @Option(option = "https", description = "Helper option to enable HTTPS")
+    public void setUseHttps(boolean useHttps) {
+        this.useHttps = useHttps;
+    }
+
+    @Input
+    @Optional
+    public Boolean getUseHttps() {
+        return useHttps;
+    }
+
+    @Option(option = "transport-tls", description = "Helper option to disable TLS for the transport layer")
+    public void setUseTransportTls(boolean useTransportTls) {
+        this.useTransportTls = useTransportTls;
+    }
+
+    @Input
+    @Optional
+    public Boolean getUseTransportTls() {
+        return useTransportTls;
+    }
+
     @Override
     public void beforeStart() {
         int httpPort = 9200;
@@ -119,6 +156,23 @@ public class RunTask extends DefaultTestClustersTask {
                 }
                 if (keystorePassword.length() > 0) {
                     node.keystorePassword(keystorePassword);
+                }
+                if (useHttps) {
+                    validateHelperOption("--https", "xpack.security.http.ssl", node);
+                    node.setting("xpack.security.http.ssl.enabled", "true");
+                    node.extraConfigFile("https.keystore", tlsBasePath.resolve(httpsCertificate).toFile());
+                    node.extraConfigFile("https.ca", tlsBasePath.resolve(tlsCertificateAuthority).toFile());
+                    node.setting("xpack.security.http.ssl.keystore.path", "https.keystore");
+                    node.setting("xpack.security.http.ssl.certificate_authorities", "https.ca");
+                }
+                if (useTransportTls) {
+                    validateHelperOption("--transport-tls", "xpack.security.transport.ssl", node);
+                    node.setting("xpack.security.transport.ssl.enabled", "true");
+                    node.setting("xpack.security.transport.ssl.client_authentication", "required");
+                    node.extraConfigFile("transport.keystore", tlsBasePath.resolve(transportCertificate).toFile());
+                    node.extraConfigFile("transport.ca", tlsBasePath.resolve(tlsCertificateAuthority).toFile());
+                    node.setting("xpack.security.transport.ssl.keystore.path", "transport.keystore");
+                    node.setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca");
                 }
             }
         }
@@ -191,5 +245,16 @@ public class RunTask extends DefaultTestClustersTask {
                 logger.debug("exception occurred during close of stdout file readers", thrown);
             }
         }
+    }
+
+    /**
+     * Disallow overlap between helper options and explicit configuration
+     */
+    private void validateHelperOption(String option, String prefix, ElasticsearchNode node) {
+        node.getSettingKeys().forEach(key -> {
+            if (key.startsWith(prefix)) {
+                throw new IllegalArgumentException("Can not use " + option + " with " + key);
+            }
+        });
     }
 }

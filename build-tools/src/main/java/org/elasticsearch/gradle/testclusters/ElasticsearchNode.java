@@ -1585,6 +1585,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Nested
+    Set<String> getSettingKeys() {
+        return settings.keySet();
+    }
+
+    @Nested
     public List<?> getSystemProperties() {
         return systemProperties.getNormalizedCollection();
     }

@@ -137,7 +137,9 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalDateHistogram histogram;
-                histogram = searchAndReduce(new AggTestConfig(indexSearcher, query, aggBuilder, fieldType, valueFieldType).withMaxBuckets(1000));
+                histogram = searchAndReduce(
+                    new AggTestConfig(indexSearcher, query, aggBuilder, fieldType, valueFieldType).withMaxBuckets(1000)
+                );
                 verify.accept(histogram);
             }
         }

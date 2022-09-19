@@ -295,7 +295,8 @@ PUT _transform/ecommerce_transform1
     "group_by": {
       "customer_id": {
         "terms": {
-          "field": "customer_id"
+          "field": "customer_id",
+          "missing_bucket": true
         }
       }
     },

@@ -31,6 +31,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
@@ -113,7 +114,7 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 InternalFilters filters;
-                filters = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                filters = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldType));
                 verify.accept(filters);
             }
         }

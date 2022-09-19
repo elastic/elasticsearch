@@ -24,6 +24,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -312,7 +313,9 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram;
-                histogram = searchAndReduce(indexSearcher, query, aggBuilder, new MappedFieldType[] { fieldType, valueFieldType });
+                histogram = searchAndReduce(
+                    new AggTestConfig(indexSearcher, query, aggBuilder, new MappedFieldType[] { fieldType, valueFieldType })
+                );
                 verify.accept(histogram);
             }
         }

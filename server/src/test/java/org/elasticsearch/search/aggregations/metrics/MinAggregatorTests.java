@@ -47,6 +47,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -385,7 +386,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
                 IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-                Min min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+                Min min = searchAndReduce(new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType));
                 assertEquals(2.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(min));
             }
@@ -416,7 +417,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
                 IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-                Min min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+                Min min = searchAndReduce(new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType));
                 assertEquals(-19.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(min));
             }

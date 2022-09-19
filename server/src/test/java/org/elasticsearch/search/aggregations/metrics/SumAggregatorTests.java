@@ -38,6 +38,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -241,7 +242,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
                 final IndexSearcher searcher = newSearcher(multiReader, true, true);
 
-                final Sum internalSum = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldType);
+                final Sum internalSum = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), builder, fieldType));
                 assertEquals(sum, internalSum.value(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(internalSum));
             }

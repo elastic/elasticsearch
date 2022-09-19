@@ -25,6 +25,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -624,7 +625,9 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                     throw new IOException("Test data has an invalid type");
                 }
 
-                final InternalVariableWidthHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                final InternalVariableWidthHistogram histogram = searchAndReduce(
+                    new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldType)
+                );
                 verify.accept(histogram);
             }
         }

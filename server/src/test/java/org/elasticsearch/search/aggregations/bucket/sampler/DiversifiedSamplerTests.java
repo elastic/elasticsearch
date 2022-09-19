@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -181,7 +182,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
             .shardSize(shardSize)
             .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
-        InternalSampler result = searchAndReduce(indexSearcher, query, builder, genreFieldType, idFieldType);
+        InternalSampler result = searchAndReduce(new AggTestConfig(indexSearcher, query, builder, genreFieldType, idFieldType));
         verify.accept(result);
     }
 
@@ -199,7 +200,9 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name").field(genreFieldType.name())
             .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
-        InternalSampler result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, genreFieldType, idFieldType);
+        InternalSampler result = searchAndReduce(
+            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, genreFieldType, idFieldType)
+        );
         Terms terms = result.getAggregations().get("terms");
         assertEquals(0, terms.getBuckets().size());
         indexReader.close();

@@ -19,6 +19,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -40,7 +41,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoCentroid result = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -58,11 +59,11 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("another_field");
-                InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoCentroid result = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
                 assertNull(result.centroid());
 
                 fieldType = new GeoPointFieldMapper.GeoPointFieldType("another_field");
-                result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                result = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -85,7 +86,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("another_field");
-                InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoCentroid result = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
                 assertEquals(result.centroid(), expectedCentroid);
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
@@ -150,7 +151,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
         GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg").field("field");
         try (IndexReader reader = w.getReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
-            InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+            InternalGeoCentroid result = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
 
             assertEquals("my_agg", result.getName());
             SpatialPoint centroid = result.centroid();

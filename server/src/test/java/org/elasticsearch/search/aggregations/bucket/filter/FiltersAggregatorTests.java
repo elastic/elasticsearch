@@ -61,6 +61,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -120,10 +121,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
         builder.otherBucketKey("other");
         InternalFilters response = searchAndReduce(
-            indexSearcher,
-            new MatchAllDocsQuery(),
-            builder,
-            new KeywordFieldMapper.KeywordFieldType("field")
+            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, new KeywordFieldType("field"))
         );
         assertEquals(response.getBuckets().size(), numFilters);
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
@@ -221,10 +219,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         builder.otherBucket(true);
         builder.otherBucketKey("other");
         final InternalFilters filters = searchAndReduce(
-            indexSearcher,
-            new MatchAllDocsQuery(),
-            builder,
-            new KeywordFieldMapper.KeywordFieldType("field")
+            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, new KeywordFieldType("field"))
         );
         assertEquals(filters.getBuckets().size(), 7);
         assertEquals(filters.getBucketByKey("foobar").getDocCount(), 2);
@@ -281,10 +276,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             builder.otherBucketKey("other");
 
             final InternalFilters response = searchAndReduce(
-                indexSearcher,
-                new MatchAllDocsQuery(),
-                builder,
-                new KeywordFieldMapper.KeywordFieldType("field")
+                new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, new KeywordFieldType("field"))
             );
             List<InternalFilters.InternalBucket> buckets = response.getBuckets();
             assertEquals(buckets.size(), filters.length + 1);

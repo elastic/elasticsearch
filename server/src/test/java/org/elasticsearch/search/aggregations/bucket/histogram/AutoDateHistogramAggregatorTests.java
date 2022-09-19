@@ -34,10 +34,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
@@ -942,12 +939,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 final InternalAutoDateHistogram histogram = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    aggregationBuilder,
-                    fieldType,
-                    instantFieldType,
-                    numericFieldType
+                    new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldType, instantFieldType, numericFieldType)
                 );
                 verify.accept(histogram);
             }

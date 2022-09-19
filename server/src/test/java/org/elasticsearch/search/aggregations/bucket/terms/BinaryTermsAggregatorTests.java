@@ -21,6 +21,7 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -156,7 +157,9 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType binaryFieldType = new BinaryFieldMapper.BinaryFieldType(BINARY_FIELD);
 
-                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, binaryFieldType);
+                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(
+                    new AggTestConfig(indexSearcher, query, aggregationBuilder, binaryFieldType)
+                );
                 verify.accept(rareTerms);
             }
         }

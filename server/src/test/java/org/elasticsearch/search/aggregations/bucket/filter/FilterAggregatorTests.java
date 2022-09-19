@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -52,7 +53,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
         QueryBuilder filter = QueryBuilders.termQuery("field", randomAlphaOfLength(5));
         FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
-        InternalFilter response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+        InternalFilter response = searchAndReduce(new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, fieldType));
         assertEquals(response.getDocCount(), 0);
         assertFalse(AggregationInspectionHelper.hasValue(response));
         indexReader.close();
@@ -87,7 +88,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
             QueryBuilder filter = QueryBuilders.termQuery("field", Integer.toString(value));
             FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
 
-            final InternalFilter response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+            final InternalFilter response = searchAndReduce(new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, fieldType));
             assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
             if (expectedBucketCount[value] > 0) {
                 assertTrue(AggregationInspectionHelper.hasValue(response));

@@ -23,6 +23,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -45,7 +46,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
                 assertTrue(Double.isInfinite(bounds.posLeft));
@@ -70,7 +71,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
                 assertTrue(Double.isInfinite(bounds.posLeft));
@@ -102,7 +103,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader reader = w.getReader()) {
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                    InternalGeoBounds bounds = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
                     assertThat(bounds.top, equalTo(lat));
                     assertThat(bounds.bottom, equalTo(lat));
                     assertThat(bounds.posLeft, equalTo(lon >= 0 ? lon : Double.POSITIVE_INFINITY));
@@ -129,7 +130,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 ElasticsearchParseException exception = expectThrows(
                     ElasticsearchParseException.class,
-                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType)
+                    () -> searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType))
                 );
                 assertThat(exception.getMessage(), startsWith("unsupported symbol"));
             }
@@ -177,7 +178,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
                 assertThat(bounds.top, closeTo(top, GEOHASH_TOLERANCE));
                 assertThat(bounds.bottom, closeTo(bottom, GEOHASH_TOLERANCE));
                 assertThat(bounds.posLeft, closeTo(posLeft, GEOHASH_TOLERANCE));

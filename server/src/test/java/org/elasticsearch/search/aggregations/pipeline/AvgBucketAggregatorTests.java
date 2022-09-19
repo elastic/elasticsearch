@@ -27,10 +27,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -167,10 +164,12 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
                 MappedFieldType keywordField = keywordField(textField);
 
                 filterResult = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    filterAggregationBuilder,
-                    new MappedFieldType[] { fieldType, valueFieldType, keywordField }
+                    new AggTestConfig(
+                        indexSearcher,
+                        query,
+                        filterAggregationBuilder,
+                        new MappedFieldType[] { fieldType, valueFieldType, keywordField }
+                    )
                 );
             }
 

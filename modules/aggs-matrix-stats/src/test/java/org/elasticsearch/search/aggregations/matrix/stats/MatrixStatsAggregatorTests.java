@@ -20,6 +20,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 
@@ -41,7 +42,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Collections.singletonList("field")
                 );
-                InternalMatrixStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
+                InternalMatrixStats stats = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, ft));
                 assertNull(stats.getStats());
                 assertEquals(0L, stats.getDocCount());
             }
@@ -60,7 +61,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Collections.singletonList("bogus")
                 );
-                InternalMatrixStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
+                InternalMatrixStats stats = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, ft));
                 assertNull(stats.getStats());
                 assertEquals(0L, stats.getDocCount());
             }
@@ -95,7 +96,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
                     Arrays.asList(fieldA, fieldB)
                 );
-                InternalMatrixStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ftA, ftB);
+                InternalMatrixStats stats = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), aggBuilder, ftA, ftB));
                 multiPassStats.assertNearlyEqual(stats);
                 assertTrue(MatrixAggregationInspectionHelper.hasValue(stats));
             }

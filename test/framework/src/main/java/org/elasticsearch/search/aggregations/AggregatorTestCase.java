@@ -429,12 +429,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduce(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, fieldTypes);
+        AggTestConfig aggTestConfig) throws IOException {
+        return searchAndReduce(createIndexSettings(), aggTestConfig.searcher(), aggTestConfig.query(), aggTestConfig.builder(), DEFAULT_MAX_BUCKETS, aggTestConfig.fieldTypes());
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
@@ -672,7 +668,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
+                V agg = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldTypes));
                 verify.accept(agg);
 
                 verifyOutputFieldNames(aggregationBuilder, agg);
@@ -1010,11 +1006,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     AssertionError failure = null;
                     try {
                         InternalAggregation internalAggregation = searchAndReduce(
-                            indexSearcher,
-                            new MatchAllDocsQuery(),
-                            aggregationBuilder,
-                            fieldType
-                        );
+                            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType));
                         // We should make sure if the builder says it supports sampling, that the internal aggregations returned override
                         // finalizeSampling
                         if (aggregationBuilder.supportsSampling()) {

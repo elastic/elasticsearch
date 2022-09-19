@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
@@ -1084,7 +1085,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                InternalDateHistogram histogram = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldType));
                 verify.accept(histogram);
             }
         }

@@ -49,6 +49,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggTestConfig;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -587,7 +588,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-                InternalAggregation agg = searchAndReduce(indexSearcher, query, builder, fields);
+                InternalAggregation agg = searchAndReduce(new AggTestConfig(indexSearcher, query, builder, fields));
                 verifyOutputFieldNames(builder, agg);
                 return agg;
             }

@@ -165,7 +165,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     new Diagnosis.Definition(
                         "free-disk-space-or-add-capacity-master-nodes",
                         "Disk is almost full.",
-                        "Please, add capacity to the current nodes, or replace them with ones with higher capacity.",
+                        "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
                         "https://ela.st/free-disk-space-or-add-capacity-master-nodes"
                     ),
                     problemMasterNodes.stream().map(DiscoveryNode::getId).toList()
@@ -189,7 +189,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     new Diagnosis.Definition(
                         "free-disk-space-or-add-capacity-other-nodes",
                         "Disk is almost full.",
-                        "Please, add capacity to the current nodes, or replace them with ones with higher capacity.",
+                        "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
                         "https://ela.st/free-disk-space-or-add-capacity-other-nodes"
                     ),
                     problemNodes.stream().toList()

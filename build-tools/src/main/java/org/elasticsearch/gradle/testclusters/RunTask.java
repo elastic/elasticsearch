@@ -23,8 +23,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -43,8 +45,6 @@ public class RunTask extends DefaultTestClustersTask {
     private String keystorePassword = "";
 
     private Boolean useHttps = false;
-
-    private Boolean useTransportTls = true;
 
     private final Path tlsBasePath = Path.of(
         new File(getProject().getProjectDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
@@ -112,17 +112,6 @@ public class RunTask extends DefaultTestClustersTask {
         return useHttps;
     }
 
-    @Option(option = "transport-tls", description = "Helper option to disable TLS for the transport layer")
-    public void setUseTransportTls(boolean useTransportTls) {
-        this.useTransportTls = useTransportTls;
-    }
-
-    @Input
-    @Optional
-    public Boolean getUseTransportTls() {
-        return useTransportTls;
-    }
-
     @Override
     public void beforeStart() {
         int httpPort = 9200;
@@ -165,8 +154,7 @@ public class RunTask extends DefaultTestClustersTask {
                     node.setting("xpack.security.http.ssl.keystore.path", "https.keystore");
                     node.setting("xpack.security.http.ssl.certificate_authorities", "https.ca");
                 }
-                if (useTransportTls) {
-                    validateHelperOption("--transport-tls", "xpack.security.transport.ssl", node);
+                if (findConfiguredSettingsByPrefix("xpack.security.transport.ssl", node).isEmpty()) {
                     node.setting("xpack.security.transport.ssl.enabled", "true");
                     node.setting("xpack.security.transport.ssl.client_authentication", "required");
                     node.extraConfigFile("transport.keystore", tlsBasePath.resolve(transportCertificate).toFile());
@@ -251,10 +239,22 @@ public class RunTask extends DefaultTestClustersTask {
      * Disallow overlap between helper options and explicit configuration
      */
     private void validateHelperOption(String option, String prefix, ElasticsearchNode node) {
+        Set<String> preConfigured = findConfiguredSettingsByPrefix(prefix, node);
+        if (preConfigured.isEmpty() == false) {
+            throw new IllegalArgumentException("Can not use " + option + " with " + String.join(",", preConfigured));
+        }
+    }
+
+    /**
+     * Find any settings configured with a given prefix
+     */
+    private Set<String> findConfiguredSettingsByPrefix(String prefix, ElasticsearchNode node) {
+        Set<String> preConfigured = new HashSet<>();
         node.getSettingKeys().forEach(key -> {
             if (key.startsWith(prefix)) {
-                throw new IllegalArgumentException("Can not use " + option + " with " + key);
+                preConfigured.add(prefix);
             }
         });
+        return preConfigured;
     }
 }

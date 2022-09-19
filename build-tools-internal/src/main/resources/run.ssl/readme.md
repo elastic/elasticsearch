@@ -26,8 +26,6 @@ mv ca/ca.key private-ca.key
 
 ## Node Certificates signed by the CA
 
-* private-certX.key: the private key of the certificate signed by the CA in PEM format. Can be use PEM files instead of PKCS#12.
-* public-certX.pem: the public key of the certificate signed by the CA in PEM format. Can be use PEM files instead of PKCS#12
 * private-certX.p12 : the public/private key of the certificate signed by the CA. Useful as the keystore.
 
 To create new certificates signed by CA:

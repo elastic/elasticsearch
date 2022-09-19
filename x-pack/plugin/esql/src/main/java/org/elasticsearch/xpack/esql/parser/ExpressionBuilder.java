@@ -12,6 +12,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -179,6 +180,18 @@ public class ExpressionBuilder extends IdentifierBuilder {
         Expression right = expression(ctx.right);
 
         return type == EsqlBaseParser.AND ? new And(source, left, right) : new Or(source, left, right);
+    }
+
+    @Override
+    public Order visitOrderExpression(EsqlBaseParser.OrderExpressionContext ctx) {
+        return new Order(
+            source(ctx),
+            expression(ctx.booleanExpression()),
+            ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC,
+            (ctx.NULLS() != null && ctx.LAST() != null || ctx.NULLS() == null && ctx.DESC() == null)
+                ? Order.NullsPosition.LAST
+                : Order.NullsPosition.FIRST
+        );
     }
 
     private static String unquoteString(Source source) {

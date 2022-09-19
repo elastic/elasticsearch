@@ -11,30 +11,39 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class StatementParserTests extends ESTestCase {
 
+    private static String FROM = "from test";
     EsqlParser parser = new EsqlParser();
 
     public void testRowCommand() {
@@ -105,21 +114,23 @@ public class StatementParserTests extends ESTestCase {
             for (int j = 0; j < identifiers.length; j++) {
                 where = whereCommand("where " + identifiers[j] + operators[i] + "123");
                 assertThat(where, instanceOf(Filter.class));
-                Filter w = (Filter) where;
-                assertThat(w.children().size(), equalTo(1));
-                assertThat(w.children().get(0), equalTo(LogicalPlanBuilder.RELATION));
-                assertThat(w.condition(), instanceOf(expectedOperators[i]));
+                Filter filter = (Filter) where;
+                assertThat(filter.condition(), instanceOf(expectedOperators[i]));
                 BinaryComparison comparison;
-                if (w.condition()instanceof Not not) {
+                if (filter.condition()instanceof Not not) {
                     assertThat(not.children().get(0), instanceOf(Equals.class));
                     comparison = (BinaryComparison) (not.children().get(0));
                 } else {
-                    comparison = (BinaryComparison) w.condition();
+                    comparison = (BinaryComparison) filter.condition();
                 }
                 assertThat(comparison.left(), instanceOf(UnresolvedAttribute.class));
                 assertThat(((UnresolvedAttribute) comparison.left()).name(), equalTo(expectedIdentifiers[j]));
                 assertThat(comparison.right(), instanceOf(Literal.class));
                 assertThat(((Literal) comparison.right()).value(), equalTo(123));
+
+                assertThat(filter.children().size(), equalTo(1));
+                assertThat(filter.children().get(0), instanceOf(Project.class));
+                assertDefaultProjection((Project) filter.children().get(0));
             }
         }
     }
@@ -129,8 +140,72 @@ public class StatementParserTests extends ESTestCase {
         assertThat(where, instanceOf(Filter.class));
         Filter w = (Filter) where;
         assertThat(w.children().size(), equalTo(1));
-        assertThat(w.children().get(0), equalTo(LogicalPlanBuilder.RELATION));
+        assertThat(w.children().get(0), instanceOf(Project.class));
+        assertDefaultProjection((Project) w.children().get(0));
         assertThat(w.condition(), equalTo(Literal.TRUE));
+    }
+
+    public void testBasicLimitCommand() {
+        LogicalPlan plan = statement("from text | where true | limit 5");
+        assertThat(plan, instanceOf(Limit.class));
+        Limit limit = (Limit) plan;
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(5));
+        assertThat(limit.children().size(), equalTo(1));
+        assertThat(limit.children().get(0), instanceOf(Filter.class));
+        assertThat(limit.children().get(0).children().size(), equalTo(1));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(Project.class));
+    }
+
+    public void testLimitConstraints() {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error", () -> statement("from text | limit -1"));
+        assertThat(e.getMessage(), startsWith("line 1:19: extraneous input '-' expecting INTEGER_LITERAL"));
+    }
+
+    public void testBasicSortCommand() {
+        LogicalPlan plan = statement("from text | where true | sort a+b asc nulls first, x desc nulls last | sort y asc | sort z desc");
+        assertThat(plan, instanceOf(OrderBy.class));
+        OrderBy orderBy = (OrderBy) plan;
+        assertThat(orderBy.order().size(), equalTo(1));
+        Order order = orderBy.order().get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("z"));
+
+        assertThat(orderBy.children().size(), equalTo(1));
+        assertThat(orderBy.children().get(0), instanceOf(OrderBy.class));
+        orderBy = (OrderBy) orderBy.children().get(0);
+        assertThat(orderBy.order().size(), equalTo(1));
+        order = orderBy.order().get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("y"));
+
+        assertThat(orderBy.children().size(), equalTo(1));
+        assertThat(orderBy.children().get(0), instanceOf(OrderBy.class));
+        orderBy = (OrderBy) orderBy.children().get(0);
+        assertThat(orderBy.order().size(), equalTo(2));
+        order = orderBy.order().get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        assertThat(order.child(), instanceOf(Add.class));
+        Add add = (Add) order.child();
+        assertThat(add.left(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) add.left()).name(), equalTo("a"));
+        assertThat(add.right(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) add.right()).name(), equalTo("b"));
+        order = orderBy.order().get(1);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("x"));
+
+        assertThat(orderBy.children().size(), equalTo(1));
+        assertThat(orderBy.children().get(0), instanceOf(Filter.class));
+        assertThat(orderBy.children().get(0).children().size(), equalTo(1));
+        assertThat(orderBy.children().get(0).children().get(0), instanceOf(Project.class));
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {
@@ -151,6 +226,12 @@ public class StatementParserTests extends ESTestCase {
     }
 
     private LogicalPlan whereCommand(String e) {
-        return parser.createStatement("from a | " + e);
+        return parser.createStatement(FROM + " | " + e);
+    }
+
+    private void assertDefaultProjection(Project p) {
+        Source source = new Source(1, 1, FROM);
+        UnresolvedRelation rel = new UnresolvedRelation(source, new TableIdentifier(source, null, "test"), "", false, null);
+        assertThat(p.child(), equalTo(rel));
     }
 }

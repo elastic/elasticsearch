@@ -8,7 +8,11 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 
+import java.util.List;
+
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 public class IdentifierBuilder extends EsqlBaseParserBaseVisitor<Object> {
@@ -25,12 +29,20 @@ public class IdentifierBuilder extends EsqlBaseParserBaseVisitor<Object> {
     }
 
     @Override
-    public String visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) {
+    public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) {
         if (ctx == null) {
             return null;
         }
 
-        return Strings.collectionToDelimitedString(visitList(this, ctx.identifier(), String.class), ".");
+        return new UnresolvedAttribute(
+            source(ctx),
+            Strings.collectionToDelimitedString(visitList(this, ctx.identifier(), String.class), ".")
+        );
+    }
+
+    @Override
+    public List<UnresolvedAttribute> visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) {
+        return ctx.qualifiedName().stream().map(this::visitQualifiedName).toList();
     }
 
     @Override

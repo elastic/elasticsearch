@@ -28,25 +28,25 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterQuery(EsqlBaseParser.QueryContext ctx) { }
+  @Override public void enterCompositeQuery(EsqlBaseParser.CompositeQueryContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitQuery(EsqlBaseParser.QueryContext ctx) { }
+  @Override public void exitCompositeQuery(EsqlBaseParser.CompositeQueryContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterPipe(EsqlBaseParser.PipeContext ctx) { }
+  @Override public void enterSingleCommandQuery(EsqlBaseParser.SingleCommandQueryContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitPipe(EsqlBaseParser.PipeContext ctx) { }
+  @Override public void exitSingleCommandQuery(EsqlBaseParser.SingleCommandQueryContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -220,6 +220,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterRowCommand(EsqlBaseParser.RowCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -268,6 +280,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterEvalCommand(EsqlBaseParser.EvalCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitEvalCommand(EsqlBaseParser.EvalCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterStatsCommand(EsqlBaseParser.StatsCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSourceIdentifier(EsqlBaseParser.SourceIdentifierContext ctx) { }
   /**
    * {@inheritDoc}
@@ -287,6 +323,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) { }
   /**
    * {@inheritDoc}
    *

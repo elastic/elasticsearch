@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.session.Executable;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -23,14 +24,14 @@ import java.util.Objects;
 
 public class Row extends LeafPlan implements Executable {
 
-    private final List<Alias> fields;
+    private final List<NamedExpression> fields;
 
-    public Row(Source source, List<Alias> fields) {
+    public Row(Source source, List<NamedExpression> fields) {
         super(source);
         this.fields = fields;
     }
 
-    public List<Alias> fields() {
+    public List<NamedExpression> fields() {
         return fields;
     }
 
@@ -41,7 +42,13 @@ public class Row extends LeafPlan implements Executable {
 
     @Override
     public void execute(ActionListener<Result> listener) {
-        listener.onResponse(new Result(output(), List.of(fields.stream().map(f -> f.child().fold()).toList())));
+        listener.onResponse(new Result(output(), List.of(fields.stream().map(f -> {
+            if (f instanceof Alias) {
+                return ((Alias) f).child().fold();
+            } else {
+                return f.fold();
+            }
+        }).toList())));
     }
 
     @Override

@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
@@ -166,10 +168,17 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public UnresolvedAttribute visitDereference(EsqlBaseParser.DereferenceContext ctx) {
-        Source source = source(ctx);
-        EsqlBaseParser.QualifiedNameContext qContext = ctx.qualifiedName();
-        String name = visitQualifiedName(qContext);
-        return new UnresolvedAttribute(source, name);
+        return visitQualifiedName(ctx.qualifiedName());
+    }
+
+    @Override
+    public Object visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
+        return new UnresolvedFunction(
+            source(ctx),
+            visitIdentifier(ctx.identifier()),
+            FunctionResolutionStrategy.DEFAULT,
+            ctx.booleanExpression().stream().map(this::expression).toList()
+        );
     }
 
     @Override

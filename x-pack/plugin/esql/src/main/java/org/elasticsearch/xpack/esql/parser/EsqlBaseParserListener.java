@@ -18,25 +18,29 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSingleStatement(EsqlBaseParser.SingleStatementContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#query}.
+   * Enter a parse tree produced by the {@code compositeQuery}
+   * labeled alternative in {@link EsqlBaseParser#query}.
    * @param ctx the parse tree
    */
-  void enterQuery(EsqlBaseParser.QueryContext ctx);
+  void enterCompositeQuery(EsqlBaseParser.CompositeQueryContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#query}.
+   * Exit a parse tree produced by the {@code compositeQuery}
+   * labeled alternative in {@link EsqlBaseParser#query}.
    * @param ctx the parse tree
    */
-  void exitQuery(EsqlBaseParser.QueryContext ctx);
+  void exitCompositeQuery(EsqlBaseParser.CompositeQueryContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#pipe}.
+   * Enter a parse tree produced by the {@code singleCommandQuery}
+   * labeled alternative in {@link EsqlBaseParser#query}.
    * @param ctx the parse tree
    */
-  void enterPipe(EsqlBaseParser.PipeContext ctx);
+  void enterSingleCommandQuery(EsqlBaseParser.SingleCommandQueryContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#pipe}.
+   * Exit a parse tree produced by the {@code singleCommandQuery}
+   * labeled alternative in {@link EsqlBaseParser#query}.
    * @param ctx the parse tree
    */
-  void exitPipe(EsqlBaseParser.PipeContext ctx);
+  void exitSingleCommandQuery(EsqlBaseParser.SingleCommandQueryContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#sourceCommand}.
    * @param ctx the parse tree
@@ -200,6 +204,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitParenthesizedExpression(EsqlBaseParser.ParenthesizedExpressionContext ctx);
   /**
+   * Enter a parse tree produced by the {@code functionExpression}
+   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code functionExpression}
+   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#rowCommand}.
    * @param ctx the parse tree
    */
@@ -240,6 +256,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#evalCommand}.
+   * @param ctx the parse tree
+   */
+  void enterEvalCommand(EsqlBaseParser.EvalCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#evalCommand}.
+   * @param ctx the parse tree
+   */
+  void exitEvalCommand(EsqlBaseParser.EvalCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#statsCommand}.
+   * @param ctx the parse tree
+   */
+  void enterStatsCommand(EsqlBaseParser.StatsCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#statsCommand}.
+   * @param ctx the parse tree
+   */
+  void exitStatsCommand(EsqlBaseParser.StatsCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#sourceIdentifier}.
    * @param ctx the parse tree
    */
@@ -259,6 +295,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   */
+  void enterQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
+   * @param ctx the parse tree
+   */
+  void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree

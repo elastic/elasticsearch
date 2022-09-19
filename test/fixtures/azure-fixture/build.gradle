@@ -27,3 +27,7 @@ tasks.named("preProcessFixture").configure {
     }
   }
 }
+
+dockerCompose {
+  composeAdditionalArgs = ['--compatibility']
+}

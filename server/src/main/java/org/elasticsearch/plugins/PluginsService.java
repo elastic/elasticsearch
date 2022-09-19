@@ -503,6 +503,22 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 extendedPlugins.stream().map(LoadedPlugin::layer)
             ).toList();
             return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers);
+        } else if ("repository-azure".equals(plugin.getName())) {
+            logger.debug(() -> "Loading bundle: " + plugin.getName() + ", loading as ubermodule");
+            UberModuleClassLoader uberModuleLoader = UberModuleClassLoader.getInstance(
+                pluginParentLoader,
+                "org.elasticsearch.synthetic.repository.azure",
+                bundle.urls.stream()
+                    .map(url -> {
+                        try {
+                            return Path.of(url.toURI());
+                        } catch (URISyntaxException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .toList()
+            );
+            return new LayerAndLoader(uberModuleLoader.getLayer(), uberModuleLoader);
         } else {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
             return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));

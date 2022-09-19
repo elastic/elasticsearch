@@ -52,7 +52,6 @@ import java.util.stream.Collectors;
  * clashing.
  */
 public class UberModuleClassLoader extends SecureClassLoader implements AutoCloseable {
-
     private final Module module;
     private final URLClassLoader internalLoader;
     private final CodeSource codeSource;
@@ -142,6 +141,10 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
             .forEach(m -> moduleController.addReads(module, m));
 
         this.packageNames = packageNames;
+    }
+
+    public ModuleLayer getLayer() {
+        return moduleController.layer();
     }
 
     /**

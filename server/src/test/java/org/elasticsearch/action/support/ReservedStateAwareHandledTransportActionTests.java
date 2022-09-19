@@ -50,17 +50,9 @@ public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
         Action handler = new Action("internal:testAction", clusterService, mock(TransportService.class), mock(ActionFilters.class));
 
         // nothing should happen here, since the request doesn't touch any of the immutable state keys
-        handler.doExecute(mock(Task.class), new DummyRequest(), new ActionListener<>() {
-            @Override
-            public void onResponse(FakeResponse o) {
-                assertNotNull(o);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("Shouldn't reach here");
-            }
-        });
+        var future = new PlaintActionFuture<FakeResponse>();
+        handler.doExecute(mock(Task.class), new DummyRequest(), future);
+        assertNotNull(future.actionGet());
 
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
             Settings.builder().put("a", "a value").build()

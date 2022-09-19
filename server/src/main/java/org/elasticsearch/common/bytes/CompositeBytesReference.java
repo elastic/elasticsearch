@@ -225,4 +225,15 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     public long ramBytesUsed() {
         return ramBytesUsed;
     }
+
+    @Override
+    public int getIntLE(int index) {
+        int i = getOffsetIndex(index);
+        int idx = index - offsets[i];
+        int end = idx + 4;
+        if (end <= references[i].length()) {
+            return references[i].getIntLE(idx);
+        }
+        return super.getIntLE(index);
+    }
 }

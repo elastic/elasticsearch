@@ -45,6 +45,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
+import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.componentName;
+import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.composableIndexName;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -84,7 +86,11 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         );
     }
 
-    private TransformState processJSON(ReservedClusterStateHandler<?> action, TransformState prevState, String json) throws Exception {
+    private TransformState processJSON(
+        ReservedClusterStateHandler<ReservedComposableIndexTemplateAction.ComponentsAndComposables> action,
+        TransformState prevState,
+        String json
+    ) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(action.fromXContent(parser), prevState);
         }
@@ -93,10 +99,11 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     public void testComponentValidation()  {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedComponentTemplateAction action = new ReservedComponentTemplateAction(templateService, indexScopedSettings);
+        var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String badComponentJSON = """
             {
+              "component_templates": {
                 "template_1": {
                   "template": {
                     "_mappings": {
@@ -108,6 +115,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                     }
                   }
                 }
+              }
             }""";
 
         assertEquals(
@@ -119,41 +127,43 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     public void testComposableIndexValidation()  {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        ReservedComposableIndexTemplateAction action = new ReservedComposableIndexTemplateAction(templateService);
+        var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String badComponentJSON = """
             {
+              "composable_index_templates": {
                 "template_1": {
-                      "index_patterns": ["te*", "bar*"],
-                      "template": {
-                        "settings": {
-                          "number_of_shards": 1
-                        },
-                        "mappings": {
-                          "_source": {
-                            "enabled": true
-                          },
-                          "properties": {
-                            "host_name": {
-                              "type": "keyword"
-                            },
-                            "created_at": {
-                              "type": "date",
-                              "format": "EEE MMM dd HH:mm:ss Z yyyy"
-                            }
-                          }
-                        },
-                        "aliases": {
-                          "mydata": { }
-                        }
+                  "index_patterns": ["te*", "bar*"],
+                  "template": {
+                    "settings": {
+                      "number_of_shards": 1
+                    },
+                    "mappings": {
+                      "_source": {
+                        "enabled": true
                       },
-                      "priority": -500,
-                      "composed_of": ["component_template1", "runtime_component_template"],\s
-                      "version": 3,
-                      "_meta": {
-                        "description": "my custom"
+                      "properties": {
+                        "host_name": {
+                          "type": "keyword"
+                        },
+                        "created_at": {
+                          "type": "date",
+                          "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                        }
                       }
+                    },
+                    "aliases": {
+                      "mydata": { }
+                    }
+                  },
+                  "priority": -500,
+                  "composed_of": ["component_template1", "runtime_component_template"],\s
+                  "version": 3,
+                  "_meta": {
+                    "description": "my custom"
+                  }
                 }
+              }
             }""";
 
         assertEquals(
@@ -165,7 +175,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     public void testAddRemoveComponentTemplates() throws Exception {
         ClusterState state = clusterService.state();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        var action = new ReservedComponentTemplateAction(templateService, indexScopedSettings);
+        var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String emptyJSON = "";
 
@@ -175,6 +185,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
         String settingsJSON = """
             {
+              "component_templates": {
                 "template_1": {
                   "template": {
                     "mappings": {
@@ -200,14 +211,16 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                     }
                   }
                 }
-              }""";
+              }
+            }""";
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, settingsJSON);
-        assertThat(updatedState.keys(), containsInAnyOrder("template_1", "template_2"));
+        assertThat(updatedState.keys(), containsInAnyOrder(componentName("template_1"), componentName("template_2")));
 
         String lessJSON = """
             {
+              "component_templates": {
                 "template_2": {
                   "template": {
                     "mappings": {
@@ -222,11 +235,12 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                     }
                   }
                 }
-             }""";
+              }
+            }""";
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, lessJSON);
-        assertThat(updatedState.keys(), containsInAnyOrder("template_2"));
+        assertThat(updatedState.keys(), containsInAnyOrder(componentName("template_2")));
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, emptyJSON);
@@ -236,7 +250,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     public void testAddRemoveIndexTemplates() throws Exception {
         ClusterState state = clusterService.state();
         TransformState prevState = new TransformState(state, Collections.emptySet());
-        var action = new ReservedComposableIndexTemplateAction(templateService);
+        var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
 
         String emptyJSON = "";
 
@@ -246,6 +260,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
         String settingsJSON = """
             {
+              "composable_index_templates": {
                 "template_1": {
                     "index_patterns": ["te*", "bar*"],
                     "template": {
@@ -308,14 +323,16 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                       "description": "my custom"
                     }
                 }
-              }""";
+              }
+            }""";
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, settingsJSON);
-        assertThat(updatedState.keys(), containsInAnyOrder("template_1", "template_2"));
+        assertThat(updatedState.keys(), containsInAnyOrder(composableIndexName("template_1"), composableIndexName("template_2")));
 
         String lessJSON = """
             {
+              "composable_index_templates": {
                 "template_2": {
                     "index_patterns": ["te*", "bar*"],
                     "template": {
@@ -347,11 +364,193 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
                       "description": "my custom"
                     }
                 }
-             }""";
+              }
+            }""";
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, lessJSON);
-        assertThat(updatedState.keys(), containsInAnyOrder("template_2"));
+        assertThat(updatedState.keys(), containsInAnyOrder(composableIndexName("template_2")));
+
+        prevState = updatedState;
+        updatedState = processJSON(action, prevState, emptyJSON);
+        assertEquals(0, updatedState.keys().size());
+    }
+
+    public void testAddRemoveIndexTemplatesWithOverlap() throws Exception {
+        ClusterState state = clusterService.state();
+        TransformState prevState = new TransformState(state, Collections.emptySet());
+        var action = new ReservedComposableIndexTemplateAction(templateService, indexScopedSettings);
+
+        String emptyJSON = "";
+
+        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        assertEquals(0, updatedState.keys().size());
+        assertEquals(prevState.state(), updatedState.state());
+
+        // Adding two composable index templates with same index patterns will fail
+        String settingsJSON = """
+            {
+              "composable_index_templates": {
+                "template_1": {
+                    "index_patterns": ["te*", "bar*"],
+                    "template": {
+                      "settings": {
+                        "number_of_shards": 1
+                      },
+                      "mappings": {
+                        "_source": {
+                          "enabled": true
+                        },
+                        "properties": {
+                          "host_name": {
+                            "type": "keyword"
+                          },
+                          "created_at": {
+                            "type": "date",
+                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                          }
+                        }
+                      },
+                      "aliases": {
+                        "mydata": { }
+                      }
+                    },
+                    "priority": 500,
+                    "composed_of": ["component_template1", "runtime_component_template"],
+                    "version": 3,
+                    "_meta": {
+                      "description": "my custom"
+                    }
+                },
+                "template_2": {
+                    "index_patterns": ["te*", "bar*"],
+                    "template": {
+                      "settings": {
+                        "number_of_shards": 1
+                      },
+                      "mappings": {
+                        "_source": {
+                          "enabled": true
+                        },
+                        "properties": {
+                          "host_name": {
+                            "type": "keyword"
+                          },
+                          "created_at": {
+                            "type": "date",
+                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                          }
+                        }
+                      },
+                      "aliases": {
+                        "mydata": { }
+                      }
+                    },
+                    "priority": 500,
+                    "composed_of": ["component_template1", "runtime_component_template"],
+                    "version": 3,
+                    "_meta": {
+                      "description": "my custom"
+                    }
+                }
+              }
+            }""";
+
+        var prevState1 = updatedState;
+
+        assertTrue(
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> processJSON(action, prevState1, settingsJSON)
+            )
+                .getMessage()
+                .contains("index template [template_2] has index patterns [te*, bar*] " +
+                    "matching patterns from existing templates [template_1]")
+        );
+
+        var newSettingsJSON = """
+            {
+              "composable_index_templates": {
+                "template_1": {
+                    "index_patterns": ["te*", "bar*"],
+                    "template": {
+                      "settings": {
+                        "number_of_shards": 1
+                      },
+                      "mappings": {
+                        "_source": {
+                          "enabled": true
+                        },
+                        "properties": {
+                          "host_name": {
+                            "type": "keyword"
+                          },
+                          "created_at": {
+                            "type": "date",
+                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                          }
+                        }
+                      },
+                      "aliases": {
+                        "mydata": { }
+                      }
+                    },
+                    "priority": 500,
+                    "composed_of": ["component_template1", "runtime_component_template"],
+                    "version": 3,
+                    "_meta": {
+                      "description": "my custom"
+                    }
+                }
+              }
+            }""";
+
+        // We add one only to see if we can replace it subsequently, inserts happen before deletes in ReservedComposableIndexTemplateAction
+        prevState = updatedState;
+        updatedState = processJSON(action, prevState, newSettingsJSON);
+        assertThat(updatedState.keys(), containsInAnyOrder(composableIndexName("template_1")));
+
+        String lessJSON = """
+            {
+              "composable_index_templates": {
+                "template_2": {
+                    "index_patterns": ["te*", "bar*"],
+                    "template": {
+                      "settings": {
+                        "number_of_shards": 1
+                      },
+                      "mappings": {
+                        "_source": {
+                          "enabled": true
+                        },
+                        "properties": {
+                          "host_name": {
+                            "type": "keyword"
+                          },
+                          "created_at": {
+                            "type": "date",
+                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                          }
+                        }
+                      },
+                      "aliases": {
+                        "mydata": { }
+                      }
+                    },
+                    "priority": 500,
+                    "composed_of": ["component_template1", "runtime_component_template"],
+                    "version": 3,
+                    "_meta": {
+                      "description": "my custom"
+                    }
+                }
+              }
+            }""";
+
+        // We are replacing template_1 with template_2, same index pattern, no validation should be thrown
+        prevState = updatedState;
+        updatedState = processJSON(action, prevState, lessJSON);
+        assertThat(updatedState.keys(), containsInAnyOrder(composableIndexName("template_2")));
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, emptyJSON);
@@ -359,8 +558,6 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
     }
 
     public void testHandlerCorrectness() {
-        var indexTemplateAction = new ReservedComposableIndexTemplateAction(templateService);
-        assertThat(indexTemplateAction.dependencies(), containsInAnyOrder(ReservedComponentTemplateAction.NAME));
         var putIndexAction = new TransportPutComposableIndexTemplateAction(
             mock(TransportService.class),
             null,
@@ -370,7 +567,10 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             null
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, putIndexAction.reservedStateHandlerName().get());
-        assertThat(putIndexAction.modifiedKeys(new PutComposableIndexTemplateAction.Request("aaa")), containsInAnyOrder("aaa"));
+        assertThat(
+            putIndexAction.modifiedKeys(new PutComposableIndexTemplateAction.Request("aaa")),
+            containsInAnyOrder(composableIndexName("aaa"))
+        );
         var delIndexAction = new TransportDeleteComposableIndexTemplateAction(
             mock(TransportService.class),
             null,
@@ -380,7 +580,10 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             null
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, delIndexAction.reservedStateHandlerName().get());
-        assertThat(delIndexAction.modifiedKeys(new DeleteComposableIndexTemplateAction.Request("a", "b")), containsInAnyOrder("a", "b"));
+        assertThat(
+            delIndexAction.modifiedKeys(new DeleteComposableIndexTemplateAction.Request("a", "b")),
+            containsInAnyOrder(composableIndexName("a"), composableIndexName("b"))
+        );
 
         var putComponentAction = new TransportPutComponentTemplateAction(mock(TransportService.class),
             null,
@@ -390,8 +593,11 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             null,
             indexScopedSettings
         );
-        assertEquals(ReservedComponentTemplateAction.NAME, putComponentAction.reservedStateHandlerName().get());
-        assertThat(putComponentAction.modifiedKeys(new PutComponentTemplateAction.Request("aaa")), containsInAnyOrder("aaa"));
+        assertEquals(ReservedComposableIndexTemplateAction.NAME, putComponentAction.reservedStateHandlerName().get());
+        assertThat(
+            putComponentAction.modifiedKeys(new PutComponentTemplateAction.Request("aaa")),
+            containsInAnyOrder(componentName("aaa"))
+        );
 
         var delComponentAction = new TransportDeleteComponentTemplateAction(mock(TransportService.class),
             null,
@@ -400,7 +606,10 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             mock(ActionFilters.class),
             null
         );
-        assertEquals(ReservedComponentTemplateAction.NAME, delComponentAction.reservedStateHandlerName().get());
-        assertThat(delComponentAction.modifiedKeys(new DeleteComponentTemplateAction.Request("a", "b")), containsInAnyOrder("a", "b"));
+        assertEquals(ReservedComposableIndexTemplateAction.NAME, delComponentAction.reservedStateHandlerName().get());
+        assertThat(
+            delComponentAction.modifiedKeys(new DeleteComponentTemplateAction.Request("a", "b")),
+            containsInAnyOrder(componentName("a"), componentName("b"))
+        );
     }
 }

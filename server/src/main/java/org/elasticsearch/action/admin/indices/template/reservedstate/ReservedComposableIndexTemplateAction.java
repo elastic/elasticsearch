@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -25,7 +24,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +32,17 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentParser;
 
+/**
+ * This {@link ReservedClusterStateHandler} is responsible for reserved state
+ * CRUD operations on composable index templates and component templates, e.g. file based settings.
+ * <p>
+ * Internally it uses {@link MetadataIndexTemplateService} to add, update and delete both composable
+ * index templates and component templates. The reserved state handler is implemented as a joint handler
+ * for both component templates and composable index templates, because of the inherent interdependencies
+ * of the two separate types. For example, one cannot create composable index templates without first the
+ * component definitions being in the cluster state, however, the opposite is true when deleting. This
+ * circular dependency makes it impossible for separation of the two handlers.
+ */
 public class ReservedComposableIndexTemplateAction
     implements ReservedClusterStateHandler<ReservedComposableIndexTemplateAction.ComponentsAndComposables> {
     public static final String NAME = "index_templates";
@@ -62,31 +71,32 @@ public class ReservedComposableIndexTemplateAction
         return COMPONENT_PREFIX + name;
     }
 
+    public static String nameFromComponentName(String name) {
+        assert name.startsWith(COMPONENT_PREFIX);
+        return name.substring(COMPONENT_PREFIX.length());
+    }
+
     public static String composableIndexName(String name) {
         return COMPOSABLE_PREFIX + name;
     }
 
-    private Tuple<List<PutComponentTemplateAction.Request>, List<PutComposableIndexTemplateAction.Request>> prepare(
+    public static String nameFromComposableIndexName(String name) {
+        assert name.startsWith(COMPOSABLE_PREFIX);
+        return name.substring(COMPOSABLE_PREFIX.length());
+    }
+
+    private ComponentsAndComposables prepare(
         ComponentsAndComposables componentsAndComposables
     ) {
-        List<PutComponentTemplateAction.Request> components = new ArrayList<>();
-        List<PutComposableIndexTemplateAction.Request> composables = new ArrayList<>();
-
-        for (var entry : componentsAndComposables.componentTemplates.entrySet()) {
-            var request = new PutComponentTemplateAction.Request(entry.getKey());
-            request.componentTemplate(entry.getValue());
+        for (var request : componentsAndComposables.componentTemplates) {
             validate(request);
-            components.add(request);
         }
 
-        for (var entry : componentsAndComposables.composableTemplates.entrySet()) {
-            var request = new PutComposableIndexTemplateAction.Request(entry.getKey());
-            request.indexTemplate(entry.getValue());
+        for (var request : componentsAndComposables.composableTemplates) {
             validate(request);
-            composables.add(request);
         }
 
-        return new Tuple<>(components, composables);
+        return componentsAndComposables;
     }
 
     @Override
@@ -103,8 +113,8 @@ public class ReservedComposableIndexTemplateAction
         //    4. validate for v2 composable template overlaps
         //    5. delete component templates (this will check if there are any related composable index templates and fail)
 
-        var components = requests.v1();
-        var composables = requests.v2();
+        var components = requests.componentTemplates;
+        var composables = requests.composableTemplates;
 
         // 1. create or update component templates (composable templates depend on them)
         for (var request : components) {
@@ -129,7 +139,8 @@ public class ReservedComposableIndexTemplateAction
 
         // 3. delete composable index templates (this will fail on attached data streams, unless we added a higher priority one)
         if (composablesToDelete.isEmpty() == false) {
-            state = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, composablesToDelete.toArray(String[]::new));
+            var composableNames = composablesToDelete.stream().map(c -> nameFromComposableIndexName(c)).toArray(String[]::new);
+            state = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, composableNames);
         }
 
         // 4. validate for v2 composable template overlaps
@@ -145,7 +156,8 @@ public class ReservedComposableIndexTemplateAction
 
         // 5. delete component templates (this will check if there are any related composable index templates and fail)
         if (componentsToDelete.isEmpty() == false) {
-            state = MetadataIndexTemplateService.innerRemoveComponentTemplate(state, componentsToDelete.toArray(String[]::new));
+            var componentNames = componentsToDelete.stream().map(c -> nameFromComponentName(c)).toArray(String[]::new);
+            state = MetadataIndexTemplateService.innerRemoveComponentTemplate(state, componentNames);
         }
 
         return new TransformState(state, Sets.union(componentEntities, composableEntities));
@@ -153,8 +165,8 @@ public class ReservedComposableIndexTemplateAction
 
     @Override
     public ComponentsAndComposables fromXContent(XContentParser parser) throws IOException {
-        Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
-        Map<String, ComposableIndexTemplate> composableTemplates = new HashMap<>();
+        List<PutComponentTemplateAction.Request> componentTemplates = new ArrayList<>();
+        List<PutComposableIndexTemplateAction.Request> composableTemplates = new ArrayList<>();
         Map<String, ?> source = parser.map();
 
         Map<String, ?> components = (Map<String, ?>) source.get(COMPONENTS);
@@ -164,19 +176,23 @@ public class ReservedComposableIndexTemplateAction
                 @SuppressWarnings("unchecked")
                 Map<String, ?> content = (Map<String, ?>) entry.getValue();
                 try (XContentParser componentParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {
-                    componentTemplates.put(entry.getKey(), ComponentTemplate.parse(componentParser));
+                    var componentTemplate = new PutComponentTemplateAction.Request(entry.getKey());
+                    componentTemplate.componentTemplate(ComponentTemplate.parse(componentParser));
+                    componentTemplates.add(componentTemplate);
                 }
             }
         }
 
         Map<String, ?> composables = (Map<String, ?>)source.get(COMPOSABLES);
 
-        if (components != null) {
+        if (composables != null) {
             for (var entry : composables.entrySet()) {
                 @SuppressWarnings("unchecked")
                 Map<String, ?> content = (Map<String, ?>) entry.getValue();
                 try (XContentParser componentParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {
-                    composableTemplates.put(entry.getKey(), ComposableIndexTemplate.parse(componentParser));
+                    var composableTemplate = new PutComposableIndexTemplateAction.Request(entry.getKey());
+                    composableTemplate.indexTemplate(ComposableIndexTemplate.parse(componentParser));
+                    composableTemplates.add(composableTemplate);
                 }
             }
         }
@@ -185,7 +201,7 @@ public class ReservedComposableIndexTemplateAction
     }
 
     record ComponentsAndComposables(
-        Map<String, ComponentTemplate> componentTemplates,
-        Map<String, ComposableIndexTemplate> composableTemplates
+        List<PutComponentTemplateAction.Request> componentTemplates,
+        List<PutComposableIndexTemplateAction.Request> composableTemplates
     ) {}
 }

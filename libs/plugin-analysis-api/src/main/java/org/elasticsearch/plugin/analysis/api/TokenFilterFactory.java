@@ -9,11 +9,13 @@
 package org.elasticsearch.plugin.analysis.api;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.plugin.api.Extensible;
 import org.elasticsearch.plugin.api.Nameable;
 
 /**
  * An analysis component used to create token filters.
  */
+@Extensible
 public interface TokenFilterFactory extends Nameable {
 
     /**

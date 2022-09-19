@@ -454,3 +454,90 @@ stored keyword with ignore_above:
           - short
           - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
   - is_false: fields
+
+---
+indexed dense vectors:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          name: cow.jpg
+          vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        name: cow.jpg
+        vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+  - is_false: fields
+
+---
+non-indexed dense vectors:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: false
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          name: cow.jpg
+          vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        name: cow.jpg
+        vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+  - is_false: fields

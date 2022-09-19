@@ -26,11 +26,11 @@ public interface ChunkedToXContent extends ToXContent {
      * {@link ToXContent.Params} for each call until it is fully drained.
      * @return iterator over chunks of {@link ToXContent}
      */
-    Iterator<ToXContent> toXContentChunked();
+    Iterator<? extends ToXContent> toXContentChunked();
 
     @Override
     default XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Iterator<ToXContent> serialization = toXContentChunked();
+        Iterator<? extends ToXContent> serialization = toXContentChunked();
         while (serialization.hasNext()) {
             serialization.next().toXContent(builder, params);
         }

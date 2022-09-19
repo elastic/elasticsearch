@@ -405,3 +405,26 @@ synthetic _source:
       aggregations.page.buckets.1.top_hits.hits.hits.0._source:
         extra: bar
         page: b
+
+  # Now do it again with _source filtering
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          size: 0
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    _source: extra
+  - is_false: aggregations.page.buckets.0.top_hits.hits.hits.0.fields
+  - match:
+      aggregations.page.buckets.0.top_hits.hits.hits.0._source:
+        extra: foo
+  - is_false: aggregations.page.buckets.1.top_hits.hits.hits.0.fields
+  - match:
+      aggregations.page.buckets.1.top_hits.hits.hits.0._source:
+        extra: bar

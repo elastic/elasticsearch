@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class HealthIndicatorResultTests extends ESTestCase {
@@ -106,15 +107,15 @@ public class HealthIndicatorResultTests extends ESTestCase {
 
     private static String randomImpactId() {
         return "elasticsearch:health:"
-            + randomAlphaOfLength(30).toLowerCase()
+            + randomAlphaOfLength(30).toLowerCase(Locale.getDefault())
             + ":impact:"
-            + randomAlphaOfLength(30).toLowerCase();
+            + randomAlphaOfLength(30).toLowerCase(Locale.getDefault());
     }
 
     private static String randomDiagnosisId() {
         return "elasticsearch:health:"
-            + randomAlphaOfLength(30).toLowerCase()
+            + randomAlphaOfLength(30).toLowerCase(Locale.getDefault())
             + ":diagnosis:"
-            + randomAlphaOfLength(30).toLowerCase();
+            + randomAlphaOfLength(30).toLowerCase(Locale.getDefault());
     }
 }

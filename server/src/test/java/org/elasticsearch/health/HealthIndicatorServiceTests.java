@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public class HealthIndicatorServiceTests extends ESTestCase {
@@ -26,7 +27,7 @@ public class HealthIndicatorServiceTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             impacts.add(
                 new HealthIndicatorImpact(
-                    "elasticsearch:health:" + randomAlphaOfLength(10).toLowerCase() + ":impact:" + randomAlphaOfLength(10).toLowerCase(),
+                    randomImpactId(),
                     randomIntBetween(5, 20),
                     randomAlphaOfLength(20),
                     List.of(randomFrom(ImpactArea.values()))
@@ -34,19 +35,19 @@ public class HealthIndicatorServiceTests extends ESTestCase {
             );
         }
         HealthIndicatorImpact impact1 = new HealthIndicatorImpact(
-            "elasticsearch:health:" + randomAlphaOfLength(10).toLowerCase() + ":impact:" + randomAlphaOfLength(10).toLowerCase(),
+            randomImpactId(),
             1,
             randomAlphaOfLength(20),
             List.of(randomFrom(ImpactArea.values()))
         );
         HealthIndicatorImpact impact2 = new HealthIndicatorImpact(
-            "elasticsearch:health:" + randomAlphaOfLength(10).toLowerCase() + ":impact:" + randomAlphaOfLength(10).toLowerCase(),
+            randomImpactId(),
             2,
             randomAlphaOfLength(20),
             List.of(randomFrom(ImpactArea.values()))
         );
         HealthIndicatorImpact impact3 = new HealthIndicatorImpact(
-            "elasticsearch:health:" + randomAlphaOfLength(10).toLowerCase() + ":impact:" + randomAlphaOfLength(10).toLowerCase(),
+            randomImpactId(),
             3,
             randomAlphaOfLength(20),
             List.of(randomFrom(ImpactArea.values()))
@@ -57,7 +58,7 @@ public class HealthIndicatorServiceTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             impacts.add(
                 new HealthIndicatorImpact(
-                    "elasticsearch:health:" + randomAlphaOfLength(10).toLowerCase() + ":impact:" + randomAlphaOfLength(10).toLowerCase(),
+                    randomImpactId(),
                     randomIntBetween(5, 20),
                     randomAlphaOfLength(20),
                     List.of(randomFrom(ImpactArea.values()))
@@ -89,5 +90,12 @@ public class HealthIndicatorServiceTests extends ESTestCase {
                 return null;
             }
         };
+    }
+
+    private static String randomImpactId() {
+        return "elasticsearch:health:"
+            + randomAlphaOfLength(10).toLowerCase(Locale.getDefault())
+            + ":impact:"
+            + randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
     }
 }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.analytics.action;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.cluster.stats.AnalyticsStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -17,7 +18,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.analytics.AnalyticsUsage;
-import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.io.IOException;
 import java.util.List;

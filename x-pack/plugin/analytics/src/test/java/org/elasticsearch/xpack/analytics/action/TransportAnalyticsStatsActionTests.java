@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.analytics.action;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.stats.AnalyticsStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,8 +24,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.analytics.AnalyticsUsage;
-import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
-import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -90,9 +89,10 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
             emptyList()
         );
 
-        AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(true, true, response);
         try (XContentBuilder builder = jsonBuilder()) {
-            usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.startObject();
+            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
             return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         }
     }

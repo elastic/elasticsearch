@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.MissingHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -36,7 +37,6 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics.MetricValue;
-import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -19,7 +19,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.common.stats.EnumCounters;
+import org.elasticsearch.common.util.EnumCounters;
 
 import java.io.IOException;
 import java.util.List;

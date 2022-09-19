@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.boxplot.Boxplot;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -266,7 +265,6 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
         plugins.add(AnalyticsPlugin.class);
-        plugins.add(LocalStateCompositeXPackPlugin.class);
         return plugins;
     }
 

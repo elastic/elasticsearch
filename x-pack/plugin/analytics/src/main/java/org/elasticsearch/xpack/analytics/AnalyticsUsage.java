@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.analytics;
 
+import org.elasticsearch.action.admin.cluster.stats.AnalyticsStatsAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.util.EnumCounters;
 import org.elasticsearch.xcontent.ContextParser;
-import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
-import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 
 /**
  * Tracks usage of the Analytics aggregations.

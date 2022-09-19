@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.common.stats.EnumCounters;
+import org.elasticsearch.common.util.EnumCounters;
 import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 
 import java.io.IOException;

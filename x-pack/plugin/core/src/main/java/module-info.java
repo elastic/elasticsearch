@@ -44,9 +44,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ccr.action;
     exports org.elasticsearch.xpack.core.ccr;
     exports org.elasticsearch.xpack.core.common.notifications;
-    exports org.elasticsearch.xpack.core.common.search.aggregations;
     exports org.elasticsearch.xpack.core.common.socket;
-    exports org.elasticsearch.xpack.core.common.stats;
     exports org.elasticsearch.xpack.core.common.table;
     exports org.elasticsearch.xpack.core.common.time;
     exports org.elasticsearch.xpack.core.common.validation;

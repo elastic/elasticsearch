@@ -34,6 +34,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -438,6 +439,138 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             oldestIndexVersion,
             reservedStateMetadata
         );
+    }
+
+    /**
+     * Creates a copy of this instance with the given {@code index} added.
+     * @param index index to add
+     * @return copy with added index
+     */
+    public Metadata withAddedIndex(IndexMetadata index) {
+        final String indexName = index.getIndex().getName();
+        ensureNoNameCollision(indexName);
+        final Map<String, AliasMetadata> aliases = index.getAliases();
+        final ImmutableOpenMap<String, Set<Index>> updatedAliases = aliasesAfterAddingIndex(index, aliases);
+        final String[] updatedVisibleIndices;
+        if (index.isHidden()) {
+            updatedVisibleIndices = visibleIndices;
+        } else {
+            updatedVisibleIndices = ArrayUtils.append(visibleIndices, indexName);
+        }
+
+        final String[] updatedAllIndices = ArrayUtils.append(allIndices, indexName);
+        final String[] updatedOpenIndices;
+        final String[] updatedClosedIndices;
+        final String[] updatedVisibleOpenIndices;
+        final String[] updatedVisibleClosedIndices;
+        switch (index.getState()) {
+            case OPEN -> {
+                updatedOpenIndices = ArrayUtils.append(allOpenIndices, indexName);
+                if (index.isHidden() == false) {
+                    updatedVisibleOpenIndices = ArrayUtils.append(visibleOpenIndices, indexName);
+                } else {
+                    updatedVisibleOpenIndices = visibleOpenIndices;
+                }
+                updatedVisibleClosedIndices = visibleClosedIndices;
+                updatedClosedIndices = allClosedIndices;
+            }
+            case CLOSE -> {
+                updatedOpenIndices = allOpenIndices;
+                updatedClosedIndices = ArrayUtils.append(allClosedIndices, indexName);
+                updatedVisibleOpenIndices = visibleOpenIndices;
+                if (index.isHidden() == false) {
+                    updatedVisibleClosedIndices = ArrayUtils.append(visibleClosedIndices, indexName);
+                } else {
+                    updatedVisibleClosedIndices = visibleClosedIndices;
+                }
+            }
+            default -> throw new AssertionError("impossible, index is either open or closed");
+        }
+
+        final MappingMetadata mappingMetadata = index.mapping();
+        final Map<String, MappingMetadata> updatedMappingsByHash;
+        if (mappingMetadata == null) {
+            updatedMappingsByHash = mappingsByHash;
+        } else {
+            final MappingMetadata existingMapping = mappingsByHash.get(mappingMetadata.getSha256());
+            if (existingMapping != null) {
+                index = index.withMappingMetadata(existingMapping);
+                updatedMappingsByHash = mappingsByHash;
+            } else {
+                updatedMappingsByHash = Maps.copyMapWithAddedEntry(mappingsByHash, mappingMetadata.getSha256(), mappingMetadata);
+            }
+        }
+
+        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
+        builder.put(indexName, index);
+        final ImmutableOpenMap<String, IndexMetadata> indicesMap = builder.build();
+        for (var entry : updatedAliases.entrySet()) {
+            List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
+            Builder.validateAlias(entry.getKey(), aliasIndices);
+        }
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            totalNumberOfShards + index.getTotalNumberOfShards(),
+            totalOpenIndexShards + (index.getState() == IndexMetadata.State.OPEN ? index.getTotalNumberOfShards() : 0),
+            indicesMap,
+            updatedAliases,
+            templates,
+            customs,
+            updatedAllIndices,
+            updatedVisibleIndices,
+            updatedOpenIndices,
+            updatedVisibleOpenIndices,
+            updatedClosedIndices,
+            updatedVisibleClosedIndices,
+            null,
+            updatedMappingsByHash,
+            index.getCompatibilityVersion().before(oldestIndexVersion) ? index.getCompatibilityVersion() : oldestIndexVersion,
+            reservedStateMetadata
+        );
+    }
+
+    private ImmutableOpenMap<String, Set<Index>> aliasesAfterAddingIndex(IndexMetadata index, Map<String, AliasMetadata> aliases) {
+        if (aliases.isEmpty()) {
+            return aliasedIndices;
+        }
+        final String indexName = index.getIndex().getName();
+        final ImmutableOpenMap.Builder<String, Set<Index>> aliasesBuilder = ImmutableOpenMap.builder(aliasedIndices);
+        for (String alias : aliases.keySet()) {
+            ensureNoNameCollision(alias);
+            if (aliasedIndices.containsKey(indexName)) {
+                throw new IllegalArgumentException("alias with name [" + indexName + "] already exists");
+            }
+            final Set<Index> found = aliasesBuilder.get(alias);
+            final Set<Index> updated;
+            if (found == null) {
+                updated = Set.of(index.getIndex());
+            } else {
+                final Set<Index> tmp = new HashSet<>(found);
+                tmp.add(index.getIndex());
+                updated = Set.copyOf(tmp);
+            }
+            aliasesBuilder.put(alias, updated);
+        }
+        return aliasesBuilder.build();
+    }
+
+    private void ensureNoNameCollision(String indexName) {
+        if (indices.containsKey(indexName)) {
+            throw new IllegalArgumentException("index with name [" + indexName + "] already exists");
+        }
+        if (dataStreams().containsKey(indexName)) {
+            throw new IllegalArgumentException("data stream with name [" + indexName + "] already exists");
+        }
+        if (dataStreamAliases().containsKey(indexName)) {
+            throw new IllegalStateException("data stream alias and indices alias have the same name (" + indexName + ")");
+        }
     }
 
     public long version() {

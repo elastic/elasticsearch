@@ -483,9 +483,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f")
                         .executionHint(executionHint);
-                    SignificantStringTerms result = searchAndReduce(
-                        new AggTestConfig(searcher, new MatchAllDocsQuery(), request, keywordField("f"))
-                    );
+                    SignificantStringTerms result = searchAndReduce(new AggTestConfig(searcher, request, keywordField("f")));
                     assertThat(result.getSubsetSize(), equalTo(1L));
                 }
             }
@@ -505,9 +503,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f");
-                    SignificantLongTerms result = searchAndReduce(
-                        new AggTestConfig(searcher, new MatchAllDocsQuery(), request, longField("f"))
-                    );
+                    SignificantLongTerms result = searchAndReduce(new AggTestConfig(searcher, request, longField("f")));
                     assertThat(result.getSubsetSize(), equalTo(1L));
                 }
             }
@@ -539,9 +535,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f")
                         .executionHint(executionHint);
-                    SignificantStringTerms result = searchAndReduce(
-                        new AggTestConfig(searcher, new MatchAllDocsQuery(), request, keywordField("f"))
-                    );
+                    SignificantStringTerms result = searchAndReduce(new AggTestConfig(searcher, request, keywordField("f")));
                     assertThat(result.getSubsetSize(), equalTo(2L));
                 }
             }
@@ -563,9 +557,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f");
-                    SignificantLongTerms result = searchAndReduce(
-                        new AggTestConfig(searcher, new MatchAllDocsQuery(), request, longField("f"))
-                    );
+                    SignificantLongTerms result = searchAndReduce(new AggTestConfig(searcher, request, longField("f")));
                     assertThat(result.getSubsetSize(), equalTo(2L));
                 }
             }
@@ -608,14 +600,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                         .executionHint(executionHint)
                         .subAggregation(jRequest);
                     SignificantStringTerms result = searchAndReduce(
-                        new AggTestConfig(
-                            searcher,
-                            new MatchAllDocsQuery(),
-                            request,
-                            keywordField("i"),
-                            keywordField("j"),
-                            keywordField("k")
-                        )
+                        new AggTestConfig(searcher, request, keywordField("i"), keywordField("j"), keywordField("k"))
                     );
                     assertThat(result.getSubsetSize(), equalTo(1000L));
                     for (int i = 0; i < 10; i++) {
@@ -664,7 +649,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                                 .subAggregation(new SignificantTermsAggregationBuilder("k").field("k").minDocCount(0))
                         );
                     SignificantLongTerms result = searchAndReduce(
-                        new AggTestConfig(searcher, new MatchAllDocsQuery(), request, longField("i"), longField("j"), longField("k"))
+                        new AggTestConfig(searcher, request, longField("i"), longField("j"), longField("k"))
                     );
                     assertThat(result.getSubsetSize(), equalTo(1000L));
                     for (int i = 0; i < 10; i++) {

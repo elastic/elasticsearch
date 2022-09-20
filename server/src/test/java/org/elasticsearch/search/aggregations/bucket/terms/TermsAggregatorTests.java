@@ -400,9 +400,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
              * lets us create a fairly small test index.
              */
             int maxBuckets = 200;
-            StringTerms result = searchAndReduce(
-                new AggTestConfig(searcher, new MatchAllDocsQuery(), aggregationBuilder, s1ft, s2ft).withMaxBuckets(maxBuckets)
-            );
+            StringTerms result = searchAndReduce(new AggTestConfig(searcher, aggregationBuilder, s1ft, s2ft).withMaxBuckets(maxBuckets));
             assertThat(
                 result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
                 equalTo(List.of("b007", "b107", "b207", "b307", "b407", "b507", "b607", "b707", "b807", "b907", "b000"))
@@ -1373,9 +1371,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("keyword");
 
-                    InternalGlobal result = searchAndReduce(
-                        new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), globalBuilder, fieldType)
-                    );
+                    InternalGlobal result = searchAndReduce(new AggTestConfig(indexSearcher, globalBuilder, fieldType));
                     InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                     assertThat(terms.getBuckets().size(), equalTo(3));
                     for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
@@ -1709,7 +1705,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 .executionHint(executionHint)
                                 .subAggregation(new TermsAggregationBuilder("k").field("k").executionHint(executionHint))
                         );
-                    StringTerms result = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), request, ift, jft, kft));
+                    StringTerms result = searchAndReduce(new AggTestConfig(searcher, request, ift, jft, kft));
                     for (int i = 0; i < 10; i++) {
                         StringTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
                         assertThat(iBucket.getDocCount(), equalTo(100L));
@@ -1750,7 +1746,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             new TermsAggregationBuilder("j").field("j").subAggregation(new TermsAggregationBuilder("k").field("k"))
                         );
                     LongTerms result = searchAndReduce(
-                        new AggTestConfig(searcher, new MatchAllDocsQuery(), request, longField("i"), longField("j"), longField("k"))
+                        new AggTestConfig(searcher, request, longField("i"), longField("j"), longField("k"))
                     );
                     for (int i = 0; i < 10; i++) {
                         LongTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
@@ -1890,7 +1886,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 LongTerms terms = searchAndReduce(
                     new AggTestConfig(
                         indexSearcher,
-                        new MatchAllDocsQuery(),
                         aggregationBuilder,
                         new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER),
                         bIsString

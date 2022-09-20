@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -128,7 +127,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                 SamplerAggregationBuilder sampler = new SamplerAggregationBuilder("sampler").subAggregation(samplerChild);
                 samplerParent.subAggregation(sampler);
 
-                InternalFilters response = searchAndReduce(new AggTestConfig(searcher, new MatchAllDocsQuery(), samplerParent));
+                InternalFilters response = searchAndReduce(new AggTestConfig(searcher, samplerParent));
                 assertEquals(response.getBuckets().size(), 2);
                 assertEquals(response.getBuckets().get(0).getDocCount(), 1);
                 assertEquals(response.getBuckets().get(1).getDocCount(), 0);

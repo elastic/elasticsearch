@@ -199,9 +199,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         DiversifiedAggregationBuilder builder = new DiversifiedAggregationBuilder("_name").field(genreFieldType.name())
             .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
-        InternalSampler result = searchAndReduce(
-            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, genreFieldType, idFieldType)
-        );
+        InternalSampler result = searchAndReduce(new AggTestConfig(indexSearcher, builder, genreFieldType, idFieldType));
         Terms terms = result.getAggregations().get("terms");
         assertEquals(0, terms.getBuckets().size());
         indexReader.close();

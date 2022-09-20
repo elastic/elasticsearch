@@ -1423,8 +1423,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
         boolean splitLeavesIntoSeparateAggregators,
         MappedFieldType... fieldTypes
     ) {
+        public AggTestConfig(IndexSearcher searcher, AggregationBuilder builder, MappedFieldType... fieldTypes) {
+            this(searcher, new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
+        }
+
         public AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder, MappedFieldType... fieldTypes) {
             this(searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
+        }
+
+        public AggTestConfig withQuery(Query query) {
+            return new AggTestConfig(searcher, query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, fieldTypes);
         }
 
         public AggTestConfig withSplitLeavesIntoSeperateAggregators(boolean splitLeavesIntoSeparateAggregators) {

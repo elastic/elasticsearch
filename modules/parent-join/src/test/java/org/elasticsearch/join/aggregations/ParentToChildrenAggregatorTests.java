@@ -156,9 +156,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                         expectedOddMin = Math.min(expectedOddMin, e.getValue().v2());
                     }
                 }
-                StringTerms result = searchAndReduce(
-                    new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), request, withJoinFields(longField("number"), kwd))
-                );
+                StringTerms result = searchAndReduce(new AggTestConfig(indexSearcher, request, withJoinFields(longField("number"), kwd)));
 
                 StringTerms.Bucket evenBucket = result.getBucketByKey("even");
                 InternalChildren evenChildren = evenBucket.getAggregations().get("children");

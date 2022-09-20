@@ -40,23 +40,22 @@ public class ClusterInfoSimulator {
         if (size != null && size > 0) {
             if (shard.relocatingNodeId() != null) {
                 // relocation
-                increaseTargetDiskUsage(shard.relocatingNodeId(), size);
-                decreaseSourceDiskUsage(shard.currentNodeId(), size);
-                // TODO update shard data path?
+                modifyDiskUsage(shard.relocatingNodeId(), getShardPath(shard.relocatingNodeId(), mostAvailableSpaceUsage), size);
+                modifyDiskUsage(shard.currentNodeId(), getShardPath(shard.currentNodeId(), leastAvailableSpaceUsage), -size);
             } else {
                 // new shard
-                increaseTargetDiskUsage(shard.currentNodeId(), size);
-                this.shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shard), size);
+                modifyDiskUsage(shard.currentNodeId(), getShardPath(shard.currentNodeId(), leastAvailableSpaceUsage), -size);
+                shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shard), size);
             }
         }
     }
 
     private Long getEstimatedShardSize(ShardRouting routing) {
         if (routing.relocatingNodeId() != null) {
-            // get size of the source shard
+            // relocation existing shard, get size of the source shard
             return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(routing));
         } else if (routing.primary() == false) {
-            // get size of the source primary shard
+            // initializing new replica, get size of the source primary shard
             return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(routing.shardId(), true));
         } else {
             // initializing new (empty) primary
@@ -64,36 +63,20 @@ public class ClusterInfoSimulator {
         }
     }
 
-    private void increaseTargetDiskUsage(String nodeId, long size) {
-        var leastUsage = leastAvailableSpaceUsage.get(nodeId);
-        var mostUsage = mostAvailableSpaceUsage.get(nodeId);
-        if (leastUsage == null || mostUsage == null) {
-            return;
-        }
-
-        // if single data path is used then it is present (and needs to be updated in both maps)
-        // otherwise conservatively decrease only lest available space
-        if (Objects.equals(leastUsage.getPath(), mostUsage.getPath())) {
-            // single data dir is used
-            mostAvailableSpaceUsage.put(nodeId, mostUsage.copyWithFreeBytes(mostUsage.getFreeBytes() - size));
-        }
-        leastAvailableSpaceUsage.put(nodeId, leastUsage.copyWithFreeBytes(leastUsage.getFreeBytes() - size));
+    private String getShardPath(String nodeId, Map<String, DiskUsage> defaultSpaceUsage) {
+        var diskUsage = defaultSpaceUsage.get(nodeId);
+        return diskUsage != null ? diskUsage.getPath() : null;
     }
 
-    private void decreaseSourceDiskUsage(String nodeId, long size) {
+    private void modifyDiskUsage(String nodeId, String path, long delta) {
         var leastUsage = leastAvailableSpaceUsage.get(nodeId);
+        if (leastUsage != null && Objects.equals(leastUsage.getPath(), path)) {
+            leastAvailableSpaceUsage.put(nodeId, leastUsage.copyWithFreeBytes(leastUsage.freeBytes() + delta));
+        }
         var mostUsage = mostAvailableSpaceUsage.get(nodeId);
-        if (leastUsage == null || mostUsage == null) {
-            return;
+        if (mostUsage != null && Objects.equals(mostUsage.getPath(), path)) {
+            mostAvailableSpaceUsage.put(nodeId, mostUsage.copyWithFreeBytes(mostUsage.freeBytes() + delta));
         }
-
-        // if single data path is used then it is present (and needs to be updated in both maps)
-        // otherwise conservatively increase only most available space
-        if (Objects.equals(leastUsage.getPath(), mostUsage.getPath())) {
-            // single data dir is used
-            leastAvailableSpaceUsage.put(nodeId, leastUsage.copyWithFreeBytes(leastUsage.getFreeBytes() + size));
-        }
-        mostAvailableSpaceUsage.put(nodeId, mostUsage.copyWithFreeBytes(mostUsage.getFreeBytes() + size));
     }
 
     public ClusterInfo getClusterInfo() {

@@ -403,7 +403,7 @@ public final class IndicesPermission {
         // by at least one indices permission group
         final Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Map<String, DocumentLevelPermissions> roleQueriesByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
-        final Map<String, Boolean> grantedBuilder = Maps.newMapWithExpectedSize(totalResourceCount);
+        final Set<String> grantedResources = new HashSet<>(totalResourceCount);
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
@@ -466,21 +466,21 @@ public final class IndicesPermission {
                 }
             }
 
-            grantedBuilder.put(resource.name, granted);
-            if (resource.canHaveBackingIndices()) {
-                for (String concreteIndex : concreteIndices) {
-                    // If the name appear directly as part of the requested indices, it takes precedence over implicit access
-                    if (false == requestedResources.containsKey(concreteIndex)) {
-                        grantedBuilder.merge(concreteIndex, granted, Boolean::logicalOr);
+            if (granted) {
+                grantedResources.add(resource.name);
+                if (resource.canHaveBackingIndices()) {
+                    for (String concreteIndex : concreteIndices) {
+                        // If the name appear directly as part of the requested indices, it takes precedence over implicit access
+                        if (false == requestedResources.containsKey(concreteIndex)) {
+                            grantedResources.add(concreteIndex);
+                        }
                     }
                 }
             }
         }
 
-        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedBuilder.size());
-        for (Map.Entry<String, Boolean> entry : grantedBuilder.entrySet()) {
-            final String index = entry.getKey();
-            final boolean granted = entry.getValue();
+        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedResources.size());
+        for (String index : grantedResources) {
             final DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
             final DocumentPermissions documentPermissions;
             if (permissions != null && permissions.isAllowAll() == false) {
@@ -497,7 +497,7 @@ public final class IndicesPermission {
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
-            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(granted, fieldPermissions, documentPermissions));
+            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(true, fieldPermissions, documentPermissions));
         }
         return unmodifiableMap(indexPermissions);
     }

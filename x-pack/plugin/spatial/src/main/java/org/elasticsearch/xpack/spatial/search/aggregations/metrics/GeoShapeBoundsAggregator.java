@@ -66,7 +66,7 @@ public final class GeoShapeBoundsAggregator extends MetricsAggregator {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final GeoShapeValues values = valuesSource.geoShapeValues(aggCtx.getLeafReaderContext());
+        final GeoShapeValues values = valuesSource.shapeValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -50,7 +51,8 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
             );
             case 1 -> new DesiredNode(
                 instance.settings(),
-                randomValueOtherThan(instance.processors(), () -> randomFloat() + randomIntBetween(1, 128)),
+                randomValueOtherThan(instance.processors(), () -> Processors.of(randomDouble() + randomIntBetween(1, 128))),
+                null,
                 instance.memory(),
                 instance.storage(),
                 instance.version()

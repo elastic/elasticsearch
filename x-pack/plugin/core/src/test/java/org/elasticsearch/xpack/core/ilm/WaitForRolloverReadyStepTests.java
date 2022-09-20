@@ -112,7 +112,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         switch (between(0, 11)) {
             case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
             case 2 -> maxSize = randomValueOtherThan(maxSize, () -> {
                 ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
@@ -184,11 +184,52 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(1, request.indices().length);
         assertEquals(rolloverTarget, request.indices()[0]);
         assertEquals(rolloverTarget, request.getRolloverTarget());
-        assertEquals(expectedConditions.size(), request.getConditions().size());
         assertTrue(request.isDryRun());
+        assertEquals(expectedConditions.size(), request.getConditions().size());
         Set<Object> expectedConditionValues = expectedConditions.stream().map(Condition::value).collect(Collectors.toSet());
         Set<Object> actualConditionValues = request.getConditions().values().stream().map(Condition::value).collect(Collectors.toSet());
         assertEquals(expectedConditionValues, actualConditionValues);
+    }
+
+    private static Set<Condition<?>> getExpectedConditions(WaitForRolloverReadyStep step, boolean maybeAddMinDocs) {
+        Set<Condition<?>> expectedConditions = new HashSet<>();
+        if (step.getMaxSize() != null) {
+            expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+        }
+        if (step.getMaxPrimaryShardSize() != null) {
+            expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
+        }
+        if (step.getMaxAge() != null) {
+            expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
+        }
+        if (step.getMaxDocs() != null) {
+            expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+        }
+        if (step.getMaxPrimaryShardDocs() != null) {
+            expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
+        }
+        if (step.getMinSize() != null) {
+            expectedConditions.add(new MinSizeCondition(step.getMinSize()));
+        }
+        if (step.getMinPrimaryShardSize() != null) {
+            expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));
+        }
+        if (step.getMinAge() != null) {
+            expectedConditions.add(new MinAgeCondition(step.getMinAge()));
+        }
+        if (step.getMinDocs() != null) {
+            expectedConditions.add(new MinDocsCondition(step.getMinDocs()));
+        }
+        if (step.getMinPrimaryShardDocs() != null) {
+            expectedConditions.add(new MinPrimaryShardDocsCondition(step.getMinPrimaryShardDocs()));
+        }
+
+        // if no minimum document condition was specified, then a default min_docs: 1 condition will be injected (if desired)
+        if (maybeAddMinDocs && step.getMinDocs() == null && step.getMinPrimaryShardDocs() == null) {
+            expectedConditions.add(new MinDocsCondition(1L));
+        }
+
+        return expectedConditions;
     }
 
     public void testEvaluateCondition() {
@@ -202,7 +243,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        mockRolloverIndexCall(alias, step);
+        mockRolloverIndexCall(alias, step, true);
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
@@ -235,7 +276,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        mockRolloverIndexCall(dataStreamName, step);
+        mockRolloverIndexCall(dataStreamName, step, true);
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         Metadata metadata = Metadata.builder()
@@ -303,45 +344,15 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         verifyNoMoreInteractions(indicesClient);
     }
 
-    private void mockRolloverIndexCall(String rolloverTarget, WaitForRolloverReadyStep step) {
+    private void mockRolloverIndexCall(String rolloverTarget, WaitForRolloverReadyStep step, boolean conditionResult) {
         Mockito.doAnswer(invocation -> {
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxSize() != null) {
-                expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-            }
-            if (step.getMaxPrimaryShardSize() != null) {
-                expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
-            }
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
-            if (step.getMaxDocs() != null) {
-                expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-            }
-            if (step.getMaxPrimaryShardDocs() != null) {
-                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
-            }
-            if (step.getMinSize() != null) {
-                expectedConditions.add(new MinSizeCondition(step.getMinSize()));
-            }
-            if (step.getMinPrimaryShardSize() != null) {
-                expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));
-            }
-            if (step.getMinAge() != null) {
-                expectedConditions.add(new MinAgeCondition(step.getMinAge()));
-            }
-            if (step.getMinDocs() != null) {
-                expectedConditions.add(new MinDocsCondition(step.getMinDocs()));
-            }
-            if (step.getMinPrimaryShardDocs() != null) {
-                expectedConditions.add(new MinPrimaryShardDocsCondition(step.getMinPrimaryShardDocs()));
-            }
+            Set<Condition<?>> expectedConditions = getExpectedConditions(step, true);
             assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
-                .collect(Collectors.toMap(Condition::toString, condition -> true));
+                .collect(Collectors.toMap(Condition::toString, condition -> conditionResult));
             listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
             return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
@@ -524,47 +535,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .build();
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        Mockito.doAnswer(invocation -> {
-            RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
-            @SuppressWarnings("unchecked")
-            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxSize() != null) {
-                expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-            }
-            if (step.getMaxPrimaryShardSize() != null) {
-                expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
-            }
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
-            if (step.getMaxDocs() != null) {
-                expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-            }
-            if (step.getMaxPrimaryShardDocs() != null) {
-                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
-            }
-            if (step.getMinSize() != null) {
-                expectedConditions.add(new MinSizeCondition(step.getMinSize()));
-            }
-            if (step.getMinPrimaryShardSize() != null) {
-                expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));
-            }
-            if (step.getMinAge() != null) {
-                expectedConditions.add(new MinAgeCondition(step.getMinAge()));
-            }
-            if (step.getMinDocs() != null) {
-                expectedConditions.add(new MinDocsCondition(step.getMinDocs()));
-            }
-            if (step.getMinPrimaryShardDocs() != null) {
-                expectedConditions.add(new MinPrimaryShardDocsCondition(step.getMinPrimaryShardDocs()));
-            }
-            assertRolloverIndexRequest(request, alias, expectedConditions);
-            Map<String, Boolean> conditionResults = expectedConditions.stream()
-                .collect(Collectors.toMap(Condition::toString, condition -> false));
-            listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
-            return null;
-        }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
+        mockRolloverIndexCall(alias, step, false);
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
@@ -602,37 +573,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxSize() != null) {
-                expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-            }
-            if (step.getMaxPrimaryShardSize() != null) {
-                expectedConditions.add(new MaxPrimaryShardSizeCondition(step.getMaxPrimaryShardSize()));
-            }
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
-            if (step.getMaxDocs() != null) {
-                expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-            }
-            if (step.getMaxPrimaryShardDocs() != null) {
-                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
-            }
-            if (step.getMinSize() != null) {
-                expectedConditions.add(new MinSizeCondition(step.getMinSize()));
-            }
-            if (step.getMinPrimaryShardSize() != null) {
-                expectedConditions.add(new MinPrimaryShardSizeCondition(step.getMinPrimaryShardSize()));
-            }
-            if (step.getMinAge() != null) {
-                expectedConditions.add(new MinAgeCondition(step.getMinAge()));
-            }
-            if (step.getMinDocs() != null) {
-                expectedConditions.add(new MinDocsCondition(step.getMinDocs()));
-            }
-            if (step.getMinPrimaryShardDocs() != null) {
-                expectedConditions.add(new MinPrimaryShardDocsCondition(step.getMinPrimaryShardDocs()));
-            }
+            Set<Condition<?>> expectedConditions = getExpectedConditions(step, true);
             assertRolloverIndexRequest(request, alias, expectedConditions);
             listener.onFailure(exception);
             return null;
@@ -729,5 +670,25 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 )
             )
         );
+    }
+
+    public void testCreateRolloverRequestRolloverOnlyIfHasDocuments() {
+        boolean rolloverOnlyIfHasDocuments = randomBoolean();
+
+        WaitForRolloverReadyStep step = createRandomInstance();
+        String rolloverTarget = randomAlphaOfLength(5);
+        TimeValue masterTimeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+
+        RolloverRequest request = step.createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
+
+        assertThat(request.getRolloverTarget(), is(rolloverTarget));
+        assertThat(request.masterNodeTimeout(), is(masterTimeout));
+        assertThat(request.isDryRun(), is(true)); // it's always a dry_run
+
+        Set<Condition<?>> expectedConditions = getExpectedConditions(step, rolloverOnlyIfHasDocuments);
+        assertEquals(expectedConditions.size(), request.getConditions().size());
+        Set<Object> expectedConditionValues = expectedConditions.stream().map(Condition::value).collect(Collectors.toSet());
+        Set<Object> actualConditionValues = request.getConditions().values().stream().map(Condition::value).collect(Collectors.toSet());
+        assertEquals(expectedConditionValues, actualConditionValues);
     }
 }

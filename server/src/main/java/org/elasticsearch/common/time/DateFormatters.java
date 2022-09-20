@@ -574,7 +574,7 @@ public class DateFormatters {
 
     /*
      * Returns a basic formatter for a full date as four digit weekyear, two
-     * digit week of weekyear, and one digit day of week (xxxx'W'wwe).
+     * digit week of weekyear, and one digit day of week (YYYY'W'wwe).
      */
     private static final DateFormatter STRICT_BASIC_WEEK_DATE = new JavaDateFormatter(
         "strict_basic_week_date",
@@ -584,7 +584,7 @@ public class DateFormatters {
 
     /*
      * Returns a basic formatter that combines a basic weekyear date and time
-     * without millis, separated by a 'T' (xxxx'W'wwe'T'HHmmssX).
+     * without millis, separated by a 'T' (YYYY'W'wwe'T'HHmmssX).
      */
     private static final DateFormatter STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS = new JavaDateFormatter(
         "strict_basic_week_date_time_no_millis",
@@ -616,7 +616,7 @@ public class DateFormatters {
 
     /*
      * Returns a basic formatter that combines a basic weekyear date and time,
-     * separated by a 'T' (xxxx'W'wwe'T'HHmmss.SSSX).
+     * separated by a 'T' (YYYY'W'wwe'T'HHmmss.SSSX).
      */
     private static final DateFormatter STRICT_BASIC_WEEK_DATE_TIME = new JavaDateFormatter(
         "strict_basic_week_date_time",
@@ -1080,13 +1080,13 @@ public class DateFormatters {
 
     /*
      * Returns a formatter for a full date as four digit weekyear, two digit
-     * week of weekyear, and one digit day of week (xxxx-'W'ww-e).
+     * week of weekyear, and one digit day of week (YYYY-'W'ww-e).
      */
     private static final DateFormatter STRICT_WEEK_DATE = new JavaDateFormatter("strict_week_date", ISO_WEEK_DATE);
 
     /*
      * Returns a formatter that combines a full weekyear date and time without millis,
-     * separated by a 'T' (xxxx-'W'ww-e'T'HH:mm:ssZZ).
+     * separated by a 'T' (YYYY-'W'ww-e'T'HH:mm:ssZZ).
      */
     private static final DateFormatter STRICT_WEEK_DATE_TIME_NO_MILLIS = new JavaDateFormatter(
         "strict_week_date_time_no_millis",
@@ -1109,7 +1109,7 @@ public class DateFormatters {
 
     /*
      * Returns a formatter that combines a full weekyear date and time,
-     * separated by a 'T' (xxxx-'W'ww-e'T'HH:mm:ss.SSSZZ).
+     * separated by a 'T' (YYYY-'W'ww-e'T'HH:mm:ss.SSSZZ).
      */
     private static final DateFormatter STRICT_WEEK_DATE_TIME = new JavaDateFormatter(
         "strict_week_date_time",
@@ -1153,13 +1153,13 @@ public class DateFormatters {
 
     /*
      * Returns a formatter for a four digit weekyear and two digit week of
-     * weekyear. (xxxx-'W'ww)
+     * weekyear. (YYYY-'W'ww)
      */
     private static final DateFormatter STRICT_WEEKYEAR_WEEK = new JavaDateFormatter("strict_weekyear_week", STRICT_WEEKYEAR_WEEK_FORMATTER);
 
     /*
      * Returns a formatter for a four digit weekyear, two digit week of
-     * weekyear, and one digit day of week. (xxxx-'W'ww-e)
+     * weekyear, and one digit day of week. (YYYY-'W'ww-e)
      */
     private static final DateFormatter STRICT_WEEKYEAR_WEEK_DAY = new JavaDateFormatter(
         "strict_weekyear_week_day",
@@ -1693,7 +1693,7 @@ public class DateFormatters {
 
     /*
      * Returns a formatter that combines a full weekyear date and time,
-     * separated by a 'T' (xxxx-'W'ww-e'T'HH:mm:ss.SSSZZ).
+     * separated by a 'T' (YYYY-'W'ww-e'T'HH:mm:ss.SSSZZ).
      */
     private static final DateFormatter WEEK_DATE_TIME = new JavaDateFormatter(
         "week_date_time",
@@ -1718,7 +1718,7 @@ public class DateFormatters {
 
     /*
      * Returns a formatter that combines a full weekyear date and time,
-     * separated by a 'T' (xxxx-'W'ww-e'T'HH:mm:ssZZ).
+     * separated by a 'T' (YYYY-'W'ww-e'T'HH:mm:ssZZ).
      */
     private static final DateFormatter WEEK_DATE_TIME_NO_MILLIS = new JavaDateFormatter(
         "week_date_time_no_millis",
@@ -1741,7 +1741,7 @@ public class DateFormatters {
 
     /*
      * Returns a basic formatter that combines a basic weekyear date and time,
-     * separated by a 'T' (xxxx'W'wwe'T'HHmmss.SSSX).
+     * separated by a 'T' (YYYY'W'wwe'T'HHmmss.SSSX).
      */
     private static final DateFormatter BASIC_WEEK_DATE_TIME = new JavaDateFormatter(
         "basic_week_date_time",
@@ -1763,7 +1763,7 @@ public class DateFormatters {
 
     /*
      * Returns a basic formatter that combines a basic weekyear date and time,
-     * separated by a 'T' (xxxx'W'wwe'T'HHmmssX).
+     * separated by a 'T' (YYYY'W'wwe'T'HHmmssX).
      */
     private static final DateFormatter BASIC_WEEK_DATE_TIME_NO_MILLIS = new JavaDateFormatter(
         "basic_week_date_time_no_millis",
@@ -1906,13 +1906,13 @@ public class DateFormatters {
 
     /*
      * Returns a formatter for a full date as four digit weekyear, two digit
-     * week of weekyear, and one digit day of week (xxxx-'W'ww-e).
+     * week of weekyear, and one digit day of week (YYYY-'W'ww-e).
      */
     private static final DateFormatter WEEK_DATE = new JavaDateFormatter("week_date", ISO_WEEK_DATE, WEEK_DATE_FORMATTER);
 
     /*
      * Returns a formatter for a four digit weekyear and two digit week of
-     * weekyear. (xxxx-'W'ww)
+     * weekyear. (YYYY-'W'ww)
      */
     private static final DateFormatter WEEKYEAR_WEEK = new JavaDateFormatter(
         "weekyear_week",
@@ -1926,7 +1926,7 @@ public class DateFormatters {
 
     /*
      * Returns a formatter for a four digit weekyear, two digit week of
-     * weekyear, and one digit day of week. (xxxx-'W'ww-e)
+     * weekyear, and one digit day of week. (YYYY-'W'ww-e)
      */
     private static final DateFormatter WEEKYEAR_WEEK_DAY = new JavaDateFormatter(
         "weekyear_week_day",

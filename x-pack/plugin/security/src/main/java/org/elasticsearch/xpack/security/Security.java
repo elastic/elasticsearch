@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -467,6 +468,12 @@ public class Security extends Plugin
         License.OperationMode.ENTERPRISE
     );
 
+    public static final LicensedFeature.Momentary USER_PROFILE_COLLABORATION_FEATURE = LicensedFeature.momentary(
+        null,
+        "user-profile-collaboration",
+        License.OperationMode.STANDARD
+    );
+
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     private final Settings settings;
@@ -547,7 +554,8 @@ public class Security extends Plugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         try {
             return createComponents(
@@ -580,7 +588,7 @@ public class Security extends Plugin
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
-            return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
+            return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null));
         }
 
         systemIndices.init(client, clusterService);
@@ -909,7 +917,7 @@ public class Security extends Plugin
             )
         );
 
-        components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get()));
+        components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get(), profileService));
 
         cacheInvalidatorRegistry.validate();
 

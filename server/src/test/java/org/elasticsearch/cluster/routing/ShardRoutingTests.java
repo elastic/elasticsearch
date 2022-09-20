@@ -27,8 +27,8 @@ public class ShardRoutingTests extends ESTestCase {
         ShardRouting unassignedShard1 = TestShardRouting.newShardRouting("test", 1, null, false, ShardRoutingState.UNASSIGNED);
         ShardRouting initializingShard0 = TestShardRouting.newShardRouting("test", 0, "1", randomBoolean(), ShardRoutingState.INITIALIZING);
         ShardRouting initializingShard1 = TestShardRouting.newShardRouting("test", 1, "1", randomBoolean(), ShardRoutingState.INITIALIZING);
-        ShardRouting startedShard0 = initializingShard0.moveToStarted();
-        ShardRouting startedShard1 = initializingShard1.moveToStarted();
+        ShardRouting startedShard0 = initializingShard0.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        ShardRouting startedShard1 = initializingShard1.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
         // test identity
         assertTrue(initializingShard0.isSameAllocation(initializingShard0));
@@ -75,10 +75,10 @@ public class ShardRoutingTests extends ESTestCase {
             ShardRoutingState.INITIALIZING
         );
         assertFalse(initializingShard0.isRelocationTarget());
-        ShardRouting startedShard0 = initializingShard0.moveToStarted();
+        ShardRouting startedShard0 = initializingShard0.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         assertFalse(startedShard0.isRelocationTarget());
         assertFalse(initializingShard1.isRelocationTarget());
-        ShardRouting startedShard1 = initializingShard1.moveToStarted();
+        ShardRouting startedShard1 = initializingShard1.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         assertFalse(startedShard1.isRelocationTarget());
         ShardRouting sourceShard0a = startedShard0.relocate("node2", -1);
         assertFalse(sourceShard0a.isRelocationTarget());
@@ -300,7 +300,7 @@ public class ShardRoutingTests extends ESTestCase {
                     assertTrue(routing.toString(), routing.toString().contains("expected_shard_size[" + byteSize + "]"));
                 }
                 if (routing.initializing()) {
-                    routing = routing.moveToStarted();
+                    routing = routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                     assertEquals(-1, routing.getExpectedShardSize());
                     assertFalse(routing.toString(), routing.toString().contains("expected_shard_size[" + byteSize + "]"));
                 }

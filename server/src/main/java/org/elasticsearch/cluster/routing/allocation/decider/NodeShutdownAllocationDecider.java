@@ -27,32 +27,15 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
 
     private static final String NAME = "node_shutdown";
 
+    private static final Decision YES_EMPTY_SHUTDOWN_METADATA = Decision.single(Decision.Type.YES, NAME, "no nodes are shutting down");
+    private static final Decision YES_NODE_NOT_SHUTTING_DOWN = Decision.single(Decision.Type.YES, NAME, "this node is not shutting down");
+
     /**
      * Determines if a shard can be allocated to a particular node, based on whether that node is shutting down or not.
      */
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final SingleNodeShutdownMetadata thisNodeShutdownMetadata = allocation.nodeShutdowns().get(node.nodeId());
-
-        if (thisNodeShutdownMetadata == null) {
-            // There's no shutdown metadata for this node, return yes.
-            return allocation.decision(Decision.YES, NAME, "this node is not currently shutting down");
-        }
-
-        return switch (thisNodeShutdownMetadata.getType()) {
-            case REPLACE, REMOVE -> allocation.decision(
-                Decision.NO,
-                NAME,
-                "node [%s] is preparing to be removed from the cluster",
-                node.nodeId()
-            );
-            case RESTART -> allocation.decision(
-                Decision.YES,
-                NAME,
-                "node [%s] is preparing to restart, but will remain in the cluster",
-                node.nodeId()
-            );
-        };
+        return getDecision(allocation, node.nodeId());
     }
 
     /**
@@ -61,7 +44,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
      */
     @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return this.canAllocate(shardRouting, node, allocation);
+        return canAllocate(shardRouting, node, allocation);
     }
 
     /**
@@ -70,26 +53,28 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
      */
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-        SingleNodeShutdownMetadata thisNodeShutdownMetadata = allocation.nodeShutdowns().get(node.getId());
+        return getDecision(allocation, node.getId());
+    }
 
+    private static Decision getDecision(RoutingAllocation allocation, String nodeId) {
+        final var nodeShutdowns = allocation.nodeShutdowns();
+        if (nodeShutdowns.isEmpty()) {
+            return YES_EMPTY_SHUTDOWN_METADATA;
+        }
+
+        final SingleNodeShutdownMetadata thisNodeShutdownMetadata = nodeShutdowns.get(nodeId);
         if (thisNodeShutdownMetadata == null) {
-            return allocation.decision(Decision.YES, NAME, "node [%s] is not preparing for removal from the cluster", node.getId());
+            return YES_NODE_NOT_SHUTTING_DOWN;
         }
 
         return switch (thisNodeShutdownMetadata.getType()) {
+            case REPLACE, REMOVE -> allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be removed from the cluster", nodeId);
             case RESTART -> allocation.decision(
                 Decision.YES,
                 NAME,
-                "node [%s] is not preparing for removal from the cluster (is " + "restarting)",
-                node.getId()
-            );
-            case REPLACE, REMOVE -> allocation.decision(
-                Decision.NO,
-                NAME,
-                "node [%s] is preparing for removal from the cluster",
-                node.getId()
+                "node [%s] is preparing to restart, but will remain in the cluster",
+                nodeId
             );
         };
     }
-
 }

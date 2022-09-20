@@ -90,6 +90,7 @@ behavior may be desired if the source index does not exist until after the
 Period to wait for a response. If no response is received before the timeout
 expires, the request fails and returns an error. Defaults to `30s`.
 
+
 [role="child_attributes"]
 [[put-transform-request-body]]
 == {api-request-body-title}
@@ -162,7 +163,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
 `group_by`:::
 (Required, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
-
 ====
 //End pivot
 
@@ -200,24 +200,27 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
 .Properties of `settings`
 [%collapsible%open]
 ====
-`dates_as_epoch_millis`:::
-(Optional, boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
-`docs_per_second`:::
-(Optional, float)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 `align_checkpoints`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
+`dates_as_epoch_millis`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dates-as-epoch-milli]
 `deduce_mappings`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-deduce-mappings]
+`docs_per_second`:::
+(Optional, float)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 `max_page_search_size`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
 `num_failure_retries`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-num-failure-retries]
+`unattended`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-unattended]
 ====
 //End settings
 
@@ -261,7 +264,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 .Properties of `time`
 [%collapsible%open]
 =====
-
 `delay`::::
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
@@ -306,7 +308,8 @@ PUT _transform/ecommerce_transform1
     "group_by": {
       "customer_id": {
         "terms": {
-          "field": "customer_id"
+          "field": "customer_id",
+          "missing_bucket": true
         }
       }
     },

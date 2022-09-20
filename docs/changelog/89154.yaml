@@ -1,6 +1,0 @@
-pr: 89154
-summary: Sort ranges in `geo_distance` aggregation
-area: Geo
-type: bug
-issues:
- - 89147

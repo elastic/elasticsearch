@@ -15,4 +15,4 @@
         node: $node_id
 
   - match: { result.is_safe: "YES"}
-  - match: { result.$node_id.is_safe: "YES"}
+  - contains: {result.nodes: {name: "$node_id", result.is_safe: "YES"}}

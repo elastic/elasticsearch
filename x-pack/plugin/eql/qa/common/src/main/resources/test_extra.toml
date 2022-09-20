@@ -343,8 +343,62 @@ join_keys = ["tag1", "tag5"]
 name = "sequenceWithMultivalue_NullValues"
 query = '''
   sequence by tags_with_null
-    [ any where true ]
-    [ any where true ]
+    [ file where true ]
+    [ file where true ]
 '''
 expected_event_ids  = [16, 19, 16, 20]
 join_keys = ["tag1", "tag2"]
+
+
+[[queries]]
+name = "sequenceWithOptionalMultivalue_simple"
+query = '''
+  sequence by ?optional_tags
+    [ process where true ]
+    [ process where true ]
+'''
+expected_event_ids  = [11, 12]
+join_keys = [null]
+
+[[queries]]
+name = "sequenceWithOptionalMultivalue_perQuery"
+query = '''
+  sequence
+    [ process where true ] by ?optional_tags
+    [ process where true ] by ?optional_tags
+'''
+expected_event_ids  = [11, 12]
+join_keys = [null]
+
+
+[[queries]]
+name = "sequenceWithOptionalMultivalue_multiPlusOptional"
+query = '''
+  sequence by tags, ?optional_tags
+    [ REQUEST where true ]
+    [ ERROR where true ]
+'''
+expected_event_ids  = [1, 2]
+join_keys = ["tag1", null]
+
+
+[[queries]]
+name = "sequenceWithOptionalMultivalue_optionalPlusMulti"
+query = '''
+  sequence by ?optional_tags, tags
+    [ REQUEST where true ]
+    [ ERROR where true ]
+'''
+expected_event_ids  = [1, 2]
+join_keys = [null, "tag1"]
+
+
+[[queries]]
+name = "sequenceWithOptionalMultivalue_twoOptionals"
+query = '''
+  sequence by ?optional_tags, ?tags
+    [ REQUEST where true ]
+    [ ERROR where true ]
+'''
+expected_event_ids  = [1, 2]
+join_keys = [null, "tag1"]

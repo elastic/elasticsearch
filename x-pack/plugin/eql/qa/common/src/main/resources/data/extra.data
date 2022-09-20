@@ -64,14 +64,16 @@
   "transID": 1,
   "process.pid": 123,
   "sequence": 10,
-  "tags": "tag6"
+  "tags": "tag6",
+  "optional_tags": ["tag1", null, null]
  },
  {
   "@timestamp": "1",
   "event_type": "process",
   "transID": 2,
   "sequence": 11,
-  "tags": ["tag5", "tag6"]
+  "tags": ["tag5", "tag6"],
+  "optional_tags": [null]
  },
  {
   "@timestamp": "2",
@@ -127,7 +129,8 @@
   "process.pid": 123,
   "version": "1.5.0",
   "sequence": 18,
-  "tags_with_null": [null]
+  "tags_with_null": [null],
+  "optional_tags": "tag10"
  },
  {
   "@timestamp": "8",

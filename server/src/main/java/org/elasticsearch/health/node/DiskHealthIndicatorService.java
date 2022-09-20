@@ -123,14 +123,14 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                  * If there is an index block, we report RED, and report on any indices that are on RED nodes, or on any indices that are
                  *  on YELLOW nodes if there are no RED nodes.
                  */
-                final Set<String> nodesReportingRed = getNodesReportingStatus(diskHealthInfoMap, HealthStatus.RED);
+                final Set<String> nodesReportingRed = getNodeIdsReportingStatus(diskHealthInfoMap, HealthStatus.RED);
                 Set<DiscoveryNodeRole> rolesOnRedNodes = getRolesOnNodes(nodesReportingRed, clusterState);
                 boolean atLeastOneRedDataNode = rolesOnRedNodes.stream().anyMatch(DiscoveryNodeRole::canContainData);
                 final Set<String> impactedNodes;
                 if (atLeastOneRedDataNode) {
                     impactedNodes = getNodesWithDataRole(nodesReportingRed, clusterState);
                 } else {
-                    final Set<String> nodesReportingYellow = getNodesReportingStatus(diskHealthInfoMap, HealthStatus.YELLOW);
+                    final Set<String> nodesReportingYellow = getNodeIdsReportingStatus(diskHealthInfoMap, HealthStatus.YELLOW);
                     impactedNodes = getNodesWithDataRole(nodesReportingYellow, clusterState);
                 }
                 Set<String> indicesOnImpactedNodes = getIndicesForNodes(impactedNodes, clusterState);
@@ -147,7 +147,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     details
                 );
             } else if (HealthStatus.RED.equals(healthStatusFromNodes)) {
-                final Set<String> nodesReportingRed = getNodesReportingStatus(diskHealthInfoMap, HealthStatus.RED);
+                final Set<String> nodesReportingRed = getNodeIdsReportingStatus(diskHealthInfoMap, HealthStatus.RED);
                 Set<DiscoveryNodeRole> rolesOnRedNodes = getRolesOnNodes(nodesReportingRed, clusterState);
                 // First check the highest priority: we had a data node that reported RED:
                 if (rolesOnRedNodes.stream().anyMatch(DiscoveryNodeRole::canContainData)) {
@@ -168,7 +168,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     );
                 }
             } else {
-                final Set<String> nodesReportingYellow = getNodesReportingStatus(diskHealthInfoMap, HealthStatus.YELLOW);
+                final Set<String> nodesReportingYellow = getNodeIdsReportingStatus(diskHealthInfoMap, HealthStatus.YELLOW);
                 Set<DiscoveryNodeRole> rolesOnYellowNodes = getRolesOnNodes(nodesReportingYellow, clusterState);
                 // First check the highest priority: we had a data node that reported YELLOW:
                 if (rolesOnYellowNodes.stream().anyMatch(DiscoveryNodeRole::canContainData)) {
@@ -192,7 +192,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         return healthIndicatorResult;
     }
 
-    private Set<String> getNodesReportingStatus(Map<String, DiskHealthInfo> diskHealthInfoMap, HealthStatus status) {
+    static Set<String> getNodeIdsReportingStatus(Map<String, DiskHealthInfo> diskHealthInfoMap, HealthStatus status) {
         return diskHealthInfoMap.entrySet()
             .stream()
             .filter(entry -> status.equals(entry.getValue().healthStatus()))

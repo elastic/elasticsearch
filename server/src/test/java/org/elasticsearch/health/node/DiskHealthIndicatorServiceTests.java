@@ -553,6 +553,27 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    public void testGetNodeIdsReportingStatus() {
+        Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
+        Map<String, DiskHealthInfo> diskInfoByNode = new HashMap<>(discoveryNodes.size());
+        Map<HealthStatus, Set<String>> statusToNodeIdMap = new HashMap<>(HealthStatus.values().length);
+        for (DiscoveryNode node : discoveryNodes) {
+            HealthStatus status = randomFrom(HealthStatus.values());
+            final DiskHealthInfo diskHealthInfo = randomBoolean()
+                ? new DiskHealthInfo(status)
+                : new DiskHealthInfo(status, randomFrom(DiskHealthInfo.Cause.values()));
+            Set<String> nodeIdsForStatus = statusToNodeIdMap.computeIfAbsent(status, k -> new HashSet<>());
+            nodeIdsForStatus.add(node.getId());
+            diskInfoByNode.put(node.getId(), diskHealthInfo);
+        }
+        for (HealthStatus status : HealthStatus.values()) {
+            assertThat(
+                DiskHealthIndicatorService.getNodeIdsReportingStatus(diskInfoByNode, status),
+                equalTo(statusToNodeIdMap.get(status))
+            );
+        }
+    }
+
     private Set<DiscoveryNode> createNodesWithAllRoles() {
         return createNodes(DiscoveryNodeRole.roles());
     }

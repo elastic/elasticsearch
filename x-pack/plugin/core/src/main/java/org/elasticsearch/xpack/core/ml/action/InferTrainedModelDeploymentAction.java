@@ -91,10 +91,37 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
         private boolean skipQueue = false;
+        // textInput added for the semantic search endpoint
+        // which accepts a query string rather than a document
+        private final String textInput;
 
         public Request(String modelId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
             this.docs = ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS);
+            this.update = update;
+            this.inferenceTimeout = inferenceTimeout;
+            this.textInput = null;
+        }
+
+        public Request(String modelId, InferenceConfigUpdate update, String textInput, TimeValue inferenceTimeout) {
+            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
+            this.docs = List.of();
+            this.textInput = ExceptionsHelper.requireNonNull(textInput, "inference text input");
+            this.update = update;
+            this.inferenceTimeout = inferenceTimeout;
+        }
+
+        // for tests
+        Request(
+            String modelId,
+            InferenceConfigUpdate update,
+            List<Map<String, Object>> docs,
+            String textInput,
+            TimeValue inferenceTimeout
+        ) {
+            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
+            this.docs = docs;
+            this.textInput = textInput;
             this.update = update;
             this.inferenceTimeout = inferenceTimeout;
         }
@@ -108,6 +135,11 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
                 skipQueue = in.readBoolean();
             }
+            if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+                textInput = in.readOptionalString();
+            } else {
+                textInput = null;
+            }
         }
 
         public String getModelId() {
@@ -116,6 +148,10 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         public List<Map<String, Object>> getDocs() {
             return docs;
+        }
+
+        public String getTextInput() {
+            return textInput;
         }
 
         public InferenceConfigUpdate getUpdate() {
@@ -171,6 +207,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
                 out.writeBoolean(skipQueue);
             }
+            if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+                out.writeOptionalString(textInput);
+            }
         }
 
         @Override
@@ -186,12 +225,13 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return Objects.equals(modelId, that.modelId)
                 && Objects.equals(docs, that.docs)
                 && Objects.equals(update, that.update)
-                && Objects.equals(inferenceTimeout, that.inferenceTimeout);
+                && Objects.equals(inferenceTimeout, that.inferenceTimeout)
+                && Objects.equals(textInput, that.textInput);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, update, docs, inferenceTimeout);
+            return Objects.hash(modelId, update, docs, inferenceTimeout, textInput);
         }
 
         @Override

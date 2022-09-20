@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
@@ -21,7 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerializingTestCase<InferTrainedModelDeploymentAction.Request> {
+public class InferTrainedModelDeploymentRequestsTests extends AbstractBWCWireSerializationTestCase<
+    InferTrainedModelDeploymentAction.Request> {
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
         return randomFrom(ZeroShotClassificationConfigUpdateTests.createRandom(), EmptyConfigUpdateTests.testInstance());
@@ -34,17 +37,28 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
 
     @Override
     protected InferTrainedModelDeploymentAction.Request createTestInstance() {
-        List<Map<String, Object>> docs = randomList(
-            5,
-            () -> randomMap(1, 3, () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7)))
-        );
+        boolean createQueryStringRequest = randomBoolean();
 
-        return new InferTrainedModelDeploymentAction.Request(
-            randomAlphaOfLength(4),
-            randomBoolean() ? null : randomInferenceConfigUpdate(),
-            docs,
-            randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
-        );
+        if (createQueryStringRequest) {
+            return new InferTrainedModelDeploymentAction.Request(
+                randomAlphaOfLength(4),
+                randomBoolean() ? null : randomInferenceConfigUpdate(),
+                randomAlphaOfLength(6),
+                randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+            );
+        } else {
+            List<Map<String, Object>> docs = randomList(
+                5,
+                () -> randomMap(1, 3, () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7)))
+            );
+
+            return new InferTrainedModelDeploymentAction.Request(
+                randomAlphaOfLength(4),
+                randomBoolean() ? null : randomInferenceConfigUpdate(),
+                docs,
+                randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+            );
+        }
     }
 
     @Override
@@ -60,5 +74,28 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
 
     public void testTimeoutNull() {
         assertNull(createTestInstance().getTimeout());
+    }
+
+    @Override
+    protected InferTrainedModelDeploymentAction.Request mutateInstanceForVersion(
+        InferTrainedModelDeploymentAction.Request instance,
+        Version version
+    ) {
+        if (version.before(Version.V_8_5_0)) {
+            // remove textInput
+            instance = new InferTrainedModelDeploymentAction.Request(
+                instance.getDeploymentId(),
+                instance.getUpdate(),
+                instance.getDocs(),
+                null,
+                instance.getInferenceTimeout()
+            );
+        }
+
+        if (version.before(Version.V_8_3_0)) {
+            instance.setSkipQueue(false);
+        }
+
+        return instance;
     }
 }

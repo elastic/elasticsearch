@@ -252,23 +252,26 @@ public abstract class PlanNode implements NamedXContentObject {
 
         }
 
-        public record AvgAggType(String field) implements AggType {
+        public record AvgAggType(String field, Type type) implements AggType {
 
             static final ConstructingObjectParser<AggType, String> PARSER = new ConstructingObjectParser<>(
                 "avg_agg_type",
-                args -> new AvgAggType((String) args[0])
+                args -> new AvgAggType((String) args[0], args[1] == null ? Type.DOUBLE : (Type) args[1])
             );
 
             public static final ParseField FIELD_FIELD = new ParseField("field");
+            public static final ParseField TYPE_FIELD = new ParseField("type");
 
             static {
                 PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Type::valueOf, TYPE_FIELD);
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 builder.field(FIELD_FIELD.getPreferredName(), field);
+                builder.field(TYPE_FIELD.getPreferredName(), type);
                 builder.endObject();
                 return builder;
             }
@@ -278,6 +281,11 @@ public abstract class PlanNode implements NamedXContentObject {
             @Override
             public String getName() {
                 return AVG_FIELD.getPreferredName();
+            }
+
+            public enum Type {
+                LONG,
+                DOUBLE
             }
         }
 
@@ -422,7 +430,7 @@ public abstract class PlanNode implements NamedXContentObject {
         public Builder avgPartial(String field) {
             current = new AggregationNode(
                 current,
-                Map.of(field + "_avg", new AggregationNode.AvgAggType(field)),
+                Map.of(field + "_avg", new AggregationNode.AvgAggType(field, AggregationNode.AvgAggType.Type.DOUBLE)),
                 AggregationNode.Mode.PARTIAL
             );
             return this;
@@ -434,7 +442,7 @@ public abstract class PlanNode implements NamedXContentObject {
         public Builder avgFinal(String field) {
             current = new AggregationNode(
                 current,
-                Map.of(field + "_avg", new AggregationNode.AvgAggType(field)),
+                Map.of(field + "_avg", new AggregationNode.AvgAggType(field, AggregationNode.AvgAggType.Type.DOUBLE)),
                 AggregationNode.Mode.FINAL
             );
             return this;

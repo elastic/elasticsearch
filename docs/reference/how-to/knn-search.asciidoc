@@ -21,6 +21,7 @@ check the size of the vector data, you can use the <<indices-disk-usage>> API.
 The RAM that's required is for the filesystem cache, which is separate from
 the Java heap.
 
+[discrete]
 include::search-speed.asciidoc[tag=warm-fs-cache]
 
 [discrete]

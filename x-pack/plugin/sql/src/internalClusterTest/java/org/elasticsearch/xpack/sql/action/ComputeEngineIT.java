@@ -53,7 +53,7 @@ public class ComputeEngineIT extends AbstractSqlIntegTestCase {
         logger.info(pages);
         assertEquals(1, pages.size());
         assertEquals(1, pages.get(0).getBlockCount());
-        assertEquals(43, pages.get(0).getBlock(0).getLong(0));
+        assertEquals(43, pages.get(0).getBlock(0).getDouble(0), 0.1d);
 
         pages = client().execute(
             ComputeAction.INSTANCE,

@@ -14,10 +14,13 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.sql.action.compute.aggregation.Aggregator;
+import org.elasticsearch.xpack.sql.action.compute.aggregation.AggregatorFunction;
+import org.elasticsearch.xpack.sql.action.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.xpack.sql.action.compute.lucene.NumericDocValuesExtractor;
+import org.elasticsearch.xpack.sql.action.compute.operator.AggregationOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.Driver;
-import org.elasticsearch.xpack.sql.action.compute.operator.LongAvgOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 import org.elasticsearch.xpack.sql.action.compute.operator.OutputOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.exchange.Exchange;
@@ -78,21 +81,24 @@ public class LocalExecutionPlanner {
             for (Map.Entry<String, PlanNode.AggregationNode.AggType> e : aggregationNode.aggs.entrySet()) {
                 if (e.getValue()instanceof PlanNode.AggregationNode.AvgAggType avgAggType) {
                     if (aggregationNode.mode == PlanNode.AggregationNode.Mode.PARTIAL) {
-                        operatorFactory = () -> new LongAvgOperator(source.layout.get(avgAggType.field()));
-                        layout.put(e.getKey() + "_sum", 0);
-                        layout.put(e.getKey() + "_count", 1);
+                        operatorFactory = () -> new AggregationOperator(
+                            List.of(new Aggregator(AggregatorFunction.avg, AggregatorMode.INITIAL, source.layout.get(avgAggType.field())))
+                        );
+                        layout.put(e.getKey(), 0);
                     } else {
-                        operatorFactory = () -> new LongAvgOperator(
-                            source.layout.get(e.getKey() + "_sum"),
-                            source.layout.get(e.getKey() + "_count")
+                        operatorFactory = () -> new AggregationOperator(
+                            List.of(new Aggregator(AggregatorFunction.avg, AggregatorMode.FINAL, source.layout.get(e.getKey())))
                         );
                         layout.put(e.getKey(), 0);
                     }
+                } else {
+                    throw new UnsupportedOperationException();
                 }
             }
             if (operatorFactory != null) {
                 return new PhysicalOperation(operatorFactory, layout, source);
             }
+            throw new UnsupportedOperationException();
         } else if (node instanceof PlanNode.LuceneSourceNode luceneSourceNode) {
             Supplier<Operator> operatorFactory;
             Set<String> indices = Sets.newHashSet(luceneSourceNode.indices);

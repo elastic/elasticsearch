@@ -125,14 +125,15 @@ public class LuceneSourceOperator implements Operator {
 
     private static List<List<PartialLeafReaderContext>> docSlices(IndexReader indexReader, int numSlices) {
         final int totalDocCount = indexReader.maxDoc();
-        final int maxDocsPerSlice = totalDocCount % numSlices == 0 ? totalDocCount / numSlices : (totalDocCount / numSlices) + 1;
-
+        final int normalMaxDocsPerSlice = totalDocCount / numSlices;
+        final int extraDocsInFirstSlice = totalDocCount % numSlices;
         final List<List<PartialLeafReaderContext>> slices = new ArrayList<>();
         int docsAllocatedInCurrentSlice = 0;
         List<PartialLeafReaderContext> currentSlice = null;
+        int maxDocsPerSlice = normalMaxDocsPerSlice + extraDocsInFirstSlice;
         for (LeafReaderContext ctx : indexReader.leaves()) {
+            final int numDocsInLeaf = ctx.reader().maxDoc();
             int minDoc = 0;
-            int numDocsInLeaf = ctx.reader().maxDoc();
             while (minDoc < numDocsInLeaf) {
                 int numDocsToUse = Math.min(maxDocsPerSlice - docsAllocatedInCurrentSlice, numDocsInLeaf - minDoc);
                 if (numDocsToUse <= 0) {
@@ -144,8 +145,9 @@ public class LuceneSourceOperator implements Operator {
                 currentSlice.add(new PartialLeafReaderContext(ctx, minDoc, minDoc + numDocsToUse));
                 minDoc += numDocsToUse;
                 docsAllocatedInCurrentSlice += numDocsToUse;
-                if (docsAllocatedInCurrentSlice >= maxDocsPerSlice) {
+                if (docsAllocatedInCurrentSlice == maxDocsPerSlice) {
                     slices.add(currentSlice);
+                    maxDocsPerSlice = normalMaxDocsPerSlice; // once the first slice with the extra docs is added, no need for extra docs
                     currentSlice = null;
                     docsAllocatedInCurrentSlice = 0;
                 }
@@ -154,8 +156,15 @@ public class LuceneSourceOperator implements Operator {
         if (currentSlice != null) {
             slices.add(currentSlice);
         }
-        if (slices.size() != numSlices) {
+        if (numSlices < totalDocCount && slices.size() != numSlices) {
             throw new IllegalStateException("wrong number of slices, expected " + numSlices + " but got " + slices.size());
+        }
+        if (slices.stream()
+            .flatMapToInt(
+                l -> l.stream().mapToInt(partialLeafReaderContext -> partialLeafReaderContext.maxDoc - partialLeafReaderContext.minDoc)
+            )
+            .sum() != totalDocCount) {
+            throw new IllegalStateException("wrong doc count");
         }
         return slices;
     }

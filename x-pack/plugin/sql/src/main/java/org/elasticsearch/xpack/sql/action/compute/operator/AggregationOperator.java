@@ -22,7 +22,7 @@ import static java.util.Objects.requireNonNull;
  * aggregations.
  *
  * The operator is blocking in the sense that it only produces output once all possible input has
- * been added, that is, when the {@ode finish} method has been called.
+ * been added, that is, when the {@link #finish} method has been called.
  */
 public class AggregationOperator implements Operator {
 

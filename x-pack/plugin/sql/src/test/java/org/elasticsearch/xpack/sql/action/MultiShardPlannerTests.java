@@ -93,7 +93,7 @@ public class MultiShardPlannerTests extends ESTestCase {
             logger.info("New page: columns {}, values {}", columns, page);
             assertEquals(Arrays.asList("value_avg"), columns);
             assertEquals(1, page.getPositionCount());
-            assertEquals((numDocs - 1) / 2, page.getBlock(0).getLong(0));
+            assertEquals(((double) numDocs - 1) / 2, page.getBlock(0).getDouble(0), 0.1d);
         });
         logger.info("Plan: {}", Strings.toString(plan, true, true));
         LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = new LocalExecutionPlanner(indexReaders).plan(plan);

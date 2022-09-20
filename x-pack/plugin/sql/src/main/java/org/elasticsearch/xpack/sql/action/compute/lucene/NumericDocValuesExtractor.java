@@ -91,27 +91,15 @@ public class NumericDocValuesExtractor implements Operator {
         ConstantIntBlock leafOrd = (ConstantIntBlock) page.getBlock(leafOrdChannel);
         ConstantIntBlock shardOrd = (ConstantIntBlock) page.getBlock(shardChannel);
 
-        if (leafOrd.getPositionCount() > 0) {
+        if (docs.getPositionCount() > 0) {
             int ord = leafOrd.getInt(0);
             int shard = shardOrd.getInt(0);
-            if (lastShard != shard) {
-                lastLeafReaderContext = null;
-                lastShard = shard;
-            }
-            if (lastLeafReaderContext == null || lastLeafReaderContext.ord != ord) {
-                lastLeafReaderContext = indexReaders.get(shard).getContext().leaves().get(ord);
+            initState(ord, shard);
+            int firstDoc = docs.getInt(0);
+            // reset iterator when blocks arrive out-of-order
+            if (firstDoc <= lastNumericDocValues.docID()) {
                 reinitializeDocValues();
-            } else if (Thread.currentThread() != lastThread) {
-                // reset iterator when executing thread changes
-                reinitializeDocValues();
-            } else if (docs.getPositionCount() > 0) {
-                int firstDoc = docs.getInt(0);
-                // reset iterator when blocks arrive out-of-order
-                if (firstDoc <= lastNumericDocValues.docID()) {
-                    reinitializeDocValues();
-                }
             }
-
             long[] values = new long[docs.getPositionCount()];
             try {
                 int lastDoc = -1;
@@ -119,11 +107,13 @@ public class NumericDocValuesExtractor implements Operator {
                     int doc = docs.getInt(i);
                     // docs within same block must be in order
                     if (lastDoc >= doc) {
-                        throw new IllegalStateException();
+                        throw new IllegalStateException("docs within same block must be in order");
                     }
                     // disallow sparse fields for now
                     if (lastNumericDocValues.advance(doc) != doc) {
-                        throw new IllegalStateException();
+                        throw new IllegalStateException(
+                            "sparse fields not supported for now, asked for " + doc + " but got " + lastNumericDocValues.docID()
+                        );
                     }
                     values[i] = lastNumericDocValues.longValue();
                     lastDoc = doc;
@@ -133,6 +123,31 @@ public class NumericDocValuesExtractor implements Operator {
             }
 
             lastPage = page.appendColumn(new LongBlock(values, docs.getPositionCount()));
+        }
+    }
+
+    private void initState(int ord, int shard) {
+        boolean reinitializeDV = false;
+        if (lastShard != shard) {
+            lastLeafReaderContext = null;
+        }
+        lastShard = shard;
+        if (lastLeafReaderContext != null && lastLeafReaderContext.ord != ord) {
+            lastLeafReaderContext = null;
+        }
+        if (lastLeafReaderContext == null) {
+            lastLeafReaderContext = indexReaders.get(shard).getContext().leaves().get(ord);
+            reinitializeDV = true;
+        }
+        if (lastLeafReaderContext.ord != ord) {
+            throw new IllegalStateException("wrong ord id");
+        }
+        if (Thread.currentThread() != lastThread) {
+            // reset iterator when executing thread changes
+            reinitializeDV = true;
+        }
+        if (reinitializeDV) {
+            reinitializeDocValues();
         }
     }
 

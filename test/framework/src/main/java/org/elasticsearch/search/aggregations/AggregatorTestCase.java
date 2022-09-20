@@ -430,35 +430,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return null;
     }
 
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduce(createIndexSettings(), searcher, query, builder, DEFAULT_MAX_BUCKETS, fieldTypes);
-    }
-
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSettings indexSettings,
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduce(indexSettings, searcher, query, builder, DEFAULT_MAX_BUCKETS, fieldTypes);
-    }
-
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        int maxBucket,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduce(createIndexSettings(), searcher, query, builder, maxBucket, fieldTypes);
-    }
-
     /**
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
@@ -466,51 +437,24 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Half the time it aggregates each leaf individually and reduces all
      * results together. The other half the time it aggregates across the entire
      * index at once and runs a final reduction on the single resulting agg.
-     */
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSettings indexSettings,
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        int maxBucket,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return searchAndReduce(indexSettings, searcher, query, builder, maxBucket, randomBoolean(), fieldTypes);
-    }
-
-    /**
-     * Collects all documents that match the provided query {@link Query} and
-     * returns the reduced {@link InternalAggregation}.
-     *
      * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
      * in order to mak sure the implementation does not leak.
-     *
-     * @param splitLeavesIntoSeparateAggregators If true this creates a new {@link Aggregator}
-     *          for each leaf as though it were a separate index. If false this aggregates
-     *          all leaves together, like we do in production.
      */
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
-        IndexSettings indexSettings,
-        IndexSearcher searcher,
-        Query query,
-        AggregationBuilder builder,
-        int maxBucket,
-        boolean splitLeavesIntoSeparateAggregators,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(AggTestConfig aggTestConfig) throws IOException {
+        IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
         for (int i = 0; i < 5; i++) {
             try {
                 searchAndReduce(
                     indexSettings,
-                    searcher,
-                    query,
-                    builder,
-                    maxBucket,
-                    splitLeavesIntoSeparateAggregators,
+                    aggTestConfig.searcher(),
+                    aggTestConfig.query(),
+                    aggTestConfig.builder(),
+                    aggTestConfig.maxBuckets(),
+                    aggTestConfig.splitLeavesIntoSeparateAggregators(),
                     crankyService,
-                    fieldTypes
+                    aggTestConfig.fieldTypes()
                 );
             } catch (CircuitBreakingException e) {
                 // expected
@@ -522,13 +466,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         return searchAndReduce(
             indexSettings,
-            searcher,
-            query,
-            builder,
-            maxBucket,
-            splitLeavesIntoSeparateAggregators,
+            aggTestConfig.searcher(),
+            aggTestConfig.query(),
+            aggTestConfig.builder(),
+            aggTestConfig.maxBuckets(),
+            aggTestConfig.splitLeavesIntoSeparateAggregators(),
             breakerService,
-            fieldTypes
+            aggTestConfig.fieldTypes()
         );
     }
 
@@ -675,7 +619,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
+                V agg = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldTypes));
                 verify.accept(agg);
 
                 verifyOutputFieldNames(aggregationBuilder, agg);
@@ -1062,10 +1006,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     AssertionError failure = null;
                     try {
                         InternalAggregation internalAggregation = searchAndReduce(
-                            indexSearcher,
-                            new MatchAllDocsQuery(),
-                            aggregationBuilder,
-                            fieldType
+                            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType)
                         );
                         // We should make sure if the builder says it supports sampling, that the internal aggregations returned override
                         // finalizeSampling
@@ -1523,6 +1464,35 @@ public abstract class AggregatorTestCase extends ESTestCase {
         @Override
         public CircuitBreakerStats stats(String name) {
             return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
+        }
+    }
+
+    public record AggTestConfig(
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        int maxBuckets,
+        boolean splitLeavesIntoSeparateAggregators,
+        MappedFieldType... fieldTypes
+    ) {
+        public AggTestConfig(IndexSearcher searcher, AggregationBuilder builder, MappedFieldType... fieldTypes) {
+            this(searcher, new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
+        }
+
+        public AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder, MappedFieldType... fieldTypes) {
+            this(searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), fieldTypes);
+        }
+
+        public AggTestConfig withQuery(Query query) {
+            return new AggTestConfig(searcher, query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, fieldTypes);
+        }
+
+        public AggTestConfig withSplitLeavesIntoSeperateAggregators(boolean splitLeavesIntoSeparateAggregators) {
+            return new AggTestConfig(searcher, query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, fieldTypes);
+        }
+
+        public AggTestConfig withMaxBuckets(int maxBuckets) {
+            return new AggTestConfig(searcher, query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, fieldTypes);
         }
     }
 }

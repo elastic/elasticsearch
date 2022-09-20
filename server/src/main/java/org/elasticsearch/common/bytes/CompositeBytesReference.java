@@ -231,8 +231,9 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         int i = getOffsetIndex(index);
         int idx = index - offsets[i];
         int end = idx + 4;
-        if (end <= references[i].length()) {
-            return references[i].getIntLE(idx);
+        BytesReference wholeIntLivesHere = references[i];
+        if (end <= wholeIntLivesHere.length()) {
+            return wholeIntLivesHere.getIntLE(idx);
         }
         return super.getIntLE(index);
     }

@@ -571,8 +571,10 @@ public class AllocationService {
                     + startedShard
                     + " but was: "
                     + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
-
-            routingNodes.startShard(logger, startedShard, routingAllocation.changes());
+            long expectedShardSize = routingAllocation.metadata().getIndexSafe(startedShard.index()).isSearchableSnapshot()
+                ? startedShard.getExpectedShardSize()
+                : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
+            routingNodes.startShard(logger, startedShard, routingAllocation.changes(), expectedShardSize);
         }
     }
 

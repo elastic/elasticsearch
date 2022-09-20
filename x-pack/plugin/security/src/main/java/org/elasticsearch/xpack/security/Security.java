@@ -588,7 +588,7 @@ public class Security extends Plugin
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
-            return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
+            return Collections.singletonList(new SecurityUsageServices(null, null, null, null, null));
         }
 
         systemIndices.init(client, clusterService);
@@ -917,7 +917,7 @@ public class Security extends Plugin
             )
         );
 
-        components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get()));
+        components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get(), profileService));
 
         cacheInvalidatorRegistry.validate();
 

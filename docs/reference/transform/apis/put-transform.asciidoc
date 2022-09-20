@@ -163,7 +163,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
 `group_by`:::
 (Required, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
-
 ====
 //End pivot
 
@@ -309,7 +308,8 @@ PUT _transform/ecommerce_transform1
     "group_by": {
       "customer_id": {
         "terms": {
-          "field": "customer_id"
+          "field": "customer_id",
+          "missing_bucket": true
         }
       }
     },

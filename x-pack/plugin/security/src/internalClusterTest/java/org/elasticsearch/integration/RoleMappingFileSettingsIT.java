@@ -145,10 +145,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .putNull("indices.recovery.max_bytes_per_sec")
-            )
+            .setPersistentSettings(Settings.builder().putNull("indices.recovery.max_bytes_per_sec"))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
     }

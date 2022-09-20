@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.spatial;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.common.util.EnumCounters;
+import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 
 /**

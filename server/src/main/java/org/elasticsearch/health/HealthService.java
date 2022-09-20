@@ -39,6 +39,8 @@ public class HealthService {
     static final String UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED = "Could not determine health status. Check details on critical issues "
         + "preventing the health status from reporting.";
 
+    public static final String HEALTH_API_ID_PREFIX = "elasticsearch:health:";
+
     /**
      * Detail map key that contains the reasons a result was marked as UNKNOWN
      */

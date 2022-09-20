@@ -455,34 +455,36 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         if (index.isHidden()) {
             updatedVisibleIndices = visibleIndices;
         } else {
-            updatedVisibleIndices = ArrayUtils.concat(visibleIndices, indexName);
+            updatedVisibleIndices = ArrayUtils.append(visibleIndices, indexName);
         }
 
-        final String[] updatedAllIndices = ArrayUtils.concat(allIndices, indexName);
+        final String[] updatedAllIndices = ArrayUtils.append(allIndices, indexName);
         final String[] updatedOpenIndices;
         final String[] updatedClosedIndices;
         final String[] updatedVisibleOpenIndices;
         final String[] updatedVisibleClosedIndices;
-        if (index.getState() == IndexMetadata.State.OPEN) {
-            updatedOpenIndices = ArrayUtils.concat(allOpenIndices, indexName);
-            if (index.isHidden() == false) {
-                updatedVisibleOpenIndices = ArrayUtils.concat(visibleOpenIndices, indexName);
-            } else {
-                updatedVisibleOpenIndices = visibleOpenIndices;
-            }
-            updatedVisibleClosedIndices = visibleClosedIndices;
-            updatedClosedIndices = allClosedIndices;
-        } else {
-            assert index.getState() == IndexMetadata.State.CLOSE
-                : "state should be closed when not open but was [" + index.getState() + "]";
-            updatedOpenIndices = allOpenIndices;
-            updatedClosedIndices = ArrayUtils.concat(allClosedIndices, indexName);
-            updatedVisibleOpenIndices = visibleOpenIndices;
-            if (index.isHidden() == false) {
-                updatedVisibleClosedIndices = ArrayUtils.concat(visibleClosedIndices, indexName);
-            } else {
+        switch (index.getState()) {
+            case OPEN -> {
+                updatedOpenIndices = ArrayUtils.append(allOpenIndices, indexName);
+                if (index.isHidden() == false) {
+                    updatedVisibleOpenIndices = ArrayUtils.append(visibleOpenIndices, indexName);
+                } else {
+                    updatedVisibleOpenIndices = visibleOpenIndices;
+                }
                 updatedVisibleClosedIndices = visibleClosedIndices;
+                updatedClosedIndices = allClosedIndices;
             }
+            case CLOSE -> {
+                updatedOpenIndices = allOpenIndices;
+                updatedClosedIndices = ArrayUtils.append(allClosedIndices, indexName);
+                updatedVisibleOpenIndices = visibleOpenIndices;
+                if (index.isHidden() == false) {
+                    updatedVisibleClosedIndices = ArrayUtils.append(visibleClosedIndices, indexName);
+                } else {
+                    updatedVisibleClosedIndices = visibleClosedIndices;
+                }
+            }
+            default -> throw new AssertionError("impossible, index is either open or closed");
         }
 
         final MappingMetadata mappingMetadata = index.mapping();

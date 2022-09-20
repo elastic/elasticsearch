@@ -45,10 +45,11 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
 
     public static final String HELP_URL = "https://ela.st/fix-repository-integrity";
 
-    public static final String REPOSITORY_CORRUPTED_IMPACT_ID = "elasticsearch:health:" + NAME + ":impact:repository_corruption";
+    public static final String REPOSITORY_CORRUPTED_IMPACT_ID = "repository_corruption";
 
     public static final Diagnosis.Definition CORRUPTED_REPOSITORY = new Diagnosis.Definition(
-        "elasticsearch:health:" + NAME + ":diagnosis:corrupt_repo_integrity",
+        NAME,
+        "corrupt_repo_integrity",
         "Multiple clusters are writing to the same repository.",
         "Remove the repository from the other cluster(s), or mark it as read-only in the other cluster(s), and then re-add the repository"
             + " to this cluster.",
@@ -103,6 +104,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
         }
         List<HealthIndicatorImpact> impacts = Collections.singletonList(
             new HealthIndicatorImpact(
+                NAME,
                 REPOSITORY_CORRUPTED_IMPACT_ID,
                 1,
                 String.format(

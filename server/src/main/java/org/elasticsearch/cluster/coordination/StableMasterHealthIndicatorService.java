@@ -43,7 +43,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     public static final String GET_HELP_GUIDE = "https://ela.st/getting-help";
     public static final Diagnosis CONTACT_SUPPORT_USER_ACTION = new Diagnosis(
         new Diagnosis.Definition(
-            "elasticsearch:health:" + NAME + ":diagnosis:contact_support",
+            NAME,
+            "contact_support",
             "The Elasticsearch cluster does not have a stable master node.",
             "Get help at " + GET_HELP_GUIDE,
             GET_HELP_GUIDE
@@ -62,9 +63,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final String CLUSTER_FORMATION_MESSAGE = "cluster_formation_message";
 
     // Impact IDs
-    public static final String INGEST_DISABLED_IMPACT_ID = "elasticsearch:health:" + NAME + ":impact:ingest_disabled";
-    public static final String AUTOMATION_DISABLED_IMPACT_ID = "elasticsearch:health:" + NAME + ":impact:automation_disabled";
-    public static final String BACKUP_DISABLED_IMPACT_ID = "elasticsearch:health:" + NAME + ":impact:backup_disabled";
+    public static final String INGEST_DISABLED_IMPACT_ID = "ingest_disabled";
+    public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";
+    public static final String BACKUP_DISABLED_IMPACT_ID = "backup_disabled";
 
     // Impacts of having an unstable master:
     private static final String UNSTABLE_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot "
@@ -78,14 +79,15 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * This is the list of the impacts to be reported when the master node is determined to be unstable.
      */
     private static final List<HealthIndicatorImpact> UNSTABLE_MASTER_IMPACTS = List.of(
-        new HealthIndicatorImpact(INGEST_DISABLED_IMPACT_ID, 1, UNSTABLE_MASTER_INGEST_IMPACT, List.of(ImpactArea.INGEST)),
+        new HealthIndicatorImpact(NAME, INGEST_DISABLED_IMPACT_ID, 1, UNSTABLE_MASTER_INGEST_IMPACT, List.of(ImpactArea.INGEST)),
         new HealthIndicatorImpact(
+            NAME,
             AUTOMATION_DISABLED_IMPACT_ID,
             1,
             UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT,
             List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
         ),
-        new HealthIndicatorImpact(BACKUP_DISABLED_IMPACT_ID, 3, UNSTABLE_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP))
+        new HealthIndicatorImpact(NAME, BACKUP_DISABLED_IMPACT_ID, 3, UNSTABLE_MASTER_BACKUP_IMPACT, List.of(ImpactArea.BACKUP))
     );
 
     public StableMasterHealthIndicatorService(

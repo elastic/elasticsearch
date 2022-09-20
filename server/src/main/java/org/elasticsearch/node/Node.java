@@ -231,7 +231,6 @@ import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
@@ -1162,9 +1161,7 @@ public class Node implements Closeable {
                 new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService())
             )
         );
-        if (HealthNode.isEnabled()) {
-            serverHealthIndicatorServices.add(new DiskHealthIndicatorService(clusterService));
-        }
+        serverHealthIndicatorServices.add(new DiskHealthIndicatorService(clusterService));
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())

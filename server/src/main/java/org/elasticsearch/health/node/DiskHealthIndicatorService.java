@@ -81,12 +81,12 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .filter(entry -> entry.getValue().contains(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
-        boolean hasAtLeastOneIndexReadOnlyAllowDeleteBlock = indicesWithBlock.isEmpty() == false;
+        boolean clusterHasBlockedIndex = indicesWithBlock.isEmpty() == false;
         HealthIndicatorDetails details = getDetails(explain, diskHealthInfoMap, clusterState);
         final HealthStatus healthStatusFromNodes = HealthStatus.merge(
             diskHealthInfoMap.values().stream().map(DiskHealthInfo::healthStatus)
         );
-        final HealthStatus healthStatus = hasAtLeastOneIndexReadOnlyAllowDeleteBlock ? HealthStatus.RED : healthStatusFromNodes;
+        final HealthStatus healthStatus = clusterHasBlockedIndex ? HealthStatus.RED : healthStatusFromNodes;
 
         final HealthIndicatorResult healthIndicatorResult;
         if (HealthStatus.GREEN.equals(healthStatus)) {
@@ -118,7 +118,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
              * there are no data nodes reporting YELLOW, we report problems with any master nodes reporting YELLOW. If there are no
              * master nodes reporting YELLOW, we report on the non-data non-master nodes that report YELLOW.
              */
-            if (hasAtLeastOneIndexReadOnlyAllowDeleteBlock) {
+            if (clusterHasBlockedIndex) {
                 /*
                  * If there is an index block, we report RED, and report on any indices that are on RED nodes, or on any indices that are
                  *  on YELLOW nodes if there are no RED nodes.
@@ -202,7 +202,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     private HealthIndicatorResult getResultForNonDataNodeProblem(
         Set<DiscoveryNodeRole> roles,
-        Set<String> problemNodes,
+        Set<String> unhealthyNodes,
         HealthIndicatorDetails details,
         HealthStatus status,
         ClusterState clusterState
@@ -211,20 +211,20 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         final List<HealthIndicatorImpact> impacts;
         final List<Diagnosis> diagnosisList;
         if (roles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
-            Set<DiscoveryNode> problemMasterNodes = clusterState.nodes()
+            Set<DiscoveryNode> unhealthyMasterNodes = clusterState.nodes()
                 .getNodes()
                 .values()
                 .stream()
-                .filter(node -> problemNodes.contains(node.getId()))
+                .filter(node -> unhealthyNodes.contains(node.getId()))
                 .filter(node -> node.getRoles().contains(DiscoveryNodeRole.MASTER_ROLE))
                 .collect(Collectors.toSet());
             symptom = String.format(
                 Locale.ROOT,
                 "%d node%s with role master %s out of disk space. As a result %s functions might be impaired.",
-                problemMasterNodes.size(),
-                problemMasterNodes.size() == 1 ? "" : "s",
-                problemMasterNodes.size() == 1 ? "is" : "are",
-                problemMasterNodes.size() == 1 ? "its" : "their"
+                unhealthyMasterNodes.size(),
+                unhealthyMasterNodes.size() == 1 ? "" : "s",
+                unhealthyMasterNodes.size() == 1 ? "is" : "are",
+                unhealthyMasterNodes.size() == 1 ? "its" : "their"
             );
             impacts = List.of(
                 new HealthIndicatorImpact(2, "Cluster stability might be impaired.", List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
@@ -237,18 +237,18 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
                         "https://ela.st/free-disk-space-or-add-capacity-master-nodes"
                     ),
-                    problemMasterNodes.stream().map(DiscoveryNode::getId).toList()
+                    unhealthyMasterNodes.stream().map(DiscoveryNode::getId).toList()
                 )
             );
         } else {
             symptom = String.format(
                 Locale.ROOT,
                 "%d node%s with roles [%s] %s out of disk space. As a result %s functions might be impaired.",
-                problemNodes.size(),
-                problemNodes.size() == 1 ? "" : "s",
+                unhealthyNodes.size(),
+                unhealthyNodes.size() == 1 ? "" : "s",
                 roles.stream().map(DiscoveryNodeRole::roleName).sorted().collect(Collectors.joining(", ")),
-                problemNodes.size() == 1 ? "is" : "are",
-                problemNodes.size() == 1 ? "its" : "their"
+                unhealthyNodes.size() == 1 ? "is" : "are",
+                unhealthyNodes.size() == 1 ? "its" : "their"
             );
             impacts = List.of(
                 new HealthIndicatorImpact(2, "Some cluster functionality might be unavailable.", List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
@@ -261,7 +261,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
                         "https://ela.st/free-disk-space-or-add-capacity-other-nodes"
                     ),
-                    problemNodes.stream().toList()
+                    unhealthyNodes.stream().toList()
                 )
             );
         }
@@ -335,17 +335,17 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     }
 
     public HealthIndicatorResult getResultForYellowDataNodes(
-        Set<String> problemNodes,
+        Set<String> unhealthyNodes,
         HealthIndicatorDetails details,
         HealthStatus status,
         ClusterState clusterState
     ) {
-        final Set<String> problemIndices = getIndicesForNodes(problemNodes, clusterState);
+        final Set<String> problemIndices = getIndicesForNodes(unhealthyNodes, clusterState);
         final String symptom = String.format(
             Locale.ROOT,
             "%d data node%s increased disk usage. As a result %d %s at risk of not being able to process any more " + "updates.",
-            problemNodes.size(),
-            problemNodes.size() == 1 ? " has" : "s have",
+            unhealthyNodes.size(),
+            unhealthyNodes.size() == 1 ? " has" : "s have",
             problemIndices.size(),
             problemIndices.size() == 1 ? "index is" : "indices are"
         );
@@ -371,7 +371,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         + "this. If you have already taken action please wait for the rebalancing to complete.",
                     "https://ela.st/free-disk-space-or-add-capacity-data-nodes"
                 ),
-                problemNodes.stream().toList()
+                unhealthyNodes.stream().toList()
             )
         );
         return createIndicator(status, symptom, details, impacts, diagnosisList);
@@ -419,11 +419,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             Set<String> nodeIdsInClusterState = nodesInClusterState.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             Set<String> nodeIdsInHealthInfo = diskHealthInfoMap.keySet();
             if (nodeIdsInHealthInfo.containsAll(nodeIdsInClusterState) == false) {
-                String problemNodes = nodesInClusterState.stream()
+                String nodesWithMissingData = nodesInClusterState.stream()
                     .filter(node -> nodeIdsInHealthInfo.contains(node.getId()) == false)
                     .map(node -> String.format(Locale.ROOT, "{%s / %s}", node.getId(), node.getName()))
                     .collect(Collectors.joining(", "));
-                logger.debug("The following nodes are in the cluster state but not reporting health data: [{}}]", problemNodes);
+                logger.debug("The following nodes are in the cluster state but not reporting health data: [{}}]", nodesWithMissingData);
             }
         }
     }

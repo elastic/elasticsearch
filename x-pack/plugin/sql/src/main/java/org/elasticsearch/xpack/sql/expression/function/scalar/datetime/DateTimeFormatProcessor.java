@@ -87,6 +87,12 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                 return DateTimeFormatter.ofPattern(javaPattern, Locale.ROOT)::format;
             }
         },
+        DATE_FORMAT {
+            @Override
+            protected Function<TemporalAccessor, String> formatterFor(String pattern) {
+                return DateFormatter.ofPattern(pattern);
+            }
+        },
         DATE_TIME_FORMAT {
             @Override
             protected Function<TemporalAccessor, String> formatterFor(String pattern) {

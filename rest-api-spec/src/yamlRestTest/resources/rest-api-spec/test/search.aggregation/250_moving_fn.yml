@@ -1,3 +1,4 @@
+# There are many more tests under modules/lang-painless/...moving_fn.yml so they can use painless
 ---
 "Bad window":
 
@@ -24,13 +25,13 @@
                   moving_fn:
                     buckets_path: "the_avg"
                     window: -1
-                    script: "MovingFunctions.windowMax(values)"
+                    script: "MovingFunctions.max(values)"
 
 ---
 "Not under date_histo":
 
   - do:
-      catch: /\[window\] must be a positive, non-zero integer\./
+      catch: /moving_fn aggregation \[the_mov_fn\] must have a histogram, date_histogram or auto_date_histogram as parent but doesn't have a parent/
       search:
         rest_total_hits_as_int: true
         body:
@@ -42,6 +43,5 @@
             the_mov_fn:
               moving_fn:
                 buckets_path: "the_avg"
-                window: -1
-                script: "MovingFunctions.windowMax(values)"
-
+                window: 1
+                script: "MovingFunctions.max(values)"

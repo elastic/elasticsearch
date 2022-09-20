@@ -228,7 +228,7 @@ numeric field can't be both a time series dimension and a time series metric.
     This parameter is required.
 
 [[numeric-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic `_source`
 All numeric fields except `unsigned_long` support <<synthetic-source,synthetic
 `_source`>> in their default configuration. Synthetic `_source` cannot be used
 together with <<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or

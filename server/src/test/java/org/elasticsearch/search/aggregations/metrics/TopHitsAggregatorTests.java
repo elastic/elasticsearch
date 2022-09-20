@@ -130,7 +130,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader for "testInsideTerms"
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
-        Aggregation result = searchAndReduce(indexSearcher, query, builder, STRING_FIELD_TYPE);
+        Aggregation result = searchAndReduce(new AggTestConfig(indexSearcher, query, builder, STRING_FIELD_TYPE));
         indexReader.close();
         directory.close();
         return result;
@@ -185,7 +185,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
             .build();
         AggregationBuilder agg = AggregationBuilders.topHits("top_hits");
-        TopHits result = searchAndReduce(searcher, query, agg, STRING_FIELD_TYPE);
+        TopHits result = searchAndReduce(new AggTestConfig(searcher, query, agg, STRING_FIELD_TYPE));
         assertEquals(3, result.getHits().getTotalHits().value);
         reader.close();
         directory.close();

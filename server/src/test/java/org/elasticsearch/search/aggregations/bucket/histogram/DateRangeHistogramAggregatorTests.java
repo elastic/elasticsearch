@@ -1084,7 +1084,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                InternalDateHistogram histogram = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldType));
                 verify.accept(histogram);
             }
         }

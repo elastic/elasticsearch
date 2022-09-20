@@ -145,12 +145,12 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
     }
 
     @Override
-    protected Optional<String> reservedStateHandlerName() {
+    public Optional<String> reservedStateHandlerName() {
         return Optional.of(ReservedSnapshotAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(DeleteSnapshotLifecycleAction.Request request) {
+    public Set<String> modifiedKeys(DeleteSnapshotLifecycleAction.Request request) {
         return Set.of(request.getLifecycleId());
     }
 }

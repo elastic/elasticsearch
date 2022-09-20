@@ -9,12 +9,8 @@ package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.List;
+import java.util.Map;
 import java.util.SortedSet;
 
-record ShardsAllocationResults(
-    long sizeInBytes,
-    SortedSet<ShardId> shardIds,
-    List<NodeDecision> canAllocateDecisions,
-    List<NodeDecision> canRemainDecisions
-) {}
+record ShardsAllocationResults(long sizeInBytes, SortedSet<ShardId> shardIds, Map<ShardId, NodeDecisions> shardNodeDecisions) {
+}

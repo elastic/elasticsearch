@@ -44,11 +44,19 @@ public class ReactiveReasonTests extends ESTestCase {
         SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         DiscoveryNode discoveryNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        List<NodeDecision> unassignedShardAllocationDecision = List.of(
-            new NodeDecision(discoveryNode, Decision.single(Decision.Type.NO, "no_label", "No space to allocate"))
+        Map<ShardId, NodeDecisions> unassignedShardAllocationDecision = Map.of(
+            new ShardId(indexName, indexUUID, randomInt(1000)),
+            new NodeDecisions(
+                List.of(new NodeDecision(discoveryNode, Decision.single(Decision.Type.NO, "no_label", "No space to allocate"))),
+                List.of()
+            )
         );
-        List<NodeDecision> assignedShardAllocateDecision = List.of(
-            new NodeDecision(discoveryNode, Decision.single(Decision.Type.YES, "yes_label", "There's enough space"))
+        Map<ShardId, NodeDecisions> assignedShardAllocateDecision = Map.of(
+            new ShardId(indexName, indexUUID, randomInt(1000)),
+            new NodeDecisions(
+                List.of(),
+                List.of(new NodeDecision(discoveryNode, Decision.single(Decision.Type.YES, "yes_label", "There's enough space")))
+            )
         );
         var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
             reason,
@@ -116,8 +124,8 @@ public class ReactiveReasonTests extends ESTestCase {
             Collections.emptySortedSet(),
             randomNonNegativeLong(),
             Collections.emptySortedSet(),
-            List.of(),
-            List.of()
+            Map.of(),
+            Map.of()
         );
         try (
             XContentParser parser = createParser(

@@ -14,10 +14,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
 import java.util.TreeSet;
 
 import static java.util.Collections.emptyMap;
@@ -101,7 +103,7 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassignedShardIds(),
                     instance.assigned(),
                     instance.assignedShardIds(),
-                    randomList(8, this::randomNodeDecision),
+                    randomShardNodeDecisions(),
                     instance.assignedNodeDecisions()
                 );
             case 7:
@@ -112,7 +114,7 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.assigned(),
                     instance.assignedShardIds(),
                     instance.unassignedNodeDecisions(),
-                    randomList(8, this::randomNodeDecision)
+                    randomShardNodeDecisions()
                 );
             default:
                 fail("unexpected");
@@ -128,12 +130,23 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
             new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
             randomNonNegativeLong(),
             new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
-            randomList(8, this::randomNodeDecision),
-            randomList(8, this::randomNodeDecision)
+            randomShardNodeDecisions(),
+            randomShardNodeDecisions()
         );
     }
 
-    private NodeDecision randomNodeDecision() {
+    private static Map<ShardId, NodeDecisions> randomShardNodeDecisions() {
+        return randomMap(
+            1,
+            5,
+            () -> Tuple.tuple(
+                new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)),
+                new NodeDecisions(randomList(8, () -> randomNodeDecision()), randomList(8, () -> randomNodeDecision()))
+            )
+        );
+    }
+
+    private static NodeDecision randomNodeDecision() {
         return new NodeDecision(
             new DiscoveryNode(randomAlphaOfLength(6), buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             randomFrom(

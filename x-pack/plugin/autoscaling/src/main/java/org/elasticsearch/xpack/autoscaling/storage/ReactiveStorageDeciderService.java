@@ -45,7 +45,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -61,7 +60,6 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -165,14 +163,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 unassignedBytesUnassignedShards.shardIds(),
                 assignedBytes,
                 assignedBytesUnmovableShards.shardIds(),
-                CollectionUtils.concatLists(
-                    unassignedBytesUnassignedShards.canAllocateDecisions(),
-                    unassignedBytesUnassignedShards.canRemainDecisions()
-                ),
-                CollectionUtils.concatLists(
-                    assignedBytesUnmovableShards.canRemainDecisions(),
-                    assignedBytesUnmovableShards.canAllocateDecisions()
-                )
+                unassignedBytesUnassignedShards.shardNodeDecisions(),
+                assignedBytesUnmovableShards.shardNodeDecisions()
             )
         );
     }
@@ -297,10 +289,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 unassignedShards.stream().map(e -> e.shard.shardId()).collect(Collectors.toCollection(TreeSet::new)),
                 unassignedShards.stream()
                     .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                    .min(Comparator.comparing(e -> e.shard.shardId()))
-                    .map(shardNodeDecisions -> shardNodeDecisions.nodeDecisions)
-                    .orElse(List.of()),
-                List.of()
+                    .collect(Collectors.toMap(snd -> snd.shard.shardId(), snd -> new NodeDecisions(snd.nodeDecisions, List.of())))
             );
         }
 
@@ -367,21 +356,25 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .toList();
             long unallocatableBytes = unallocatedShardNodeDecisions.stream().map(e -> e.shard).mapToLong(this::sizeOf).sum();
 
+            Map<ShardId, List<NodeDecision>> shardAllocateDecisions = Stream.concat(
+                unallocatedShardNodeDecisions.stream(),
+                otherNodesOnTierAllocationDecisions.stream()
+            )
+                .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
+                .collect(Collectors.toMap(snd -> snd.shard.shardId(), snd -> snd.nodeDecisions));
             return new ShardsAllocationResults(
                 unallocatableBytes + unmovableBytes,
                 Stream.concat(unmovableShardNodeDecisions.stream(), unallocatedShardNodeDecisions.stream())
                     .map(e -> e.shard.shardId())
                     .collect(Collectors.toCollection(TreeSet::new)),
-                Stream.concat(unallocatedShardNodeDecisions.stream(), otherNodesOnTierAllocationDecisions.stream())
-                    .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                    .min(Comparator.comparing(e -> e.shard.shardId()))
-                    .map(shardNodeDecisions -> shardNodeDecisions.nodeDecisions)
-                    .orElse(List.of()),
                 Stream.concat(unmovableShardNodeDecisions.stream(), canRemainDecisionsForUnallocatedShards.stream())
                     .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                    .min(Comparator.comparing(e -> e.shard.shardId()))
-                    .map(shardNodeDecisions -> shardNodeDecisions.nodeDecisions)
-                    .orElse(List.of())
+                    .collect(
+                        Collectors.toMap(
+                            snd -> snd.shard.shardId(),
+                            snd -> new NodeDecisions(shardAllocateDecisions.getOrDefault(snd.shard.shardId(), List.of()), snd.nodeDecisions)
+                        )
+                    )
             );
         }
 
@@ -896,7 +889,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
-        static final int MAX_AMOUNT_OF_DECISIONS = 512;
+        static final int MAX_AMOUNT_OF_DECISIONS = 5;
         private static final Version SHARD_IDS_OUTPUT_VERSION = Version.V_8_4_0;
         private static final Version UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = Version.V_8_5_0;
 
@@ -905,11 +898,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         private final long assigned;
         private final SortedSet<ShardId> unassignedShardIds;
         private final SortedSet<ShardId> assignedShardIds;
-        private final List<NodeDecision> unassignedNodeDecisions;
-        private final List<NodeDecision> assignedNodeDecisions;
+        private final Map<ShardId, NodeDecisions> unassignedNodeDecisions;
+        private final Map<ShardId, NodeDecisions> assignedNodeDecisions;
 
         public ReactiveReason(String reason, long unassigned, long assigned) {
-            this(reason, unassigned, Collections.emptySortedSet(), assigned, Collections.emptySortedSet(), List.of(), List.of());
+            this(reason, unassigned, Collections.emptySortedSet(), assigned, Collections.emptySortedSet(), Map.of(), Map.of());
         }
 
         ReactiveReason(
@@ -918,16 +911,16 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             SortedSet<ShardId> unassignedShardIds,
             long assigned,
             SortedSet<ShardId> assignedShardIds,
-            List<NodeDecision> unassignedNodeDecisions,
-            List<NodeDecision> assignedNodeDecisions
+            Map<ShardId, NodeDecisions> unassignedNodeDecisions,
+            Map<ShardId, NodeDecisions> assignedNodeDecisions
         ) {
             this.reason = reason;
             this.unassigned = unassigned;
             this.assigned = assigned;
             this.unassignedShardIds = unassignedShardIds;
             this.assignedShardIds = assignedShardIds;
-            this.unassignedNodeDecisions = Objects.requireNonNullElseGet(unassignedNodeDecisions, List::of);
-            this.assignedNodeDecisions = Objects.requireNonNullElseGet(assignedNodeDecisions, List::of);
+            this.unassignedNodeDecisions = Objects.requireNonNullElseGet(unassignedNodeDecisions, Map::of);
+            this.assignedNodeDecisions = Objects.requireNonNullElseGet(assignedNodeDecisions, Map::of);
         }
 
         public ReactiveReason(StreamInput in) throws IOException {
@@ -942,11 +935,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 assignedShardIds = Collections.emptySortedSet();
             }
             if (in.getVersion().onOrAfter(UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION)) {
-                unassignedNodeDecisions = in.readList(NodeDecision::new);
-                assignedNodeDecisions = in.readList(NodeDecision::new);
+                unassignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
+                assignedNodeDecisions = in.readMap(ShardId::new, NodeDecisions::new);
             } else {
-                unassignedNodeDecisions = List.of();
-                assignedNodeDecisions = List.of();
+                unassignedNodeDecisions = Map.of();
+                assignedNodeDecisions = Map.of();
             }
         }
 
@@ -971,11 +964,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return assignedShardIds;
         }
 
-        public List<NodeDecision> unassignedNodeDecisions() {
+        public Map<ShardId, NodeDecisions> unassignedNodeDecisions() {
             return unassignedNodeDecisions;
         }
 
-        public List<NodeDecision> assignedNodeDecisions() {
+        public Map<ShardId, NodeDecisions> assignedNodeDecisions() {
             return assignedNodeDecisions;
         }
 
@@ -994,8 +987,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 out.writeCollection(assignedShardIds);
             }
             if (out.getVersion().onOrAfter(UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION)) {
-                out.writeList(unassignedNodeDecisions);
-                out.writeList(assignedNodeDecisions);
+                out.writeMap(unassignedNodeDecisions);
+                out.writeMap(assignedNodeDecisions);
             }
         }
 
@@ -1009,8 +1002,20 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             builder.field("assigned", assigned);
             builder.field("assigned_shards", assignedShardIds.stream().limit(MAX_AMOUNT_OF_SHARDS).toList());
             builder.field("assigned_shards_count", assignedShardIds.size());
-            builder.xContentList("unassigned_node_decisions", unassignedNodeDecisions.stream().limit(MAX_AMOUNT_OF_DECISIONS).toList());
-            builder.xContentList("assigned_node_decisions", assignedNodeDecisions.stream().limit(MAX_AMOUNT_OF_DECISIONS).toList());
+            builder.xContentValuesMap(
+                "unassigned_node_decisions",
+                unassignedNodeDecisions.entrySet()
+                    .stream()
+                    .limit(MAX_AMOUNT_OF_DECISIONS)
+                    .collect(Collectors.toMap(e -> e.getKey().toString(), Map.Entry::getValue))
+            );
+            builder.xContentValuesMap(
+                "assigned_node_decisions",
+                assignedNodeDecisions.entrySet()
+                    .stream()
+                    .limit(MAX_AMOUNT_OF_DECISIONS)
+                    .collect(Collectors.toMap(e -> e.getKey().toString(), Map.Entry::getValue))
+            );
             builder.endObject();
             return builder;
         }

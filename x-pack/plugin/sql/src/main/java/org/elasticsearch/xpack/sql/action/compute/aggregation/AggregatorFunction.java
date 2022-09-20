@@ -22,11 +22,19 @@ public interface AggregatorFunction {
 
     Block evaluateFinal();
 
-    BiFunction<AggregatorMode, Integer, AggregatorFunction> avg = (AggregatorMode mode, Integer inputChannel) -> {
+    BiFunction<AggregatorMode, Integer, AggregatorFunction> doubleAvg = (AggregatorMode mode, Integer inputChannel) -> {
         if (mode.isInputPartial()) {
-            return AvgAggregator.createIntermediate();
+            return DoubleAvgAggregator.createIntermediate();
         } else {
-            return AvgAggregator.create(inputChannel);
+            return DoubleAvgAggregator.create(inputChannel);
+        }
+    };
+
+    BiFunction<AggregatorMode, Integer, AggregatorFunction> longAvg = (AggregatorMode mode, Integer inputChannel) -> {
+        if (mode.isInputPartial()) {
+            return LongAvgAggregator.createIntermediate();
+        } else {
+            return LongAvgAggregator.create(inputChannel);
         }
     };
 

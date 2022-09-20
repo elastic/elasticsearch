@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -80,14 +81,18 @@ public class LocalExecutionPlanner {
             Supplier<Operator> operatorFactory = null;
             for (Map.Entry<String, PlanNode.AggregationNode.AggType> e : aggregationNode.aggs.entrySet()) {
                 if (e.getValue()instanceof PlanNode.AggregationNode.AvgAggType avgAggType) {
+                    BiFunction<AggregatorMode, Integer, AggregatorFunction> aggregatorFunc = avgAggType
+                        .type() == PlanNode.AggregationNode.AvgAggType.Type.LONG
+                            ? AggregatorFunction.longAvg
+                            : AggregatorFunction.doubleAvg;
                     if (aggregationNode.mode == PlanNode.AggregationNode.Mode.PARTIAL) {
                         operatorFactory = () -> new AggregationOperator(
-                            List.of(new Aggregator(AggregatorFunction.avg, AggregatorMode.INITIAL, source.layout.get(avgAggType.field())))
+                            List.of(new Aggregator(aggregatorFunc, AggregatorMode.INITIAL, source.layout.get(avgAggType.field())))
                         );
                         layout.put(e.getKey(), 0);
                     } else {
                         operatorFactory = () -> new AggregationOperator(
-                            List.of(new Aggregator(AggregatorFunction.avg, AggregatorMode.FINAL, source.layout.get(e.getKey())))
+                            List.of(new Aggregator(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(e.getKey())))
                         );
                         layout.put(e.getKey(), 0);
                     }

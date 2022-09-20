@@ -255,6 +255,7 @@ public class ReservedClusterStateService {
     static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion) {
         return (existingMetadata == null
             || existingMetadata.errorMetadata() == null
+            || newStateVersion <= 0 // version will be -1 when we can't even parse the file, it might be 0 on snapshot restore
             || existingMetadata.errorMetadata().version() < newStateVersion);
     }
 

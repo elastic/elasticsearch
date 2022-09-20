@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -126,6 +127,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         RestStatus.TOO_MANY_REQUESTS,
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
+
+    // TODO: refactor this method after adding more downsampling metadata
+    public boolean isDownsampledIndex() {
+        final String sourceIndex = settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+        final String indexDownsamplingStatus = settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY);
+        final boolean downsamplingSuccess = DownsampleTaskStatus.SUCCESS.name()
+            .toLowerCase(Locale.ROOT)
+            .equals(indexDownsamplingStatus != null ? indexDownsamplingStatus.toLowerCase(Locale.ROOT) : DownsampleTaskStatus.UNKNOWN);
+        return Strings.isNullOrEmpty(sourceIndex) == false && downsamplingSuccess;
+    }
 
     public enum State implements Writeable {
         OPEN((byte) 0),
@@ -1121,22 +1132,22 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             : null;
     }
 
-    public static final String INDEX_ROLLUP_SOURCE_UUID_KEY = "index.rollup.source.uuid";
-    public static final String INDEX_ROLLUP_SOURCE_NAME_KEY = "index.rollup.source.name";
+    public static final String INDEX_DOWNSAMPLE_SOURCE_UUID_KEY = "index.downsample.source.uuid";
+    public static final String INDEX_DOWNSAMPLE_SOURCE_NAME_KEY = "index.downsample.source.name";
 
-    public static final String INDEX_ROLLUP_STATUS_KEY = "index.rollup.status";
-    public static final Setting<String> INDEX_ROLLUP_SOURCE_UUID = Setting.simpleString(
-        INDEX_ROLLUP_SOURCE_UUID_KEY,
+    public static final String INDEX_DOWNSAMPLE_STATUS_KEY = "index.downsample.status";
+    public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_UUID = Setting.simpleString(
+        INDEX_DOWNSAMPLE_SOURCE_UUID_KEY,
         Property.IndexScope,
         Property.PrivateIndex
     );
-    public static final Setting<String> INDEX_ROLLUP_SOURCE_NAME = Setting.simpleString(
-        INDEX_ROLLUP_SOURCE_NAME_KEY,
+    public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_NAME = Setting.simpleString(
+        INDEX_DOWNSAMPLE_SOURCE_NAME_KEY,
         Property.IndexScope,
         Property.PrivateIndex
     );
 
-    public enum RollupTaskStatus {
+    public enum DownsampleTaskStatus {
         UNKNOWN,
         STARTED,
         SUCCESS;
@@ -1147,10 +1158,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
     }
 
-    public static final Setting<RollupTaskStatus> INDEX_ROLLUP_STATUS = Setting.enumSetting(
-        RollupTaskStatus.class,
-        INDEX_ROLLUP_STATUS_KEY,
-        RollupTaskStatus.UNKNOWN,
+    public static final Setting<DownsampleTaskStatus> INDEX_DOWNSAMPLE_STATUS = Setting.enumSetting(
+        DownsampleTaskStatus.class,
+        INDEX_DOWNSAMPLE_STATUS_KEY,
+        DownsampleTaskStatus.UNKNOWN,
         Property.IndexScope,
         Property.InternalIndex
     );
@@ -1984,9 +1995,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             final String indexMode = settings.get(IndexSettings.MODE.getKey());
-            final boolean isTsdb = IndexSettings.isTimeSeriesModeEnabled()
-                && indexMode != null
-                && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
+            final boolean isTsdb = indexMode != null && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,

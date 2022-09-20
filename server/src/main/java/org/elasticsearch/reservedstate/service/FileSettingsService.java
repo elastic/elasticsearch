@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.env.Environment;
@@ -27,6 +29,8 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
@@ -47,7 +51,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
     private static final String SETTINGS_FILE_NAME = "settings.json";
-    static final String NAMESPACE = "file_settings";
+    public static final String NAMESPACE = "file_settings";
 
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
@@ -55,9 +59,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     private WatchService watchService; // null;
     private CountDownLatch watcherThreadLatch;
+    private volatile CountDownLatch processingLatch;
 
     private volatile FileUpdateState fileUpdateState = null;
     private volatile WatchKey settingsDirWatchKey = null;
+    private volatile WatchKey configDirWatchKey = null;
 
     private volatile boolean active = false;
     private volatile boolean initialState = true;
@@ -77,13 +83,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
     }
 
-    // package private for testing
-    Path operatorSettingsDir() {
+    public Path operatorSettingsDir() {
         return operatorSettingsDir;
     }
 
-    // package private for testing
-    Path operatorSettingsFile() {
+    public Path operatorSettingsFile() {
         return operatorSettingsDir().resolve(SETTINGS_FILE_NAME);
     }
 
@@ -133,26 +137,89 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     }
 
     private void startIfMaster(ClusterState clusterState) {
-        setWatching(currentNodeMaster(clusterState), initialState);
-        initialState = false;
-    }
-
-    private void setWatching(boolean watching, boolean initialState) {
-        if (watching) {
-            startWatcher(initialState);
+        if (currentNodeMaster(clusterState)) {
+            startWatcher(clusterState, initialState);
         } else {
             stopWatcher();
         }
+        initialState = false;
     }
 
-    // package private for testing
-    boolean watching() {
+    /**
+     * Used by snapshot restore service {@link org.elasticsearch.snapshots.RestoreService} to prepare the reserved
+     * state of the snapshot for the current cluster.
+     * <p>
+     * If the current cluster where we are restoring the snapshot into has any operator file based settings, we'll
+     * reset the reserved state version to 0.
+     * <p>
+     * If there's no file based settings file in this cluster, we'll remove all state reservations for
+     * file based settings from the cluster state.
+     * @param clusterState the cluster state before snapshot restore
+     * @param mdBuilder the current metadata builder for the new cluster state
+     */
+    public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder) {
+        assert currentNodeMaster(clusterState);
+
+        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
+
+        // When we restore from a snapshot we remove the reserved cluster state for file settings,
+        // since we don't know the current operator configuration, e.g. file settings could be disabled
+        // on the target cluster. If file settings exist and the cluster state has lost it's reserved
+        // state for the "file_settings" namespace, we touch our file settings file to cause it to re-process the file.
+        if (watching() && Files.exists(operatorSettingsFile())) {
+            if (fileSettingsMetadata != null) {
+                ReservedStateMetadata withResetVersion = new ReservedStateMetadata.Builder(fileSettingsMetadata).version(0L).build();
+                mdBuilder.put(withResetVersion);
+            }
+        } else if (fileSettingsMetadata != null) {
+            mdBuilder.removeReservedState(fileSettingsMetadata);
+        }
+    }
+
+    /**
+     * 'Touches' the settings file so the file watcher will re-processes it.
+     * <p>
+     * The file processing is asynchronous, the cluster state or the file must be already updated such that
+     * the version information in the file is newer than what's already saved as processed in the
+     * cluster state.
+     *
+     * For snapshot restores we first must restore the snapshot and then force a refresh, since the cluster state
+     * metadata version must be reset to 0 and saved in the cluster state.
+     */
+    private void refreshExistingFileStateIfNeeded(ClusterState clusterState) {
+        if (watching()) {
+            ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
+            // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
+            // like snapshot restores.
+            if (fileSettingsMetadata != null && fileSettingsMetadata.version() == 0L && Files.exists(operatorSettingsFile())) {
+                try {
+                    Files.setLastModifiedTime(operatorSettingsFile(), FileTime.from(Instant.now()));
+                } catch (IOException e) {
+                    logger.warn("encountered I/O error trying to update file settings timestamp", e);
+                }
+            }
+        }
+    }
+
+    public boolean watching() {
         return this.watchService != null;
     }
 
-    synchronized void startWatcher(boolean onStartup) {
+    private void cleanupWatchKeys() {
+        if (settingsDirWatchKey != null) {
+            settingsDirWatchKey.cancel();
+            settingsDirWatchKey = null;
+        }
+        if (configDirWatchKey != null) {
+            configDirWatchKey.cancel();
+            configDirWatchKey = null;
+        }
+    }
+
+    synchronized void startWatcher(ClusterState clusterState, boolean onStartup) {
         if (watching() || active == false) {
-            // already watching or inactive, nothing to do
+            refreshExistingFileStateIfNeeded(clusterState);
+
             return;
         }
 
@@ -188,10 +255,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             // We watch the config directory always, even if initially we had an operator directory
             // it can be deleted and created later. The config directory never goes away, we only
             // register it once for watching.
-            enableSettingsWatcher(null, operatorSettingsDir().getParent());
+            configDirWatchKey = enableSettingsWatcher(configDirWatchKey, operatorSettingsDir().getParent());
         } catch (Exception e) {
             if (watchService != null) {
                 try {
+                    cleanupWatchKeys();
                     this.watchService.close();
                 } catch (Exception ignore) {} finally {
                     this.watchService = null;
@@ -241,7 +309,15 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                             settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDir);
 
                             if (watchedFileChanged(path)) {
-                                processFileSettings(path, (e) -> logger.error("Error processing operator settings json file", e)).await();
+                                processingLatch = processFileSettings(
+                                    path,
+                                    (e) -> logger.error("Error processing operator settings json file", e)
+                                );
+                                // After we get and set the processing latch, we need to check if stop wasn't
+                                // invoked in the meantime. Stop will invalidate all watch keys.
+                                if (configDirWatchKey != null) {
+                                    processingLatch.await();
+                                }
                             }
                         } catch (IOException e) {
                             logger.warn("encountered I/O error while watching file settings", e);
@@ -265,12 +341,12 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         logger.debug("stopping watcher ...");
         if (watching()) {
             try {
-                if (settingsDirWatchKey != null) {
-                    settingsDirWatchKey.cancel();
-                    settingsDirWatchKey = null;
-                }
+                cleanupWatchKeys();
                 fileUpdateState = null;
                 watchService.close();
+                if (processingLatch != null) {
+                    processingLatch.countDown();
+                }
                 if (watcherThreadLatch != null) {
                     watcherThreadLatch.await();
                 }

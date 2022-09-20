@@ -104,8 +104,8 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
 
     public void testAllocatedProcessors() throws Exception {
         List<String> nodesIds = internalCluster().startNodes(
-            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 3).build(),
-            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 6).build()
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 2.9).build(),
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 5.9).build()
         );
 
         final String node_1 = nodesIds.get(0);
@@ -134,6 +134,8 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         );
 
         assertThat(response.getNodesMap().get(server1NodeId).getInfo(OsInfo.class).getAllocatedProcessors(), equalTo(3));
+        assertThat(response.getNodesMap().get(server1NodeId).getInfo(OsInfo.class).getFractionalAllocatedProcessors(), equalTo(2.9));
         assertThat(response.getNodesMap().get(server2NodeId).getInfo(OsInfo.class).getAllocatedProcessors(), equalTo(6));
+        assertThat(response.getNodesMap().get(server2NodeId).getInfo(OsInfo.class).getFractionalAllocatedProcessors(), equalTo(5.9));
     }
 }

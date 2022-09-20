@@ -25,6 +25,7 @@ import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -38,6 +39,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -134,10 +136,18 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             assertThat(recentMasterMap.get("name"), not(emptyOrNullString()));
             assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
         }
-        Map<String, String> clusterFormationMap = (Map<String, String>) detailsMap.get("cluster_formation");
-        assertThat(clusterFormationMap.size(), equalTo(2));
-        assertThat(clusterFormationMap.get(node1.getId()), equalTo(node1ClusterFormation));
-        assertThat(clusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));
+        List<Map<String, String>> clusterFormations = (List<Map<String, String>>) detailsMap.get("cluster_formation");
+        assertThat(clusterFormations.size(), equalTo(2));
+        Map<String, String> nodeIdToClusterFormationMap = new HashMap<>();
+        Map<String, String> nodeIdToNodeNameMap = new HashMap<>();
+        for (Map<String, String> clusterFormationMap : clusterFormations) {
+            nodeIdToClusterFormationMap.put(clusterFormationMap.get("node_id"), clusterFormationMap.get("cluster_formation_message"));
+            nodeIdToNodeNameMap.put(clusterFormationMap.get("node_id"), clusterFormationMap.get("name"));
+        }
+        assertThat(nodeIdToClusterFormationMap.get(node1.getId()), equalTo(node1ClusterFormation));
+        assertThat(nodeIdToClusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));
+        assertThat(nodeIdToNodeNameMap.get(node1.getId()), equalTo(node1.getName()));
+        assertThat(nodeIdToNodeNameMap.get(node2.getId()), equalTo(node2.getName()));
         List<Diagnosis> diagnosis = result.diagnosisList();
         assertThat(diagnosis.size(), equalTo(1));
         assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT_USER_ACTION));
@@ -236,7 +246,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
         // Change 4:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node3MasterClusterState));
-        HealthIndicatorResult result = service.calculate(true);
+        HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.symptom(), equalTo("The elected master node has changed 4 times in the last 30m"));
         assertThat(result.impacts().size(), equalTo(3));
@@ -254,14 +264,16 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
     }
 
-    private static ClusterState createClusterState(DiscoveryNode masterNode) {
+    private ClusterState createClusterState(DiscoveryNode masterNode) {
         var routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         if (masterNode != null) {
             nodesBuilder.masterNodeId(masterNode.getId());
-            nodesBuilder.add(masterNode);
         }
+        nodesBuilder.add(node1);
+        nodesBuilder.add(node2);
+        nodesBuilder.add(node3);
         return ClusterState.builder(new ClusterName("test-cluster"))
             .routingTable(routingTableBuilder.build())
             .metadata(metadataBuilder.build())
@@ -304,7 +316,8 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
         TransportService transportService = mock(TransportService.class);
         return new StableMasterHealthIndicatorService(
-            new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService)
+            new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService),
+            clusterService
         );
     }
 

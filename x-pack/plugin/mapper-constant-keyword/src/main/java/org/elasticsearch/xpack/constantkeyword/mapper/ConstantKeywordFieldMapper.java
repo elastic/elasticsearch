@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -17,9 +18,9 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -309,15 +311,25 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return (reader, docIdsInLeaf) -> new SourceLoader.SyntheticFieldLoader.Leaf() {
+        String value = fieldType().value();
+        ;
+        if (value == null) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        return new SourceLoader.SyntheticFieldLoader() {
             @Override
-            public boolean empty() {
-                return fieldType().value == null;
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                return Stream.of();
             }
 
             @Override
-            public boolean advanceToDoc(int docId) throws IOException {
-                return fieldType().value != null;
+            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
+                return docId -> true;
+            }
+
+            @Override
+            public boolean hasValue() {
+                return true;
             }
 
             @Override

@@ -238,7 +238,8 @@ public class EncryptedRepository extends BlobStoreRepository {
                 finalizeSnapshotContext.clusterMetadata(),
                 updatedSnapshotInfo,
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                finalizeSnapshotContext
+                finalizeSnapshotContext,
+                finalizeSnapshotContext::onDone
             )
         );
     }

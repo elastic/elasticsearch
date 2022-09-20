@@ -63,7 +63,7 @@ public class CleanupTargetIndexStepTests extends AbstractStepTestCase<CleanupTar
 
         switch (between(0, 3)) {
             case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
             case 2 -> sourceIndexNameSupplier = (indexMetadata) -> randomAlphaOfLengthBetween(11, 15) + indexMetadata.getIndex().getName();
             case 3 -> targetIndexNameSupplier = (indexMetadata) -> randomAlphaOfLengthBetween(11, 15) + indexMetadata.getIndex().getName();
             default -> throw new AssertionError("Illegal randomisation branch");

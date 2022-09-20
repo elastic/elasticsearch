@@ -317,7 +317,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         shard = shard.initialize("test_node", null, -1);
         assertThat(shard.state(), equalTo(ShardRoutingState.INITIALIZING));
         assertThat(shard.unassignedInfo(), notNullValue());
-        shard = shard.moveToStarted();
+        shard = shard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
         assertThat(shard.unassignedInfo(), nullValue());
     }

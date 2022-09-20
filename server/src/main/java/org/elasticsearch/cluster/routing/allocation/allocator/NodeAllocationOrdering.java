@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -26,7 +27,7 @@ public class NodeAllocationOrdering {
         recentAllocations.put(nodeId, order.incrementAndGet());
     }
 
-    public List<String> sort(Set<String> nodeIds) {
+    public List<String> sort(Collection<String> nodeIds) {
         var list = new ArrayList<>(nodeIds);
         list.sort(comparator);
         return list;

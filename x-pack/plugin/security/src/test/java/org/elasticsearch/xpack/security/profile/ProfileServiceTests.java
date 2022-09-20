@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -24,6 +25,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -53,6 +55,8 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -99,6 +103,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -1012,6 +1017,53 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(getException.getSuppressed(), arrayContaining(versionConflictEngineException));
         verify(service, times(1)).shouldSkipUpdateForActivate(any(), any());
         verify(service).doUpdate(any(), anyActionListener());
+    }
+
+    public void testUsageStats() {
+        final List<String> metricNames = List.of("total", "enabled", "recent");
+
+        final String erroredMetric;
+        if (randomBoolean()) {
+            erroredMetric = randomFrom(metricNames);
+        } else {
+            erroredMetric = null;
+        }
+
+        final Map<String, Long> metrics = metricNames.stream()
+            .collect(Collectors.toUnmodifiableMap(Function.identity(), n -> n.equals(erroredMetric) ? 0L : randomNonNegativeLong()));
+
+        final MultiSearchResponse.Item[] items = metricNames.stream().map(name -> {
+            if (name.equals(erroredMetric)) {
+                return new MultiSearchResponse.Item(null, new RuntimeException());
+            } else {
+                final var searchResponse = mock(SearchResponse.class);
+                when(searchResponse.getHits()).thenReturn(
+                    new SearchHits(new SearchHit[0], new TotalHits(metrics.get(name), TotalHits.Relation.EQUAL_TO), 1)
+                );
+                return new MultiSearchResponse.Item(searchResponse, null);
+            }
+        }).toArray(MultiSearchResponse.Item[]::new);
+
+        final MultiSearchResponse multiSearchResponse = new MultiSearchResponse(items, randomNonNegativeLong());
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+            listener.onResponse(multiSearchResponse);
+            return null;
+        }).when(client).execute(eq(MultiSearchAction.INSTANCE), any(MultiSearchRequest.class), anyActionListener());
+
+        when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client, MultiSearchAction.INSTANCE));
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        profileService.usageStats(future);
+        assertThat(future.actionGet(), equalTo(metrics));
+    }
+
+    public void testUsageStatsWhenNoIndex() {
+        when(profileIndex.indexExists()).thenReturn(false);
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        profileService.usageStats(future);
+        assertThat(future.actionGet(), equalTo(Map.of("total", 0L, "enabled", 0L, "recent", 0L)));
     }
 
     record SampleDocumentParameter(String uid, String username, List<String> roles, long lastSynchronized) {}

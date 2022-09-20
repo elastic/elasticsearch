@@ -46,7 +46,6 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
 
     @Override
     public ActionRequestValidationException validate() {
-        // TODO: make sure all provided node IDs are in the cluster
         return null;
     }
 

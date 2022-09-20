@@ -74,7 +74,7 @@ downsides of omitting fields from `_source`.
 {es} shards are composed of segments, which are internal storage elements in the
 index. For approximate kNN search, {es} stores the dense vector values of each
 segment as an HNSW graph. <<indices-forcemerge,Force merging>> the index to a
-single segment can improve approximate kNN search latency. wWhen there are
+single segment can improve approximate kNN search latency. When there are
 multiple segments, kNN search must check several smaller HNSW graphs as it
 searches each segment after another. But with only one segment, the search
 only checks a single, all-inclusive HNSW graph.

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.analytics.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.stats.AnalyticsStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
-import org.elasticsearch.action.admin.cluster.stats.AnalyticsStatsAction;
 
 public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final Client client;

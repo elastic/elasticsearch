@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.analytics;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.stats.AnalyticsStatsAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.action.admin.cluster.stats.AnalyticsStatsAction;
 
 import java.io.IOException;
 import java.util.Objects;

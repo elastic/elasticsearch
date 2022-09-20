@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.analytics.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.stats.AnalyticsStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -21,7 +22,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
-import org.elasticsearch.action.admin.cluster.stats.AnalyticsStatsAction;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 

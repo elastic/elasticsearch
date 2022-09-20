@@ -135,18 +135,15 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         }
 
         logger.info("--> bumping replicas to 1"); //
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(
-                        "index.routing.allocation.include._name",  // now allow allocation on all nodes
-                        primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName()
-                    )
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(
+                    "index.routing.allocation.include._name",  // now allow allocation on all nodes
+                    primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName()
+                ),
+            "test"
+        );
 
         latch.await();
 

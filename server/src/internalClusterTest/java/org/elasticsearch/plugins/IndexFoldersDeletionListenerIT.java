@@ -165,12 +165,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         }
 
         final List<String> excludedNodes = randomSubsetOf(2, shardsByNodes.keySet());
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", excludedNodes)).build())
-        );
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", excludedNodes)), indexName);
         ensureGreen(indexName);
 
         assertBusy(() -> {
@@ -339,15 +334,11 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         final IndexFoldersDeletionListenerPlugin plugin = plugin(dataNode);
         assertTrue("Expecting no shards deleted on node " + dataNode, plugin.deletedShards.isEmpty());
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.ALL)
-                        .put("index.routing.allocation.require._name", dataNode)
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.ALL)
+                .put("index.routing.allocation.require._name", dataNode),
+            indexName
         );
         ensureGreen(indexName);
 

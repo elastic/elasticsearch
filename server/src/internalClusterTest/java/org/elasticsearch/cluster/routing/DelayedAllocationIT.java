@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -91,14 +90,9 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         ensureGreen("test");
         internalCluster().startNode();
         // do a second round with longer delay to make sure it happens
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
-                )
-                .get()
+        updateIndexSettings(
+            Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100)),
+            "test"
         );
         internalCluster().stopNode(findNodeWithShard());
         ensureGreen("test");
@@ -127,14 +121,9 @@ public class DelayedAllocationIT extends ESIntegTestCase {
             )
         );
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
-                )
-                .get()
+        updateIndexSettings(
+            Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100)),
+            "test"
         );
         ensureGreen("test");
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
@@ -163,14 +152,9 @@ public class DelayedAllocationIT extends ESIntegTestCase {
             )
         );
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(0))
-                )
-                .get()
+        updateIndexSettings(
+            Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(0)),
+            "test"
         );
         ensureGreen("test");
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));

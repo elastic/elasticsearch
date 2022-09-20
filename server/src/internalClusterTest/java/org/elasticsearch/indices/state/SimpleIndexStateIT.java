@@ -102,11 +102,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.NONE));
 
         logger.info("--> updating test index settings to allow allocation");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put("index.routing.allocation.include.tag", "").build())
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include.tag", ""), "test");
 
         client().admin().indices().prepareOpen("test").get();
 

@@ -239,12 +239,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
             assertThat(response.getIndices().get("index-3").getStatus(), equalTo(ClusterHealthStatus.YELLOW));
         }
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("index-3")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas()).build())
-        );
+        setReplicaCount(numberOfReplicas(), "index-3");
         {
             ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));

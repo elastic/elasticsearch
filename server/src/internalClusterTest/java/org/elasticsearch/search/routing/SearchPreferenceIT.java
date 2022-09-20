@@ -240,27 +240,18 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test2")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, replicasInNewIndex - 1))
-        );
+        setReplicaCount(replicasInNewIndex - 1, "test2");
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test2")
-                .setSettings(
-                    Settings.builder()
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(
-                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
-                            internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey())
-                        )
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(
+                    IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
+                    internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey())
+                ),
+            "test2"
         );
 
         ensureGreen();

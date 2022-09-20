@@ -86,9 +86,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareRefresh("index").get().getSuccessfulShards(), equalTo(2));
 
         final String excludeSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey();
-        assertAcked(
-            client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder().put(excludeSetting, nodeNames.get(0)))
-        );
+        updateIndexSettings(Settings.builder().put(excludeSetting, nodeNames.get(0)), "index");
         assertAcked(client().admin().cluster().prepareReroute().add(new CancelAllocationCommand("index", 0, nodeNames.get(0), true)));
         assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(1));
 
@@ -105,7 +103,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         internalCluster().stopNode(nodeNames.get(1));
         assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
-        assertAcked(client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder().putNull(excludeSetting)));
+        updateIndexSettings(Settings.builder().putNull(excludeSetting), "index");
         assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(2));
 
         assertAcked(

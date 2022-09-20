@@ -44,11 +44,10 @@ public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
         final String mergeNode = discoveryNodes[0].getName();
         ensureGreen();
         // relocate all shards to one node such that we can merge it.
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("bigindex")
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true),
+            "bigindex"
+        );
 
         // wait for green and then shrink
         ensureGreen();

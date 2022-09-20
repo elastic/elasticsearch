@@ -98,26 +98,23 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                     : Sets.newSet(Math.floorDiv(partitionSize, factor), -Math.floorDiv(-partitionSize, factor))
             );
 
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(index)
-                .setSettings(
-                    Settings.builder()
-                        .put(
-                            "index.routing.allocation.require._name",
-                            client().admin()
-                                .cluster()
-                                .prepareState()
-                                .get()
-                                .getState()
-                                .nodes()
-                                .getDataNodes()
-                                .values()
-                                .toArray(DiscoveryNode[]::new)[0].getName()
-                        )
-                        .put("index.blocks.write", true)
-                )
-                .get();
+            updateIndexSettings(
+                Settings.builder()
+                    .put(
+                        "index.routing.allocation.require._name",
+                        client().admin()
+                            .cluster()
+                            .prepareState()
+                            .get()
+                            .getState()
+                            .nodes()
+                            .getDataNodes()
+                            .values()
+                            .toArray(DiscoveryNode[]::new)[0].getName()
+                    )
+                    .put("index.blocks.write", true),
+                index
+            );
             ensureGreen();
 
             currentShards = Math.floorDiv(currentShards, 2);

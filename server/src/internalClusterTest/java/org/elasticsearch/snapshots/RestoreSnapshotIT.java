@@ -832,7 +832,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
             if (initialSettings.isEmpty() == false) {
                 logger.info("--> apply initial blocks to index");
-                client().admin().indices().prepareUpdateSettings("test-idx").setSettings(initialSettingsBuilder).get();
+                updateIndexSettings(initialSettingsBuilder, "test-idx");
             }
 
             createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));

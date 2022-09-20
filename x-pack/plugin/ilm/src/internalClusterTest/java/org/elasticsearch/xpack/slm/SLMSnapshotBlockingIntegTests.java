@@ -314,11 +314,10 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         // make sure the SLM history data stream is green and won't not be green for long because of delayed allocation when data nodes
         // are stopped
         ensureGreen(SLM_HISTORY_DATA_STREAM);
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(SLM_HISTORY_DATA_STREAM)
-            .setSettings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0),
+            SLM_HISTORY_DATA_STREAM
+        );
         testUnsuccessfulSnapshotRetention(randomBoolean());
     }
 

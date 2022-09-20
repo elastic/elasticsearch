@@ -374,12 +374,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         }
 
         logger.debug("--> allowing index to be assigned to node [{}]", node4);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", "NONE"))
-        );
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", "NONE"), "test");
 
         assertAcked(
             client().admin()

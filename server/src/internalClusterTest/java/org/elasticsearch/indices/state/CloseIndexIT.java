@@ -524,11 +524,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         );
         assertAcked(client().admin().indices().prepareClose(indexName));
         // move single shard to second node
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put("index.routing.allocation.include._name", dataNodes.get(1)))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", dataNodes.get(1)), indexName);
         ensureGreen(indexName);
         internalCluster().fullRestart();
         ensureGreen(indexName);
@@ -592,12 +588,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
         ensureGreen(indexName);
         if (randomBoolean()) {
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            );
+            setReplicaCount(1, indexName);
             internalCluster().ensureAtLeastNumDataNodes(2);
             ensureGreen(indexName);
         }

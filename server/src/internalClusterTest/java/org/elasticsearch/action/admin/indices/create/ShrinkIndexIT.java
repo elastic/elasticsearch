@@ -92,11 +92,10 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         // to the require._name below.
         ensureGreen();
         // relocate all shards to one node such that we can merge it.
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("source")
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true),
+            "source"
+        );
         ensureGreen();
         // now merge source into a 4 shard index
         assertAcked(
@@ -126,11 +125,10 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
 
         // relocate all shards to one node such that we can merge it.
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("first_shrink")
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true),
+            "first_shrink"
+        );
         ensureGreen();
         // now merge source into a 2 shard index
         assertAcked(
@@ -150,11 +148,10 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         ensureGreen();
         assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
         // let it be allocated anywhere and bump replicas
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("second_shrink")
-            .setSettings(Settings.builder().putNull("index.routing.allocation.include._id").put("index.number_of_replicas", 1))
-            .get();
+        updateIndexSettings(
+            Settings.builder().putNull("index.routing.allocation.include._id").put("index.number_of_replicas", 1),
+            "second_shrink"
+        );
         ensureGreen();
         assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
 
@@ -217,10 +214,10 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         }
 
         // relocate all shards to one node such that we can merge it.
-        final Settings.Builder prepareShrinkSettings = Settings.builder()
-            .put("index.routing.allocation.require._name", mergeNode)
-            .put("index.blocks.write", true);
-        client().admin().indices().prepareUpdateSettings("source").setSettings(prepareShrinkSettings).get();
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true),
+            "source"
+        );
         ensureGreen(TimeValue.timeValueSeconds(120)); // needs more than the default to relocate many shards
 
         final IndexMetadata indexMetadata = indexMetadata(client(), "source");
@@ -264,15 +261,10 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         // to the require._name below.
         ensureGreen();
         // relocate all shards to one node such that we can merge it.
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("source")
-            .setSettings(
-                Settings.builder()
-                    .put("index.routing.allocation.require._name", discoveryNodes[0].getName())
-                    .put("index.blocks.write", true)
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.require._name", discoveryNodes[0].getName()).put("index.blocks.write", true),
+            "source"
+        );
         ensureGreen();
 
         final IndicesStatsResponse sourceStats = client().admin().indices().prepareStats("source").setSegments(true).get();
@@ -341,11 +333,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
         if (createWithReplicas == false) {
             // bump replicas
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("target")
-                .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                .get();
+            setReplicaCount(1, "target");
             ensureGreen();
             assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
         }
@@ -390,11 +378,10 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         // to the require._name below.
         ensureGreen();
         // relocate all shards to one node such that we can merge it.
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("source")
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true),
+            "source"
+        );
         ensureGreen();
 
         // now merge source into a single shard index
@@ -413,18 +400,14 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth("target").setWaitForEvents(Priority.LANGUID).get();
 
         // now we move all shards away from the merge node
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("source")
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", spareNode).put("index.blocks.write", true))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.require._name", spareNode).put("index.blocks.write", true),
+            "source"
+        );
         ensureGreen("source");
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("target") // erase the forcefully fuckup!
-            .setSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"))
-            .get();
+        // erase the forced failure
+        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"), "target");
         // wait until it fails
         assertBusy(() -> {
             ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
@@ -436,11 +419,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             );
             assertEquals(1, routingTables.index("target").shard(0).shard(0).unassignedInfo().getNumFailedAllocations());
         });
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("source") // now relocate them all to the right node
-            .setSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode))
-            .get();
+        // now relocate them all to the right node
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", mergeNode), "source");
         ensureGreen("source");
 
         refreshClusterInfo();

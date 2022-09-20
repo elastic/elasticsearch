@@ -10,7 +10,6 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -215,12 +214,10 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         final int length = randomIntBetween(1, 8);
         for (int i = 0; i < length; i++) {
             // update the index for retention leases to live a long time
-            final AcknowledgedResponse longTtlResponse = client().admin()
-                .indices()
-                .prepareUpdateSettings("index")
-                .setSettings(Settings.builder().putNull(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey()).build())
-                .get();
-            assertTrue(longTtlResponse.isAcknowledged());
+            updateIndexSettings(
+                Settings.builder().putNull(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey()),
+                "index"
+            );
 
             final String id = randomAlphaOfLength(8);
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
@@ -244,17 +241,10 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             }
 
             // update the index for retention leases to short a long time, to force expiration
-            final AcknowledgedResponse shortTtlResponse = client().admin()
-                .indices()
-                .prepareUpdateSettings("index")
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), retentionLeaseTimeToLive)
-                        .build()
-                )
-                .get();
-            assertTrue(shortTtlResponse.isAcknowledged());
-
+            updateIndexSettings(
+                Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), retentionLeaseTimeToLive),
+                "index"
+            );
             // sleep long enough that the current retention lease has expired
             final long later = System.nanoTime();
             Thread.sleep(Math.max(0, retentionLeaseTimeToLive.millis() - TimeUnit.NANOSECONDS.toMillis(later - now)));
@@ -350,12 +340,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         // when we increase the number of replicas below we want to exclude the replicas from being allocated so that they do not recover
         assertAcked(prepareCreate("index", 1, settings));
         ensureYellow("index");
-        final AcknowledgedResponse response = client().admin()
-            .indices()
-            .prepareUpdateSettings("index")
-            .setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas).build())
-            .get();
-        assertTrue(response.isAcknowledged());
+        setReplicaCount(numberOfReplicas, "index");
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
         final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();
         final IndexShard primary = internalCluster().getInstance(IndicesService.class, primaryShardNodeName)
@@ -507,12 +492,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         latch.await();
 
         final String block = randomFrom("read_only", "read_only_allow_delete", "read", "write", "metadata");
-
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index")
-            .setSettings(Settings.builder().put("index.blocks." + block, true).build())
-            .get();
+        updateIndexSettings(Settings.builder().put("index.blocks." + block, true), "index");
 
         try {
             final CountDownLatch actionLatch = new CountDownLatch(1);
@@ -536,11 +516,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             assertTrue(success.get());
             afterSync.accept(primary);
         } finally {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("index")
-                .setSettings(Settings.builder().putNull("index.blocks." + block).build())
-                .get();
+            updateIndexSettings(Settings.builder().putNull("index.blocks." + block), "index");
         }
     }
 
@@ -622,12 +598,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         latch.await();
 
         final String waitForActiveValue = randomBoolean() ? "all" : Integer.toString(numDataNodes + 1);
-
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index")
-            .setSettings(Settings.builder().put("index.write.wait_for_active_shards", waitForActiveValue).build())
-            .get();
+        updateIndexSettings(Settings.builder().put("index.write.wait_for_active_shards", waitForActiveValue), "index");
 
         final CountDownLatch actionLatch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean();

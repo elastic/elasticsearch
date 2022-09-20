@@ -66,15 +66,11 @@ public class TaskRecoveryIT extends ESIntegTestCase {
             String nodeWithReplica = internalCluster().startDataOnlyNode();
 
             // Create an index so that there is something to recover
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica)
-                    )
+            updateIndexSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica),
+                indexName
             );
             // Translog recovery is stalled, so we can inspect the running tasks.
             assertBusy(() -> {

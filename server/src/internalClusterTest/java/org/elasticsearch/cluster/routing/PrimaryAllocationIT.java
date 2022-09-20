@@ -600,14 +600,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 .get()
         );
         logger.info("--> update the settings to prevent allocation to the data node");
-        assertTrue(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node))
-                .get()
-                .isAcknowledged()
-        );
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node), indexName);
         logger.info("--> full cluster restart");
         internalCluster().fullRestart();
         logger.info("--> checking that the primary shard is force allocated to the data node despite being blocked by the exclude filter");

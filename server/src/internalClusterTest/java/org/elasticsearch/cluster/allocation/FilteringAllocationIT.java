@@ -127,12 +127,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
                 .execute()
                 .actionGet();
         } else {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_1))
-                .execute()
-                .actionGet();
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_1), "test");
         }
         ensureGreen("test");
 
@@ -208,12 +203,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             // one of the shards has not yet started relocating but we already fired up the request to wait for 0 relocating shards.
         }
         logger.info("--> remove index from the first node");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_0))
-            .execute()
-            .actionGet();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_0), "test");
         client().admin().cluster().prepareReroute().get();
         ensureGreen("test");
 
@@ -228,12 +218,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         logger.info("--> disable allocation filtering ");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", ""))
-            .execute()
-            .actionGet();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", ""), "test");
         client().admin().cluster().prepareReroute().get();
         ensureGreen("test");
 

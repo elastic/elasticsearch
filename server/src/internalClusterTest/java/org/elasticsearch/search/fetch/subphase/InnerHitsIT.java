@@ -937,11 +937,10 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
         assertAcked(prepareCreate("index2").setMapping("nested", "type=nested"));
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index2")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH),
+            "index2"
+        );
         client().prepareIndex("index2")
             .setId("1")
             .setSource(
@@ -1006,11 +1005,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             containsString("the inner hit definition's [_name]'s from + size must be less than or equal to: [100] but was [110]")
         );
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index2")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "index2");
         response = client().prepareSearch("index2")
             .setQuery(
                 nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(

@@ -306,7 +306,8 @@ public class NativeRolesStoreTests extends ESTestCase {
                     .addIndexShard(
                         IndexShardRoutingTable.builder(new ShardId(index, 0))
                             .addShard(
-                                shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize()).moveToStarted()
+                                shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
+                                    .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
                             )
                     )
                     .build()

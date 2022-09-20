@@ -110,6 +110,14 @@ public abstract class MappedFieldType {
      */
     public abstract ValueFetcher valueFetcher(SearchExecutionContext context, @Nullable String format);
 
+    /**
+     * Create a helper class to fetch value field data.
+     */
+    public FieldValueFetcher fieldValueFetcher(SearchExecutionContext context) {
+        IndexFieldData<?> fieldData = context.getForField(this, MappedFieldType.FielddataOperation.SEARCH);
+        return ctx -> Map.of(name(), fieldData.load(ctx).getFormattedValues(docValueFormat(null, null)));
+    }
+
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
 

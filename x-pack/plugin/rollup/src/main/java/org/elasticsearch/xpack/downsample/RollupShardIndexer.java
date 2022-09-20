@@ -32,6 +32,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
+import org.elasticsearch.index.mapper.FieldValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -51,9 +52,11 @@ import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -89,7 +92,7 @@ class RollupShardIndexer {
     private final String[] dimensionFields;
     private final String[] metricFields;
     private final String[] labelFields;
-    private final Map<String, FieldValueFetcher> fieldValueFetchers;
+    private final List<FieldValueFetcher> fieldValueFetchers;
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
     private final AtomicLong numFailed = new AtomicLong();
@@ -126,7 +129,7 @@ class RollupShardIndexer {
             this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
-            this.fieldValueFetchers = FieldValueFetcher.create(searchExecutionContext, ArrayUtils.concat(metricFields, labelFields));
+            this.fieldValueFetchers = getFieldValueFetchers(searchExecutionContext, ArrayUtils.concat(metricFields, labelFields));
             toClose = null;
         } finally {
             IOUtils.closeWhileHandlingException(toClose);
@@ -166,6 +169,36 @@ class RollupShardIndexer {
             );
         }
         return new RollupIndexerAction.ShardRollupResponse(indexShard.shardId(), numIndexed.get());
+    }
+
+    /**
+     * Retrieve field value fetchers for a list of fields.
+     */
+    private static List<FieldValueFetcher> getFieldValueFetchers(SearchExecutionContext context, String[] fields) {
+        List<FieldValueFetcher> fetchers = new ArrayList<>();
+        for (String field : fields) {
+            MappedFieldType fieldType = context.getFieldType(field);
+            assert fieldType != null : "Unknown field type for field: [" + field + "]";
+            fetchers.add(fieldType.fieldValueFetcher(context));
+        }
+        return Collections.unmodifiableList(fetchers);
+    }
+
+    private static Map<String, FormattedDocValues> docValuesFetchers(
+        LeafReaderContext ctx,
+        SearchExecutionContext searchContext,
+        List<FieldValueFetcher> fieldValueFetchers
+    ) {
+        final Map<String, FormattedDocValues> docValuesFetchers = new LinkedHashMap<>(fieldValueFetchers.size());
+        for (FieldValueFetcher fetcher : fieldValueFetchers) {
+            for (Map.Entry<String, FormattedDocValues> e : fetcher.getLeaves(ctx).entrySet()) {
+                if (searchContext.fieldExistsInIndex(e.getKey())) {
+                    docValuesFetchers.put(e.getKey(), e.getValue());
+                }
+            }
+            docValuesFetchers.putAll(fetcher.getLeaves(ctx));
+        }
+        return Collections.unmodifiableMap(docValuesFetchers);
     }
 
     private BulkProcessor createBulkProcessor() {
@@ -229,7 +262,7 @@ class RollupShardIndexer {
             final LeafReaderContext ctx = aggCtx.getLeafReaderContext();
             final DocCountProvider docCountProvider = new DocCountProvider();
             docCountProvider.setLeafReaderContext(ctx);
-            final Map<String, FormattedDocValues> docValuesFetchers = FieldValueFetcher.docValuesFetchers(ctx, fieldValueFetchers);
+            final Map<String, FormattedDocValues> docValuesFetchers = docValuesFetchers(ctx, searchExecutionContext, fieldValueFetchers);
 
             return new LeafBucketCollector() {
                 @Override

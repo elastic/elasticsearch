@@ -139,7 +139,7 @@ class MlAutoscalingContext {
     public boolean hasWaitingTasks() {
         return waitingAnomalyJobs.isEmpty() == false
             || waitingSnapshotUpgrades.isEmpty() == false
-            || waitingAnalyticsJobs.isEmpty()
+            || waitingAnalyticsJobs.isEmpty() == false
             || waitingAllocatedModels.isEmpty() == false;
     }
 

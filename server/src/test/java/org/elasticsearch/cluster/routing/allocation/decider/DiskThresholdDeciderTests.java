@@ -1251,7 +1251,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         // force assign shard and validate that it cannot remain.
         ShardId shardId = shardRouting.shardId();
-        ShardRouting startedShard = shardRouting.initialize("data", null, 40L).moveToStarted();
+        ShardRouting startedShard = shardRouting.initialize("data", null, 40L).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         RoutingTable forceAssignedRoutingTable = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(shardId.getIndex())

@@ -10,7 +10,6 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.Client;
@@ -19,9 +18,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.FakeProcessor;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.IngestService;
@@ -29,6 +28,8 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.reservedstate.TransformState;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
+import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
@@ -40,17 +41,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -75,6 +72,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private IngestService ingestService;
+    private FileSettingsService fileSettingsService;
 
     @Before
     public void setup() {
@@ -95,27 +93,57 @@ public class ReservedPipelineActionTests extends ESTestCase {
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("set"));
         assertEquals(1, factories.size());
+
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            "_node_id",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+
+        NodeInfo nodeInfo = new NodeInfo(
+            Version.CURRENT,
+            Build.CURRENT,
+            discoveryNode,
+            Settings.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new IngestInfo(Collections.singletonList(new ProcessorInfo("set"))),
+            null,
+            null
+        );
+        NodesInfoResponse response = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo), List.of());
+
+        var clusterService = spy(
+            new ClusterService(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool,
+                null
+            )
+        );
+
+        fileSettingsService = spy(
+            new FileSettingsService(
+                clusterService,
+                mock(ReservedClusterStateService.class),
+                newEnvironment(Settings.EMPTY),
+                mock(NodeClient.class)
+            )
+        );
+
+        doReturn(response).when(fileSettingsService).nodeInfos();
     }
 
     private TransformState processJSON(ReservedPipelineAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            var data = new AtomicReference<>(action.fromXContent(parser));
-            var latch = new CountDownLatch(1);
-            action.preTransform(data.get(), new ActionListener<>() {
-                @Override
-                public void onResponse(Tuple<String, ?> stringTuple) {
-                    data.set((ReservedPipelineAction.ReservedPipelinesData) stringTuple.v2());
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    latch.countDown();
-                    throw new RuntimeException(e);
-                }
-            });
-            assertTrue(latch.await(2, TimeUnit.SECONDS));
-            return action.transform(data.get(), prevState);
+            return action.transform(action.fromXContent(parser), prevState);
         }
     }
 
@@ -140,8 +168,8 @@ public class ReservedPipelineActionTests extends ESTestCase {
             }""";
 
         assertEquals(
-            "No processor type exists with name [foo]",
-            expectThrows(IllegalStateException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
+            "Error processing ingest pipelines",
+            expectThrows(IllegalArgumentException.class, () -> processJSON(action, prevState, badPolicyJSON)).getMessage()
         );
     }
 
@@ -210,41 +238,6 @@ public class ReservedPipelineActionTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private ReservedPipelineAction makeSpiedAction() {
-        ReservedPipelineAction action = spy(new ReservedPipelineAction(ingestService, mock(NodeClient.class)));
-
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            "_node_id",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
-
-        NodeInfo nodeInfo = new NodeInfo(
-            Version.CURRENT,
-            Build.CURRENT,
-            discoveryNode,
-            Settings.EMPTY,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            new IngestInfo(Collections.singletonList(new ProcessorInfo("set"))),
-            null,
-            null
-        );
-        NodesInfoResponse response = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo), List.of());
-
-        doAnswer(i -> {
-            var data = (ReservedPipelineAction.ReservedPipelinesData) i.getArgument(0);
-            var updatedData = new ReservedPipelineAction.ReservedPipelinesData(data.requests(), response);
-            ((ActionListener<Tuple<String, Object>>) i.getArgument(1)).onResponse(new Tuple<>(action.name(), updatedData));
-            return null;
-        }).when(action).preTransform(any(), any());
-
-        return action;
+        return spy(new ReservedPipelineAction(ingestService, fileSettingsService));
     }
 }

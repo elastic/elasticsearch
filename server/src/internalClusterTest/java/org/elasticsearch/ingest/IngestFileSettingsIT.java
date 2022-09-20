@@ -126,6 +126,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         Path tempFilePath = createTempFile();
 
         logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
+        logger.info(Strings.format(json, version));
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
         Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
     }

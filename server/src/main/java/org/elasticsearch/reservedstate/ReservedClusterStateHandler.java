@@ -8,10 +8,8 @@
 
 package org.elasticsearch.reservedstate;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -123,14 +121,4 @@ public interface ReservedClusterStateHandler<T> {
      * @throws IOException
      */
     T fromXContent(XContentParser parser) throws IOException;
-
-    /**
-     * Implement this method for any async loading actions that need to happen before we
-     * execute the cluster state transformations.
-     * @param parsedContent The parsed content from fromXContent
-     * @param listener a listener for the response of the handler name + the modified parsedContent
-     */
-    default void preTransform(Object parsedContent, ActionListener<Tuple<String, ?>> listener) {
-        listener.onResponse(new Tuple<>(name(), parsedContent));
-    }
 }

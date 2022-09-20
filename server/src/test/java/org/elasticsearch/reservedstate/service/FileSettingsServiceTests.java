@@ -8,7 +8,13 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,6 +24,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.ingest.IngestInfo;
+import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -36,11 +44,14 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -58,8 +69,11 @@ public class FileSettingsServiceTests extends ESTestCase {
     private FileSettingsService fileSettingsService;
     private ReservedClusterStateService controller;
     private ThreadPool threadpool;
+    private NodeClient nodeClient;
+    private ClusterAdminClient clusterAdminClient;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
 
@@ -89,7 +103,41 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         controller = new ReservedClusterStateService(clusterService, List.of(new ReservedClusterSettingsAction(clusterSettings)));
 
-        fileSettingsService = new FileSettingsService(clusterService, controller, env);
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            "_node_id",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+
+        NodeInfo nodeInfo = new NodeInfo(
+            Version.CURRENT,
+            Build.CURRENT,
+            discoveryNode,
+            Settings.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new IngestInfo(Collections.singletonList(new ProcessorInfo("set"))),
+            null,
+            null
+        );
+        NodesInfoResponse response = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo), List.of());
+
+        clusterAdminClient = mock(ClusterAdminClient.class);
+        doAnswer(i -> {
+            ((ActionListener<NodesInfoResponse>) i.getArgument(1)).onResponse(response);
+            return null;
+        }).when(clusterAdminClient).nodesInfo(any(), any());
+
+        nodeClient = mock(NodeClient.class);
+        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, nodeClient));
+        doAnswer(i -> clusterAdminClient).when(fileSettingsService).clusterAdminClient();
     }
 
     @After
@@ -174,9 +222,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(stateService).process(any(), (XContentParser) any(), any());
+        }).when(stateService).process(any(), (ReservedStateChunk) any(), any());
 
-        FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
+        FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env, nodeClient));
+        doAnswer(i -> clusterAdminClient).when(service).clusterAdminClient();
 
         Files.createDirectories(service.operatorSettingsDir());
 
@@ -205,7 +254,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
             return null;
-        }).when(stateService).process(any(), (XContentParser) any(), any());
+        }).when(stateService).process(any(), (ReservedStateChunk) any(), any());
 
         service.start();
         service.startWatcher(clusterService.state(), true);
@@ -219,9 +268,10 @@ public class FileSettingsServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testStopWorksInMiddleOfProcessing() throws Exception {
         var spiedController = spy(controller);
-        var fsService = new FileSettingsService(clusterService, spiedController, env);
-
+        var fsService = new FileSettingsService(clusterService, spiedController, env, nodeClient);
         FileSettingsService service = spy(fsService);
+        doAnswer(i -> clusterAdminClient).when(service).clusterAdminClient();
+
         CountDownLatch processFileLatch = new CountDownLatch(1);
         CountDownLatch deadThreadLatch = new CountDownLatch(1);
 
@@ -262,9 +312,10 @@ public class FileSettingsServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testStopWorksIfProcessingDidntReturnYet() throws Exception {
         var spiedController = spy(controller);
-        var fsService = new FileSettingsService(clusterService, spiedController, env);
+        var fsService = new FileSettingsService(clusterService, spiedController, env, nodeClient);
 
         FileSettingsService service = spy(fsService);
+        doAnswer(i -> clusterAdminClient).when(service).clusterAdminClient();
         CountDownLatch processFileLatch = new CountDownLatch(1);
         CountDownLatch deadThreadLatch = new CountDownLatch(1);
 

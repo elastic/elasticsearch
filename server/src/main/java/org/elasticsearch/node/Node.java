@@ -722,7 +722,6 @@ public class Node implements Closeable {
 
             // add all reserved state handlers from server
             reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
-            reservedStateHandlers.add(new ReservedPipelineAction(ingestService, client));
 
             // add all reserved state handlers from plugins
             List<? extends ReservedClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(
@@ -833,8 +832,12 @@ public class Node implements Closeable {
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,
                 actionModule.getReservedClusterStateService(),
-                environment
+                environment,
+                client
             );
+
+            actionModule.getReservedClusterStateService()
+                .installStateHandler(new ReservedPipelineAction(ingestService, fileSettingsService));
 
             RestoreService restoreService = new RestoreService(
                 clusterService,

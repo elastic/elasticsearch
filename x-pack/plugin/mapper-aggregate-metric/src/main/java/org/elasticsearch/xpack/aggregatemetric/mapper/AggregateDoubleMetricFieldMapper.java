@@ -21,7 +21,6 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.fielddata.FieldDataContext;
-import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -66,7 +64,6 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -496,18 +493,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
-        }
-
-        @Override
-        public FieldValueFetcher fieldValueFetcher(SearchExecutionContext searchExecutionContext) {
-            return ctx -> {
-                Map<String, FormattedDocValues> docValues = new LinkedHashMap<>();
-                for (NumberFieldMapper.NumberFieldType metricSubField : getMetricFields().values()) {
-                    IndexFieldData<?> fieldData = searchExecutionContext.getForField(metricSubField, FielddataOperation.SEARCH);
-                    docValues.put(metricSubField.name(), fieldData.load(ctx).getFormattedValues(metricSubField.docValueFormat(null, null)));
-                }
-                return Collections.unmodifiableMap(docValues);
-            };
         }
 
         /**

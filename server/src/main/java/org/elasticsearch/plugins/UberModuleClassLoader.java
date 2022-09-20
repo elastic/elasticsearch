@@ -68,7 +68,7 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
 
         ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(moduleName, jarPaths, Set.of());
         ModuleLayer mparent = ModuleLayer.boot();
-        Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of(moduleName));
+        Configuration cf = mparent.configuration().resolveAndBind(finder, ModuleFinder.of(), Set.of(moduleName));
 
         Set<String> packageNames = new HashSet<>();
         for (URL url : jarUrls) {

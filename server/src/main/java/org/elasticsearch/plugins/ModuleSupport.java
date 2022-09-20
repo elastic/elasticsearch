@@ -19,7 +19,10 @@ import java.lang.module.ModuleReader;
 import java.lang.module.ModuleReference;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -55,12 +58,22 @@ public class ModuleSupport {
 
         // scan the names of the entries in the JARs
         Set<String> pkgs = new HashSet<>();
+        Map<String, List<String>> provides = new HashMap<>();
         for (Path path : jarPaths) {
             assert path.getFileName().toString().endsWith(".jar") : "expected jars suffix, in path: " + path;
             try (JarFile jf = new JarFile(path.toFile(), true, ZipFile.OPEN_READ, Runtime.version())) {
                 // separator = path.getFileSystem().getSeparator();
                 var scan = scan(jf);
                 scan.classFiles().stream().map(cf -> toPackageName(cf, "/")).flatMap(Optional::stream).forEach(pkgs::add);
+                scan.serviceFiles().forEach(sf -> {
+                    if (provides.containsKey(sf)) {
+                        provides.get(sf).add("glompy");
+                    } else {
+                        List<String> list = new ArrayList<>();
+                        list.add("glompy");
+                        provides.put(sf, list);
+                    }
+                });
             }
         }
         builder.packages(pkgs);

@@ -100,10 +100,15 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 List.of()
             );
         } else {
+            /*
+             * In this case the status is either RED or YELLOW. So we collect information about red and yellow indices (including indices
+             *  with blocks placed on them), and red and yellow nodes (including those with a blocked index). We then use that
+             * information to get the sympotom, impacts, and diagnoses for the result.
+             */
             Set<String> nodesWithBlockedIndices = getNodeIdsForIndices(indicesWithBlock, clusterState);
-            final Set<String> nodesReportingRed = getNodeIdsReportingStatus(diskHealthInfoMap, HealthStatus.RED);
+            Set<String> nodesReportingRed = getNodeIdsReportingStatus(diskHealthInfoMap, HealthStatus.RED);
             Set<String> indicesOnRedNodes = getIndicesForNodes(nodesReportingRed, clusterState);
-            final Set<String> nodesReportingYellow = getNodeIdsReportingStatus(diskHealthInfoMap, HealthStatus.YELLOW);
+            Set<String> nodesReportingYellow = getNodeIdsReportingStatus(diskHealthInfoMap, HealthStatus.YELLOW);
             Set<String> indicesOnYellowNodes = getIndicesForNodes(nodesReportingYellow, clusterState);
             Set<String> redDataNodes = getNodesWithDataRole(nodesReportingRed, clusterState);
             Set<String> yellowDataNodes = getNodesWithDataRole(nodesReportingYellow, clusterState);
@@ -111,14 +116,15 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             Set<String> yellowMasterNodes = getNodesWithMasterRole(nodesReportingYellow, clusterState);
             Set<String> redNonDataNonMasterNodes = getNodesWithNonDataNonMasterRoles(nodesReportingRed, clusterState);
             Set<String> yellowNonDataNonMasterNodes = getNodesWithNonDataNonMasterRoles(nodesReportingYellow, clusterState);
-            Set<String> allUnhealthyNodes = (Stream.concat(
-                Stream.concat(nodesWithBlockedIndices.stream(), nodesReportingRed.stream()),
-                nodesReportingYellow.stream()
-            )).collect(Collectors.toSet());
-            Set<String> allRolesOnUnhealthyNodes = getRolesOnNodes(allUnhealthyNodes, clusterState).stream()
-                .map(DiscoveryNodeRole::roleName)
-                .collect(Collectors.toSet());
-            String symptom = getSymptom(clusterHasBlockedIndex, indicesWithBlock, allUnhealthyNodes, allRolesOnUnhealthyNodes);
+
+            String symptom = getSymptom(
+                clusterHasBlockedIndex,
+                indicesWithBlock,
+                nodesWithBlockedIndices,
+                nodesReportingRed,
+                nodesReportingYellow,
+                clusterState
+            );
             List<HealthIndicatorImpact> impacts = getImpacts(
                 indicesWithBlock,
                 indicesOnRedNodes,
@@ -151,11 +157,21 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     private String getSymptom(
         boolean clusterHasBlockedIndex,
         Set<String> blockedIndices,
-        Set<String> allUnhealthyNodes,
-        Set<String> allRolesOnUnhealthyNodes
+        Set<String> nodesWithBlockedIndices,
+        Set<String> nodesReportingRed,
+        Set<String> nodesReportingYellow,
+        ClusterState clusterState
     ) {
+        Set<String> allUnhealthyNodes = (Stream.concat(
+            Stream.concat(nodesWithBlockedIndices.stream(), nodesReportingRed.stream()),
+            nodesReportingYellow.stream()
+        )).collect(Collectors.toSet());
+        Set<String> allRolesOnUnhealthyNodes = getRolesOnNodes(allUnhealthyNodes, clusterState).stream()
+            .map(DiscoveryNodeRole::roleName)
+            .collect(Collectors.toSet());
         final String symptom;
         if (clusterHasBlockedIndex && allUnhealthyNodes.isEmpty()) {
+            // In this case the disk issue has been resolved but the index block has not been automatically removed yet:
             symptom = String.format(
                 Locale.ROOT,
                 "%d %s blocked and cannot be updated but 0 nodes are currently out of space.",

@@ -1187,6 +1187,40 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         assertThat(result.tierSize(), equalTo(ByteSizeValue.ofGb(1)));
     }
 
+    public void testScale_WithNoMlNodesButWaitingAnalytics() {
+        nodeLoadDetector = new NodeLoadDetector(mlMemoryTracker);
+        MlMemoryAutoscalingDecider decider = buildDecider();
+        decider.setUseAuto(true);
+
+        final String analyticsId = "waiting-analytics";
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addAnalyticsTask(analyticsId, null, DataFrameAnalyticsState.STARTING, tasksBuilder);
+        ClusterState.Builder clusterStateBuilder = ClusterState.builder(new ClusterName("_name"));
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build());
+        clusterStateBuilder.metadata(metadata);
+        ClusterState clusterState = clusterStateBuilder.build();
+
+        Settings settings = Settings.builder()
+            .put(MlAutoscalingDeciderService.NUM_ANALYTICS_JOBS_IN_QUEUE.getKey(), 0)
+            .put(MlAutoscalingDeciderService.NUM_ANOMALY_JOBS_IN_QUEUE.getKey(), 0)
+            .build();
+
+        DeciderContext deciderContext = new DeciderContext(clusterState, AutoscalingCapacity.ZERO);
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(clusterState);
+
+        MlMemoryAutoscalingCapacity result = decider.scale(settings, deciderContext, mlAutoscalingContext);
+        assertThat(
+            result.reason(),
+            containsString(
+                "requesting scale up as number of jobs in queues exceeded configured limit and there are no machine learning nodes"
+            )
+        );
+        assertThat(result.nodeSize(), equalTo(ByteSizeValue.ofGb(1)));
+        assertThat(result.tierSize(), equalTo(ByteSizeValue.ofGb(1)));
+    }
+
     private MlMemoryAutoscalingDecider buildDecider() {
         return new MlMemoryAutoscalingDecider(
             settings,

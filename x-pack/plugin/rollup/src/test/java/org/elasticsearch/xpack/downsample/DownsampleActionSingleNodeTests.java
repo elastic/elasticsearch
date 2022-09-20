@@ -247,7 +247,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .startObject()
                 .field(FIELD_TIMESTAMP, ts)
                 .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
-                // .field(FIELD_DIMENSION_2, randomIntBetween(1, 10)) //TODO: Fix _tsid format issue and then enable this
+                .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
                 .field(FIELD_NUMERIC_1, randomInt())
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
                 .field(FIELD_LABEL_DOUBLE, labelDoubleValue)

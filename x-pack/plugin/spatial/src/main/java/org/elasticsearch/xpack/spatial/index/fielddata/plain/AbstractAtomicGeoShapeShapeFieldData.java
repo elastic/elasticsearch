@@ -7,43 +7,73 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
+
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.common.geo.SphericalMercatorUtils.latToSphericalMercator;
 import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSphericalMercator;
 
-public abstract class AbstractAtomicGeoShapeShapeFieldData extends LeafShapeFieldData {
+public abstract class AbstractAtomicGeoShapeShapeFieldData extends LeafShapeFieldData<GeoShapeValues> {
 
-    public AbstractAtomicGeoShapeShapeFieldData(ToScriptFieldFactory<ShapeValues> toScriptFieldFactory) {
+    private static class Empty extends AbstractAtomicGeoShapeShapeFieldData {
+        private final GeoShapeValues emptyValues;
+
+        Empty(ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory, GeoShapeValues emptyValues) {
+            super(toScriptFieldFactory);
+            this.emptyValues = emptyValues;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
+
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public GeoShapeValues getShapeValues() {
+            return emptyValues;
+        }
+    }
+
+    public AbstractAtomicGeoShapeShapeFieldData(ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
         super(toScriptFieldFactory);
     }
 
-    public static LeafShapeFieldData empty(final int maxDoc, ToScriptFieldFactory<ShapeValues> toScriptFieldFactory) {
-        return new LeafShapeFieldData.Empty<>(toScriptFieldFactory, GeoShapeValues.EMPTY);
+    public static AbstractAtomicGeoShapeShapeFieldData empty(final int maxDoc, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
+        return new Empty(toScriptFieldFactory, GeoShapeValues.EMPTY);
     }
 
-    public static final class GeoShapeScriptValues extends LeafShapeFieldData.ShapeScriptValues<GeoPoint>
+    public static final class GeoShapeScriptValues extends LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue>
         implements
             ScriptDocValues.Geometry {
 
-        public GeoShapeScriptValues(GeometrySupplier<GeoPoint, ShapeValues.ShapeValue> supplier) {
+        public GeoShapeScriptValues(GeometrySupplier<GeoPoint, GeoShapeValues.GeoShapeValue> supplier) {
             super(supplier);
         }
 
         @Override
         public GeoShapeValues.GeoShapeValue get(int index) {
-            return (GeoShapeValues.GeoShapeValue) super.get(index);
+            return super.get(index);
         }
 
         @Override
         public GeoShapeValues.GeoShapeValue getValue() {
-            return (GeoShapeValues.GeoShapeValue) super.getValue();
+            return super.getValue();
         }
 
         @Override

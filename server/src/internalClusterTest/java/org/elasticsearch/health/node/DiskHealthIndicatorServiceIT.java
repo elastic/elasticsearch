@@ -60,7 +60,10 @@ public class DiskHealthIndicatorServiceIT extends ESIntegTestCase {
                 assertThat(resultList.size(), equalTo(1));
                 HealthIndicatorResult testIndicatorResult = resultList.get(0);
                 assertThat(testIndicatorResult.status(), equalTo(HealthStatus.RED));
-                assertThat(testIndicatorResult.symptom(), equalTo("1 data node is out of disk space."));
+                assertThat(
+                    testIndicatorResult.symptom(),
+                    equalTo("2 nodes with roles: [data, master] are out of disk or running low on disk space.")
+                );
             }
         }
     }

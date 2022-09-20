@@ -36,7 +36,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -584,31 +583,209 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
-    @Ignore
     public void testGetRolesOnNodes() {
-        Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
+        Set<DiscoveryNodeRole> roles = new HashSet<>(
+            randomSubsetOf(randomIntBetween(1, DiscoveryNodeRole.roles().size()), DiscoveryNodeRole.roles())
+        );
+        Set<DiscoveryNode> discoveryNodes = createNodes(roles);
         ClusterService clusterService = createClusterService(false, discoveryNodes);
-        Map<String, DiskHealthInfo> diskInfoByNode = new HashMap<>(discoveryNodes.size());
-        Map<HealthStatus, Set<String>> statusToNodeIdMap = new HashMap<>(HealthStatus.values().length);
-        for (DiscoveryNode node : discoveryNodes) {
-            HealthStatus status = randomFrom(HealthStatus.values());
-            final DiskHealthInfo diskHealthInfo = randomBoolean()
-                ? new DiskHealthInfo(status)
-                : new DiskHealthInfo(status, randomFrom(DiskHealthInfo.Cause.values()));
-            Set<String> nodeIdsForStatus = statusToNodeIdMap.computeIfAbsent(status, k -> new HashSet<>());
-            nodeIdsForStatus.add(node.getId());
-            diskInfoByNode.put(node.getId(), diskHealthInfo);
-        }
-        DiskHealthIndicatorService.getRolesOnNodes(
+        Set<DiscoveryNodeRole> result = DiskHealthIndicatorService.getRolesOnNodes(
             discoveryNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet()),
             clusterService.state()
         );
-        for (HealthStatus status : HealthStatus.values()) {
-            assertThat(
-                DiskHealthIndicatorService.getNodeIdsReportingStatus(diskInfoByNode, status),
-                equalTo(statusToNodeIdMap.get(status) == null ? Set.of() : statusToNodeIdMap.get(status))
-            );
+        assertThat(result, equalTo(roles));
+    }
+
+    public void testGetNodesWithDataRole() {
+        Set<DiscoveryNodeRole> nonDataRoles = Set.of(
+            DiscoveryNodeRole.MASTER_ROLE,
+            DiscoveryNodeRole.ML_ROLE,
+            DiscoveryNodeRole.INGEST_ROLE,
+            DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
+            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+            DiscoveryNodeRole.TRANSFORM_ROLE
+        );
+        Set<DiscoveryNodeRole> dataRoles = Set.of(
+            DiscoveryNodeRole.DATA_ROLE,
+            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
+            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
+            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_WARM_NODE_ROLE
+        );
+        Set<DiscoveryNode> nonDataNodes = createNodes(
+            new HashSet<>(randomSubsetOf(randomIntBetween(1, nonDataRoles.size()), nonDataRoles))
+        );
+        Set<DiscoveryNode> pureDataNodes = createNodes(new HashSet<>(randomSubsetOf(randomIntBetween(1, dataRoles.size()), dataRoles)));
+        Set<DiscoveryNode> mixedNodes = createNodes(
+            Stream.concat(
+                randomSubsetOf(randomIntBetween(1, nonDataRoles.size()), nonDataRoles).stream(),
+                randomSubsetOf(randomIntBetween(1, dataRoles.size()), dataRoles).stream()
+            ).collect(Collectors.toSet())
+        );
+        Set<DiscoveryNode> allNodes = Stream.concat(Stream.concat(nonDataNodes.stream(), pureDataNodes.stream()), mixedNodes.stream())
+            .collect(Collectors.toSet());
+        ClusterService clusterService = createClusterService(false, allNodes);
+        assertThat(
+            DiskHealthIndicatorService.getNodesWithDataRole(
+                allNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet()),
+                clusterService.state()
+            ),
+            equalTo(Stream.concat(pureDataNodes.stream(), mixedNodes.stream()).map(DiscoveryNode::getId).collect(Collectors.toSet()))
+        );
+    }
+
+    public void testGetNodesWithMasterRole() {
+        Set<DiscoveryNodeRole> nonDataRoles = Set.of(
+            DiscoveryNodeRole.ML_ROLE,
+            DiscoveryNodeRole.INGEST_ROLE,
+            DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
+            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+            DiscoveryNodeRole.TRANSFORM_ROLE,
+            DiscoveryNodeRole.DATA_ROLE,
+            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
+            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
+            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_WARM_NODE_ROLE
+        );
+        Set<DiscoveryNode> nonMasterNodes = createNodes(
+            new HashSet<>(randomSubsetOf(randomIntBetween(1, nonDataRoles.size()), nonDataRoles))
+        );
+        Set<DiscoveryNode> pureMasterNodes = createNodes(Set.of(DiscoveryNodeRole.MASTER_ROLE));
+        Set<DiscoveryNode> mixedNodes = createNodes(
+            Stream.concat(
+                randomSubsetOf(randomIntBetween(1, nonDataRoles.size()), nonDataRoles).stream(),
+                Stream.of(DiscoveryNodeRole.MASTER_ROLE)
+            ).collect(Collectors.toSet())
+        );
+        Set<DiscoveryNode> allNodes = Stream.concat(Stream.concat(nonMasterNodes.stream(), pureMasterNodes.stream()), mixedNodes.stream())
+            .collect(Collectors.toSet());
+        ClusterService clusterService = createClusterService(false, allNodes);
+        assertThat(
+            DiskHealthIndicatorService.getNodesWithMasterRole(
+                allNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet()),
+                clusterService.state()
+            ),
+            equalTo(Stream.concat(pureMasterNodes.stream(), mixedNodes.stream()).map(DiscoveryNode::getId).collect(Collectors.toSet()))
+        );
+    }
+
+    public void testGetNodesWithNonDataNonMasterRoles() {
+        Set<DiscoveryNodeRole> dataAndMasterRoles = Set.of(
+            DiscoveryNodeRole.MASTER_ROLE,
+            DiscoveryNodeRole.DATA_ROLE,
+            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
+            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
+            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_WARM_NODE_ROLE
+        );
+        Set<DiscoveryNodeRole> nonDataNonMasterRoles = Set.of(
+            DiscoveryNodeRole.ML_ROLE,
+            DiscoveryNodeRole.INGEST_ROLE,
+            DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
+            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+            DiscoveryNodeRole.TRANSFORM_ROLE
+        );
+        Set<DiscoveryNode> dataAndMasterNodes = createNodes(
+            new HashSet<>(randomSubsetOf(randomIntBetween(1, dataAndMasterRoles.size()), dataAndMasterRoles))
+        );
+        Set<DiscoveryNode> pureNonDataNonMasterNodes = createNodes(
+            new HashSet<>(randomSubsetOf(randomIntBetween(1, nonDataNonMasterRoles.size()), nonDataNonMasterRoles))
+        );
+        Set<DiscoveryNode> mixedNodes = createNodes(
+            Stream.concat(
+                randomSubsetOf(randomIntBetween(1, dataAndMasterRoles.size()), dataAndMasterRoles).stream(),
+                randomSubsetOf(randomIntBetween(1, nonDataNonMasterRoles.size()), nonDataNonMasterRoles).stream()
+            ).collect(Collectors.toSet())
+        );
+        Set<DiscoveryNode> allNodes = Stream.concat(
+            Stream.concat(dataAndMasterNodes.stream(), pureNonDataNonMasterNodes.stream()),
+            mixedNodes.stream()
+        ).collect(Collectors.toSet());
+        ClusterService clusterService = createClusterService(false, allNodes);
+        assertThat(
+            DiskHealthIndicatorService.getNodesWithNonDataNonMasterRoles(
+                allNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet()),
+                clusterService.state()
+            ),
+            equalTo(
+                Stream.concat(pureNonDataNonMasterNodes.stream(), mixedNodes.stream()).map(DiscoveryNode::getId).collect(Collectors.toSet())
+            )
+        );
+    }
+
+    public void testGetIndicesForNodes() {
+        Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
+        HealthStatus expectedStatus = HealthStatus.RED;
+        int numberOfRedNodes = randomIntBetween(1, discoveryNodes.size());
+        HealthInfo healthInfo = createHealthInfo(expectedStatus, numberOfRedNodes, discoveryNodes);
+        Set<String> redNodeIds = healthInfo.diskInfoByNode()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().healthStatus().equals(expectedStatus))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        Set<String> nonRedNodeIds = healthInfo.diskInfoByNode()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().healthStatus().equals(expectedStatus) == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        Map<String, Set<String>> indexNameToNodeIdsMap = new HashMap<>();
+        int numberOfIndices = randomIntBetween(1, 1000);
+        Set<String> redNodeIndices = new HashSet<>();
+        Set<String> nonRedNodeIndices = new HashSet<>();
+        for (int i = 0; i < numberOfIndices; i++) {
+            String indexName = randomAlphaOfLength(20);
+            if (randomBoolean()) {
+                indexNameToNodeIdsMap.put(indexName, redNodeIds);
+                redNodeIndices.add(indexName);
+            } else {
+                indexNameToNodeIdsMap.put(indexName, nonRedNodeIds);
+                nonRedNodeIndices.add(indexName);
+            }
         }
+        ClusterService clusterService = createClusterService(Set.of(), discoveryNodes, indexNameToNodeIdsMap);
+        assertThat(DiskHealthIndicatorService.getIndicesForNodes(redNodeIds, clusterService.state()), equalTo(redNodeIndices));
+        assertThat(DiskHealthIndicatorService.getIndicesForNodes(nonRedNodeIds, clusterService.state()), equalTo(nonRedNodeIndices));
+    }
+
+    public void testGetNodeIdsForIndices() {
+        Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
+        HealthStatus expectedStatus = HealthStatus.RED;
+        int numberOfRedNodes = randomIntBetween(1, discoveryNodes.size());
+        HealthInfo healthInfo = createHealthInfo(expectedStatus, numberOfRedNodes, discoveryNodes);
+        Set<String> redNodeIds = healthInfo.diskInfoByNode()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().healthStatus().equals(expectedStatus))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        Set<String> nonRedNodeIds = healthInfo.diskInfoByNode()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().healthStatus().equals(expectedStatus) == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        Map<String, Set<String>> indexNameToNodeIdsMap = new HashMap<>();
+        int numberOfIndices = randomIntBetween(1, 1000);
+        Set<String> redNodeIndices = new HashSet<>();
+        Set<String> nonRedNodeIndices = new HashSet<>();
+        for (int i = 0; i < numberOfIndices; i++) {
+            String indexName = randomAlphaOfLength(20);
+            if (randomBoolean()) {
+                indexNameToNodeIdsMap.put(indexName, redNodeIds);
+                redNodeIndices.add(indexName);
+            } else {
+                indexNameToNodeIdsMap.put(indexName, nonRedNodeIds);
+                nonRedNodeIndices.add(indexName);
+            }
+        }
+        ClusterService clusterService = createClusterService(Set.of(), discoveryNodes, indexNameToNodeIdsMap);
+        assertThat(DiskHealthIndicatorService.getNodeIdsForIndices(redNodeIndices, clusterService.state()), equalTo(redNodeIds));
+        assertThat(DiskHealthIndicatorService.getNodeIdsForIndices(nonRedNodeIndices, clusterService.state()), equalTo(nonRedNodeIds));
     }
 
     private Set<DiscoveryNode> createNodesWithAllRoles() {

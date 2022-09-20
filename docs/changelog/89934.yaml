@@ -1,5 +1,0 @@
-pr: 89934
-summary: Implement fix to terminate file Watcher thread to avoid deadlock
-area: Infra/Core
-type: bug
-issues: []

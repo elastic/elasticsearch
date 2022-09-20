@@ -1,6 +1,0 @@
-pr: 89768
-summary: Fix issue with autoscaling after a clone or split
-area: Autoscaling
-type: bug
-issues:
- - 89758

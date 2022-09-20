@@ -71,12 +71,26 @@ public class ClusterInfoSimulator {
     private void modifyDiskUsage(String nodeId, String path, long delta) {
         var leastUsage = leastAvailableSpaceUsage.get(nodeId);
         if (leastUsage != null && Objects.equals(leastUsage.getPath(), path)) {
-            leastAvailableSpaceUsage.put(nodeId, leastUsage.copyWithFreeBytes(leastUsage.freeBytes() + delta));
+            // ensure new value is within bounds
+            leastAvailableSpaceUsage.put(nodeId, updateWithFreeBytes(leastUsage, delta));
         }
         var mostUsage = mostAvailableSpaceUsage.get(nodeId);
         if (mostUsage != null && Objects.equals(mostUsage.getPath(), path)) {
-            mostAvailableSpaceUsage.put(nodeId, mostUsage.copyWithFreeBytes(mostUsage.freeBytes() + delta));
+            // ensure new value is within bounds
+            mostAvailableSpaceUsage.put(nodeId, updateWithFreeBytes(mostUsage, delta));
         }
+    }
+
+    private static DiskUsage updateWithFreeBytes(DiskUsage usage, long delta) {
+        // free bytes might go out of range in case when multiple data path are used
+        // we might not know exact disk used to allocate a shard and conservatively update
+        // most used disk on a target node and least used disk on a source node
+        var freeBytes = withinRange(0, usage.getTotalBytes(), usage.freeBytes() + delta);
+        return usage.copyWithFreeBytes(freeBytes);
+    }
+
+    private static long withinRange(long min, long max, long value) {
+        return Math.max(min, Math.min(max, value));
     }
 
     public ClusterInfo getClusterInfo() {

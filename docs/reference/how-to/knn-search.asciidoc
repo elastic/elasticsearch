@@ -46,7 +46,7 @@ options.
 
 The `cosine` option accepts any float vector and computes the cosine
 similarity. While this is convenient for testing, it's not the most efficient
-approach. Instead, we recommend using the `dot_product` option for cosine
+approach. Instead, we recommend using the `dot_product` option to compute the
 similarity. To use `dot_product`, all vectors need to be normalized in advance
 to have length 1. The `dot_product` option is significantly faster, since it
 avoids performing extra vector length computations during the search.

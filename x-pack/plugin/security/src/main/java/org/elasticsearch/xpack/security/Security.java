@@ -1621,9 +1621,6 @@ public class Security extends Plugin
                 if (indexPermissions == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
-                if (indexPermissions.isGranted() == false) {
-                    throw new IllegalStateException("unexpected call to getFieldFilter for index [" + index + "] which is not granted");
-                }
                 FieldPermissions fieldPermissions = indexPermissions.getFieldPermissions();
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;

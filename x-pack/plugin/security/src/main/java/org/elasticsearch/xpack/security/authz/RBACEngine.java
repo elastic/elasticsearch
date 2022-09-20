@@ -451,7 +451,7 @@ public class RBACEngine implements AuthorizationEngine {
                 : "Wildcards should already be expanded but action [" + requestInfo.getAction() + "] has index [" + idx + "]";
             IndicesAccessControl.IndexAccessControl iac = indicesAccessControl.getIndexPermissions(idx);
             // The parent context has already successfully authorized access to this index (by name)
-            if (iac == null || iac.isGranted() == false) {
+            if (iac == null) {
                 return false;
             }
         }

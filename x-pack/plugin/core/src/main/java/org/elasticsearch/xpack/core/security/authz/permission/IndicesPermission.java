@@ -497,7 +497,7 @@ public final class IndicesPermission {
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
-            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(true, fieldPermissions, documentPermissions));
+            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(fieldPermissions, documentPermissions));
         }
         return unmodifiableMap(indexPermissions);
     }

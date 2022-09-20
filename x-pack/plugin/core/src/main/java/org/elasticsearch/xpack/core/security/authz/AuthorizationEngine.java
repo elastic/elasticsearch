@@ -591,6 +591,7 @@ public interface AuthorizationEngine {
             return message.toString();
         }
 
+        @Nullable
         public IndicesAccessControl getIndicesAccessControl() {
             return indicesAccessControl;
         }

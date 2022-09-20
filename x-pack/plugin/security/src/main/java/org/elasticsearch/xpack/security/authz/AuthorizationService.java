@@ -766,7 +766,7 @@ public class AuthorizationService {
                         final IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(
                             resolvedIndex
                         );
-                        if (indexAccessControl == null || indexAccessControl.isGranted() == false) {
+                        if (indexAccessControl == null) {
                             auditTrail.explicitIndexAccessEvent(
                                 requestId,
                                 AuditLevel.ACCESS_DENIED,

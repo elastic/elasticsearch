@@ -151,23 +151,14 @@ public class IndicesAccessControl {
      */
     public static class IndexAccessControl implements CacheKey {
 
-        public static final IndexAccessControl ALLOW_ALL = new IndexAccessControl(true, null, null);
+        public static final IndexAccessControl ALLOW_ALL = new IndexAccessControl( null, null);
 
-        private final boolean granted;
         private final FieldPermissions fieldPermissions;
         private final DocumentPermissions documentPermissions;
 
-        public IndexAccessControl(boolean granted, FieldPermissions fieldPermissions, DocumentPermissions documentPermissions) {
-            this.granted = granted;
+        public IndexAccessControl(FieldPermissions fieldPermissions, DocumentPermissions documentPermissions) {
             this.fieldPermissions = (fieldPermissions == null) ? FieldPermissions.DEFAULT : fieldPermissions;
             this.documentPermissions = (documentPermissions == null) ? DocumentPermissions.allowAll() : documentPermissions;
-        }
-
-        /**
-         * @return Whether any role / permission group is allowed to this index.
-         */
-        public boolean isGranted() {
-            return granted;
         }
 
         /**
@@ -197,31 +188,18 @@ public class IndicesAccessControl {
          * @see DocumentPermissions#limitDocumentPermissions(DocumentPermissions)
          */
         public IndexAccessControl limitIndexAccessControl(IndexAccessControl limitedByIndexAccessControl) {
-            final boolean isGranted;
-            if (this.granted == limitedByIndexAccessControl.granted) {
-                isGranted = this.granted;
-            } else {
-                isGranted = false;
-            }
             FieldPermissions constrainedFieldPermissions = getFieldPermissions().limitFieldPermissions(
                 limitedByIndexAccessControl.fieldPermissions
             );
             DocumentPermissions constrainedDocumentPermissions = getDocumentPermissions().limitDocumentPermissions(
                 limitedByIndexAccessControl.getDocumentPermissions()
             );
-            return new IndexAccessControl(isGranted, constrainedFieldPermissions, constrainedDocumentPermissions);
+            return new IndexAccessControl(constrainedFieldPermissions, constrainedDocumentPermissions);
         }
 
         @Override
         public String toString() {
-            return "IndexAccessControl{"
-                + "granted="
-                + granted
-                + ", fieldPermissions="
-                + fieldPermissions
-                + ", documentPermissions="
-                + documentPermissions
-                + '}';
+            return "IndexAccessControl{" + "fieldPermissions=" + fieldPermissions + ", documentPermissions=" + documentPermissions + '}';
         }
 
         @Override
@@ -245,14 +223,12 @@ public class IndicesAccessControl {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             IndexAccessControl that = (IndexAccessControl) o;
-            return granted == that.granted
-                && Objects.equals(fieldPermissions, that.fieldPermissions)
-                && Objects.equals(documentPermissions, that.documentPermissions);
+            return Objects.equals(fieldPermissions, that.fieldPermissions) && Objects.equals(documentPermissions, that.documentPermissions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(granted, fieldPermissions, documentPermissions);
+            return Objects.hash(fieldPermissions, documentPermissions);
         }
     }
 

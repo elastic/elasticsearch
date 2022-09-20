@@ -768,8 +768,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         if (mode == Mode.LEADER && applierState.nodes().size() == 1) {
             if (singleNodeClusterChecker == null) {
                 // Make a single-node checker if none exists
-                singleNodeClusterChecker = transportService.getThreadPool()
-                    .scheduleWithFixedDelay(() -> { checkSingleNodeCluster(); }, this.singleNodeClusterSeedHostsCheckInterval, Names.SAME);
+                singleNodeClusterChecker = transportService.getThreadPool().scheduleWithFixedDelay(new Runnable() {
+                    @Override
+                    public void run() {
+                        Coordinator.this.checkSingleNodeCluster();
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "single-node cluster checker";
+                    }
+                }, this.singleNodeClusterSeedHostsCheckInterval, Names.SAME);
             }
             return;
         }

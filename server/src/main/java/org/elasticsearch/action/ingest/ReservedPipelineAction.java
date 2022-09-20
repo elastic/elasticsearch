@@ -62,18 +62,20 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<Reser
         return NAME;
     }
 
-    public Collection<PutPipelineRequest> prepare(ReservedPipelinesData pipelines) {
-        var exceptions = new ArrayList<String>();
+    private Collection<PutPipelineRequest> prepare(ReservedPipelinesData pipelines) {
+        var exceptions = new ArrayList<Exception>();
         for (var pipeline : pipelines.requests) {
             try {
                 ingestService.validatePipelineRequest(pipeline, pipelines.nodesInfos);
             } catch (Exception e) {
-                exceptions.add(e.getMessage());
+                exceptions.add(e);
             }
         }
 
         if (exceptions.isEmpty() == false) {
-            throw new IllegalStateException(String.join(", ", exceptions));
+            var illegalArgumentException = new IllegalArgumentException("Error processing ingest pipelines");
+            exceptions.forEach(illegalArgumentException::addSuppressed);
+            throw illegalArgumentException;
         }
 
         return pipelines.requests;
@@ -95,15 +97,7 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<Reser
         ClusterState state = prevState.state();
 
         for (var request : requests) {
-            var nopUpdate = ingestService.isNoOpPipelineUpdate(state, request, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {}
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new IllegalStateException(e.getMessage(), e);
-                }
-            });
+            var nopUpdate = IngestService.isNoOpPipelineUpdate(state, request);
 
             if (nopUpdate) {
                 continue;

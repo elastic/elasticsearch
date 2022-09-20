@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.versionfield;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.analytics.AnalyticsAggregationBuilders;
+import org.elasticsearch.analytics.AnalyticsPlugin;
+import org.elasticsearch.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -18,9 +21,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.analytics.AnalyticsAggregationBuilders;
-import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.io.IOException;

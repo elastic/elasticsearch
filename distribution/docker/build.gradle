@@ -408,7 +408,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
 
       from(projectDir.resolve("src/docker/Dockerfile.cloud-ess")) {
         expand([
-          base_image: "elasticsearch${DockerBase.CLOUD.suffix}:${VersionProperties.elasticsearch}"
+          base_image: "elasticsearch${DockerBase.CLOUD.suffix}:${architecture.classifier}"
         ])
         filter SquashNewlinesFilter
         rename ~/Dockerfile\.cloud-ess$/, 'Dockerfile'

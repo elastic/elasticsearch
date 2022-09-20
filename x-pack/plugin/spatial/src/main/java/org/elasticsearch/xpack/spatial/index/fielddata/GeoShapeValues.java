@@ -33,7 +33,7 @@ import java.io.IOException;
  *
  * There is just one value for one document.
  */
-public abstract class GeoShapeValues extends ShapeValues {
+public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue> {
 
     public static GeoShapeValues EMPTY = new GeoShapeValues() {
         private final GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();

@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,7 +55,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         UnfollowAction.NAME,
         RolloverAction.NAME,
         ReadOnlyAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? DownsampleAction.NAME : null,
+        DownsampleAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
@@ -65,7 +64,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? DownsampleAction.NAME : null,
+        DownsampleAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,
         ShrinkAction.NAME,
@@ -75,7 +74,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? DownsampleAction.NAME : null,
+        DownsampleAction.NAME,
         SearchableSnapshotAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,

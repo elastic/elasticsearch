@@ -1303,7 +1303,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             return routing;
         }
         routing = routing.initialize(allocation.nodeId, null, 0);
-        routing = routing.moveToStarted();
+        routing = routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         if (allocation.state == AVAILABLE) {
             return routing;
         }

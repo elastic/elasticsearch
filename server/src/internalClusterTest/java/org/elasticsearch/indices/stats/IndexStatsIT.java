@@ -844,7 +844,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
-        Flag[] values = CommonStatsFlags.Flag.values();
+        Flag[] values = CommonStatsFlags.SHARD_LEVEL.getFlags();
         for (Flag flag : values) {
             set(flag, builder, false);
         }
@@ -953,7 +953,8 @@ public class IndexStatsIT extends ESIntegTestCase {
             Flag.RequestCache,
             Flag.Recovery,
             Flag.Bulk,
-            Flag.Shards };
+            Flag.Shards,
+            Flag.Mappings };
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -1160,6 +1161,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getBulk() != null;
             case Shards:
                 return response.getShards() != null;
+            case Mappings:
+                return response.getNodeMappings() != null;
             default:
                 fail("new flag? " + flag);
                 return false;

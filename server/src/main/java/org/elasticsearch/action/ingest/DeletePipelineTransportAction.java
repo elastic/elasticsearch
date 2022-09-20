@@ -66,12 +66,12 @@ public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNo
     }
 
     @Override
-    protected Optional<String> reservedStateHandlerName() {
+    public Optional<String> reservedStateHandlerName() {
         return Optional.of(ReservedPipelineAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(DeletePipelineRequest request) {
+    public Set<String> modifiedKeys(DeletePipelineRequest request) {
         return Set.of(request.getId());
     }
 }

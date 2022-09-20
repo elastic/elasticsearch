@@ -76,12 +76,12 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
     }
 
     @Override
-    protected Optional<String> reservedStateHandlerName() {
+    public Optional<String> reservedStateHandlerName() {
         return Optional.of(ReservedPipelineAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(PutPipelineRequest request) {
+    public Set<String> modifiedKeys(PutPipelineRequest request) {
         return Set.of(request.getId());
     }
 }

@@ -1,0 +1,5 @@
+pr: 90118
+summary: add an option for new index allocation ignore current node shard counts
+area: Distributed/Allocation
+type: enhancement
+issues: []

@@ -994,7 +994,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             List<Tuple<String, Float>> nodeWeights = explain ? new ArrayList<>() : null;
             Collection<ModelNode> nodeList = nodes.values();
             if (newCreateIgnoreNodeShards) {
-                // 随机重排node，保证当shard数小于节点数的情况下，shard能随机分配node
+                // shuffle nodes so that new shards will be randomly allocated to different nodes when the number of shards is less than the
+                // total count of cluster nodes
                 List<ModelNode> tempNodeList = new ArrayList<>(nodeList);
                 Collections.shuffle(tempNodeList);
                 nodeList = tempNodeList;

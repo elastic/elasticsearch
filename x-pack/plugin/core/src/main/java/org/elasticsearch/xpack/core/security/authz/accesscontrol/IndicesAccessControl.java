@@ -33,10 +33,7 @@ public class IndicesAccessControl {
 
     public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(
         true,
-        Collections.singletonMap(
-            IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER,
-            new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())
-        )
+        Collections.singletonMap(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER, IndexAccessControl.ALLOW_ALL)
     );
     public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Collections.emptyMap());
 
@@ -154,6 +151,8 @@ public class IndicesAccessControl {
      */
     public static class IndexAccessControl implements CacheKey {
 
+        public static final IndexAccessControl ALLOW_ALL = new IndexAccessControl(true, null, null);
+
         private final boolean granted;
         private final FieldPermissions fieldPermissions;
         private final DocumentPermissions documentPermissions;
@@ -182,7 +181,6 @@ public class IndicesAccessControl {
          * @return The allowed documents expressed as a query for this index permission. If <code>null</code> is returned
          *         then this means that there are no document level restrictions
          */
-        @Nullable
         public DocumentPermissions getDocumentPermissions() {
             return documentPermissions;
         }
@@ -304,15 +302,13 @@ public class IndicesAccessControl {
 
         private static final IndicesAccessControl INSTANCE = new AllowAllIndicesAccessControl();
 
-        private final IndexAccessControl allowAllIndexAccessControl = new IndexAccessControl(true, null, null);
-
         private AllowAllIndicesAccessControl() {
             super(true, Map.of());
         }
 
         @Override
         public IndexAccessControl getIndexPermissions(String index) {
-            return allowAllIndexAccessControl;
+            return IndexAccessControl.ALLOW_ALL;
         }
 
         @Override

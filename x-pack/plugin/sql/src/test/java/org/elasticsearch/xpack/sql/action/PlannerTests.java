@@ -72,10 +72,13 @@ public class PlannerTests extends ESTestCase {
                 docValuesField.setLongValue(i);
                 doc.add(docValuesField);
                 indexWriter.addDocument(doc);
+                if (i % 10000 == 9999) {
+                    indexWriter.flush();
+                }
             }
-            indexWriter.commit();
             indexWriter.forceMerge(maxNumSegments);
             indexWriter.flush();
+            indexWriter.commit();
         }
         logger.info("indexing completed");
         indexReader = DirectoryReader.open(dir);
@@ -96,14 +99,17 @@ public class PlannerTests extends ESTestCase {
             logger.info("New page: columns {}, values {}", columns, page);
             assertEquals(Arrays.asList("value_avg"), columns);
             assertEquals(1, page.getPositionCount());
-            assertEquals((numDocs - 1) / 2, page.getBlock(0).getLong(0));
+            assertEquals(((double) numDocs - 1) / 2, page.getBlock(0).getDouble(0), 0.1d);
         });
-        logger.info("Plan: {}", Strings.toString(new ComputeRequest(plan), true, true));
+        logger.info("Plan: {}", Strings.toString(new ComputeRequest(planNodeBuilder.buildWithoutOutputNode()), true, true));
         try (
             XContentParser parser = createParser(
                 parserConfig().withRegistry(new NamedXContentRegistry(PlanNode.getNamedXContentParsers())),
                 JsonXContent.jsonXContent,
-                new BytesArray(Strings.toString(new ComputeRequest(plan), true, true).getBytes(StandardCharsets.UTF_8))
+                new BytesArray(
+                    Strings.toString(new ComputeRequest(planNodeBuilder.buildWithoutOutputNode()), true, true)
+                        .getBytes(StandardCharsets.UTF_8)
+                )
             )
         ) {
             ComputeRequest.fromXContent(parser);

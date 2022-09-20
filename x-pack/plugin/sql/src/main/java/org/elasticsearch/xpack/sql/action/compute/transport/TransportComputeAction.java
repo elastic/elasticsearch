@@ -33,9 +33,8 @@ import org.elasticsearch.xpack.sql.action.compute.planner.PlanNode;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 
 /**
@@ -101,24 +100,29 @@ public class TransportComputeAction extends TransportAction<ComputeRequest, Comp
                     .collect(Collectors.toList())
             );
 
-            final Queue<Page> results = new ConcurrentLinkedQueue<>();
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
-                new PlanNode.OutputNode(request.plan(), (l, p) -> results.add(p))
-            );
-            Driver.start(threadPool.executor(ThreadPool.Names.SEARCH), localExecutionPlan.createDrivers())
-                .addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        Releasables.close(searchContexts);
-                        listener.onResponse(new ComputeResponse(results.stream().toList()));
-                    }
+            final List<Page> results = Collections.synchronizedList(new ArrayList<>());
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(new PlanNode.OutputNode(request.plan(), (l, p) -> {
+                logger.warn("adding page with columns {}: {}", l, p);
+                results.add(p);
+            }));
+            List<Driver> drivers = localExecutionPlan.createDrivers();
+            if (drivers.isEmpty()) {
+                throw new IllegalStateException("no drivers created");
+            }
+            logger.info("using {} drivers", drivers.size());
+            Driver.start(threadPool.executor(ThreadPool.Names.SEARCH), drivers).addListener(new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    Releasables.close(searchContexts);
+                    listener.onResponse(new ComputeResponse(new ArrayList<>(results)));
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        Releasables.close(searchContexts);
-                        listener.onFailure(e);
-                    }
-                });
+                @Override
+                public void onFailure(Exception e) {
+                    Releasables.close(searchContexts);
+                    listener.onFailure(e);
+                }
+            });
             success = true;
         } finally {
             if (success == false) {

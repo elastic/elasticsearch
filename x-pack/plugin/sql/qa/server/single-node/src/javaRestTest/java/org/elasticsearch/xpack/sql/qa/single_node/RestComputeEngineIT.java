@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RestComputeEngineIT extends RemoteClusterAwareSqlRestTestCase {
 
     public void testBasicCompute() throws IOException {
@@ -75,6 +77,6 @@ public class RestComputeEngineIT extends RemoteClusterAwareSqlRestTestCase {
             }
             """);
         Response computeResponse = client().performRequest(computeRequest);
-        assertEquals("{\"pages\":1,\"rows\":1}", EntityUtils.toString(computeResponse.getEntity(), StandardCharsets.UTF_8));
+        assertThat(EntityUtils.toString(computeResponse.getEntity(), StandardCharsets.UTF_8), containsString("\"pages\":1,\"rows\":1"));
     }
 }

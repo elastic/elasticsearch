@@ -19,6 +19,8 @@ import java.util.List;
 
 public class ComputeResponse extends ActionResponse implements ToXContentObject {
     private final List<Page> pages;
+    private final int pageCount;
+    private final int rowCount;
 
     public ComputeResponse(StreamInput in) {
         throw new UnsupportedOperationException();
@@ -27,6 +29,8 @@ public class ComputeResponse extends ActionResponse implements ToXContentObject 
     public ComputeResponse(List<Page> pages) {
         super();
         this.pages = pages;
+        pageCount = pages.size();
+        rowCount = pages.stream().mapToInt(Page::getPositionCount).sum();
     }
 
     public List<Page> getPages() {
@@ -41,8 +45,9 @@ public class ComputeResponse extends ActionResponse implements ToXContentObject 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("pages", pages.size());
-        builder.field("rows", pages.stream().mapToInt(Page::getPositionCount).sum());
+        builder.field("pages", pageCount);
+        builder.field("rows", rowCount);
+        builder.field("contents", pages.toString());
         builder.endObject();
         return builder;
     }

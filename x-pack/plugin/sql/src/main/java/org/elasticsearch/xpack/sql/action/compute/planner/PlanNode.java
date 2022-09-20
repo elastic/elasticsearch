@@ -55,7 +55,6 @@ public abstract class PlanNode implements NamedXContentObject {
                 (p, c) -> AggregationNode.PARSER.parse(p, null)
             ),
             new NamedXContentRegistry.Entry(PlanNode.class, ExchangeNode.EXCHANGE_FIELD, (p, c) -> ExchangeNode.PARSER.parse(p, null)),
-            new NamedXContentRegistry.Entry(PlanNode.class, OutputNode.OUTPUT_FIELD, (p, c) -> OutputNode.PARSER.parse(p, null)),
             new NamedXContentRegistry.Entry(
                 AggregationNode.AggType.class,
                 AggregationNode.AvgAggType.AVG_FIELD,
@@ -365,19 +364,6 @@ public abstract class PlanNode implements NamedXContentObject {
         public OutputNode(PlanNode source, BiConsumer<List<String>, Page> pageConsumer) {
             this.source = source;
             this.pageConsumer = pageConsumer;
-        }
-
-        static final ConstructingObjectParser<OutputNode, Void> PARSER = new ConstructingObjectParser<>(
-            "output_node",
-            args -> new OutputNode((PlanNode) args[0], (l, p) -> {})
-        );
-
-        static {
-            PARSER.declareNamedObject(
-                ConstructingObjectParser.constructorArg(),
-                (p, c, n) -> p.namedObject(PlanNode.class, n, c),
-                SOURCE_FIELD
-            );
         }
 
         @Override

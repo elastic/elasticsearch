@@ -56,7 +56,7 @@ public class SqlPluginTests extends ESTestCase {
                 mock(IndexNameExpressionResolver.class),
                 () -> mock(DiscoveryNodes.class)
             ),
-            hasSize(7)
+            hasSize(8)
         );
     }
 }

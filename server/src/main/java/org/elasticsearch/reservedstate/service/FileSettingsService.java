@@ -201,8 +201,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
-    // package private for testing
-    boolean watching() {
+    public boolean watching() {
         return this.watchService != null;
     }
 

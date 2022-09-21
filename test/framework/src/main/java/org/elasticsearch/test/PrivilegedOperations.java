@@ -59,6 +59,15 @@ public final class PrivilegedOperations {
         );
     }
 
+    public static <T> T supplierWithCreateClassLoader(Supplier<T> supplier) {
+        return AccessController.doPrivileged(
+            (PrivilegedAction<T>) () -> supplier.get(),
+            context,
+            new RuntimePermission("createClassLoader"),
+            new RuntimePermission("closeClassLoader")
+        );
+    }
+
     @SuppressForbidden(reason = "need to create file permission")
     private static FilePermission newAllFilesReadPermission() {
         return new FilePermission("<<ALL FILES>>", "read");

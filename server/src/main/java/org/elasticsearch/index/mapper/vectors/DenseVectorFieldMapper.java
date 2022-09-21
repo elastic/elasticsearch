@@ -284,6 +284,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            if (fieldDataContext.fielddataOperation() == FielddataOperation.SEARCH) {
+                return super.fielddataBuilder(fieldDataContext);
+            }
             return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, indexVersionCreated, dims, indexed);
         }
 

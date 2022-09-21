@@ -22,6 +22,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -43,6 +44,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class CommonStats implements Writeable, ToXContentFragment {
+
+    private static final Version VERSION_SUPPORTING_NODE_MAPPINGS = Version.V_8_5_0;
 
     @Nullable
     public DocsStats docs;
@@ -98,6 +101,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public ShardCountStats shards;
 
+    @Nullable
+    public NodeMappingStats nodeMappings;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -125,42 +131,57 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Recovery -> recoveryStats = new RecoveryStats();
                 case Bulk -> bulk = new BulkStats();
                 case Shards -> shards = new ShardCountStats();
+                case Mappings -> nodeMappings = new NodeMappingStats();
                 default -> throw new IllegalStateException("Unknown Flag: " + flag);
             }
         }
     }
 
-    public CommonStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
-        CommonStatsFlags.Flag[] setFlags = flags.getFlags();
-        for (CommonStatsFlags.Flag flag : setFlags) {
+    /**
+     * Filters the given flags for {@link CommonStatsFlags#SHARD_LEVEL} flags and calculates the corresponding statistics.
+     */
+    public static CommonStats getShardLevelStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
+        // Filter shard level flags
+        CommonStatsFlags filteredFlags = flags.clone();
+        for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
+            filteredFlags.set(flag, CommonStatsFlags.SHARD_LEVEL.isSet(flag));
+        }
+        CommonStats stats = new CommonStats(filteredFlags);
+
+        for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
             try {
                 switch (flag) {
-                    case Docs -> docs = indexShard.docStats();
-                    case Store -> store = indexShard.storeStats();
-                    case Indexing -> indexing = indexShard.indexingStats();
-                    case Get -> get = indexShard.getStats();
-                    case Search -> search = indexShard.searchStats(flags.groups());
-                    case Merge -> merge = indexShard.mergeStats();
-                    case Refresh -> refresh = indexShard.refreshStats();
-                    case Flush -> flush = indexShard.flushStats();
-                    case Warmer -> warmer = indexShard.warmerStats();
-                    case QueryCache -> queryCache = indicesQueryCache.getStats(indexShard.shardId());
-                    case FieldData -> fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
-                    case Completion -> completion = indexShard.completionStats(flags.completionDataFields());
-                    case Segments -> segments = indexShard.segmentStats(flags.includeSegmentFileSizes(), flags.includeUnloadedSegments());
-                    case Translog -> translog = indexShard.translogStats();
-                    case RequestCache -> requestCache = indexShard.requestCache().stats();
-                    case Recovery -> recoveryStats = indexShard.recoveryStats();
-                    case Bulk -> bulk = indexShard.bulkStats();
+                    case Docs -> stats.docs = indexShard.docStats();
+                    case Store -> stats.store = indexShard.storeStats();
+                    case Indexing -> stats.indexing = indexShard.indexingStats();
+                    case Get -> stats.get = indexShard.getStats();
+                    case Search -> stats.search = indexShard.searchStats(flags.groups());
+                    case Merge -> stats.merge = indexShard.mergeStats();
+                    case Refresh -> stats.refresh = indexShard.refreshStats();
+                    case Flush -> stats.flush = indexShard.flushStats();
+                    case Warmer -> stats.warmer = indexShard.warmerStats();
+                    case QueryCache -> stats.queryCache = indicesQueryCache.getStats(indexShard.shardId());
+                    case FieldData -> stats.fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
+                    case Completion -> stats.completion = indexShard.completionStats(flags.completionDataFields());
+                    case Segments -> stats.segments = indexShard.segmentStats(
+                        flags.includeSegmentFileSizes(),
+                        flags.includeUnloadedSegments()
+                    );
+                    case Translog -> stats.translog = indexShard.translogStats();
+                    case RequestCache -> stats.requestCache = indexShard.requestCache().stats();
+                    case Recovery -> stats.recoveryStats = indexShard.recoveryStats();
+                    case Bulk -> stats.bulk = indexShard.bulkStats();
                     case Shards ->
                         // Setting to 1 because the single IndexShard passed to this method implies 1 shard
-                        shards = new ShardCountStats(1);
-                    default -> throw new IllegalStateException("Unknown Flag: " + flag);
+                        stats.shards = new ShardCountStats(1);
+                    default -> throw new IllegalStateException("Unknown or invalid flag for shard-level stats: " + flag);
                 }
             } catch (AlreadyClosedException e) {
                 // shard is closed - no stats is fine
             }
         }
+
+        return stats;
     }
 
     public CommonStats(StreamInput in) throws IOException {
@@ -184,6 +205,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
             bulk = in.readOptionalWriteable(BulkStats::new);
         }
         shards = in.readOptionalWriteable(ShardCountStats::new);
+        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
+            nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
+        }
     }
 
     @Override
@@ -208,6 +232,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
             out.writeOptionalWriteable(bulk);
         }
         out.writeOptionalWriteable(shards);
+        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
+            out.writeOptionalWriteable(nodeMappings);
+        }
     }
 
     @Override
@@ -232,7 +259,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             && Objects.equals(requestCache, that.requestCache)
             && Objects.equals(recoveryStats, that.recoveryStats)
             && Objects.equals(bulk, that.bulk)
-            && Objects.equals(shards, that.shards);
+            && Objects.equals(shards, that.shards)
+            && Objects.equals(nodeMappings, that.nodeMappings);
     }
 
     @Override
@@ -255,7 +283,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             requestCache,
             recoveryStats,
             bulk,
-            shards
+            shards,
+            nodeMappings
         );
     }
 
@@ -404,6 +433,14 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 shards = shards.add(stats.shards);
             }
         }
+        if (stats.getNodeMappings() != null) {
+            if (nodeMappings == null) {
+                nodeMappings = new NodeMappingStats();
+                nodeMappings.add(stats.getNodeMappings());
+            } else {
+                nodeMappings.add(stats.getNodeMappings());
+            }
+        }
     }
 
     @Nullable
@@ -496,6 +533,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return shards;
     }
 
+    @Nullable
+    public NodeMappingStats getNodeMappings() {
+        return nodeMappings;
+    }
+
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (index writer, version map)
@@ -536,6 +578,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         addIfNonNull(builder, params, requestCache);
         addIfNonNull(builder, params, recoveryStats);
         addIfNonNull(builder, params, bulk);
+        addIfNonNull(builder, params, nodeMappings);
         return builder;
     }
 

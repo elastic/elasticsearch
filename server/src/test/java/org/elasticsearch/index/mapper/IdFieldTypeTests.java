@@ -54,12 +54,12 @@ public class IdFieldTypeTests extends ESTestCase {
 
     public void testIsAggregatable() {
         MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType(() -> false);
-        assertFalse(ft.isAggregatable(randomBoolean()));
+        assertFalse(ft.isAggregatable());
 
         ft = new ProvidedIdFieldMapper.IdFieldType(() -> true);
-        assertTrue(ft.isAggregatable(randomBoolean()));
+        assertTrue(ft.isAggregatable());
 
         ft = new TsidExtractingIdFieldMapper.IdFieldType();
-        assertFalse(ft.isAggregatable(randomBoolean()));
+        assertFalse(ft.isAggregatable());
     }
 }

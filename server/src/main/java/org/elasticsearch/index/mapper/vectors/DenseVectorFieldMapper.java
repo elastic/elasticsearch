@@ -278,7 +278,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean isAggregatable(boolean isSyntheticSource) {
+        public boolean isAggregatable() {
             return false;
         }
 

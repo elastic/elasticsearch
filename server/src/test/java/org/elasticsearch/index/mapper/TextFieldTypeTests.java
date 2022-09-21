@@ -50,9 +50,9 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsAggregatableDependsOnFieldData() {
         TextFieldType ft = createFieldType();
-        assertFalse(ft.isAggregatable(randomBoolean()));
+        assertFalse(ft.isAggregatable());
         ft.setFielddata(true);
-        assertTrue(ft.isAggregatable(randomBoolean()));
+        assertTrue(ft.isAggregatable());
     }
 
     public void testTermQuery() {

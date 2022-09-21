@@ -153,7 +153,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         MappedFieldType concreteIndexType = concreteIndexMapping.fieldType("field");
         assertEquals(concreteIndexType.familyTypeName(), scriptFieldType.familyTypeName());
         assertEquals(concreteIndexType.isSearchable(), scriptFieldType.isSearchable());
-        assertEquals(concreteIndexType.isAggregatable(false), scriptFieldType.isAggregatable(false));
+        assertEquals(concreteIndexType.isAggregatable(), scriptFieldType.isAggregatable());
     }
 
     @SuppressWarnings("unused")

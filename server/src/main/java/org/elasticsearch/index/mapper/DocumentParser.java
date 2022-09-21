@@ -755,9 +755,7 @@ public final class DocumentParser {
         MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
         if (fieldType != null) {
             // we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
-            assert fieldType.hasDocValues() == false
-                && fieldType.isAggregatable(context.mappingLookup().isSourceSynthetic())
-                && fieldType.isSearchable();
+            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
             return NO_OP_FIELDMAPPER;
         }
         return null;

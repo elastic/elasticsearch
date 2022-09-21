@@ -690,7 +690,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMinimalWarnings();
         MappedFieldType fieldType = mapperService.fieldType("field");
         boolean isSyntheticSource = mapperService.mappingLookup().isSourceSynthetic();
-        if (fieldType.isAggregatable(isSyntheticSource) == false) {
+        if (fieldType.isAggregatable() == false) {
             return; // No field data available, so we ignore
         }
         SourceToParse source = source(this::writeField);

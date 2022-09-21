@@ -34,7 +34,7 @@ class TimeseriesFieldTypeHelper {
         final MappedFieldType fieldType = lookup.getFieldType(field);
         return fieldType != null
             && (timestampField.equals(field) == false)
-            && (fieldType.isAggregatable(lookup.isSourceSynthetic()))
+            && (fieldType.isAggregatable())
             && (fieldType.isDimension() == false)
             && (mapperService.isMetadataField(field) == false);
     }

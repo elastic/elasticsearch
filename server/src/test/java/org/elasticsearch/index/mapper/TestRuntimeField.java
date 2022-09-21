@@ -80,7 +80,7 @@ public final class TestRuntimeField implements RuntimeField {
         }
 
         @Override
-        public boolean isAggregatable(boolean isSyntheticSource) {
+        public boolean isAggregatable() {
             return true;
         }
     }

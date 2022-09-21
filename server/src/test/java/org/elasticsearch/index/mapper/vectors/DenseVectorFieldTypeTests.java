@@ -48,7 +48,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsAggregatable() {
         DenseVectorFieldType ft = createFieldType();
-        assertFalse(ft.isAggregatable(randomBoolean()));
+        assertFalse(ft.isAggregatable());
     }
 
     public void testFielddataBuilder() {

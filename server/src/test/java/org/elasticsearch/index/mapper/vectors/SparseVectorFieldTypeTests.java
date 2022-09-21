@@ -27,7 +27,7 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsNotAggregatable() {
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", Collections.emptyMap());
-        assertFalse(fieldType.isAggregatable(randomBoolean()));
+        assertFalse(fieldType.isAggregatable());
     }
 
     public void testDocValueFormatIsNotSupported() {

@@ -61,12 +61,12 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
             () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test", isSyntheticSource)).build(null, null)
         );
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
-        assertFalse(ft.isAggregatable(isSyntheticSource));
+        assertFalse(ft.isAggregatable());
 
         enabled[0] = true;
         ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test", isSyntheticSource)).build(null, null);
         assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
-        assertTrue(ft.isAggregatable(isSyntheticSource));
+        assertTrue(ft.isAggregatable());
     }
 
     public void testFetchIdFieldValue() throws IOException {

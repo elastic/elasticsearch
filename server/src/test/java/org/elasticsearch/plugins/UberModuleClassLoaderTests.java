@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.Set;
 
 import static java.util.Arrays.stream;
@@ -331,6 +332,81 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         assertThat(fooBar.toString(), equalTo("FooBar 0"));
     }
 
+    // test service providers
+    // we need a jar that declares a service in META-INF/services
+    // let's do our minimal service here
+    public void testServiceLoading() throws Exception {
+        String serviceInterface = """
+            package p;
+
+            interface MyService {
+                String getTestString();
+            }
+            """;
+        String implementingClass = """
+            package p;
+
+            public class MyServiceImpl implements MyService {
+
+                public MyServiceImpl() {
+                    // no-args
+                }
+
+                @Override
+                public String getTestString() {
+                    return "The test string.";
+                }
+            }
+            """;
+        String retrievingClass = """
+            package p;
+
+            import java.util.ServiceLoader;
+            import java.util.random.RandomGenerator;
+
+            public class ServiceCaller {
+                public static String demo() {
+                    // loading a service from java.base is trouble...
+                    // ServiceLoader<RandomGenerator> randomLoader = ServiceLoader.load(RandomGenerator.class);
+
+                    ServiceLoader<MyService> loader = ServiceLoader.load(MyService.class, ServiceCaller.class.getClassLoader());
+                    return loader.findFirst().get().getTestString();
+                }
+            }
+            """;
+
+        Map<String, CharSequence> sources = new HashMap<>();
+        sources.put("p.MyService", serviceInterface);
+        sources.put("p.MyServiceImpl", implementingClass);
+        sources.put("p.ServiceCaller", retrievingClass);
+        var compiledCode = InMemoryJavaCompiler.compile(sources);
+
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("p/MyService.class", compiledCode.get("p.MyService"));
+        jarEntries.put("p/MyServiceImpl.class", compiledCode.get("p.MyServiceImpl"));
+        jarEntries.put("p/ServiceCaller.class", compiledCode.get("p.ServiceCaller"));
+        jarEntries.put("META-INF/services/p.MyService", "p.MyServiceImpl".getBytes(StandardCharsets.UTF_8));
+
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("my-service-jar.jar");
+        JarUtils.createJarWithEntries(jar, jarEntries);
+
+        try(URLClassLoader cl = new URLClassLoader(new URL[] {jar.toUri().toURL()} )) {
+            Class<?> demoClass = cl.loadClass("p.ServiceCaller");
+            var method = demoClass.getDeclaredMethod("demo");
+            String result = (String) method.invoke(null);
+            assertThat(result, equalTo("The test string."));
+        }
+
+        try (UberModuleClassLoader cl = UberModuleClassLoader.getInstance(this.getClass().getClassLoader(), "p.synthetic.test",
+            List.of(jar))) {
+            Class<?> demoClass = cl.loadClass("p.ServiceCaller");
+            var method = demoClass.getDeclaredMethod("demo");
+            String result = (String) method.invoke(null);
+            assertThat(result, equalTo("The test string."));
+        }
+    }
+
     private static UberModuleClassLoader getLoader(Path jar) {
         return getLoader(List.of(jar));
     }
@@ -389,7 +465,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
     private static void createSingleClassJar(Path jar, String canonicalName, String source) throws IOException {
         Map<String, CharSequence> sources = new HashMap<>();
-        // TODO: windows
         String jarPath = canonicalName.replace(".", "/") + ".class";
         sources.put(canonicalName, source);
         var classToBytes = InMemoryJavaCompiler.compile(sources);

@@ -10,7 +10,9 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.lang.module.InvalidModuleDescriptorException;
 import java.lang.module.ModuleDescriptor;
@@ -18,8 +20,12 @@ import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReader;
 import java.lang.module.ModuleReference;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.InputMismatchException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -27,7 +33,10 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
 
 /**
  * Support methods for creating a synthetic module.
@@ -55,16 +64,25 @@ public class ModuleSupport {
 
         // scan the names of the entries in the JARs
         Set<String> pkgs = new HashSet<>();
+        Map<String, List<String>> services = new HashMap<>();
         for (Path path : jarPaths) {
             assert path.getFileName().toString().endsWith(".jar") : "expected jars suffix, in path: " + path;
             try (JarFile jf = new JarFile(path.toFile(), true, ZipFile.OPEN_READ, Runtime.version())) {
                 // separator = path.getFileSystem().getSeparator();
                 var scan = scan(jf);
                 scan.classFiles().stream().map(cf -> toPackageName(cf, "/")).flatMap(Optional::stream).forEach(pkgs::add);
+                for (String sf : scan.serviceFiles()) {
+                    List<String> providers;
+                    try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf))))) {
+                        providers = bf.lines().toList();
+                    }
+                    services.put(sf.substring("META-INF/services/".length()), providers);
+                }
             }
         }
         builder.packages(pkgs);
-        // TODO: provides and uses - it is possible that one plugin could define a service and another could provide it
+        services.keySet().forEach(builder::uses);
+        services.forEach(builder::provides);
         return builder.build();
     }
 

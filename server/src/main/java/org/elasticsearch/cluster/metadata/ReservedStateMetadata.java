@@ -284,6 +284,13 @@ public record ReservedStateMetadata(
         }
 
         /**
+         * Returns the current handler metadata stored in the builder
+         */
+        public ReservedStateHandlerMetadata getHandler(String handlerName) {
+            return this.handlers.get(handlerName);
+        }
+
+        /**
          * Builds an {@link ReservedStateMetadata} from this builder.
          *
          * @return {@link ReservedStateMetadata}

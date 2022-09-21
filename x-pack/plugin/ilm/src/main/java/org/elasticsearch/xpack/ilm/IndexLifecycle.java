@@ -117,6 +117,7 @@ import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
 import org.elasticsearch.xpack.slm.SnapshotRetentionService;
 import org.elasticsearch.xpack.slm.SnapshotRetentionTask;
+import org.elasticsearch.xpack.slm.action.ReservedSnapshotAction;
 import org.elasticsearch.xpack.slm.action.RestDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotRetentionAction;
@@ -420,7 +421,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     }
 
     List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
-        return List.of(reservedLifecycleAction.get());
+        return List.of(reservedLifecycleAction.get(), new ReservedSnapshotAction());
     }
 
     @Override

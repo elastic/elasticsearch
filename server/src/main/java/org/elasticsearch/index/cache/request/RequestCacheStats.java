@@ -42,6 +42,9 @@ public class RequestCacheStats implements Writeable, ToXContentFragment {
     }
 
     public void add(RequestCacheStats stats) {
+        if (stats == null) {
+            return;
+        }
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
         this.hitCount += stats.hitCount;

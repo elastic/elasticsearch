@@ -129,8 +129,8 @@ public class HealthMetadataService {
         } else if (isMaster == false) {
             readyToPublish = false;
         }
-        // Wait until every node in the cluster is upgraded to 8.4.0 or later
-        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
+        // Wait until every node in the cluster is upgraded to 8.5.0 or later
+        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
             if (readyToPublish) {
                 resetHealthMetadata("health-metadata-update-master-election");
                 readyToPublish = false;

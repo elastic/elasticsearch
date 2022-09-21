@@ -319,8 +319,8 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
                     state.segmentSuffix
                 );
                 CodecUtil.retrieveChecksum(indexIn);
-                success = true;
                 assert assertBloomFilterSizes(state.segmentInfo);
+                success = true;
             } finally {
                 if (success == false) {
                     IOUtils.closeWhileHandlingException(toCloses);

@@ -35,7 +35,13 @@ public final class DfsProfileBreakdown extends AbstractProfileBreakdown<DfsTimin
     }
 
     ProfileResult result() {
-        return new ProfileResult("dfs", "dfs phase", toBreakdownMap(), toDebugMap(), stop - start,
-            List.of(new ProfileResult("inner", "test", Map.of(), Map.of(), 0, null)));
+        return new ProfileResult(
+            "dfs",
+            "dfs phase",
+            toBreakdownMap(),
+            toDebugMap(),
+            stop - start,
+            List.of(new ProfileResult("inner", "test", Map.of(), Map.of(), 0, null))
+        );
     }
 }

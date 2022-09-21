@@ -38,7 +38,7 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
     double resetCompensation = 0;
     double currentEndValue = -1;
     double currentStartValue = -1;
-    BytesRef currentTsid = null;        // TODO use global ordinals for faster tsid comparison
+    int currentTsid = -1;
 
     protected TimeSeriesRateAggregator(
         String name,
@@ -61,12 +61,11 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
 
     private void calculateLastBucket() {
         if (currentBucket != -1) {
-            System.out.println("currentEnd " + currentEndValue + " currentStart " + currentStartValue + " comp " + resetCompensation);
             long timespan = currentEndTime - currentStartTime;
             double increase = currentEndValue - currentStartValue + resetCompensation;
             double rate = timespan == 0 ? Double.NaN : increase / timespan;
             values.set(currentBucket, rate);
-            System.out.println("bucket" + currentBucket + " increase " + increase + " timespan " + timespan + " rate " + rate);
+            currentBucket = -1;
         }
     }
 
@@ -75,7 +74,6 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
             // reset detected
             resetCompensation += currentEndValue;
             currentEndValue = latestValue;
-            System.out.println("reset! currentEnd " + currentEndValue + " currentStart " + currentStartValue + " comp " + resetCompensation);
         }
         return latestValue;
     }
@@ -91,15 +89,13 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
 
                 if (bucket != currentBucket) {
                     values = bigArrays().grow(values, bucket + 1);
-                    if (Objects.equals(currentTsid, aggCtx.getTsid()) == false) {
+                    if (currentTsid != aggCtx.getTsidOrd()) {
                         // if we're on a new tsid then we need to calculate the last bucket
-                        System.out.println("new tsid " + aggCtx.getTsid().utf8ToString());
                         calculateLastBucket();
-                        currentTsid = aggCtx.getTsid();
+                        currentTsid = aggCtx.getTsidOrd();
                     } else {
                         // if we're in a new bucket but in the same tsid then we update the
                         // timestamp and last value before we calculate the last bucket
-                        System.out.println("new bucket");
                         currentStartTime = aggCtx.getTimestamp();
                         currentStartValue = checkForResets(latestValue);
                         calculateLastBucket();

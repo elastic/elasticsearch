@@ -101,6 +101,15 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
                 Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
                 assertThat(rate.getValue(), closeTo((37 - 15) / 1000.0, 0.00001));
             }
+            hb = r.getBucketByKey("{dim=2}").getAggregations().get("date");
+            {
+                Rate rate = hb.getBuckets().get(0).getAggregations().get("counter_field");
+                assertThat(rate.getValue(), closeTo((150 - 74) / 1000.0, 0.00001));
+            }
+            {
+                Rate rate = hb.getBuckets().get(1).getAggregations().get("counter_field");
+                assertThat(rate.getValue(), closeTo(90 / 2000.0, 0.00001));
+            }
         };
 
         testCase(

@@ -171,9 +171,9 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             if (shardRouting.shardId().id() == 0 && shardRouting.primary()) {
                 switch (between(1, 3)) {
                     case 1 -> iterator.initialize("node-2", null, 0L, changes);
-                    case 2 -> routingNodes.startShard(logger, iterator.initialize("node-2", null, 0L, changes), changes);
+                    case 2 -> routingNodes.startShard(logger, iterator.initialize("node-2", null, 0L, changes), changes, 0L);
                     case 3 -> routingNodes.relocateShard(
-                        routingNodes.startShard(logger, iterator.initialize("node-1", null, 0L, changes), changes),
+                        routingNodes.startShard(logger, iterator.initialize("node-1", null, 0L, changes), changes, 0L),
                         "node-2",
                         0L,
                         changes
@@ -209,7 +209,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
             var shardRouting = iterator.next();
             if (shardRouting.shardId().id() == 0 && shardRouting.primary()) {
-                routingNodes.startShard(logger, iterator.initialize("node-2", null, 0L, changes), changes);
+                routingNodes.startShard(logger, iterator.initialize("node-2", null, 0L, changes), changes, 0L);
                 break;
             }
         }
@@ -219,9 +219,9 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 assert shardRouting.primary() == false;
                 switch (between(1, 3)) {
                     case 1 -> iterator.initialize("node-0", null, 0L, changes);
-                    case 2 -> routingNodes.startShard(logger, iterator.initialize("node-0", null, 0L, changes), changes);
+                    case 2 -> routingNodes.startShard(logger, iterator.initialize("node-0", null, 0L, changes), changes, 0L);
                     case 3 -> routingNodes.relocateShard(
-                        routingNodes.startShard(logger, iterator.initialize("node-1", null, 0L, changes), changes),
+                        routingNodes.startShard(logger, iterator.initialize("node-1", null, 0L, changes), changes, 0L),
                         "node-0",
                         0L,
                         changes
@@ -284,7 +284,8 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             desiredRoutingNodes.startShard(
                 logger,
                 iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes),
-                changes
+                changes,
+                0L
             );
         }
         clusterState = ClusterState.builder(clusterState)
@@ -325,10 +326,11 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                         case STARTED -> randomRoutingNodes.startShard(
                             logger,
                             iterator.initialize(nodes.remove(0), null, 0L, changes),
-                            changes
+                            changes,
+                            0L
                         );
                         case RELOCATING -> randomRoutingNodes.relocateShard(
-                            randomRoutingNodes.startShard(logger, iterator.initialize(nodes.remove(0), null, 0L, changes), changes),
+                            randomRoutingNodes.startShard(logger, iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
                             nodes.remove(0),
                             0L,
                             changes
@@ -349,10 +351,11 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                         case STARTED -> randomRoutingNodes.startShard(
                             logger,
                             iterator.initialize(nodes.remove(0), null, 0L, changes),
-                            changes
+                            changes,
+                            0L
                         );
                         case RELOCATING -> randomRoutingNodes.relocateShard(
-                            randomRoutingNodes.startShard(logger, iterator.initialize(nodes.remove(0), null, 0L, changes), changes),
+                            randomRoutingNodes.startShard(logger, iterator.initialize(nodes.remove(0), null, 0L, changes), changes, 0L),
                             nodes.remove(0),
                             0L,
                             changes
@@ -399,7 +402,12 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var routingNodes = clusterState.mutableRoutingNodes();
         for (var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
             var shardRouting = iterator.next();
-            routingNodes.startShard(logger, iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes), changes);
+            routingNodes.startShard(
+                logger,
+                iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes),
+                changes,
+                0L
+            );
         }
         clusterState = ClusterState.builder(clusterState)
             .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))

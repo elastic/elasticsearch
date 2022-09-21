@@ -446,12 +446,11 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
+        // Check if the parent context has already successfully authorized access to the child's indices
         for (String idx : indices) {
             assert Regex.isSimpleMatchPattern(idx) == false
                 : "Wildcards should already be expanded but action [" + requestInfo.getAction() + "] has index [" + idx + "]";
-            IndicesAccessControl.IndexAccessControl iac = indicesAccessControl.getIndexPermissions(idx);
-            // The parent context has already successfully authorized access to this index (by name)
-            if (iac == null) {
+            if (indicesAccessControl.hasIndexPermissions(idx) == false) {
                 return false;
             }
         }

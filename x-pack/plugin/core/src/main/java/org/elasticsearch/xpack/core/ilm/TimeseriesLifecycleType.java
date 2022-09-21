@@ -322,6 +322,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         validateActionsFollowingSearchableSnapshot(phases);
         validateAllSearchableSnapshotActionsUseSameRepository(phases);
         validateFrozenPhaseHasSearchableSnapshotAction(phases);
+        validateDownsamplingIntervals(phases);
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {
@@ -487,6 +488,56 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 );
             }
         });
+    }
+
+    static void validateDownsamplingIntervals(Collection<Phase> phases) {
+        List<Phase> phasesWithDownsamplingActions = phases.stream()
+            .filter(phase -> phase.getActions().containsKey(DownsampleAction.NAME))
+            .toList();
+
+        if (phasesWithDownsamplingActions.size() > 1) {
+
+        }
+/*
+        final List<Phase> phasesFollowingSearchableSnapshot = new ArrayList<>(phases.size());
+        if (hotPhaseWithSearchableSnapshot.isPresent()) {
+            for (Phase phase : phases) {
+                if (phase.getName().equals(HOT_PHASE) == false) {
+                    phasesFollowingSearchableSnapshot.add(phase);
+                }
+            }
+        } else {
+            // let's see if the cold phase defines `searchable_snapshot`
+            Optional<Phase> coldPhaseWithSearchableSnapshot = phases.stream()
+                .filter(phase -> phase.getName().equals(COLD_PHASE))
+                .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
+                .findAny();
+            if (coldPhaseWithSearchableSnapshot.isPresent()) {
+                for (Phase phase : phases) {
+                    if (phase.getName().equals(FROZEN_PHASE)) {
+                        phasesFollowingSearchableSnapshot.add(phase);
+                        break;
+                    }
+                }
+            }
+        }
+
+        final String phasesDefiningIllegalActions = phasesFollowingSearchableSnapshot.stream()
+            // filter the phases that define illegal actions
+            .filter(phase -> Collections.disjoint(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, phase.getActions().keySet()) == false)
+            .map(Phase::getName)
+            .collect(Collectors.joining(","));
+        if (Strings.hasText(phasesDefiningIllegalActions)) {
+            throw new IllegalArgumentException(
+                "phases ["
+                    + phasesDefiningIllegalActions
+                    + "] define one or more of "
+                    + ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT
+                    + " actions which are not allowed after a "
+                    + "managed index is mounted as a searchable snapshot"
+            );
+        }
+ */
     }
 
     private static boolean definesAllocationRules(AllocateAction action) {

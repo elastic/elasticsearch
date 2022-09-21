@@ -53,12 +53,18 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
             throw new IllegalArgumentException();
         }
         int intSize = (int) size;
-        out.writeVInt(intSize * 4);
+        out.writeVInt(intSize * Integer.BYTES);
+        int lastPageEnd = intSize % INT_PAGE_SIZE;
+        if (lastPageEnd == 0) {
+            for (byte[] page : pages) {
+                out.write(page);
+            }
+            return;
+        }
         for (int i = 0; i < pages.length - 1; i++) {
             out.write(pages[i]);
         }
-        int end = intSize % INT_PAGE_SIZE;
-        out.write(pages[pages.length - 1], 0, end * Integer.BYTES);
+        out.write(pages[pages.length - 1], 0, lastPageEnd * Integer.BYTES);
     }
 
     @Override

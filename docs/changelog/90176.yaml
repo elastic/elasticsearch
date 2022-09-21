@@ -1,0 +1,5 @@
+pr: 90176
+summary: Add queries stats to _cluster/stats API
+area: Search
+type: enhancement
+issues: []

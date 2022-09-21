@@ -41,6 +41,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     private static final Logger logger = LogManager.getLogger(DiskHealthIndicatorService.class);
 
+    private static final String IMPACT_INGEST_UNAVAILABLE_ID = "ingest_capability_unavailable";
+    private static final String IMPACT_INGEST_AT_RISK_ID = "ingest_capability_at_risk";
+    private static final String IMPACT_CLUSTER_STABILITY_AT_RISK_ID = "cluster_stability_at_risk";
+    private static final String IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID = "cluster_functionality_unavailable";
+
     private final ClusterService clusterService;
 
     public DiskHealthIndicatorService(ClusterService clusterService) {
@@ -209,11 +214,19 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             || nodesWithBlockedIndices.isEmpty() == false
             || redDataNodes.isEmpty() == false) {
             impacts.add(
-                new HealthIndicatorImpact(1, "Cannot insert or update documents in the affected indices.", List.of(ImpactArea.INGEST))
+                new HealthIndicatorImpact(
+                    NAME,
+                    IMPACT_INGEST_UNAVAILABLE_ID,
+                    1,
+                    "Cannot insert or update documents in the affected indices.",
+                    List.of(ImpactArea.INGEST)
+                )
             );
         } else if (indicesOnYellowNodes.isEmpty() == false || yellowDataNodes.isEmpty() == false) {
             impacts.add(
                 new HealthIndicatorImpact(
+                    NAME,
+                    IMPACT_INGEST_AT_RISK_ID,
                     1,
                     "At risk of not being able to insert or update documents in the affected indices.",
                     List.of(ImpactArea.INGEST)
@@ -221,11 +234,25 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             );
         }
         if (redMasterNodes.isEmpty() == false || yellowMasterNodes.isEmpty() == false) {
-            impacts.add(new HealthIndicatorImpact(2, "Cluster stability might be impaired.", List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
+            impacts.add(
+                new HealthIndicatorImpact(
+                    NAME,
+                    IMPACT_CLUSTER_STABILITY_AT_RISK_ID,
+                    2,
+                    "Cluster stability might be impaired.",
+                    List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+                )
+            );
         }
         if (redNonDataNonMasterNodes.isEmpty() == false || yellowNonDataNonMasterNodes.isEmpty() == false) {
             impacts.add(
-                new HealthIndicatorImpact(2, "Some cluster functionality might be unavailable.", List.of(ImpactArea.DEPLOYMENT_MANAGEMENT))
+                new HealthIndicatorImpact(
+                    NAME,
+                    IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID,
+                    2,
+                    "Some cluster functionality might be unavailable.",
+                    List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+                )
             );
         }
         return impacts;
@@ -261,7 +288,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             diagnosisList.add(
                 new Diagnosis(
                     new Diagnosis.Definition(
-                        "free-disk-space-or-add-capacity-data-nodes",
+                        NAME,
+                        "add_disk_capacity_data_nodes",
                         String.format(
                             Locale.ROOT,
                             "%d %s reside%s on nodes that have run out of space and writing has been blocked by the system.",
@@ -271,7 +299,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         ),
                         "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
                             + "this. If you have already taken action please wait for the rebalancing to complete.",
-                        "https://ela.st/free-disk-space-or-add-capacity-data-nodes"
+                        "https://ela.st/fix-data-disk"
                     ),
                     unhealthyNodes.stream().sorted().toList()
                 )
@@ -281,10 +309,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             diagnosisList.add(
                 new Diagnosis(
                     new Diagnosis.Definition(
-                        "free-disk-space-or-add-capacity-master-nodes",
+                        NAME,
+                        "add_disk_capacity_master_nodes",
                         "Disk is almost full.",
                         "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
-                        "https://ela.st/free-disk-space-or-add-capacity-master-nodes"
+                        "https://ela.st/fix-master-disk"
                     ),
                     Stream.concat(redMasterNodes.stream(), yellowMasterNodes.stream()).sorted().toList()
                 )
@@ -294,10 +323,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             diagnosisList.add(
                 new Diagnosis(
                     new Diagnosis.Definition(
-                        "free-disk-space-or-add-capacity-other-nodes",
+                        NAME,
+                        "add_disk_capacity",
                         "Disk is almost full.",
                         "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
-                        "https://ela.st/free-disk-space-or-add-capacity-other-nodes"
+                        "https://ela.st/fix-disk-space"
                     ),
                     Stream.concat(redNonDataNonMasterNodes.stream(), yellowNonDataNonMasterNodes.stream()).sorted().toList()
                 )

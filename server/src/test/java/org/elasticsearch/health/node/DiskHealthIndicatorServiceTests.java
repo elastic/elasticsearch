@@ -739,7 +739,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<String> nonRedNodeIndices = new HashSet<>();
         for (int i = 0; i < numberOfIndices; i++) {
             String indexName = randomAlphaOfLength(20);
-            if (randomBoolean()) {
+            if (nonRedNodeIds.isEmpty() || randomBoolean()) {
                 indexNameToNodeIdsMap.put(indexName, redNodeIds);
                 redNodeIndices.add(indexName);
             } else {
@@ -775,7 +775,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<String> nonRedNodeIndices = new HashSet<>();
         for (int i = 0; i < numberOfIndices; i++) {
             String indexName = randomAlphaOfLength(20);
-            if (randomBoolean()) {
+            if (nonRedNodeIds.isEmpty() || randomBoolean()) {
                 indexNameToNodeIdsMap.put(indexName, redNodeIds);
                 redNodeIndices.add(indexName);
             } else {

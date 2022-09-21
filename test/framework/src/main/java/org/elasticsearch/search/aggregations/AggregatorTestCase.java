@@ -28,6 +28,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -516,34 +517,56 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
             }
             for (ShardSearcher subSearcher : subSearchers) {
-                aggs.add(
-                    buildAndRunAggregation(
-                        builder,
-                        subSearcher,
-                        rewritten,
-                        indexSettings,
-                        query,
-                        breakerService,
-                        maxBucket,
-                        shouldBeCached,
-                        fieldTypes
-                    )
-                );
-            }
-        } else {
-            aggs.add(
-                buildAndRunAggregation(
-                    builder,
-                    searcher,
-                    rewritten,
+                AggregationContext context = createAggregationContext(
+                    subSearcher,
                     indexSettings,
                     query,
                     breakerService,
+                    randomBoolean() ? 0 : builder.bytesToPreallocate(),
                     maxBucket,
-                    shouldBeCached,
+                    builder.isInSortOrderExecutionRequired(),
                     fieldTypes
-                )
+                );
+                try {
+                    C a = createAggregator(builder, context);
+                    a.preCollection();
+                    if (context.isInSortOrderExecutionRequired()) {
+                        new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
+                    } else {
+                        Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
+                        subSearcher.search(weight, a.asCollector());
+                    }
+                    a.postCollection();
+                    assertEquals(shouldBeCached, context.isCacheable());
+                    aggs.add(a.buildTopLevel());
+                } finally {
+                    Releasables.close(context);
+                }
+            }
+        } else {
+            AggregationContext context = createAggregationContext(
+                searcher,
+                indexSettings,
+                query,
+                breakerService,
+                randomBoolean() ? 0 : builder.bytesToPreallocate(),
+                maxBucket,
+                builder.isInSortOrderExecutionRequired(),
+                fieldTypes
             );
+            try {
+                C root = createAggregator(builder, context);
+                root.preCollection();
+                if (context.isInSortOrderExecutionRequired()) {
+                    new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+                } else {
+                    searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)).asCollector());
+                }
+                root.postCollection();
+                aggs.add(root.buildTopLevel());
+            } finally {
+                Releasables.close(context);
+            }
         }
         assertRoundTrip(aggs);
 
@@ -600,44 +623,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return internalAgg;
         } finally {
             Releasables.close(breakerService);
-        }
-    }
-
-    private <C extends Aggregator> InternalAggregation buildAndRunAggregation(
-        AggregationBuilder builder,
-        IndexSearcher searcher,
-        Query rewritten,
-        IndexSettings indexSettings,
-        Query query,
-        CircuitBreakerService breakerService,
-        int maxBucket,
-        boolean shouldBeCached,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        AggregationContext context = createAggregationContext(
-            searcher,
-            indexSettings,
-            query,
-            breakerService,
-            randomBoolean() ? 0 : builder.bytesToPreallocate(),
-            maxBucket,
-            builder.isInSortOrderExecutionRequired(),
-            fieldTypes
-        );
-        try {
-            C agg = createAggregator(builder, context);
-            agg.preCollection();
-            if (context.isInSortOrderExecutionRequired()) {
-                new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(agg)));
-            } else {
-                searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(agg)).asCollector());
-            }
-            assertEquals(shouldBeCached, context.isCacheable());
-            agg.postCollection();
-            InternalAggregation result = agg.buildTopLevel();
-            return result;
-        } finally {
-            Releasables.close(context);
         }
     }
 

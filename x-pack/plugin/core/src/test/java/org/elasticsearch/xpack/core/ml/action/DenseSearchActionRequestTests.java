@@ -9,9 +9,15 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdateTests;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -25,11 +31,17 @@ public class DenseSearchActionRequestTests extends AbstractWireSerializingTestCa
     @Override
     protected DenseSearchAction.Request createTestInstance() {
         return new DenseSearchAction.Request(
+            generateRandomStringArray(1, 5, false),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             randomKnnSearchBuilder(),
             TextEmbeddingConfigUpdateTests.randomUpdate(),
-            TimeValue.timeValueSeconds(randomIntBetween(1, 10))
+            TimeValue.timeValueSeconds(randomIntBetween(1, 10)),
+            randomBoolean() ? null : List.of(new TermsQueryBuilder("foo", "bar", "cat")),
+            randomBoolean() ? null : FetchSourceContext.of(randomBoolean()),
+            randomBoolean() ? null : List.of(new FieldAndFormat("foo", null)),
+            randomBoolean() ? null : List.of(new FieldAndFormat("foo", null)),
+            randomBoolean() ? null : StoredFieldsContext.fromList(List.of("A", "B"))
         );
     }
 
@@ -45,7 +57,7 @@ public class DenseSearchActionRequestTests extends AbstractWireSerializingTestCa
         var validAction = createTestInstance();
         assertNull(validAction.validate());
 
-        var action = new DenseSearchAction.Request(null, null, null, null, null);
+        var action = new DenseSearchAction.Request(null, null, null, null, null, null, null, null, null, null, null);
         var validation = action.validate();
         assertNotNull(validation);
         assertThat(validation.validationErrors(), hasSize(3));

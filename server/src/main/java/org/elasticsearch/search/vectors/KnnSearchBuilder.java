@@ -39,39 +39,57 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     static final ParseField K_FIELD = new ParseField("k");
     static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
     static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
-    static final ParseField FILTER_FIELD = new ParseField("filter");
+    public static final ParseField FILTER_FIELD = new ParseField("filter");
     static final ParseField BOOST_FIELD = AbstractQueryBuilder.BOOST_FIELD;
 
-    private static final ConstructingObjectParser<KnnSearchBuilder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
-        @SuppressWarnings("unchecked")
-        List<Float> vector = (List<Float>) args[1];
-        float[] vectorArray = new float[vector.size()];
-        for (int i = 0; i < vector.size(); i++) {
-            vectorArray[i] = vector.get(i);
-        }
-        return new KnnSearchBuilder((String) args[0], vectorArray, (int) args[2], (int) args[3]);
-    });
+    private static final ConstructingObjectParser<KnnSearchBuilder, Void> STRICT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<KnnSearchBuilder, Void> ML_SEARCH_PARSER = createParser(false);
 
-    static {
-        PARSER.declareString(constructorArg(), FIELD_FIELD);
-        PARSER.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
-        PARSER.declareInt(constructorArg(), K_FIELD);
-        PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
-        PARSER.declareFieldArray(
+
+    private static ConstructingObjectParser<KnnSearchBuilder, Void> createParser(boolean includeVectorField) {
+        ConstructingObjectParser<KnnSearchBuilder, Void> parser = new ConstructingObjectParser<>("knn", args -> {
+            if (includeVectorField) {
+                @SuppressWarnings("unchecked")
+                List<Float> vector = (List<Float>) args[1];
+                float[] vectorArray = new float[vector.size()];
+                for (int i = 0; i < vector.size(); i++) {
+                    vectorArray[i] = vector.get(i);
+                }
+                return new KnnSearchBuilder((String) args[0], vectorArray, (int) args[2], (int) args[3]);
+            } else {
+                return new KnnSearchBuilder((String) args[0], (int) args[1], (int) args[2]);
+            }
+        });
+
+        parser.declareString(constructorArg(), FIELD_FIELD);
+        if (includeVectorField) {
+            parser.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
+        }
+        parser.declareInt(constructorArg(), K_FIELD);
+        parser.declareInt(constructorArg(), NUM_CANDS_FIELD);
+        parser.declareFieldArray(
             KnnSearchBuilder::addFilterQueries,
             (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
             FILTER_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
         );
-        PARSER.declareFloat(KnnSearchBuilder::boost, BOOST_FIELD);
+        parser.declareFloat(KnnSearchBuilder::boost, BOOST_FIELD);
+
+        return parser;
     }
 
     public static KnnSearchBuilder fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        return STRICT_PARSER.parse(parser, null);
+    }
+
+    // For use in semantic search where the input vector
+    // is computed by a model
+    public static KnnSearchBuilder fromXContentWithoutVectorField(XContentParser parser) throws IOException {
+        return ML_SEARCH_PARSER.parse(parser, null);
     }
 
     final String field;
-    final float[] queryVector;
+    float[] queryVector;
     final int k;
     final int numCands;
     final List<QueryBuilder> filterQueries;
@@ -104,6 +122,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.filterQueries = new ArrayList<>();
     }
 
+    private KnnSearchBuilder(String field, int k, int numCands) {
+        this(field, new float[] {}, k, numCands);
+    }
+
     public KnnSearchBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
         this.k = in.readVInt();
@@ -134,6 +156,14 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
      */
     public KnnSearchBuilder boost(float boost) {
         this.boost = boost;
+        return this;
+    }
+
+    /**
+     * Set the
+     */
+    public KnnSearchBuilder queryVector(float[] queryVector) {
+        this.queryVector = queryVector;
         return this;
     }
 

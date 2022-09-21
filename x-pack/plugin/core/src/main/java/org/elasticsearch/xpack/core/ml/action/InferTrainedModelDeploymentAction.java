@@ -135,7 +135,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
                 skipQueue = in.readBoolean();
             }
-            if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            if (in.getVersion().onOrAfter(Version.V_8_5_0)) { // TODO change to 8.6
                 textInput = in.readOptionalString();
             } else {
                 textInput = null;

@@ -453,6 +453,7 @@ public class OperatorTests extends ESTestCase {
     record LongGroupPair(long groupId, long value) {}
 
     // Basic test with small(ish) input
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
     public void testBasicAvgGroupingOperators() {
         AtomicInteger pageCount = new AtomicInteger();
         AtomicInteger rowCount = new AtomicInteger();
@@ -483,7 +484,17 @@ public class OperatorTests extends ESTestCase {
                 source,
                 new HashAggregationOperator(
                     0, // group by channel
-                    List.of(new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.SINGLE, 1)),
+                    List.of(new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INITIAL, 1)),
+                    BigArrays.NON_RECYCLING_INSTANCE
+                ),
+                new HashAggregationOperator(
+                    0, // group by channel
+                    List.of(new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INTERMEDIATE, 1)),
+                    BigArrays.NON_RECYCLING_INSTANCE
+                ),
+                new HashAggregationOperator(
+                    0, // group by channel
+                    List.of(new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.FINAL, 1)),
                     BigArrays.NON_RECYCLING_INSTANCE
                 ),
                 new PageConsumerOperator(page -> {
@@ -507,6 +518,85 @@ public class OperatorTests extends ESTestCase {
         assertEquals(expectedGroupIds, actualGroupIds);
 
         final Block valuesBlock = lastPage.get().getBlock(1);
+        assertEquals(cardinality, valuesBlock.getPositionCount());
+        var expectedValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> 49.5 + (i * 100)));
+        var actualValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, valuesBlock::getDouble));
+        assertEquals(expectedValues, actualValues);
+    }
+
+    // Tests grouping avg aggregators with multiple intermediate partial blocks.
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
+    public void testGroupingIntermediateAvgOperators() {
+        final int cardinality = 10;
+        final long initialGroupId = 10_000L;
+        final long initialValue = 0L;
+
+        // create a list of group/value pairs. Each group has 100 monotonically increasing values.
+        // Higher groupIds have higher sets of values, e.g. logical group1, values 0...99;
+        // group2, values 100..199, etc. This way we can assert average values given the groupId.
+        List<LongGroupPair> values = new ArrayList<>();
+        long group = initialGroupId;
+        long value = initialValue;
+        for (int i = 0; i < cardinality; i++) {
+            for (int j = 0; j < 100; j++) {
+                values.add(new LongGroupPair(group, value++));
+            }
+            group++;
+        }
+        // shuffling provides a basic level of randomness to otherwise quite boring data
+        Collections.shuffle(values, random());
+        var source = new GroupPairBlockSourceOperator(values, 99);
+        List<Page> rawPages = drainSourceToPages(source);
+
+        HashAggregationOperator partialAggregatorOperator = null;
+        List<Operator> partialAggregatorOperators = new ArrayList<>();
+        for (Page inputPage : rawPages) {
+            if (partialAggregatorOperator == null || random().nextBoolean()) {
+                partialAggregatorOperator = new HashAggregationOperator(
+                    0, // group by channel
+                    List.of(new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INITIAL, 1)),
+                    BigArrays.NON_RECYCLING_INSTANCE
+                );
+                partialAggregatorOperators.add(partialAggregatorOperator);
+            }
+            partialAggregatorOperator.addInput(inputPage);
+        }
+        List<Page> partialPages = partialAggregatorOperators.stream().peek(Operator::finish).map(Operator::getOutput).toList();
+
+        HashAggregationOperator interAggregatorOperator = null;
+        List<Operator> interAggregatorOperators = new ArrayList<>();
+        for (Page page : partialPages) {
+            if (interAggregatorOperator == null || random().nextBoolean()) {
+                interAggregatorOperator = new HashAggregationOperator(
+                    0, // group by channel
+                    List.of(new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INTERMEDIATE, 1)),
+                    BigArrays.NON_RECYCLING_INSTANCE
+                );
+                interAggregatorOperators.add(interAggregatorOperator);
+            }
+            interAggregatorOperator.addInput(page);
+        }
+        List<Page> intermediatePages = interAggregatorOperators.stream().peek(Operator::finish).map(Operator::getOutput).toList();
+
+        HashAggregationOperator finalAggregationOperator = new HashAggregationOperator(
+            0, // group by channel
+            List.of(new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.FINAL, 1)),
+            BigArrays.NON_RECYCLING_INSTANCE
+        );
+        intermediatePages.stream().forEach(finalAggregationOperator::addInput);
+        finalAggregationOperator.finish();
+        Page finalPage = finalAggregationOperator.getOutput();
+
+        assertEquals(10, finalPage.getPositionCount());
+        assertEquals(2, finalPage.getBlockCount());
+
+        final Block groupIdBlock = finalPage.getBlock(0);
+        assertEquals(cardinality, finalPage.getPositionCount());
+        var expectedGroupIds = LongStream.range(initialGroupId, initialGroupId + cardinality).boxed().collect(toSet());
+        var actualGroupIds = IntStream.range(0, groupIdBlock.getPositionCount()).mapToLong(groupIdBlock::getLong).boxed().collect(toSet());
+        assertEquals(expectedGroupIds, actualGroupIds);
+
+        final Block valuesBlock = finalPage.getBlock(1);
         assertEquals(cardinality, valuesBlock.getPositionCount());
         var expectedValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> 49.5 + (i * 100)));
         var actualValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, valuesBlock::getDouble));

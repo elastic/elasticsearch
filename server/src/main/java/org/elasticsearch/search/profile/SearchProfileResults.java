@@ -51,7 +51,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             // Before 8.0.0 we only send the query phase result
             shardResults = in.readMap(
                 StreamInput::readString,
-                i -> new SearchProfileShardResult(null, new SearchProfileQueryPhaseResult(i), null)
+                i -> new SearchProfileShardResult(new SearchProfileQueryPhaseResult(i), null)
             );
         }
     }
@@ -165,10 +165,10 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             }
         }
         SearchProfileShardResult result = new SearchProfileShardResult(
-            dfsResult,
             new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult),
             fetchResult
         );
+        result.getQueryPhase().setDfsProfileResult(dfsResult);
         searchProfileResults.put(id, result);
     }
 }

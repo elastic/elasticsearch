@@ -13,10 +13,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 public class SearchProfileShardResultTests extends AbstractWireSerializingTestCase<SearchProfileShardResult> {
     static SearchProfileShardResult createTestItem() {
-        ProfileResult dfsResult = randomBoolean() ? null : ProfileResultTests.createTestItem(2);
         SearchProfileQueryPhaseResult searchResult = SearchProfileQueryPhaseResultTests.createTestItem();
         ProfileResult fetchResult = randomBoolean() ? null : ProfileResultTests.createTestItem(2);
-        return new SearchProfileShardResult(dfsResult, searchResult, fetchResult);
+        return new SearchProfileShardResult(searchResult, fetchResult);
     }
 
     @Override

@@ -25,10 +25,10 @@ public class SearchProfileResultsTests extends AbstractSerializingTestCase<Searc
         int size = rarely() ? 0 : randomIntBetween(1, 2);
         Map<String, SearchProfileShardResult> shards = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
-            ProfileResult dfsResult = randomBoolean() ? null : ProfileResultTests.createTestItem(1);
             SearchProfileQueryPhaseResult searchResult = SearchProfileQueryPhaseResultTests.createTestItem();
+            searchResult.setDfsProfileResult(randomBoolean() ? null : ProfileResultTests.createTestItem(1));
             ProfileResult fetchResult = randomBoolean() ? null : ProfileResultTests.createTestItem(2);
-            shards.put(randomAlphaOfLengthBetween(5, 10), new SearchProfileShardResult(dfsResult, searchResult, fetchResult));
+            shards.put(randomAlphaOfLengthBetween(5, 10), new SearchProfileShardResult(searchResult, fetchResult));
         }
         return new SearchProfileResults(shards);
     }

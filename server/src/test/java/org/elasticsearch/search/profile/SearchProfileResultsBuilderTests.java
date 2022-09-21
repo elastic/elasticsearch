@@ -8,12 +8,20 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Map;
+
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
 public class SearchProfileResultsBuilderTests extends ESTestCase {
     public void testFetchWithoutQuery() {

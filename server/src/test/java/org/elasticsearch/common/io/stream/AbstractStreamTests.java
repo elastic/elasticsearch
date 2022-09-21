@@ -13,6 +13,9 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -212,6 +215,31 @@ public abstract class AbstractStreamTests extends ESTestCase {
             deserialized = getStreamInput(out.bytes()).readArray(reader, String[]::new);
         }
         assertThat(deserialized, equalTo(strings));
+    }
+
+    public void testSmallBigIntArray() throws IOException {
+        assertBigIntArray(between(0, PageCacheRecycler.INT_PAGE_SIZE));
+    }
+
+    public void testLargeBigIntArray() throws IOException {
+        assertBigIntArray(between(PageCacheRecycler.INT_PAGE_SIZE, 10000));
+    }
+
+    private void assertBigIntArray(int size) throws IOException {
+        IntArray testData = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(size, false);
+        for (int i = 0; i < size; i++) {
+            testData.set(i, randomInt());
+        }
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        testData.writeTo(out);
+
+        try (IntArray in = IntArray.readFrom(getStreamInput(out.bytes()))) {
+            assertThat(in.size(), equalTo(testData.size()));
+            for (int i = 0; i < size; i++) {
+                assertThat(in.get(i), equalTo(testData.get(i)));
+            }
+        }
     }
 
     public void testCollection() throws IOException {

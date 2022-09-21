@@ -156,12 +156,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                         expectedOddMin = Math.min(expectedOddMin, e.getValue().v2());
                     }
                 }
-                StringTerms result = searchAndReduce(
-                    indexSearcher,
-                    new MatchAllDocsQuery(),
-                    request,
-                    withJoinFields(longField("number"), kwd)
-                );
+                StringTerms result = searchAndReduce(new AggTestConfig(indexSearcher, request, withJoinFields(longField("number"), kwd)));
 
                 StringTerms.Bucket evenBucket = result.getBucketByKey("even");
                 InternalChildren evenChildren = evenBucket.getAggregations().get("children");
@@ -209,10 +204,12 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     var e = expectThrows(
                         RuntimeException.class,
                         () -> searchAndReduce(
-                            indexSearcher,
-                            new TermQuery(new Term("join_field", "parent_type")),
-                            aggregationBuilder,
-                            withJoinFields(fieldType, fieldType2)
+                            new AggTestConfig(
+                                indexSearcher,
+                                new TermQuery(new Term("join_field", "parent_type")),
+                                aggregationBuilder,
+                                withJoinFields(fieldType, fieldType2)
+                            )
                         )
                     );
                     assertThat(
@@ -239,10 +236,12 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     var fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
                     var fieldType2 = new KeywordFieldMapper.KeywordFieldType("string_field", false, true, Map.of());
                     InternalChildren result = searchAndReduce(
-                        indexSearcher,
-                        new TermQuery(new Term("join_field", "parent_type")),
-                        aggregationBuilder,
-                        withJoinFields(fieldType, fieldType2)
+                        new AggTestConfig(
+                            indexSearcher,
+                            new TermQuery(new Term("join_field", "parent_type")),
+                            aggregationBuilder,
+                            withJoinFields(fieldType, fieldType2)
+                        )
                     );
 
                     Terms terms = result.getAggregations().get("_name2");
@@ -312,7 +311,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalChildren result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType));
+        InternalChildren result = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType)));
         verify.accept(result);
     }
 

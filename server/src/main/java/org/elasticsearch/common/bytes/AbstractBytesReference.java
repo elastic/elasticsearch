@@ -27,6 +27,11 @@ public abstract class AbstractBytesReference implements BytesReference {
     }
 
     @Override
+    public int getIntLE(int index) {
+        return (get(index + 3) & 0xFF) << 24 | (get(index + 2) & 0xFF) << 16 | (get(index + 1) & 0xFF) << 8 | get(index) & 0xFF;
+    }
+
+    @Override
     public int indexOf(byte marker, int from) {
         final int to = length();
         for (int i = from; i < to; i++) {

@@ -1,0 +1,5 @@
+pr: 90026
+summary: Support `geo_hex` aggregations over `geo_shape` fields
+area: Geo
+type: feature
+issues: []

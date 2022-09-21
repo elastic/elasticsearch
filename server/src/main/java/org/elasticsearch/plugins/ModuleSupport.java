@@ -8,7 +8,6 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.BufferedReader;
@@ -59,58 +58,55 @@ public class ModuleSupport {
         throws IOException {
         var builder = ModuleDescriptor.newOpenModule(name); // open module, for now
         requires.stream().forEach(builder::requires);
+        uses.stream().forEach(builder::uses);
 
         // scan the names of the entries in the JARs
         Set<String> pkgs = new HashSet<>();
-        Map<String, List<String>> providersInBundle = new HashMap<>();
-        Set<String> usedServicesInBundle = new HashSet<>();
+        Map<String, List<String>> allBundledProviders = new HashMap<>();
+        Set<String> allBundledServices = new HashSet<>();
         for (Path path : jarPaths) {
             assert path.getFileName().toString().endsWith(".jar") : "expected jars suffix, in path: " + path;
             try (JarFile jf = new JarFile(path.toFile(), true, ZipFile.OPEN_READ, Runtime.version())) {
-                // separator = path.getFileSystem().getSeparator();
-                var scan = scan(jf);
-                scan.classFiles().stream().map(cf -> toPackageName(cf, "/")).flatMap(Optional::stream).forEach(pkgs::add);
-
                 // if we have a module declaration, trust its uses/provides
                 JarEntry moduleInfo = jf.getJarEntry("module-info.class");
                 if (moduleInfo != null) {
-                    ModuleDescriptor md = ModuleFinder.of(path)
-                        .findAll()
-                        .stream()
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalStateException("found a module descriptor but failed to load a module"))
-                        .descriptor();
-                    usedServicesInBundle.addAll(md.uses());
+                    ModuleDescriptor md = getDescriptorForModularJar(path);
+                    pkgs.addAll(md.packages());
+                    allBundledServices.addAll(md.uses());
                     for (ModuleDescriptor.Provides p : md.provides()) {
-                        usedServicesInBundle.add(p.service());
-                        providersInBundle.compute(p.service(), (k, v) -> v == null ? List.copyOf(p.providers()) : concat(v, p.providers()));
+                        String serviceName = p.service();
+                        List<String> providersInModule = p.providers();
+
+                        allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInModule));
+                        allBundledServices.add(serviceName);
                     }
                 } else {
+                    var scan = scan(jf);
+                    scan.classFiles().stream().map(cf -> toPackageName(cf, "/")).flatMap(Optional::stream).forEach(pkgs::add);
+
                     // read providers from the list of service files
-                    for (String sf : scan.serviceFiles()) {
-                        String serviceName = sf.substring("META-INF/services/".length());
+                    for (String serviceFileName : scan.serviceFiles()) {
+                        String serviceName = getServiceName(serviceFileName);
                         List<String> providersInJar;
-                        try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf))))) {
-                            providersInJar = bf.lines().toList();
-                        }
-                        providersInBundle.compute(
-                            serviceName,
-                            (k, v) -> v == null ? List.copyOf(providersInJar) : concat(v, providersInJar)
-                        );
-                        usedServicesInBundle.add(serviceName);
+                        providersInJar = getProvidersFromServiceFile(jf, serviceFileName);
+
+                        allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInJar));
+                        allBundledServices.add(serviceName);
                     }
                 }
             }
         }
-        builder.packages(pkgs);
-        usedServicesInBundle.addAll(providersInBundle.keySet());
-        Sets.union(uses, usedServicesInBundle).forEach(builder::uses);
-        providersInBundle.forEach(builder::provides);
-        return builder.build();
-    }
 
-    private static <T> List<T> concat(List<T> left, List<T> right) {
-        return Stream.concat(left.stream(), right.stream()).toList();
+        builder.packages(pkgs);
+
+        // the module needs to use all services it provides, for the case of internal use
+        allBundledServices.addAll(allBundledProviders.keySet());
+        // but we don't want to add any services we already got from the parent layer
+        allBundledServices.removeAll(uses);
+
+        allBundledServices.forEach(builder::uses);
+        allBundledProviders.forEach(builder::provides);
+        return builder.build();
     }
 
     static class InMemoryModuleFinder implements ModuleFinder {
@@ -223,4 +219,33 @@ public class ModuleSupport {
         }
         return true;
     }
+
+    private static List<String> getProvidersFromServiceFile(JarFile jf, String sf) throws IOException {
+        List<String> providersInJar;
+        try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf))))) {
+            providersInJar = bf.lines().toList();
+        }
+        return providersInJar;
+    }
+
+    private static List<String> createListOrAppend(List<String> currentList, List<String> newList) {
+        if (currentList == null) {
+            return List.copyOf(newList);
+        }
+        return Stream.concat(currentList.stream(), newList.stream()).toList();
+    }
+
+    private static String getServiceName(String sf) {
+        return sf.substring("META-INF/services/".length());
+    }
+
+    private static ModuleDescriptor getDescriptorForModularJar(Path path) {
+        return ModuleFinder.of(path)
+            .findAll()
+            .stream()
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("found a module descriptor but failed to load a module from " + path))
+            .descriptor();
+    }
+
 }

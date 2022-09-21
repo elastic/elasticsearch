@@ -947,7 +947,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                         + action
                         + "] is unauthorized"
                         + " for user [test user]"
-                        + " with effective roles [] (assigned roles [non-existent-role] were not found),"
+                        + " with effective roles [] (assigned roles [non-existent-role] were not found)"
                 )
             )
         );
@@ -1041,7 +1041,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(
             securityException,
             throwableWithMessage(
-                containsString("[" + action + "] is unauthorized" + " for user [test user]" + " with effective roles [no_indices],")
+                containsString("[" + action + "] is unauthorized" + " for user [test user]" + " with effective roles [no_indices]")
             )
         );
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));

@@ -10,7 +10,6 @@ package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.dfs.DfsSearchResult;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -32,21 +31,15 @@ public class SearchProfileResultsBuilder {
         this.fetchProfileResults = new HashMap<>();
     }
 
-    public SearchProfileResultsBuilder setDfsProfileResults(Collection<DfsSearchResult> dfsResults) {
-        for (DfsSearchResult result : dfsResults) {
-            String key = result.getSearchShardTarget().toString();
-            ProfileResult value = result.profileResult();
-            dfsProfileResults.put(key, value);
-        }
-
-        return this;
-    }
-
     public SearchProfileResultsBuilder setQueryProfileResults(Collection<? extends SearchPhaseResult> queryResults) {
         for (SearchPhaseResult result : queryResults) {
             String key = result.getSearchShardTarget().toString();
             SearchProfileQueryPhaseResult value = result.queryResult().consumeProfileResult();
             queryProfileResults.put(key, value);
+
+            if (value.getDfsProfileResult() != null) {
+                dfsProfileResults.put(key, value.getDfsProfileResult());
+            }
         }
 
         return this;

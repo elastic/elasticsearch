@@ -84,16 +84,17 @@ public class SearchProfileQueryPhaseResult implements Writeable {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        SearchProfileQueryPhaseResult other = (SearchProfileQueryPhaseResult) obj;
-        return queryProfileResults.equals(other.queryProfileResults) && aggProfileShardResult.equals(other.aggProfileShardResult);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchProfileQueryPhaseResult that = (SearchProfileQueryPhaseResult) o;
+        return Objects.equals(dfsProfileResult, that.dfsProfileResult)
+            && Objects.equals(queryProfileResults, that.queryProfileResults)
+            && Objects.equals(aggProfileShardResult, that.aggProfileShardResult);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(queryProfileResults, aggProfileShardResult);
+        return Objects.hash(dfsProfileResult, queryProfileResults, aggProfileShardResult);
     }
 }

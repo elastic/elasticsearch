@@ -467,16 +467,7 @@ public final class SearchPhaseController {
                 topDocs.add(td.topDocs);
             }
         }
-        return reducedQueryPhase(
-            queryResults,
-            Collections.emptyList(),
-            topDocs,
-            topDocsStats,
-            0,
-            true,
-            aggReduceContextBuilder,
-            true
-        );
+        return reducedQueryPhase(queryResults, Collections.emptyList(), topDocs, topDocsStats, 0, true, aggReduceContextBuilder, true);
     }
 
     /**
@@ -567,9 +558,8 @@ public final class SearchPhaseController {
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
         final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
-        SearchProfileResultsBuilder searchProfileResultsBuilder =
-            queryResults.stream().anyMatch(result -> result.queryResult().hasProfileResults()) ?
-            new SearchProfileResultsBuilder() : null;
+        SearchProfileResultsBuilder searchProfileResultsBuilder = queryResults.stream()
+            .anyMatch(result -> result.queryResult().hasProfileResults()) ? new SearchProfileResultsBuilder() : null;
         if (searchProfileResultsBuilder != null) {
             searchProfileResultsBuilder.setQueryProfileResults(queryResults);
         }

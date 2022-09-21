@@ -6,10 +6,8 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cluster.routing.allocation.allocator;
+package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.shard.ShardId;
 

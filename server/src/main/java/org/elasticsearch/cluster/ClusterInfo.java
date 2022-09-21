@@ -40,10 +40,10 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
-    public final Map<String, Long> shardSizes;
-    public final Map<ShardId, Long> shardDataSetSizes;
-    public final Map<ShardRouting, String> routingToDataPath;
-    public final Map<NodeAndPath, ReservedSpace> reservedSpace;
+    final Map<String, Long> shardSizes;
+    final Map<ShardId, Long> shardDataSetSizes;
+    final Map<ShardRouting, String> routingToDataPath;
+    final Map<NodeAndPath, ReservedSpace> reservedSpace;
 
     protected ClusterInfo() {
         this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());

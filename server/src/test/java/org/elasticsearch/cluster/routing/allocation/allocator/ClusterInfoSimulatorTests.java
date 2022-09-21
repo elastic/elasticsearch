@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoSimulator;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.test.ESTestCase;

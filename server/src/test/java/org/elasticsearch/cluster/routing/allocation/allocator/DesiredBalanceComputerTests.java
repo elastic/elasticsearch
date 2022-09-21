@@ -27,10 +27,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -514,7 +516,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var iteration = new AtomicInteger(0);
 
-        var input = createInput(routingAllocationWithDecidersOf(clusterState, ClusterInfo.EMPTY));
+        var input = createInput(routingAllocationWithDecidersOf(clusterState, ClusterInfo.EMPTY, Settings.EMPTY));
         var desiredBalance = new DesiredBalanceComputer(new BalancedShardsAllocator(Settings.EMPTY)).compute(
             DesiredBalance.INITIAL,
             input,
@@ -560,7 +562,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder();
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 10; i++) {
             var indexName = "index-" + i;
             var inSyncId = UUIDs.randomBase64UUID(random());
 
@@ -600,29 +602,43 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .routingTable(routingTableBuilder)
             .build();
 
-        var node0Usage = new DiskUsage("node-0", "node-0", "/data", 1000, 300);
-        var node1Usage = new DiskUsage("node-1", "node-1", "/data", 1000, 50);
+        var node0Usage = new DiskUsage("node-0", "node-0", "/data", 1000, 100);
+        var node1Usage = new DiskUsage("node-1", "node-1", "/data", 1000, 100);
 
         var clusterInfo = new ClusterInfo(
             Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage),
             Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage),
             Map.ofEntries(
                 // node-0
-                indexSize(clusterState, "index-0", 700),
+                indexSize(clusterState, "index-0", 900),
                 // node-1
                 indexSize(clusterState, "index-1", 500),
-                indexSize(clusterState, "index-2", 300),
-                indexSize(clusterState, "index-3", 100),
-                indexSize(clusterState, "index-4", 50)
+                indexSize(clusterState, "index-2", 50),
+                indexSize(clusterState, "index-3", 50),
+                indexSize(clusterState, "index-4", 50),
+                indexSize(clusterState, "index-5", 50),
+                indexSize(clusterState, "index-6", 50),
+                indexSize(clusterState, "index-7", 50),
+                indexSize(clusterState, "index-8", 50),
+                indexSize(clusterState, "index-9", 50)
             ),
             Map.of(),
             Map.of(),
             Map.of()
         );
 
-        var desiredBalance = new DesiredBalanceComputer(new BalancedShardsAllocator(Settings.EMPTY)).compute(
+        var settings = Settings.builder()
+            // force as many iterations as possible to accumulate the diff
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), "1")
+            // have a small gap to keep allocating the shards
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "97%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "98%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "99%")
+            .build();
+
+        var desiredBalance = new DesiredBalanceComputer(new BalancedShardsAllocator(settings)).compute(
             DesiredBalance.INITIAL,
-            createInput(routingAllocationWithDecidersOf(clusterState, clusterInfo)),
+            createInput(routingAllocationWithDecidersOf(clusterState, clusterInfo, settings)),
             queue(),
             input -> true
         );
@@ -726,12 +742,16 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         return new RoutingAllocation(new AllocationDeciders(List.of()), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
     }
 
-    private static RoutingAllocation routingAllocationWithDecidersOf(ClusterState clusterState, ClusterInfo clusterInfo) {
+    private static RoutingAllocation routingAllocationWithDecidersOf(
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        Settings settings
+    ) {
         return new RoutingAllocation(
             new AllocationDeciders(
                 ClusterModule.createAllocationDeciders(
-                    Settings.EMPTY,
-                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    settings,
+                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     List.of()
                 )
             ),

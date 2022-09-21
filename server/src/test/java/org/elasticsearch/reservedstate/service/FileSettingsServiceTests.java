@@ -357,6 +357,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         deadThreadLatch.countDown();
     }
 
+    @SuppressWarnings("unchecked")
     public void testNodeInfosRefresh() throws Exception {
         var spiedController = spy(controller);
         var csAdminClient = spy(clusterAdminClient);
@@ -370,8 +371,11 @@ public class FileSettingsServiceTests extends ESTestCase {
         var service = spy(new FileSettingsService(clusterService, spiedController, env, nodeClient));
         doAnswer(i -> csAdminClient).when(service).clusterAdminClient();
 
-        doAnswer((Answer<ReservedStateChunk>) invocation ->
-            new ReservedStateChunk(Collections.emptyMap(), new ReservedStateVersion(1L, Version.CURRENT))
+        doAnswer(
+            (Answer<ReservedStateChunk>) invocation -> new ReservedStateChunk(
+                Collections.emptyMap(),
+                new ReservedStateVersion(1L, Version.CURRENT)
+            )
         ).when(spiedController).parse(any(String.class), any());
 
         Files.createDirectories(service.operatorSettingsDir());

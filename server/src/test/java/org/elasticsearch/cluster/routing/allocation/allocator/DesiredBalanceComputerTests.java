@@ -592,7 +592,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .routingTable(routingTableBuilder)
             .build();
 
-        var node0Usage = new DiskUsage("node-0", "node-0", "/data", 1000, 200);
+        var node0Usage = new DiskUsage("node-0", "node-0", "/data", 1000, 300);
         var node1Usage = new DiskUsage("node-1", "node-1", "/data", 1000, 50);
 
         var clusterInfo = new ClusterInfo(
@@ -600,7 +600,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage),
             Map.ofEntries(
                 // node-0
-                indexSize(clusterState, "index-0", 800),
+                indexSize(clusterState, "index-0", 700),
                 // node-1
                 indexSize(clusterState, "index-1", 500),
                 indexSize(clusterState, "index-2", 300),

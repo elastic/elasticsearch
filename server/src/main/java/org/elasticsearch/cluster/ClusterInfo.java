@@ -193,7 +193,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Returns the shard size for the given shard routing or <code>null</code> it that metric is not available.
+     * Returns the shard size for the given shard routing or <code>null</code> if that metric is not available.
      */
     public Long getShardSize(ShardRouting shardRouting) {
         return getShardSize(shardRouting.shardId(), shardRouting.primary());

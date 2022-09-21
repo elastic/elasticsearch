@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
 import java.io.IOException;
 
-public abstract class ShapeValuesSource extends ValuesSource {
-    public abstract ShapeValues shapeValues(LeafReaderContext context);
+public abstract class ShapeValuesSource<T extends ShapeValues<?>> extends ValuesSource {
+    public abstract T shapeValues(LeafReaderContext context);
 
     @Override
     public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
@@ -26,7 +26,7 @@ public abstract class ShapeValuesSource extends ValuesSource {
 
     @Override
     public DocValueBits docsWithValue(LeafReaderContext context) {
-        ShapeValues values = shapeValues(context);
+        T values = shapeValues(context);
         return new DocValueBits() {
             @Override
             public boolean advanceExact(int doc) throws IOException {

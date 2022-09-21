@@ -543,6 +543,48 @@ non-indexed dense vectors:
   - is_false: fields
 
 ---
+_source filtering:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+              extra:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: foo
+          extra: bar
+
+  - do:
+      get:
+        index: test
+        id:    1
+        _source: kwd
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: foo
+  - is_false: fields
+
+---
 ip with ignore_malformed:
   - skip:
       version: " - 8.4.99"

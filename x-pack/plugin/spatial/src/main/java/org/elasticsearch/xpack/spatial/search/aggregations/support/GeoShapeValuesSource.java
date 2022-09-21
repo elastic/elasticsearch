@@ -13,12 +13,11 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
 import java.io.IOException;
 import java.util.function.Function;
 
-public abstract class GeoShapeValuesSource extends ShapeValuesSource {
+public abstract class GeoShapeValuesSource extends ShapeValuesSource<GeoShapeValues> {
     public static final GeoShapeValuesSource EMPTY = new GeoShapeValuesSource() {
 
         @Override
@@ -34,9 +33,9 @@ public abstract class GeoShapeValuesSource extends ShapeValuesSource {
 
     public static class Fielddata extends GeoShapeValuesSource {
 
-        protected final IndexShapeFieldData indexFieldData;
+        protected final IndexShapeFieldData<GeoShapeValues> indexFieldData;
 
-        public Fielddata(IndexShapeFieldData indexFieldData) {
+        public Fielddata(IndexShapeFieldData<GeoShapeValues> indexFieldData) {
             this.indexFieldData = indexFieldData;
         }
 
@@ -45,7 +44,7 @@ public abstract class GeoShapeValuesSource extends ShapeValuesSource {
             return indexFieldData.load(context).getBytesValues();
         }
 
-        public ShapeValues shapeValues(LeafReaderContext context) {
+        public GeoShapeValues shapeValues(LeafReaderContext context) {
             return indexFieldData.load(context).getShapeValues();
         }
     }

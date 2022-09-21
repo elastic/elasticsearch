@@ -87,7 +87,7 @@ setup:
           index.blocks.write: true
 
 ---
-"Rollup index":
+"Downsample index":
   - skip:
       version: " - 8.4.99"
       reason: "rollup renamed to downsample in 8.5.0"
@@ -141,6 +141,24 @@ setup:
   - match: { rollup-test.settings.index.number_of_shards: "1" }
   - match: { rollup-test.settings.index.number_of_replicas: "0" }
 
+  # Assert rollup index mapping
+  - do:
+      indices.get_mapping:
+        index: rollup-test
+
+  - match: { rollup-test.mappings.properties.@timestamp.type: date }
+  - match: { rollup-test.mappings.properties.@timestamp.meta.fixed_interval: 1h }
+  - match: { rollup-test.mappings.properties.@timestamp.meta.time_zone: UTC }
+  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-gauge.type: aggregate_metric_double }
+  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-gauge.default_metric: max }
+  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-gauge.time_series_metric: gauge }
+  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-counter.type: long }
+  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.multi-counter.time_series_metric: counter }
+  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
+  - match: { rollup-test.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
+
+
   # Assert source index has not been deleted
   - do:
       indices.get:
@@ -156,7 +174,7 @@ setup:
   - match:   { indices.rollup-test.shards.0.0.num_search_segments: 1}
 
 ---
-"Rollup non-existing index":
+"Downsample non-existing index":
   - skip:
       version: " - 8.4.99"
       reason: "rollup renamed to downsample in 8.5.0"
@@ -172,7 +190,7 @@ setup:
           }
 
 ---
-"Rollup to existing rollup index":
+"Downsample to existing index":
   - skip:
       version: " - 8.4.99"
       reason: "rollup renamed to downsample in 8.5.0"
@@ -192,7 +210,7 @@ setup:
           }
 
 ---
-"Rollup not time_series index":
+"Downsample not time_series index":
   - skip:
       version: " - 8.4.99"
       reason: "rollup renamed to downsample in 8.5.0"
@@ -213,7 +231,7 @@ setup:
 
 
 ---
-"Rollup no metric index":
+"Downsample no metric index":
   - skip:
       version: " - 8.4.99"
       reason: "rollup renamed to downsample in 8.5.0"
@@ -253,4 +271,143 @@ setup:
         body:  >
           {
             "fixed_interval": "1h"
+          }
+
+---
+"Downsample a downsampled index":
+  - skip:
+      version: " - 8.4.99"
+      reason: "Rollup of rollups introduced in 8.5.0"
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: rollup-test
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.downsample:
+        index: rollup-test
+        target_index: rollup-test-2
+        body: >
+          {
+            "fixed_interval": "2h"
+          }
+  - is_true: acknowledged
+
+
+  # Assert rollup index mapping
+  - do:
+      indices.get_mapping:
+        index: rollup-test-2
+
+  - match: { rollup-test-2.mappings.properties.@timestamp.type: date }
+  - match: { rollup-test-2.mappings.properties.@timestamp.meta.fixed_interval: 2h }
+  - match: { rollup-test-2.mappings.properties.@timestamp.meta.time_zone: UTC }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.type: aggregate_metric_double }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.default_metric: max }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.time_series_metric: gauge }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-counter.type: long }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.multi-counter.time_series_metric: counter }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.type: aggregate_metric_double }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.default_metric: max }
+  - match: { rollup-test-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.time_series_metric: gauge }
+
+  - do:
+      search:
+        index: rollup-test-2
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source._doc_count: 2 }
+  - match: { hits.hits.0._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.0._source.metricset: pod }
+  - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-counter: 21 }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.min: 90 }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.max: 200 }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.sum: 726 }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.value_count: 6 }
+  - match: { hits.hits.0._source.k8s\.pod\.network\.tx.min: 2001818691 }
+  - match: { hits.hits.0._source.k8s\.pod\.network\.tx.max: 2005177954 }
+  - match: { hits.hits.0._source.k8s\.pod\.network\.tx.value_count: 2 }
+  - match: { hits.hits.0._source.k8s\.pod\.ip: "10.10.55.26" }
+  - match: { hits.hits.0._source.k8s\.pod\.created_at: "2021-04-28T19:35:00.000Z" }
+  - match: { hits.hits.0._source.k8s\.pod\.number_of_containers: 2 }
+  - match: { hits.hits.0._source.k8s\.pod\.tags: [ "backend", "prod", "us-west1" ] }
+  - match: { hits.hits.0._source.k8s\.pod\.values: [ 1, 1, 3 ] }
+
+  - match: { hits.hits.1._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.1._source.metricset: pod }
+  - match: { hits.hits.1._source.@timestamp: 2021-04-28T20:00:00.000Z }
+  - match: { hits.hits.1._source._doc_count: 2 }
+
+  - match: { hits.hits.2._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.2._source.metricset: pod }
+  - match: { hits.hits.2._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  - match: { hits.hits.2._source._doc_count: 4 }
+
+  - do:
+      indices.downsample:
+        index: rollup-test
+        target_index: rollup-test-3
+        body: >
+          {
+            "fixed_interval": "180m"
+          }
+  - is_true: acknowledged
+
+---
+"Downsample a downsampled index with wrong intervals":
+  - skip:
+      version: " - 8.4.99"
+      reason: "Rollup of rollups introduced in 8.5.0"
+
+  - do:
+      indices.downsample:
+        index: test
+        target_index: rollup-test
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      catch: /Downsampling interval \[1h\] must be greater than the the source index interval \[1h\]/
+      indices.downsample:
+        index: rollup-test
+        target_index: rollup-test-2
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+  - do:
+      catch: /Downsampling interval \[30m\] must be greater than the the source index interval \[1h\]/
+      indices.downsample:
+        index: rollup-test
+        target_index: rollup-test-2
+        body: >
+          {
+            "fixed_interval": "30m"
+          }
+
+  - do:
+      catch: /Downsampling interval \[90m\] must be a multiple of the source index interval \[1h\]/
+      indices.downsample:
+        index: rollup-test
+        target_index: rollup-test-2
+        body: >
+          {
+            "fixed_interval": "90m"
           }

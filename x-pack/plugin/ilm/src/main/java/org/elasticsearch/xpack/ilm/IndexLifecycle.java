@@ -117,6 +117,7 @@ import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
 import org.elasticsearch.xpack.slm.SnapshotRetentionService;
 import org.elasticsearch.xpack.slm.SnapshotRetentionTask;
+import org.elasticsearch.xpack.slm.action.ReservedSnapshotAction;
 import org.elasticsearch.xpack.slm.action.RestDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotRetentionAction;
@@ -178,12 +179,13 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         return Arrays.asList(
             LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
             LifecycleSettings.LIFECYCLE_NAME_SETTING,
+            LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             LifecycleSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
-            LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING,
             LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING,
+            LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
@@ -419,7 +421,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     }
 
     List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
-        return List.of(reservedLifecycleAction.get());
+        return List.of(reservedLifecycleAction.get(), new ReservedSnapshotAction());
     }
 
     @Override

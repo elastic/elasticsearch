@@ -59,6 +59,8 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -1084,6 +1086,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY);
         return new SearchExecutionContext(
             0,
             0,
@@ -1091,7 +1094,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             bitsetFilterCache,
             indexFieldDataLookup,
             null,
-            null,
+            lookup,
             null,
             null,
             parserConfig(),

@@ -27,6 +27,7 @@ import java.util.Optional;
  * Base plugin for building internal plugins or modules. This plugin should only be directly applied by internal test-only plugins or
  * modules. That is, plugins not externally published and modules only included in snapshot builds. Otherwise
  * {@link InternalPluginBuildPlugin} should be used.
+ * //TODO that javadoc suggests using InternalPluginBuildPlugin for externals?
  */
 public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
 
@@ -34,6 +35,12 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(PluginBuildPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
+        /*
+        A problem occurred evaluating project ':plugins:analysis-nori'.
+> Could not find method stableesplugin() for arguments [build_crbszofxhk869hccxysigxpmn$_run_closure1@7e49e649] on project ':plugins:analysis-nori' of type org.gradle.api.Project.
+         */
+
+
         // Clear default dependencies added by public PluginBuildPlugin as we add our
         // own project dependencies for internal builds
         // TODO remove once we removed default dependencies from PluginBuildPlugin

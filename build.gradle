@@ -163,6 +163,7 @@ allprojects {
   // e.g. see https://github.com/elastic/elasticsearch/issues/72169
   // apply plugin:'elasticsearch.internal-test-rerun'
 
+//the same for internal stable plugins
   plugins.withType(BaseInternalPluginBuildPlugin).whenPluginAdded {
     project.dependencies {
       compileOnly project(":server")

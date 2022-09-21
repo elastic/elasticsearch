@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.test;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
+import org.elasticsearch.gradle.stableplugin.StablePluginBuildPlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
@@ -89,6 +90,16 @@ public class YamlRestTestPlugin implements Plugin<Project> {
                 cluster.configure(c -> c.module(bundle));
             } else {
                 var bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
+                cluster.configure(c -> c.plugin(bundle));
+            }
+        });
+
+        project.getPlugins().withType(StablePluginBuildPlugin.class, p -> {
+            if (GradleUtils.isModuleProject(project.getPath())) {
+                var bundle = project.getTasks().withType(Sync.class).named(StablePluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME);
+                cluster.configure(c -> c.module(bundle));
+            } else {
+                var bundle = project.getTasks().withType(Zip.class).named(StablePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME);
                 cluster.configure(c -> c.plugin(bundle));
             }
         });

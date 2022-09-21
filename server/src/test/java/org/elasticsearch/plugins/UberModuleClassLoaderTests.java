@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.ServiceLoader;
 import java.util.Set;
 
 import static java.util.Arrays.stream;
@@ -391,15 +390,16 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Path jar = topLevelDir.resolve("my-service-jar.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
 
-        try(URLClassLoader cl = new URLClassLoader(new URL[] {jar.toUri().toURL()} )) {
+        try (URLClassLoader cl = new URLClassLoader(new URL[] { jar.toUri().toURL() })) {
             Class<?> demoClass = cl.loadClass("p.ServiceCaller");
             var method = demoClass.getDeclaredMethod("demo");
             String result = (String) method.invoke(null);
             assertThat(result, equalTo("The test string."));
         }
 
-        try (UberModuleClassLoader cl = UberModuleClassLoader.getInstance(this.getClass().getClassLoader(), "p.synthetic.test",
-            List.of(jar))) {
+        try (
+            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(this.getClass().getClassLoader(), "p.synthetic.test", List.of(jar))
+        ) {
             Class<?> demoClass = cl.loadClass("p.ServiceCaller");
             var method = demoClass.getDeclaredMethod("demo");
             String result = (String) method.invoke(null);

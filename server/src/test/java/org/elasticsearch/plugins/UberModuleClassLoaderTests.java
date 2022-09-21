@@ -392,7 +392,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
         try (URLClassLoader cl = new URLClassLoader(new URL[] { jar.toUri().toURL() })) {
             Class<?> demoClass = cl.loadClass("p.ServiceCaller");
-            var method = demoClass.getDeclaredMethod("demo");
+            var method = demoClass.getMethod("demo");
             String result = (String) method.invoke(null);
             assertThat(result, equalTo("The test string."));
         }
@@ -401,7 +401,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             UberModuleClassLoader cl = UberModuleClassLoader.getInstance(this.getClass().getClassLoader(), "p.synthetic.test", List.of(jar))
         ) {
             Class<?> demoClass = cl.loadClass("p.ServiceCaller");
-            var method = demoClass.getDeclaredMethod("demo");
+            var method = demoClass.getMethod("demo");
             String result = (String) method.invoke(null);
             assertThat(result, equalTo("The test string."));
         }

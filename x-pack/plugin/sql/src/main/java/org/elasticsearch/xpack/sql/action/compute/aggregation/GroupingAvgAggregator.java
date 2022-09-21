@@ -47,7 +47,6 @@ class GroupingAvgAggregator implements GroupingAggregatorFunction {
         for (int i = 0; i < valuesBlock.getPositionCount(); i++) {
             int groupId = (int) groupIdBlock.getLong(i);
             state.add(valuesBlock.getDouble(i), groupId);
-            state.counts[groupId]++;
         }
     }
 
@@ -57,14 +56,9 @@ class GroupingAvgAggregator implements GroupingAggregatorFunction {
         if (block instanceof AggregatorStateBlock) {
             @SuppressWarnings("unchecked")
             AggregatorStateBlock<GroupingAvgState> blobBlock = (AggregatorStateBlock<GroupingAvgState>) block;
-            GroupingAvgState state = this.state;
             GroupingAvgState tmpState = new GroupingAvgState();
-            for (int i = 0; i < block.getPositionCount(); i++) {
-                long groupId = groupIdBlock.getLong(i);
-                blobBlock.get(i, tmpState);
-                state.add(tmpState.values[i], tmpState.deltas[i], (int) groupId);
-                state.counts[(int) groupId]++;
-            }
+            blobBlock.get(0, tmpState);
+            this.state.addIntermediate(groupIdBlock, tmpState);
         } else {
             throw new RuntimeException("expected AggregatorStateBlock, got:" + block);
         }
@@ -115,16 +109,28 @@ class GroupingAvgAggregator implements GroupingAggregatorFunction {
             this.serializer = new AvgStateSerializer();
         }
 
-        void add(double valueToAdd) {
-            add(valueToAdd, 0d, 0);
+        void addIntermediate(Block groupIdBlock, GroupingAvgState state) {
+            final double[] valuesToAdd = state.values;
+            final double[] deltasToAdd = state.deltas;
+            final long[] countsToAdd = state.counts;
+            final int positions = groupIdBlock.getPositionCount();
+            for (int i = 0; i < positions; i++) {
+                int groupId = (int) groupIdBlock.getLong(i);
+                add(valuesToAdd[i], deltasToAdd[i], groupId, countsToAdd[i]);
+            }
         }
 
         void add(double valueToAdd, int groupId) {
+            add(valueToAdd, 0d, groupId, 1);
+        }
+
+        void add(double valueToAdd, double deltaToAdd, int groupId, long increment) {
             ensureCapacity(groupId);
             if (groupId > largestGroupId) {
                 largestGroupId = groupId;
             }
-            add(valueToAdd, 0d, groupId);
+            add(valueToAdd, deltaToAdd, groupId);
+            counts[groupId] += increment;
         }
 
         private void ensureCapacity(int position) {
@@ -174,7 +180,7 @@ class GroupingAvgAggregator implements GroupingAggregatorFunction {
 
         @Override
         public int serialize(GroupingAvgState state, byte[] ba, int offset) {
-            int positions = state.values.length;
+            int positions = state.largestGroupId + 1;
             longHandle.set(ba, offset, positions);
             offset += 8;
             for (int i = 0; i < positions; i++) {
@@ -204,6 +210,7 @@ class GroupingAvgAggregator implements GroupingAggregatorFunction {
             state.values = values;
             state.deltas = deltas;
             state.counts = counts;
+            state.largestGroupId = positions - 1;
         }
     }
 }

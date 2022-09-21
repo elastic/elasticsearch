@@ -426,7 +426,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return waitForCompletion;
     }
 
-    // package private for testing
+    // package private for testing, separate method so that it can be mocked in tests
     ClusterAdminClient clusterAdminClient() {
         return nodeClient.admin().cluster();
     }

@@ -30,7 +30,6 @@ import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentParser;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -275,7 +274,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         CountDownLatch processFileLatch = new CountDownLatch(1);
         CountDownLatch deadThreadLatch = new CountDownLatch(1);
 
-        doAnswer((Answer<Void>) invocation -> {
+        doAnswer((Answer<ReservedStateChunk>) invocation -> {
             processFileLatch.countDown();
             new Thread(() -> {
                 // Simulate a thread that never comes back and decrements the
@@ -286,8 +285,8 @@ public class FileSettingsServiceTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
             }).start();
-            return null;
-        }).when(spiedController).process(any(String.class), any(XContentParser.class), any(Consumer.class));
+            return new ReservedStateChunk(Collections.emptyMap(), new ReservedStateVersion(1L, Version.CURRENT));
+        }).when(spiedController).parse(any(String.class), any());
 
         service.start();
         assertTrue(service.watching());
@@ -299,7 +298,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
-        processFileLatch.await(30, TimeUnit.SECONDS);
+        assertTrue(processFileLatch.await(30, TimeUnit.SECONDS));
 
         // Stopping the service should interrupt the watcher thread, we should be able to stop
         service.stop();
@@ -319,7 +318,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         CountDownLatch processFileLatch = new CountDownLatch(1);
         CountDownLatch deadThreadLatch = new CountDownLatch(1);
 
-        doAnswer((Answer<Void>) invocation -> {
+        doAnswer((Answer<ReservedStateChunk>) invocation -> {
             processFileLatch.countDown();
             // allow the other thread to continue, but hold on a bit to avoid
             // setting the count-down latch in the main watcher loop.
@@ -333,8 +332,8 @@ public class FileSettingsServiceTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
             }).start();
-            return null;
-        }).when(spiedController).process(any(String.class), any(XContentParser.class), any(Consumer.class));
+            return new ReservedStateChunk(Collections.emptyMap(), new ReservedStateVersion(1L, Version.CURRENT));
+        }).when(spiedController).parse(any(String.class), any());
 
         service.start();
         assertTrue(service.watching());
@@ -346,7 +345,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
-        processFileLatch.await(30, TimeUnit.SECONDS);
+        assertTrue(processFileLatch.await(30, TimeUnit.SECONDS));
 
         // Stopping the service should interrupt the watcher thread, we should be able to stop
         service.stop();

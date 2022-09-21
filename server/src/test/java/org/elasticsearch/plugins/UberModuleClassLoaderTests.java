@@ -331,15 +331,60 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         assertThat(fooBar.toString(), equalTo("FooBar 0"));
     }
 
-    // test service providers
-    // we need a jar that declares a service in META-INF/services
-    // let's do our minimal service here
-    public void testServiceLoading() throws Exception {
+    public void testServiceLoadingWithMetaInf() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("my-service-jar.jar");
+
+        createServiceTestJar(jar, false, true);
+
+        try (
+            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(this.getClass().getClassLoader(), "p.synthetic.test", List.of(jar))
+        ) {
+            Class<?> demoClass = cl.loadClass("p.ServiceCaller");
+            var method = demoClass.getMethod("demo");
+            String result = (String) method.invoke(null);
+            assertThat(result, equalTo("The test string."));
+        }
+    }
+
+    public void testServiceLoadingWithModuleInfo() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("my-service-jar.jar");
+
+        createServiceTestJar(jar, true, false);
+
+        try (
+            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(this.getClass().getClassLoader(), "p.synthetic.test", List.of(jar))
+        ) {
+            Class<?> demoClass = cl.loadClass("p.ServiceCaller");
+            var method = demoClass.getMethod("demo");
+            String result = (String) method.invoke(null);
+            assertThat(result, equalTo("The test string."));
+        }
+    }
+
+    public void testServiceLoadingWithRedundantDeclarations() throws Exception {
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve("my-service-jar.jar");
+
+        createServiceTestJar(jar, true, true);
+
+        try (
+            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(this.getClass().getClassLoader(), "p.synthetic.test", List.of(jar))
+        ) {
+            Class<?> demoClass = cl.loadClass("p.ServiceCaller");
+            var method = demoClass.getMethod("demo");
+            String result = (String) method.invoke(null);
+            assertThat(result, equalTo("The test string."));
+        }
+    }
+
+    private static void createServiceTestJar(Path jar, boolean modularize, boolean addMetaInfService) throws IOException {
         String serviceInterface = """
             package p;
 
-            interface MyService {
-                String getTestString();
+            public interface MyService {
+                public String getTestString();
             }
             """;
         String implementingClass = """
@@ -373,38 +418,33 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 }
             }
             """;
+        String moduleInfo = """
+            module p.services {
+                uses p.MyService;
+                provides p.MyService with p.MyServiceImpl;
+            }
+            """;
 
         Map<String, CharSequence> sources = new HashMap<>();
         sources.put("p.MyService", serviceInterface);
         sources.put("p.MyServiceImpl", implementingClass);
         sources.put("p.ServiceCaller", retrievingClass);
+        if (modularize) {
+            sources.put("module-info", moduleInfo);
+        }
         var compiledCode = InMemoryJavaCompiler.compile(sources);
-
         Map<String, byte[]> jarEntries = new HashMap<>();
         jarEntries.put("p/MyService.class", compiledCode.get("p.MyService"));
         jarEntries.put("p/MyServiceImpl.class", compiledCode.get("p.MyServiceImpl"));
         jarEntries.put("p/ServiceCaller.class", compiledCode.get("p.ServiceCaller"));
-        jarEntries.put("META-INF/services/p.MyService", "p.MyServiceImpl".getBytes(StandardCharsets.UTF_8));
+        if (modularize) {
+            jarEntries.put("module-info.class", compiledCode.get("module-info"));
+        }
+        if (addMetaInfService) {
+            jarEntries.put("META-INF/services/p.MyService", "p.MyServiceImpl".getBytes(StandardCharsets.UTF_8));
+        }
 
-        Path topLevelDir = createTempDir(getTestName());
-        Path jar = topLevelDir.resolve("my-service-jar.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
-
-        try (URLClassLoader cl = new URLClassLoader(new URL[] { jar.toUri().toURL() })) {
-            Class<?> demoClass = cl.loadClass("p.ServiceCaller");
-            var method = demoClass.getMethod("demo");
-            String result = (String) method.invoke(null);
-            assertThat(result, equalTo("The test string."));
-        }
-
-        try (
-            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(this.getClass().getClassLoader(), "p.synthetic.test", List.of(jar))
-        ) {
-            Class<?> demoClass = cl.loadClass("p.ServiceCaller");
-            var method = demoClass.getMethod("demo");
-            String result = (String) method.invoke(null);
-            assertThat(result, equalTo("The test string."));
-        }
     }
 
     private static UberModuleClassLoader getLoader(Path jar) {

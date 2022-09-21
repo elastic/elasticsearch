@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.BufferedReader;
@@ -31,6 +32,7 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipFile;
 
 /**
@@ -57,11 +59,11 @@ public class ModuleSupport {
         throws IOException {
         var builder = ModuleDescriptor.newOpenModule(name); // open module, for now
         requires.stream().forEach(builder::requires);
-        uses.stream().forEach(builder::uses);
 
         // scan the names of the entries in the JARs
         Set<String> pkgs = new HashSet<>();
-        Map<String, List<String>> services = new HashMap<>();
+        Map<String, List<String>> providersInBundle = new HashMap<>();
+        Set<String> usedServicesInBundle = new HashSet<>();
         for (Path path : jarPaths) {
             assert path.getFileName().toString().endsWith(".jar") : "expected jars suffix, in path: " + path;
             try (JarFile jf = new JarFile(path.toFile(), true, ZipFile.OPEN_READ, Runtime.version())) {
@@ -69,22 +71,46 @@ public class ModuleSupport {
                 var scan = scan(jf);
                 scan.classFiles().stream().map(cf -> toPackageName(cf, "/")).flatMap(Optional::stream).forEach(pkgs::add);
 
-                // read providers from the list of service files
-                for (String sf : scan.serviceFiles()) {
-                    List<String> providers;
-                    try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf))))) {
-                        providers = bf.lines().toList();
+                // if we have a module declaration, trust its uses/provides
+                JarEntry moduleInfo = jf.getJarEntry("module-info.class");
+                if (moduleInfo != null) {
+                    ModuleDescriptor md = ModuleFinder.of(path)
+                        .findAll()
+                        .stream()
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException("found a module descriptor but failed to load a module"))
+                        .descriptor();
+                    usedServicesInBundle.addAll(md.uses());
+                    for (ModuleDescriptor.Provides p : md.provides()) {
+                        usedServicesInBundle.add(p.service());
+                        providersInBundle.compute(p.service(), (k, v) -> v == null ? List.copyOf(p.providers()) : concat(v, p.providers()));
                     }
-                    services.put(sf.substring("META-INF/services/".length()), providers);
+                } else {
+                    // read providers from the list of service files
+                    for (String sf : scan.serviceFiles()) {
+                        String serviceName = sf.substring("META-INF/services/".length());
+                        List<String> providersInJar;
+                        try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf))))) {
+                            providersInJar = bf.lines().toList();
+                        }
+                        providersInBundle.compute(
+                            serviceName,
+                            (k, v) -> v == null ? List.copyOf(providersInJar) : concat(v, providersInJar)
+                        );
+                        usedServicesInBundle.add(serviceName);
+                    }
                 }
-
-                // TODO[wrb]: read providers from module-info, if it exists
             }
         }
         builder.packages(pkgs);
-        services.keySet().forEach(builder::uses);
-        services.forEach(builder::provides);
+        usedServicesInBundle.addAll(providersInBundle.keySet());
+        Sets.union(uses, usedServicesInBundle).forEach(builder::uses);
+        providersInBundle.forEach(builder::provides);
         return builder.build();
+    }
+
+    private static <T> List<T> concat(List<T> left, List<T> right) {
+        return Stream.concat(left.stream(), right.stream()).toList();
     }
 
     static class InMemoryModuleFinder implements ModuleFinder {

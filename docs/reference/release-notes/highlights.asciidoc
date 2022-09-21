@@ -109,6 +109,7 @@ search features like queries and aggregations.
 [discrete]
 [[synthetic_source_technical_preview]]
 === Synthetic `_source`
+preview::[]
 When Elasticsearch ingests documents, it creates several data structures that
 enable querying and aggregating the data. One of those data structures is called
 `_source`.  `_source` holds the fields of every document. It uses a lot of space

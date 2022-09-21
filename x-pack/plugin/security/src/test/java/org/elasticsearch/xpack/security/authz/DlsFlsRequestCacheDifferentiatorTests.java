@@ -76,15 +76,13 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
                 Map.of(
                     flsIndexName,
                     new IndicesAccessControl.IndexAccessControl(
-                        true,
                         new FieldPermissions(new FieldPermissionsDefinition(new String[] { "*" }, new String[] { "private" })),
                         DocumentPermissions.allowAll()
                     ),
                     dlsIndexName,
-                    new IndicesAccessControl.IndexAccessControl(true, FieldPermissions.DEFAULT, documentPermissions1),
+                    new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions1),
                     dlsFlsIndexName,
                     new IndicesAccessControl.IndexAccessControl(
-                        true,
                         new FieldPermissions(new FieldPermissionsDefinition(new String[] { "*" }, new String[] { "private" })),
                         documentPermissions1
                     )

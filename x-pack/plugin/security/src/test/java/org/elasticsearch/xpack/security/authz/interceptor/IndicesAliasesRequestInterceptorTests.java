@@ -83,7 +83,6 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             Collections.singletonMap(
                 "foo",
                 new IndicesAccessControl.IndexAccessControl(
-                    true,
                     fieldPermissions,
                     (useDls) ? DocumentPermissions.filteredBy(queries) : DocumentPermissions.allowAll()
                 )

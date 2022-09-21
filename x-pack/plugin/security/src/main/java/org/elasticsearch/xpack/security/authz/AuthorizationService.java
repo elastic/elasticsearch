@@ -964,7 +964,7 @@ public class AuthorizationService {
                     failureConsumer.accept(e);
                 }
             } else {
-                handleFailure(result.isAuditable(), result.getFailureContext(restrictedIndices), null);
+                handleFailure(result.isAuditable(), result.getFailureContext(requestInfo, restrictedIndices), null);
             }
         }
 

@@ -17,14 +17,12 @@ import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplate
 import org.elasticsearch.xpack.core.security.support.CacheKey;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * Encapsulates the field and document permissions per concrete index based on the current request.
@@ -54,19 +52,15 @@ public class IndicesAccessControl {
         return indexPermissions.get(index);
     }
 
+    public boolean hasIndexPermissions(String index) {
+        return getIndexPermissions(index) != null;
+    }
+
     /**
      * @return Whether any role / permission group is allowed to access all indices.
      */
     public boolean isGranted() {
         return granted;
-    }
-
-    public Collection<String> getDeniedIndices() {
-        return this.indexPermissions.entrySet()
-            .stream()
-            .filter(e -> e.getValue().granted == false)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toUnmodifiableSet());
     }
 
     public DlsFlsUsage getFieldAndDocumentLevelSecurityUsage() {
@@ -151,7 +145,7 @@ public class IndicesAccessControl {
      */
     public static class IndexAccessControl implements CacheKey {
 
-        public static final IndexAccessControl ALLOW_ALL = new IndexAccessControl( null, null);
+        public static final IndexAccessControl ALLOW_ALL = new IndexAccessControl(null, null);
 
         private final FieldPermissions fieldPermissions;
         private final DocumentPermissions documentPermissions;

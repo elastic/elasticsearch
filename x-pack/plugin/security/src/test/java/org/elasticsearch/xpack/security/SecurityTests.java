@@ -468,19 +468,16 @@ public class SecurityTests extends ESTestCase {
             new FieldPermissionsDefinition(new String[] { "field_granted" }, Strings.EMPTY_ARRAY)
         );
         IndicesAccessControl.IndexAccessControl indexGrantedAccessControl = new IndicesAccessControl.IndexAccessControl(
-            true,
             permissions,
             DocumentPermissions.allowAll()
         );
         permissionsMap.put("index_granted", indexGrantedAccessControl);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
-            false,
             FieldPermissions.DEFAULT,
             DocumentPermissions.allowAll()
         );
         permissionsMap.put("index_not_granted", indexAccessControl);
         IndicesAccessControl.IndexAccessControl nullFieldPermissions = new IndicesAccessControl.IndexAccessControl(
-            true,
             null,
             DocumentPermissions.allowAll()
         );
@@ -493,7 +490,7 @@ public class SecurityTests extends ESTestCase {
         assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test("field_granted"));
         assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test(randomAlphaOfLengthBetween(3, 10)));
         assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 10)));
-        expectThrows(IllegalStateException.class, () -> fieldFilter.apply("index_not_granted"));
+        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_not_granted"));
         assertTrue(fieldFilter.apply("index_null").test(randomAlphaOfLengthBetween(3, 6)));
         assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_null"));
     }

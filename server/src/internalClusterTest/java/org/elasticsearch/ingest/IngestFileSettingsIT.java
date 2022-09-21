@@ -208,7 +208,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
                     assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
                     assertThat(
                         reservedState.errorMetadata().errors().get(0),
-                        containsString("java.lang.IllegalStateException: No processor type exists with name [foo]")
+                        containsString("org.elasticsearch.ElasticsearchParseException: No processor type exists with name [foo]")
                     );
                 }
             }

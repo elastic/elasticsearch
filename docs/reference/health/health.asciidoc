@@ -64,6 +64,9 @@ step by step troubleshooting guide to fix the diagnosed problem.
   `shards_availability`::
       Reports health issues regarding shard assignments.
 
+  `disk`::
+      Reports health issues caused by lack of disk space.
+
   `ilm`::
       Reports health issues related to
       Indexing Lifecycle Management.
@@ -262,14 +265,21 @@ details have contents and a structure that is unique to each indicator.
 ====
 
 `cluster_formation`::
-    (Optional, object) If there has been no elected master node recently, the node being queried attempts to
+    (Optional, array) If there has been no elected master node recently, the node being queried attempts to
     gather information about why the cluster has been unable to form, or why the node being queried has been
-    unable to join the cluster if it has formed.
+    unable to join the cluster if it has formed. This array could contain any entry for each master eligible
+    node's view of cluster formation.
 +
 .Properties of `cluster_formation`
 [%collapsible%open]
 ====
-`description`::
+`node_id`::
+    (string) The node id of a master-eligible node
+
+`name`::
+(Optional, string) The node name of a master-eligible node
+
+`cluster_formation_message`::
     (string) A detailed description explaining what went wrong with cluster formation, or why this node was
     unable to join the cluster if it has formed.
 ====
@@ -304,6 +314,28 @@ details have contents and a structure that is unique to each indicator.
 `started_replicas`::
     (int) The number of replica shards that are active and available on the sysetm.
 
+[[health-api-response-details-disk]]
+===== disk
+
+`nodes`::
+    (Optional, array) A list of nodes that have reported disk usage information. This field
+    is present if any node has reported disk usage.
++
+.Properties of `nodes`
+[%collapsible%open]
+====
+`node_id`::
+    (string) The node id of the node reporting disk usage.
+
+`name`::
+    (Optional, string) The node name of the node reporting disk usage.
+
+`status`::
+    (string) The status of the disk indicator on the node.
+
+`cause`::
+    (Optional, string) The cause for the status not being GREEN, if known.
+====
 
 [[health-api-response-details-repository-integrity]]
 ===== repository_integrity
@@ -337,6 +369,13 @@ details have contents and a structure that is unique to each indicator.
 
 `policies`::
     (int) The number of snapshot policies that the system is managing.
+
+`unhealthy_policies`::
+    (map) A detailed view on the policies that are considered unhealthy due to having
+    several consecutive unssuccesful invocations.
+    The `count` key represents the number of unhealthy policies (int).
+    The `invocations_since_last_success` key will report a map where the unhealthy policy
+    name is the key and it's corresponding number of failed invocations is the value.
 
 [[health-api-example]]
 ==== {api-examples-title}

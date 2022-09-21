@@ -13,12 +13,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -46,12 +49,14 @@ import static org.mockito.Mockito.when;
 
 public class SlmHealthIndicatorServiceTests extends ESTestCase {
 
+    private static final DateFormatter FORMATTER = DateFormatter.forPattern("iso8601").withZone(ZoneOffset.UTC);
+
     public void testIsGreenWhenRunningAndPoliciesConfigured() {
         var clusterState = createClusterStateWith(new SnapshotLifecycleMetadata(createSlmPolicy(), RUNNING, null));
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -71,7 +76,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -80,6 +85,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
+                            NAME,
+                            SlmHealthIndicatorService.AUTOMATION_DISABLED_IMPACT_ID,
                             3,
                             "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
                             List.of(ImpactArea.BACKUP)
@@ -97,7 +104,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -116,7 +123,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -147,7 +154,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -178,7 +185,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         );
         var service = createSlmHealthIndicatorService(clusterState);
 
-        HealthIndicatorResult calculate = service.calculate(true);
+        HealthIndicatorResult calculate = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(
             calculate,
             equalTo(
@@ -198,13 +205,28 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
+                            NAME,
+                            SlmHealthIndicatorService.STALE_SNAPSHOTS_IMPACT_ID,
                             2,
                             "Some automated snapshots have not had a successful execution recently. Indices restored from affected "
                                 + "snapshots may not contain recent changes.",
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    List.of(new Diagnosis(SlmHealthIndicatorService.ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS, List.of("test-policy")))
+                    List.of(
+                        new Diagnosis(
+                            SlmHealthIndicatorService.checkRecentlyFailedSnapshots(
+                                "An automated snapshot policy is unhealthy:\n"
+                                    + "- [test-policy] had ["
+                                    + failedInvocations
+                                    + "] repeated failures without successful execution since ["
+                                    + FORMATTER.formatMillis(execTime)
+                                    + "]",
+                                "Check the snapshot lifecycle policy for detailed failure info:\n- /_slm/policy/test-policy?human"
+                            ),
+                            List.of("test-policy")
+                        )
+                    )
                 )
             )
         );

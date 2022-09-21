@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -667,7 +667,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 "manage_own_api_key",
                 GetBuiltinPrivilegesAction.NAME,
                 "delegate_pki",
-                GetProfileAction.NAME,
+                GetProfilesAction.NAME,
                 ActivateProfileAction.NAME,
                 SuggestProfilesAction.NAME,
                 ProfileHasPrivilegesAction.NAME,
@@ -812,6 +812,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".metrics-endpoint.metadata_united_default"
                     )
                     .privileges("create_index", "delete_index", "read", "index")
+                    .build(),
+                // For src/dest indices of the example transform package
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("kibana_sample_data_*")
+                    .privileges("create_index", "delete_index", "read", "index", "view_index_metadata")
                     .build(),
                 // For src/dest indices of the Cloud Security Posture packages that ships a transform
                 RoleDescriptor.IndicesPrivileges.builder()

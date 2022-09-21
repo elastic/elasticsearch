@@ -16,7 +16,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
@@ -156,6 +155,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89860")
     public void testDoesNotElectNonMasterNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
             cluster.runRandomly();
@@ -605,6 +605,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90158")
     public void testUnhealthyLeaderIsReplaced() {
         final AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(HEALTHY, "healthy-info"));
         final int initialClusterSize = between(1, 3);
@@ -1133,7 +1134,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("unchanged", cs -> {
                 computeAdvancer.advanceTime();
                 return cs;
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
@@ -1220,7 +1221,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("update", cs -> {
                 computeAdvancer.advanceTime();
                 return ClusterState.builder(cs).putCustom(customName, new DelayedCustom(contextAdvancer)).build();
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
@@ -1281,7 +1282,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("update", cs -> {
                 computeAdvancer.advanceTime();
                 return ClusterState.builder(cs).build();
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     fail("shouldn't have processed cluster state");
@@ -1903,6 +1904,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89867")
     public void testSingleNodeDiscoveryStabilisesEvenWhenDisrupted() {
         try (
             Cluster cluster = new Cluster(
@@ -2162,6 +2164,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     mockLogAppender.stop();
                 }
             }
+        }
+    }
+
+    public void testInvariantWhenTwoNodeClusterBecomesSingleNodeCluster() {
+        try (Cluster cluster = new Cluster(2)) {
+            cluster.stabilise();
+            assertTrue(cluster.getAnyNodeExcept(cluster.getAnyLeader()).disconnect()); // Remove non-leader node
+            cluster.stabilise();
         }
     }
 

@@ -19,7 +19,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -91,7 +90,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd" which should have no duplication
-                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType);
+                InternalSampler sampler = searchAndReduce(
+                    new AggTestConfig(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType)
+                );
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
 
                 assertNull(terms.getBucketByKey("even"));
@@ -100,7 +101,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 assertNotNull(terms.getBucketByKey("odd"));
 
                 // Search "even" which will have duplication
-                sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
+                sampler = searchAndReduce(new AggTestConfig(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType));
                 terms = sampler.getAggregations().get("sig_text");
 
                 assertNull(terms.getBucketByKey("odd"));
@@ -145,7 +146,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                         sigAgg.sourceFieldNames(Arrays.asList(new String[] { "json_only_field" }));
                     }
                     // Search "even" which should have duplication
-                    InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
+                    InternalSampler sampler = searchAndReduce(
+                        new AggTestConfig(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType)
+                    );
                     SignificantTerms terms = sampler.getAggregations().get("sig_text");
 
                     assertNull(terms.getBucketByKey("even"));
@@ -163,7 +166,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                         sigAgg.sourceFieldNames(Arrays.asList(new String[] { "json_only_field" }));
                     }
                     // Search "even" which should have duplication
-                    InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType);
+                    InternalSampler sampler = searchAndReduce(
+                        new AggTestConfig(searcher, new TermQuery(new Term("text", "even")), aggBuilder, textFieldType)
+                    );
                     SignificantTerms terms = sampler.getAggregations().get("sig_text");
 
                     assertNotNull(terms.getBucketByKey("even"));
@@ -193,7 +198,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType);
+                InternalSampler sampler = searchAndReduce(
+                    new AggTestConfig(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType)
+                );
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
                 assertTrue(terms.getBuckets().isEmpty());
             }
@@ -225,12 +232,11 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 SamplerAggregationBuilder samplerAgg = sampler("sampler").subAggregation(agg);
                 SamplerAggregationBuilder aliasSamplerAgg = sampler("sampler").subAggregation(aliasAgg);
 
-                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), samplerAgg, textFieldType);
+                InternalSampler sampler = searchAndReduce(
+                    new AggTestConfig(searcher, new TermQuery(new Term("text", "odd")), samplerAgg, textFieldType)
+                );
                 InternalSampler aliasSampler = searchAndReduce(
-                    searcher,
-                    new TermQuery(new Term("text", "odd")),
-                    aliasSamplerAgg,
-                    textFieldType
+                    new AggTestConfig(searcher, new TermQuery(new Term("text", "odd")), aliasSamplerAgg, textFieldType)
                 );
 
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
@@ -238,8 +244,10 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 assertFalse(terms.getBuckets().isEmpty());
                 assertEquals(terms, aliasTerms);
 
-                sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), samplerAgg, textFieldType);
-                aliasSampler = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), aliasSamplerAgg, textFieldType);
+                sampler = searchAndReduce(new AggTestConfig(searcher, new TermQuery(new Term("text", "even")), samplerAgg, textFieldType));
+                aliasSampler = searchAndReduce(
+                    new AggTestConfig(searcher, new TermQuery(new Term("text", "even")), aliasSamplerAgg, textFieldType)
+                );
 
                 terms = sampler.getAggregations().get("sig_text");
                 aliasTerms = aliasSampler.getAggregations().get("sig_text");
@@ -268,7 +276,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                StringTerms terms = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, textFieldType, keywordField("kwd"));
+                StringTerms terms = searchAndReduce(new AggTestConfig(searcher, aggBuilder, textFieldType, keywordField("kwd")));
                 SignificantTerms sigOdd = terms.getBucketByKey("odd").getAggregations().get("sig_text");
                 assertNull(sigOdd.getBucketByKey("even"));
                 assertNull(sigOdd.getBucketByKey("duplicate"));
@@ -330,7 +338,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
-                searchAndReduce(searcher, new TermQuery(new Term("text", "foo")), sigAgg, textFieldType);
+                searchAndReduce(new AggTestConfig(searcher, new TermQuery(new Term("text", "foo")), sigAgg, textFieldType));
                 // No significant results to be found in this test - only checking we don't end up
                 // with the internal exception discovered in issue https://github.com/elastic/elasticsearch/issues/25029
             }

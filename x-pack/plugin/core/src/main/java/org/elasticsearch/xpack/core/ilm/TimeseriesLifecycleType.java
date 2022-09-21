@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,7 +55,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         UnfollowAction.NAME,
         RolloverAction.NAME,
         ReadOnlyAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
+        DownsampleAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
@@ -65,7 +64,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
+        DownsampleAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,
         ShrinkAction.NAME,
@@ -75,7 +74,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
+        DownsampleAction.NAME,
         SearchableSnapshotAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,
@@ -107,13 +106,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ReadOnlyAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
-        RollupILMAction.NAME,
+        DownsampleAction.NAME,
         SearchableSnapshotAction.NAME
     );
     // Set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot.
     // It's ordered to produce consistent error messages which can be unit tested.
     public static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Collections.unmodifiableSet(
-        new LinkedHashSet<>(Arrays.asList(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, RollupILMAction.NAME))
+        new LinkedHashSet<>(Arrays.asList(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, DownsampleAction.NAME))
     );
 
     private TimeseriesLifecycleType() {}
@@ -154,8 +153,17 @@ public class TimeseriesLifecycleType implements LifecycleType {
     }
 
     public static boolean shouldInjectMigrateStepForPhase(Phase phase) {
+        if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
+            return false;
+        }
+
         // searchable snapshots automatically set their own allocation rules, no need to configure them with a migrate step.
         if (phase.getActions().get(SearchableSnapshotAction.NAME) != null) {
+            return false;
+        }
+
+        // do not inject if MigrateAction is not supported for this phase (such as hot, frozen, delete phase)
+        if (ALLOWED_ACTIONS.get(phase.getName()).contains(MigrateAction.NAME) == false) {
             return false;
         }
 

@@ -89,6 +89,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -1018,7 +1019,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
      */
-    public long randomMillisUpToYear9999() {
+    public static long randomMillisUpToYear9999() {
         return randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
     }
 
@@ -1226,8 +1227,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
-        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
-        return builder;
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
     /**
@@ -1266,6 +1266,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
         return tempList.subList(0, size);
+    }
+
+    public static <T> List<T> shuffledList(List<T> list) {
+        return randomSubsetOf(list.size(), list);
     }
 
     /**
@@ -1648,7 +1652,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings, AnalysisPlugin... analysisPlugins)
         throws IOException {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
+        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         return new TestAnalysis(
             analysisRegistry.build(indexSettings),

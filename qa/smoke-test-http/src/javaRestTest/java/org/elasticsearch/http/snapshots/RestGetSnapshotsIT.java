@@ -23,9 +23,8 @@ import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -444,11 +443,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     private static GetSnapshotsResponse readSnapshotInfos(Response response) throws IOException {
         try (
             InputStream input = response.getEntity().getContent();
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                input
-            )
+            XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, input)
         ) {
             return GetSnapshotsResponse.fromXContent(parser);
         }

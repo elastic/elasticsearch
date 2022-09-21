@@ -62,7 +62,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
 
         List<AutoscalingCapacity> autoscalingCapacities = new ArrayList<>();
         autoscalingCapacities.add(large);
-        IntStream.range(0, 10).mapToObj(i -> randomCapacity(node, storage, memory, processor, 0, 1000)).forEach(autoscalingCapacities::add);
+        IntStream.range(0, 10).mapToObj(i -> randomCapacity(node, storage, memory, processor, 1, 1000)).forEach(autoscalingCapacities::add);
 
         Randomness.shuffle(autoscalingCapacities);
         verifyRequiredCapacity(large, autoscalingCapacities.toArray(AutoscalingCapacity[]::new));
@@ -161,13 +161,13 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         builder.total(
             storage ? randomLongBetween(lower, upper) : null,
             memory ? randomLongBetween(lower, upper) : null,
-            processor ? (float) randomIntBetween(lower, upper) : null
+            processor ? (double) randomIntBetween(lower, upper) : null
         );
         if (node) {
             builder.node(
                 storage ? randomLongBetween(lower, upper) : null,
                 memory ? randomLongBetween(lower, upper) : null,
-                processor ? (float) randomIntBetween(lower, upper) : null
+                processor ? (double) randomIntBetween(lower, upper) : null
             );
         }
         return builder.build();

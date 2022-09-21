@@ -24,7 +24,6 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -39,17 +38,21 @@ public class BatchedRerouteService implements RerouteService {
     private static final String CLUSTER_UPDATE_TASK_SOURCE = "cluster_reroute";
 
     private final ClusterService clusterService;
-    private final BiFunction<ClusterState, String, ClusterState> reroute;
+    private final RerouteAction reroute;
 
     private final Object mutex = new Object();
     @Nullable // null if no reroute is currently pending
     private List<ActionListener<ClusterState>> pendingRerouteListeners;
     private Priority pendingTaskPriority = Priority.LANGUID;
 
+    public interface RerouteAction {
+        ClusterState reroute(ClusterState state, String reason);
+    }
+
     /**
      * @param reroute Function that computes the updated cluster state after it has been rerouted.
      */
-    public BatchedRerouteService(ClusterService clusterService, BiFunction<ClusterState, String, ClusterState> reroute) {
+    public BatchedRerouteService(ClusterService clusterService, RerouteAction reroute) {
         this.clusterService = clusterService;
         this.reroute = reroute;
     }
@@ -114,7 +117,7 @@ public class BatchedRerouteService implements RerouteService {
                     }
                     if (currentListenersArePending) {
                         logger.trace("performing batched reroute [{}]", reason);
-                        return reroute.apply(currentState, reason);
+                        return reroute.reroute(currentState, reason);
                     } else {
                         logger.trace("batched reroute [{}] was promoted", reason);
                         return currentState;

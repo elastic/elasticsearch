@@ -12,11 +12,13 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -145,7 +147,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
         BytesRef timeSeriesId = timeSeriesIdBuilder.build().toBytesRef();
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
-        TsidExtractingIdFieldMapper.createField(context, timeSeriesId);
+        TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId);
     }
 
     @Override
@@ -190,6 +192,15 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
          * to build the _tsid field for the document.
          */
         private final SortedMap<BytesRef, BytesReference> dimensions = new TreeMap<>();
+        /**
+         * Builds the routing. Used for building {@code _id}. If null then skipped.
+         */
+        @Nullable
+        private final IndexRouting.ExtractFromSource.Builder routingBuilder;
+
+        public TimeSeriesIdBuilder(@Nullable IndexRouting.ExtractFromSource.Builder routingBuilder) {
+            this.routingBuilder = routingBuilder;
+        }
 
         public BytesReference build() throws IOException {
             if (dimensions.isEmpty()) {
@@ -228,7 +239,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 out.write((byte) 's');
                 /*
                  * Write in utf8 instead of StreamOutput#writeString which is utf-16-ish
-                 * so its easier for folks to reason about the space taken up. Mostly
+                 * so it's easier for folks to reason about the space taken up. Mostly
                  * it'll be smaller too.
                  */
                 BytesRef bytes = new BytesRef(value);
@@ -239,6 +250,10 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 }
                 out.writeBytesRef(bytes);
                 add(fieldName, out.bytes());
+
+                if (routingBuilder != null) {
+                    routingBuilder.addMatching(fieldName, bytes);
+                }
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
             }
@@ -263,8 +278,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         @Override
         public void addUnsignedLong(String fieldName, long value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.write((byte) 'u');
-                out.writeLong(value);
+                Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value);
+                if (ul instanceof Long l) {
+                    out.write((byte) 'l');
+                    out.writeLong(l);
+                } else {
+                    out.write((byte) 'u');
+                    out.writeLong(value);
+                }
                 add(fieldName, out.bytes());
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);

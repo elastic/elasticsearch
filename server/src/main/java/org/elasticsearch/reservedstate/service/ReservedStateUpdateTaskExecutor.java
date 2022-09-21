@@ -17,8 +17,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 
-import java.util.List;
-
 /**
  * Reserved cluster state update task executor
  *
@@ -29,12 +27,16 @@ public record ReservedStateUpdateTaskExecutor(RerouteService rerouteService) imp
     private static final Logger logger = LogManager.getLogger(ReservedStateUpdateTaskExecutor.class);
 
     @Override
-    public ClusterState execute(ClusterState currentState, List<TaskContext<ReservedStateUpdateTask>> taskContexts) throws Exception {
-        for (final var taskContext : taskContexts) {
-            currentState = taskContext.getTask().execute(currentState);
+    public ClusterState execute(BatchExecutionContext<ReservedStateUpdateTask> batchExecutionContext) throws Exception {
+        var updatedState = batchExecutionContext.initialState();
+
+        for (final var taskContext : batchExecutionContext.taskContexts()) {
+            try (var ignored = taskContext.captureResponseHeaders()) {
+                updatedState = taskContext.getTask().execute(updatedState);
+            }
             taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
         }
-        return currentState;
+        return updatedState;
     }
 
     @Override

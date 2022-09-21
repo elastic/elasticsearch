@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -70,6 +71,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     private ThreadPool threadpool;
     private NodeClient nodeClient;
     private ClusterAdminClient clusterAdminClient;
+    private NodeInfo nodeInfo;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -110,7 +112,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             Version.CURRENT
         );
 
-        NodeInfo nodeInfo = new NodeInfo(
+        nodeInfo = new NodeInfo(
             Version.CURRENT,
             Build.CURRENT,
             discoveryNode,
@@ -353,5 +355,115 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.close();
         // let the deadlocked thread end, so we can cleanly exit the test
         deadThreadLatch.countDown();
+    }
+
+    public void testNodeInfosRefresh() throws Exception {
+        var spiedController = spy(controller);
+        var csAdminClient = spy(clusterAdminClient);
+        var response = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo), List.of());
+
+        doAnswer(i -> {
+            ((ActionListener<NodesInfoResponse>) i.getArgument(1)).onResponse(response);
+            return null;
+        }).when(csAdminClient).nodesInfo(any(), any());
+
+        var service = spy(new FileSettingsService(clusterService, spiedController, env, nodeClient));
+        doAnswer(i -> csAdminClient).when(service).clusterAdminClient();
+
+        doAnswer((Answer<ReservedStateChunk>) invocation ->
+            new ReservedStateChunk(Collections.emptyMap(), new ReservedStateVersion(1L, Version.CURRENT))
+        ).when(spiedController).parse(any(String.class), any());
+
+        Files.createDirectories(service.operatorSettingsDir());
+        // Make some fake settings file to cause the file settings service to process it
+        Files.write(service.operatorSettingsFile(), "{}".getBytes(StandardCharsets.UTF_8));
+
+        clearInvocations(csAdminClient);
+        clearInvocations(spiedController);
+
+        // we haven't fetched the node infos ever, since we haven't done any file processing
+        assertNull(service.nodeInfos());
+
+        // call the processing twice
+        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+            if (e != null) {
+                fail("shouldn't get an exception");
+            }
+        });
+        // after the first processing we should have node infos
+        assertEquals(1, service.nodeInfos().getNodes().size());
+
+        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+            if (e != null) {
+                fail("shouldn't get an exception");
+            }
+        });
+
+        // node infos should have been fetched only once
+        verify(csAdminClient, times(1)).nodesInfo(any(), any());
+        verify(spiedController, times(2)).process(any(), any(ReservedStateChunk.class), any());
+
+        // pretend we added a new node
+
+        final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        NodeInfo localNodeInfo = new NodeInfo(
+            Version.CURRENT,
+            Build.CURRENT,
+            localNode,
+            Settings.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new IngestInfo(Collections.singletonList(new ProcessorInfo("set"))),
+            null,
+            null
+        );
+        var newResponse = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo, localNodeInfo), List.of());
+
+        final ClusterState prevState = clusterService.state();
+        final ClusterState clusterState = ClusterState.builder(prevState)
+            .nodes(
+                DiscoveryNodes.builder(prevState.getNodes()).add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId())
+            )
+            .build();
+
+        ClusterChangedEvent event = new ClusterChangedEvent("transport", clusterState, prevState);
+        assertTrue(event.nodesChanged());
+        service.clusterChanged(event);
+
+        doAnswer(i -> {
+            ((ActionListener<NodesInfoResponse>) i.getArgument(1)).onResponse(newResponse);
+            return null;
+        }).when(csAdminClient).nodesInfo(any(), any());
+
+        // this wouldn't change yet, node fetch transport action is invoked on demand, when we need to process file changes,
+        // not every time we update the cluster state
+        assertEquals(1, service.nodeInfos().getNodes().size());
+
+        // call the processing twice
+        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+            if (e != null) {
+                fail("shouldn't get an exception");
+            }
+        });
+
+        assertEquals(2, service.nodeInfos().getNodes().size());
+
+        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+            if (e != null) {
+                fail("shouldn't get an exception");
+            }
+        });
+
+        assertEquals(2, service.nodeInfos().getNodes().size());
+
+        // node infos should have been fetched one more time
+        verify(csAdminClient, times(2)).nodesInfo(any(), any());
+        verify(spiedController, times(4)).process(any(), any(ReservedStateChunk.class), any());
     }
 }

@@ -408,6 +408,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                     public void onResponse(NodesInfoResponse response) {
                         // stash the latest node infos response and continue with processing the file
                         nodesInfoResponse = response;
+                        nodeInfosRefreshRequired = false;
                         stateService.process(NAMESPACE, parsedState, (e) -> completeProcessing(e, errorHandler, waitForCompletion));
                     }
 

@@ -299,7 +299,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         ),
                         "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
                             + "this. If you have already taken action please wait for the rebalancing to complete.",
-                        "https://ela.st/free-disk-space-or-add-capacity-data-nodes"
+                        "https://ela.st/fix-data-disk"
                     ),
                     unhealthyNodes.stream().sorted().toList()
                 )
@@ -313,7 +313,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         "free-disk-space-or-add-capacity-master-nodes",
                         "Disk is almost full.",
                         "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
-                        "https://ela.st/free-disk-space-or-add-capacity-master-nodes"
+                        "https://ela.st/fix-master-disk"
                     ),
                     Stream.concat(redMasterNodes.stream(), yellowMasterNodes.stream()).sorted().toList()
                 )
@@ -327,7 +327,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         "free-disk-space-or-add-capacity-other-nodes",
                         "Disk is almost full.",
                         "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
-                        "https://ela.st/free-disk-space-or-add-capacity-other-nodes"
+                        "https://ela.st/fix-disk-space"
                     ),
                     Stream.concat(redNonDataNonMasterNodes.stream(), yellowNonDataNonMasterNodes.stream()).sorted().toList()
                 )

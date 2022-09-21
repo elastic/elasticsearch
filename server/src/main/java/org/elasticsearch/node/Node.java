@@ -446,7 +446,11 @@ public class Node implements Closeable {
                 scriptModule.contexts,
                 threadPool::absoluteTimeInMillis
             );
-            AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
+            AnalysisModule analysisModule = new AnalysisModule(
+                this.environment,
+                pluginsService.filterPlugins(AnalysisPlugin.class),
+                pluginsService.getStablePluginRegistry()
+            );
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
 

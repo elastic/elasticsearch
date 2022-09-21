@@ -365,8 +365,8 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
             public class ServiceCaller {
                 public static String demo() {
-                    // loading a service from java.base is trouble...
-                    // ServiceLoader<RandomGenerator> randomLoader = ServiceLoader.load(RandomGenerator.class);
+                    // check no error if we load a service from the jdk
+                    ServiceLoader<RandomGenerator> randomLoader = ServiceLoader.load(RandomGenerator.class);
 
                     ServiceLoader<MyService> loader = ServiceLoader.load(MyService.class, ServiceCaller.class.getClassLoader());
                     return loader.findFirst().get().getTestString();

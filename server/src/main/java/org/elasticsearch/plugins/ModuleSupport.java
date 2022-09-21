@@ -42,10 +42,10 @@ public class ModuleSupport {
         throw new AssertionError("Utility class, should not be instantiated");
     }
 
-    static ModuleFinder ofSyntheticPluginModule(String name, Path[] jarPaths, Set<String> requires) {
+    static ModuleFinder ofSyntheticPluginModule(String name, Path[] jarPaths, Set<String> requires, Set<String> uses) {
         try {
             return new InMemoryModuleFinder(
-                new InMemoryModuleReference(createModuleDescriptor(name, jarPaths, requires), URI.create("module:/" + name))
+                new InMemoryModuleReference(createModuleDescriptor(name, jarPaths, requires, uses), URI.create("module:/" + name))
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -53,9 +53,11 @@ public class ModuleSupport {
     }
 
     @SuppressForbidden(reason = "need access to the jar file")
-    static ModuleDescriptor createModuleDescriptor(String name, Path[] jarPaths, Set<String> requires) throws IOException {
+    static ModuleDescriptor createModuleDescriptor(String name, Path[] jarPaths, Set<String> requires, Set<String> uses)
+        throws IOException {
         var builder = ModuleDescriptor.newOpenModule(name); // open module, for now
         requires.stream().forEach(builder::requires);
+        uses.stream().forEach(builder::uses);
 
         // scan the names of the entries in the JARs
         Set<String> pkgs = new HashSet<>();
@@ -66,6 +68,8 @@ public class ModuleSupport {
                 // separator = path.getFileSystem().getSeparator();
                 var scan = scan(jf);
                 scan.classFiles().stream().map(cf -> toPackageName(cf, "/")).flatMap(Optional::stream).forEach(pkgs::add);
+
+                // read providers from the list of service files
                 for (String sf : scan.serviceFiles()) {
                     List<String> providers;
                     try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf))))) {
@@ -73,6 +77,8 @@ public class ModuleSupport {
                     }
                     services.put(sf.substring("META-INF/services/".length()), providers);
                 }
+
+                // TODO[wrb]: read providers from module-info, if it exists
             }
         }
         builder.packages(pkgs);

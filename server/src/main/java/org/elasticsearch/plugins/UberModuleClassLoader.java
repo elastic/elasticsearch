@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
+import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -66,7 +67,30 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     @SuppressForbidden(reason = "need access to the jar file")
     @SuppressWarnings("removal")
     static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, List<Path> jarPaths, Set<String> moduleDenyList) {
-        ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(moduleName, jarPaths.toArray(new Path[0]), Set.of());
+        ModuleLayer mparent = ModuleLayer.boot();
+
+        // Every module requires java.base by default, but we can add all other modules
+        // that are not in the deny list so that plugins can use, for example, java.management
+        Set<String> requires = mparent.modules()
+            .stream()
+            .filter(Module::isNamed)
+            .map(Module::getName)
+            .filter(name -> "java.base".equals(name) == false)
+            .filter(name -> moduleDenyList.contains(name) == false)
+            .collect(Collectors.toSet());
+        // We also need to gather the service names in the public Java API and mark our
+        // synthetic plugin as using them, since we don't know which services our jars
+        // might try to load
+        Set<String> uses = mparent.modules()
+            .stream()
+            .map(Module::getDescriptor)
+            .map(ModuleDescriptor::provides)
+            .flatMap(Set::stream)
+            .map(ModuleDescriptor.Provides::service)
+            .filter(name -> name.startsWith("java.") || name.startsWith("javax."))
+            .collect(Collectors.toSet());
+
+        ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(moduleName, jarPaths.toArray(new Path[0]), requires, uses);
         List<URL> jarURLs = new ArrayList<>();
         try {
             for (Path jarPath : jarPaths) {
@@ -77,7 +101,6 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
-        ModuleLayer mparent = ModuleLayer.boot();
         Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of(moduleName));
 
         Set<String> packageNames = new HashSet<>();
@@ -103,7 +126,6 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
             jarURLs.toArray(new URL[0]),
             cf,
             mparent,
-            moduleDenyList,
             packageNames
         );
         return AccessController.doPrivileged(pa);
@@ -118,7 +140,6 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         URL[] jarURLs,
         Configuration cf,
         ModuleLayer mparent,
-        Set<String> moduleDenyList,
         Set<String> packageNames
     ) {
         super(parent);
@@ -131,15 +152,6 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         // Class::getModule call return the name of our ubermodule.
         this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
         this.module = this.moduleController.layer().findModule(moduleName).orElseThrow();
-
-        // Every module reads java.base by default, but we can add all other modules
-        // that are not in the deny list so that plugins can use, for example, java.management
-        mparent.modules()
-            .stream()
-            .filter(Module::isNamed)
-            .filter(m -> "java.base".equals(m.getName()) == false)
-            .filter(m -> moduleDenyList.contains(m.getName()) == false)
-            .forEach(m -> moduleController.addReads(module, m));
 
         this.packageNames = packageNames;
     }

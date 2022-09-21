@@ -324,7 +324,7 @@ details have contents and a structure that is unique to each indicator.
 (int) The number of nodes that have enough available disk space to function.
 
 `yellow_nodes`::
-(int) The number of nodes that are running low on disk and it is likely that they will run out.
+(int) The number of nodes that are running low on disk and it is likely that they will run out of space.
 
 `red_nodes`::
 (int) The number of nodes that have run out of disk.

@@ -1,6 +1,7 @@
 ---
 "node removal prevalidation basic test":
   - skip:
+      features: contains
       version: "- 8.4.99"
       reason: "API added in 8.5.0"
 
@@ -15,4 +16,4 @@
         node: $node_id
 
   - match: { result.is_safe: "YES"}
-  - contains: {result.nodes: {name: "$node_id", result.is_safe: "YES"}}
+  - contains: {nodes: {id: "$node_id", result: {is_safe: "YES", reason: ""}}}

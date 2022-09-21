@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
 @Fork(1)
-@OperationsPerInvocation(2621441) // NOCOMMIT s/41/40/ when fixed aligned read
+@OperationsPerInvocation(2621440)
 public class IntArrayBenchmark {
     static final int SIZE = IntArrayBenchmark.class.getAnnotation(OperationsPerInvocation.class).value();
 

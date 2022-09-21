@@ -109,6 +109,7 @@ search features like queries and aggregations.
 [discrete]
 [[synthetic_source_technical_preview]]
 === Synthetic `_source`
+preview::[]
 When Elasticsearch ingests documents, it creates several data structures that
 enable querying and aggregating the data. One of those data structures is called
 `_source`.  `_source` holds the fields of every document. It uses a lot of space
@@ -116,9 +117,11 @@ and is used for specific needs, like reindexing and presenting the document in
 Kibana Discover. 
 
 This release introduces a new feature in technical preview called synthetic
-`_source`. For specific data types, synthetic `_source` can recreate the
-`_source` from doc values when needed. This option significantly reduces the
-index size.
+`_source`. Synthetic `_source` can significantly reduce the index size by, for
+specific data types, recreating the `_source` from doc values. This is useful
+when you don't need to preserve the original structure of the `_source`. While
+doc values don't preserve the original structure of the `_source`, synthetic
+`_source` still allows for capabilities like reindexing.
 
 {es-pull}85649[#85649]
 

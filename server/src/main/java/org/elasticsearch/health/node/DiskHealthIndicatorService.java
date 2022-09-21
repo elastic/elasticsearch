@@ -289,7 +289,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 new Diagnosis(
                     new Diagnosis.Definition(
                         NAME,
-                        "free-disk-space-or-add-capacity-data-nodes",
+                        "add_disk_capacity_data_nodes",
                         String.format(
                             Locale.ROOT,
                             "%d %s reside%s on nodes that have run out of space and writing has been blocked by the system.",
@@ -310,7 +310,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 new Diagnosis(
                     new Diagnosis.Definition(
                         NAME,
-                        "free-disk-space-or-add-capacity-master-nodes",
+                        "add_disk_capacity_master_nodes",
                         "Disk is almost full.",
                         "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
                         "https://ela.st/fix-master-disk"
@@ -324,7 +324,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 new Diagnosis(
                     new Diagnosis.Definition(
                         NAME,
-                        "free-disk-space-or-add-capacity-other-nodes",
+                        "add_disk_capacity",
                         "Disk is almost full.",
                         "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
                         "https://ela.st/fix-disk-space"

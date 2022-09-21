@@ -1584,7 +1584,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return settings.getNormalizedCollection();
     }
 
-    @Nested
+    @Internal
     Set<String> getSettingKeys() {
         return settings.keySet();
     }

@@ -1,7 +1,7 @@
 pr: 75274
 summary: Remove RAM accounting from segments
 area: Monitoring
-type: "enhancement, breaking"
+type: "breaking, enhancement"
 issues: []
 breaking:
   title: Remove RAM accounting from segments

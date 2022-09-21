@@ -71,7 +71,7 @@ The API returns the following response:
     {
       "id": "node1-id",
       "name" : "node1",
-      "external_id" : "node1-externalId
+      "external_id" : "node1-externalId",
       "result" : {
         "is_safe": "YES",
         "reason": ""
@@ -80,7 +80,7 @@ The API returns the following response:
     {
       "id": "node2-id",
       "name" : "node2",
-      "external_id" : "node2-externalId
+      "external_id" : "node2-externalId",
       "result" : {
         "is_safe": "UNKNOWN",
         "reason": "no response from the node"

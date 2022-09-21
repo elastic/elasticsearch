@@ -24,7 +24,7 @@ public class DeleteIndexClusterStateUpdateRequest extends IndicesClusterStateUpd
 
     private final ActionListener<AcknowledgedResponse> listener;
 
-    DeleteIndexClusterStateUpdateRequest(ActionListener<AcknowledgedResponse> listener) {
+    public DeleteIndexClusterStateUpdateRequest(ActionListener<AcknowledgedResponse> listener) {
         this.listener = listener;
     }
 

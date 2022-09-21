@@ -38,7 +38,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
         shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
             queryStats = new QueryStats(in);
         } else {
             queryStats = null;
@@ -101,7 +101,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
         out.writeArray(shardsStats);
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
             queryStats.writeTo(out);
         }
     }

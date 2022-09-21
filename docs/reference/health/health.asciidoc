@@ -64,6 +64,9 @@ step by step troubleshooting guide to fix the diagnosed problem.
   `shards_availability`::
       Reports health issues regarding shard assignments.
 
+  `disk`::
+      Reports health issues caused by lack of disk space.
+
   `ilm`::
       Reports health issues related to
       Indexing Lifecycle Management.
@@ -311,6 +314,28 @@ details have contents and a structure that is unique to each indicator.
 `started_replicas`::
     (int) The number of replica shards that are active and available on the sysetm.
 
+[[health-api-response-details-disk]]
+===== disk
+
+`nodes`::
+    (Optional, array) A list of nodes that have reported disk usage information. This field
+    is present if any node has reported disk usage.
++
+.Properties of `nodes`
+[%collapsible%open]
+====
+`node_id`::
+    (string) The node id of the node reporting disk usage.
+
+`name`::
+    (Optional, string) The node name of the node reporting disk usage.
+
+`status`::
+    (string) The status of the disk indicator on the node.
+
+`cause`::
+    (Optional, string) The cause for the status not being GREEN, if known.
+====
 
 [[health-api-response-details-repository-integrity]]
 ===== repository_integrity

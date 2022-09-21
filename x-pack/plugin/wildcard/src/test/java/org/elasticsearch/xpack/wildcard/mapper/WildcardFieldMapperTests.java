@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;

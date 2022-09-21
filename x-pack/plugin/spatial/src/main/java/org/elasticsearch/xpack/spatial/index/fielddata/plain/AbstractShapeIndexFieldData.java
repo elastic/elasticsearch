@@ -29,16 +29,12 @@ import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
  * `ValueSourceType` that this is constructed with. For example, the `LatLonShapeIndexFieldData.load(context)` method will
  * create an instance of `LatLonShapeDVAtomicShapeFieldData`.
  */
-public abstract class AbstractShapeIndexFieldData implements IndexShapeFieldData {
+public abstract class AbstractShapeIndexFieldData<T extends ShapeValues<?>> implements IndexShapeFieldData<T> {
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
-    protected final ToScriptFieldFactory<ShapeValues> toScriptFieldFactory;
+    protected final ToScriptFieldFactory<T> toScriptFieldFactory;
 
-    AbstractShapeIndexFieldData(
-        String fieldName,
-        ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<ShapeValues> toScriptFieldFactory
-    ) {
+    AbstractShapeIndexFieldData(String fieldName, ValuesSourceType valuesSourceType, ToScriptFieldFactory<T> toScriptFieldFactory) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
@@ -55,7 +51,7 @@ public abstract class AbstractShapeIndexFieldData implements IndexShapeFieldData
     }
 
     @Override
-    public LeafShapeFieldData loadDirect(LeafReaderContext context) {
+    public LeafShapeFieldData<T> loadDirect(LeafReaderContext context) {
         return load(context);
     }
 

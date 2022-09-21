@@ -69,7 +69,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
-import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
@@ -101,6 +100,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
 public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
@@ -111,6 +111,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_DIMENSION_2 = "dimension_long";
     public static final String FIELD_NUMERIC_1 = "numeric_1";
     public static final String FIELD_NUMERIC_2 = "numeric_2";
+    public static final String FIELD_AGG_METRIC = "agg_metric_1";
     public static final String FIELD_METRIC_LABEL_DOUBLE = "metric_label_double";
     public static final String FIELD_LABEL_DOUBLE = "label_double";
     public static final String FIELD_LABEL_INTEGER = "label_integer";
@@ -123,6 +124,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_LABEL_UNMAPPED = "label_unmapped";
     public static final String FIELD_LABEL_KEYWORD_ARRAY = "label_keyword_array";
     public static final String FIELD_LABEL_DOUBLE_ARRAY = "label_double_array";
+    public static final String FIELD_LABEL_AGG_METRIC = "label_agg_metric";
 
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
@@ -137,7 +139,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         return List.of(
             LocalStateCompositeXPackPlugin.class,
             Rollup.class,
-            AnalyticsPlugin.class,
             AggregateMetricMapperPlugin.class,
             DataStreamsPlugin.class,
             IndexLifecycle.class
@@ -145,7 +146,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @Before
-    public void setup() {
+    public void setup() throws IOException {
         sourceIndex = randomAlphaOfLength(14).toLowerCase(Locale.ROOT);
         rollupIndex = "rollup-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
@@ -180,47 +181,47 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
         }
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(sourceIndex)
-                .setSettings(settings.build())
-                .setMapping(
-                    FIELD_TIMESTAMP,
-                    "type=date",
-                    FIELD_DIMENSION_1,
-                    "type=keyword,time_series_dimension=true",
-                    FIELD_DIMENSION_2,
-                    "type=long,time_series_dimension=true",
-                    FIELD_NUMERIC_1,
-                    "type=long,time_series_metric=gauge",
-                    FIELD_NUMERIC_2,
-                    "type=double,time_series_metric=counter",
-                    FIELD_LABEL_DOUBLE,
-                    "type=double",
-                    FIELD_LABEL_INTEGER,
-                    "type=integer",
-                    FIELD_LABEL_KEYWORD,
-                    "type=keyword",
-                    FIELD_LABEL_TEXT,
-                    "type=text",
-                    FIELD_LABEL_BOOLEAN,
-                    "type=boolean",
-                    FIELD_METRIC_LABEL_DOUBLE, /* numeric label indexed as a metric */
-                    "type=double,time_series_metric=counter",
-                    FIELD_LABEL_IPv4_ADDRESS,
-                    "type=ip",
-                    FIELD_LABEL_IPv6_ADDRESS,
-                    "type=ip",
-                    FIELD_LABEL_DATE,
-                    "type=date,format=date_optional_time",
-                    FIELD_LABEL_KEYWORD_ARRAY,
-                    "type=keyword",
-                    FIELD_LABEL_DOUBLE_ARRAY,
-                    "type=double"
-                )
-                .get()
-        );
+
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
+        mapping.startObject(FIELD_TIMESTAMP).field("type", "date").endObject();
+
+        // Dimensions
+        mapping.startObject(FIELD_DIMENSION_1).field("type", "keyword").field("time_series_dimension", true).endObject();
+        mapping.startObject(FIELD_DIMENSION_2).field("type", "long").field("time_series_dimension", true).endObject();
+
+        // Metrics
+        mapping.startObject(FIELD_NUMERIC_1).field("type", "long").field("time_series_metric", "gauge").endObject();
+        mapping.startObject(FIELD_NUMERIC_2).field("type", "double").field("time_series_metric", "counter").endObject();
+        mapping.startObject(FIELD_AGG_METRIC)
+            .field("type", "aggregate_metric_double")
+            .field("time_series_metric", "gauge")
+            .array("metrics", new String[] { "min", "max", "sum", "value_count" })
+            .field("default_metric", "value_count")
+            .endObject();
+        mapping.startObject(FIELD_METRIC_LABEL_DOUBLE)
+            .field("type", "double") /* numeric label indexed as a metric */
+            .field("time_series_metric", "counter")
+            .endObject();
+
+        // Labels
+        mapping.startObject(FIELD_LABEL_DOUBLE).field("type", "double").endObject();
+        mapping.startObject(FIELD_LABEL_INTEGER).field("type", "integer").endObject();
+        mapping.startObject(FIELD_LABEL_KEYWORD).field("type", "keyword").endObject();
+        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").endObject();
+        mapping.startObject(FIELD_LABEL_BOOLEAN).field("type", "boolean").endObject();
+        mapping.startObject(FIELD_LABEL_IPv4_ADDRESS).field("type", "ip").endObject();
+        mapping.startObject(FIELD_LABEL_IPv6_ADDRESS).field("type", "ip").endObject();
+        mapping.startObject(FIELD_LABEL_DATE).field("type", "date").field("format", "date_optional_time").endObject();
+        mapping.startObject(FIELD_LABEL_KEYWORD_ARRAY).field("type", "keyword").endObject();
+        mapping.startObject(FIELD_LABEL_DOUBLE_ARRAY).field("type", "double").endObject();
+        mapping.startObject(FIELD_LABEL_AGG_METRIC)
+            .field("type", "aggregate_metric_double")
+            .array("metrics", new String[] { "min", "max", "sum", "value_count" })
+            .field("default_metric", "value_count")
+            .endObject();
+
+        mapping.endObject().endObject().endObject();
+        assertAcked(client().admin().indices().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
     }
 
     public void testRollupIndex() throws IOException {
@@ -250,6 +251,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
                 .field(FIELD_NUMERIC_1, randomInt())
                 .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .startObject(FIELD_AGG_METRIC)
+                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", randomIntBetween(100, 10000))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
                 .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
                 .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
                 .field(FIELD_LABEL_INTEGER, labelIntegerValue)
@@ -262,12 +269,61 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 .field(FIELD_LABEL_DATE, labelDateValue)
                 .field(FIELD_LABEL_KEYWORD_ARRAY, keywordArray)
                 .field(FIELD_LABEL_DOUBLE_ARRAY, doubleArray)
+                .startObject(FIELD_LABEL_AGG_METRIC)
+                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
                 .endObject();
         };
         bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
+    }
+
+    public void testRollupOfRollups() throws IOException {
+        int intervalMinutes = randomIntBetween(10, 120);
+        DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes));
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForInterval(config.getInterval());
+            double labelDoubleValue = DATE_FORMATTER.parseMillis(ts);
+
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                .field(FIELD_NUMERIC_1, randomInt())
+                .field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts))
+                .startObject(FIELD_AGG_METRIC)
+                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", randomIntBetween(100, 10000))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .field(FIELD_LABEL_DOUBLE, labelDoubleValue)
+                .field(FIELD_METRIC_LABEL_DOUBLE, labelDoubleValue)
+                .startObject(FIELD_LABEL_AGG_METRIC)
+                .field("min", randomDoubleBetween(-1000, 1000, true))
+                .field("max", randomDoubleBetween(-1000, 1000, true))
+                .field("sum", Double.valueOf(randomIntBetween(100, 10000)))
+                .field("value_count", randomIntBetween(100, 1000))
+                .endObject()
+                .endObject();
+        };
+        bulkIndex(sourceSupplier);
+
+        // Downsample the source index
+        prepareSourceIndex(sourceIndex);
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(sourceIndex, rollupIndex, config);
+
+        // Downsample the rollup index. The downsampling interval is a multiple of the previous downsampling interval.
+        String rollupIndex2 = rollupIndex + "-2";
+        DownsampleConfig config2 = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)));
+        rollup(rollupIndex, rollupIndex2, config2);
+        assertRollupIndex(sourceIndex, rollupIndex2, config2);
     }
 
     private Date randomDate() {
@@ -593,12 +649,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
             .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndex + "]"));
 
-        IndexMetadata indexMetadata = client().admin().cluster().prepareState().get().getState().getMetadata().index(sourceIndex);
-        TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(
-            getInstanceFromNode(IndicesService.class),
-            sourceIndexMappings,
-            indexMetadata
-        ).build(config.getTimestampField());
+        final IndexMetadata indexMetadata = client().admin().cluster().prepareState().get().getState().getMetadata().index(sourceIndex);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
+        final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+        TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(mapperService).build(config.getTimestampField());
+
         Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
@@ -724,8 +781,18 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                             // `counter`. This way we can actually check that the label value stored in the rollup index
                             // is the last value (which is what we store for a metric of type counter) by comparing the metric
                             // field value to the label field value.
-                            originalFieldsList.forEach(field -> assertTrue(rollupFieldsList.contains(field)));
-                            rollupFieldsList.forEach(field -> assertTrue(originalFieldsList.contains(field)));
+                            originalFieldsList.forEach(
+                                field -> assertTrue(
+                                    "Field [" + field + "] is not included in the rollup fields: " + rollupFieldsList,
+                                    rollupFieldsList.contains(field)
+                                )
+                            );
+                            rollupFieldsList.forEach(
+                                field -> assertTrue(
+                                    "Field [" + field + "] is not included in the source fields: " + originalFieldsList,
+                                    originalFieldsList.contains(field)
+                                )
+                            );
                             Object originalLabelValue = originalHit.getDocumentFields().values().stream().toList().get(0).getValue();
                             Object rollupLabelValue = rollupHit.getDocumentFields().values().stream().toList().get(0).getValue();
                             Optional<Aggregation> labelAsMetric = nonTopHitsOriginalAggregations.stream()

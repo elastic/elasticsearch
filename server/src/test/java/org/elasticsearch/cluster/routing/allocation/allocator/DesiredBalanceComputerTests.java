@@ -622,7 +622,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var resultDiskUsage = new HashMap<String, Long>();
         for (var assignment : desiredBalance.assignments().entrySet()) {
             var nodeId = assignment.getValue().nodeIds().iterator().next();
-            var size = clusterInfo.shardSizes.get(ClusterInfo.shardIdentifierFromRouting(assignment.getKey(), true));
+            var size = clusterInfo.getShardSize(assignment.getKey(), true);
             resultDiskUsage.compute(nodeId, (k, v) -> v == null ? size : v + size);
         }
 

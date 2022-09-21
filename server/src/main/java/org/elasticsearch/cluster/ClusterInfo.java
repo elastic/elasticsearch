@@ -186,17 +186,17 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Returns the shard size for the given shard routing or <code>null</code> it that metric is not available.
+     * Returns the shard size for the given shardId or <code>null</code> it that metric is not available.
      */
-    public Long getShardSize(ShardRouting shardRouting) {
-        return shardSizes.get(shardIdentifierFromRouting(shardRouting));
+    public Long getShardSize(ShardId shardId, boolean primary) {
+        return shardSizes.get(shardIdentifierFromRouting(shardId, primary));
     }
 
     /**
-     * Returns the nodes absolute data-path the given shard is allocated on or <code>null</code> if the information is not available.
+     * Returns the shard size for the given shard routing or <code>null</code> it that metric is not available.
      */
-    public String getDataPath(ShardRouting shardRouting) {
-        return routingToDataPath.get(shardRouting);
+    public Long getShardSize(ShardRouting shardRouting) {
+        return getShardSize(shardRouting.shardId(), shardRouting.primary());
     }
 
     /**
@@ -205,6 +205,13 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public long getShardSize(ShardRouting shardRouting, long defaultValue) {
         Long shardSize = getShardSize(shardRouting);
         return shardSize == null ? defaultValue : shardSize;
+    }
+
+    /**
+     * Returns the nodes absolute data-path the given shard is allocated on or <code>null</code> if the information is not available.
+     */
+    public String getDataPath(ShardRouting shardRouting) {
+        return routingToDataPath.get(shardRouting);
     }
 
     public Optional<Long> getShardDataSetSize(ShardId shardId) {

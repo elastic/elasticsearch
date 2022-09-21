@@ -508,6 +508,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "total_data_set_size_in_bytes": 0,
                     "reserved_in_bytes": 0
                   },
+                  "queries": [],
                   "fielddata": {
                     "memory_size_in_bytes": 0,
                     "evictions": 0

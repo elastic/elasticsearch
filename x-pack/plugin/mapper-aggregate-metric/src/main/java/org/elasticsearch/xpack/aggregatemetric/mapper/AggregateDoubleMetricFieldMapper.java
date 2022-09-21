@@ -299,17 +299,16 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public String familyTypeName() {
-            return NumberFieldMapper.NumberType.DOUBLE.typeName();
-        }
-
-        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
 
         private void setMetricFields(EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields) {
             this.metricFields = metricFields;
+        }
+
+        public Map<Metric, NumberFieldMapper.NumberFieldType> getMetricFields() {
+            return Collections.unmodifiableMap(metricFields);
         }
 
         public void addMetricField(Metric m, NumberFieldMapper.NumberFieldType subfield) {

@@ -108,7 +108,7 @@ public class StablePluginBuildPlugin implements Plugin<Project> {
     private TaskProvider<Zip> createBundleTasks(final Project project, StablePluginPropertiesExtension extension) {
         final var pluginMetadata = project.file("src/main/plugin-metadata");
 
-        final var buildProperties = project.getTasks().register("stablepluginProperties", GeneratePluginPropertiesTask.class, task -> {
+        final var buildProperties = project.getTasks().register("stablepluginProperties", StableGeneratePluginPropertiesTask.class, task -> {
             task.getPluginName().set(providerFactory.provider(extension::getName));
             task.getPluginDescription().set(providerFactory.provider(extension::getDescription));
             task.getPluginVersion().set(providerFactory.provider(extension::getVersion));
@@ -126,7 +126,7 @@ public class StablePluginBuildPlugin implements Plugin<Project> {
             task.getModuleInfoFile().setFrom(moduleInfoFile);
         });
 
-        final var pluginNamedComponents = project.getTasks().register("pluginNamedComponents", GenerateNamedComponentsTask.class, t -> {
+        final var pluginNamedComponents = project.getTasks().register("pluginNamedComponents", StableGenerateNamedComponentsTask.class, t -> {
                 SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
                 t.setPluginClasses(mainSourceSet.getOutput().getClassesDirs());
                 t.setClasspath(project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME));
@@ -167,8 +167,8 @@ public class StablePluginBuildPlugin implements Plugin<Project> {
     private static CopySpec createBundleSpec(
         Project project,
         File pluginMetadata,
-        TaskProvider<GeneratePluginPropertiesTask> buildProperties,
-        TaskProvider<GenerateNamedComponentsTask> pluginNamedComponents) {
+        TaskProvider<StableGeneratePluginPropertiesTask> buildProperties,
+        TaskProvider<StableGenerateNamedComponentsTask> pluginNamedComponents) {
         var bundleSpec = project.copySpec();
         bundleSpec.from(buildProperties);
         bundleSpec.from(pluginNamedComponents);

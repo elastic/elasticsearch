@@ -11,18 +11,17 @@ apply plugin: 'elasticsearch.stableesplugin'
 
 stableesplugin {
   description 'The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.'
-  extendedPlugins = ['lang-painless']
 }
 
 dependencies {
   api "org.apache.lucene:lucene-analysis-nori:${versions.lucene}"
 }
 
-restResources {
-  restApi {
-    include '_common', 'indices', 'index', 'search'
-  }
-}
+//restResources {
+//  restApi {
+//    include '_common', 'indices', 'index', 'search'
+//  }
+//}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'

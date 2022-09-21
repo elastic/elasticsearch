@@ -72,12 +72,12 @@ public class TransportPutRepositoryAction extends AcknowledgedTransportMasterNod
     }
 
     @Override
-    protected Optional<String> reservedStateHandlerName() {
+    public Optional<String> reservedStateHandlerName() {
         return Optional.of(ReservedRepositoryAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(PutRepositoryRequest request) {
+    public Set<String> modifiedKeys(PutRepositoryRequest request) {
         return Set.of(request.name());
     }
 }

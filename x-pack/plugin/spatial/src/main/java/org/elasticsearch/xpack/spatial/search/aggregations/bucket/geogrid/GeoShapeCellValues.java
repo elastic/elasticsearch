@@ -7,17 +7,17 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
 import java.util.function.LongConsumer;
 
 /** Sorted numeric doc values for geo shapes */
 class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
-    private final ShapeValues geoShapeValues;
+    private final GeoShapeValues geoShapeValues;
     protected final GeoGridTiler tiler;
 
-    protected GeoShapeCellValues(ShapeValues geoShapeValues, GeoGridTiler tiler, LongConsumer circuitBreakerConsumer) {
+    protected GeoShapeCellValues(GeoShapeValues geoShapeValues, GeoGridTiler tiler, LongConsumer circuitBreakerConsumer) {
         super(circuitBreakerConsumer);
         this.geoShapeValues = geoShapeValues;
         this.tiler = tiler;

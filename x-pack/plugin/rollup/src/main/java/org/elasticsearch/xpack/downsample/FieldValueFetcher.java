@@ -8,16 +8,17 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Utility class used for fetching field values by reading field data
@@ -55,42 +56,39 @@ class FieldValueFetcher {
         return fieldData.load(context).getFormattedValues(format);
     }
 
-    Object format(Object value) {
-        if (value instanceof Long l) {
-            return format.format(l);
-        } else if (value instanceof Double d) {
-            return format.format(d);
-        } else if (value instanceof BytesRef b) {
-            return format.format(b);
-        } else if (value instanceof String s) {
-            return s;
-        } else {
-            throw new IllegalArgumentException("Invalid type: [" + value.getClass() + "]");
-        }
-    }
-
     /**
-     * Retrieve field fetchers for a list of fields.
+     * Retrieve field value fetchers for a list of fields.
      */
-    private static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
-        List<FieldValueFetcher> fetchers = new ArrayList<>(fields.length);
+    static Map<String, FieldValueFetcher> create(SearchExecutionContext context, String[] fields) {
+        Map<String, FieldValueFetcher> fetchers = new LinkedHashMap<>();
         for (String field : fields) {
             MappedFieldType fieldType = context.getFieldType(field);
-            if (fieldType == null) {
-                throw new IllegalArgumentException("Unknown field: [" + field + "]");
+            assert fieldType != null : "Unknown field type for field: [" + field + "]";
+
+            if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
+                // If the field is an aggregate_metric_double field, we should load all its subfields
+                // This is a rollup-of-rollup case
+                for (NumberFieldMapper.NumberFieldType metricSubField : aggMetricFieldType.getMetricFields().values()) {
+                    if (context.fieldExistsInIndex(metricSubField.name())) {
+                        IndexFieldData<?> fieldData = context.getForField(metricSubField, MappedFieldType.FielddataOperation.SEARCH);
+                        fetchers.put(metricSubField.name(), new FieldValueFetcher(metricSubField.name(), fieldType, fieldData));
+                    }
+                }
+            } else {
+                if (context.fieldExistsInIndex(field)) {
+                    IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                    fetchers.put(field, new FieldValueFetcher(field, fieldType, fieldData));
+                }
             }
-            IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData));
         }
-        return Collections.unmodifiableList(fetchers);
+        return Collections.unmodifiableMap(fetchers);
     }
 
-    static List<FieldValueFetcher> forMetrics(SearchExecutionContext context, String[] metricFields) {
-        return build(context, metricFields);
+    static Map<String, FormattedDocValues> docValuesFetchers(LeafReaderContext ctx, Map<String, FieldValueFetcher> fieldValueFetchers) {
+        final Map<String, FormattedDocValues> docValuesFetchers = new LinkedHashMap<>(fieldValueFetchers.size());
+        for (FieldValueFetcher fetcher : fieldValueFetchers.values()) {
+            docValuesFetchers.put(fetcher.name(), fetcher.getLeaf(ctx));
+        }
+        return Collections.unmodifiableMap(docValuesFetchers);
     }
-
-    static List<FieldValueFetcher> forLabels(SearchExecutionContext context, String[] labelFields) {
-        return build(context, labelFields);
-    }
-
 }

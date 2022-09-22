@@ -39,7 +39,6 @@ import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalP
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.NodeResult;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 
-// TODO: action with status?
 public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeReadAction<
     PrevalidateNodeRemovalRequest,
     PrevalidateNodeRemovalResponse> {
@@ -75,7 +74,6 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         ClusterState state,
         ActionListener<PrevalidateNodeRemovalResponse> listener
     ) {
-        // TODO: Need to set masterNodeTimeOut
         List<String> nodes = request.getNodeIds();
         try {
             Set<DiscoveryNode> concreteNodes = resolveNodes(nodes, state.nodes());

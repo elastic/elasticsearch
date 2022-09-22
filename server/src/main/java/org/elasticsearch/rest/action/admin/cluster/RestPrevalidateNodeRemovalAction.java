@@ -38,8 +38,6 @@ public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
         String[] nodeIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         PrevalidateNodeRemovalRequest prevalidationRequest = new PrevalidateNodeRemovalRequest(nodeIds);
         prevalidationRequest.masterNodeTimeout(request.paramAsTime("master_timeout", prevalidationRequest.masterNodeTimeout()));
-        // TODO: Do we need timeout?
-        // TODO: Do we need wait_for_completion?
         return channel -> client.execute(
             PrevalidateNodeRemovalAction.INSTANCE,
             prevalidationRequest,

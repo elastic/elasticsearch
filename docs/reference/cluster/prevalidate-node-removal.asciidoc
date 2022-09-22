@@ -11,7 +11,7 @@ Prevalidate node removal.
 [[prevalidate-node-removal-api-request]]
 ==== {api-request-title}
 
-`GET /_internal/prevalidate_node_removal/<nodes>`
+`POST /_internal/prevalidate_node_removal/<nodes>`
 
 [[prevalidate-node-removal-api-prereqs]]
 ==== {api-prereq-title}
@@ -54,7 +54,7 @@ This example validates whether it is safe to remove the nodes `node1` and `node2
 
 [source,console]
 --------------------------------------------------
-GET /_internal/prevalidate_node_removal/node1,node2
+POST /_internal/prevalidate_node_removal/node1,node2
 --------------------------------------------------
 // TEST[skip:todo]
 

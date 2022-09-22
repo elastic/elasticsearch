@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -28,6 +27,7 @@ import org.elasticsearch.health.ImpactArea;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -89,7 +89,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
         boolean clusterHasBlockedIndex = indicesWithBlock.isEmpty() == false;
-        HealthIndicatorDetails details = getDetails(explain, diskHealthInfoMap, clusterState);
+        HealthIndicatorDetails details = getDetails(explain, diskHealthInfoMap, indicesWithBlock);
         final HealthStatus healthStatusFromNodes = HealthStatus.merge(
             diskHealthInfoMap.values().stream().map(DiskHealthInfo::healthStatus)
         );
@@ -432,47 +432,29 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     .filter(node -> nodeIdsInHealthInfo.contains(node.getId()) == false)
                     .map(node -> String.format(Locale.ROOT, "{%s / %s}", node.getId(), node.getName()))
                     .collect(Collectors.joining(", "));
-                logger.debug("The following nodes are in the cluster state but not reporting health data: [{}}]", nodesWithMissingData);
+                logger.debug("The following nodes are in the cluster state but not reporting health data: [{}]", nodesWithMissingData);
             }
         }
     }
 
-    private HealthIndicatorDetails getDetails(boolean explain, Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
+    private HealthIndicatorDetails getDetails(boolean explain, Map<String, DiskHealthInfo> diskHealthInfoMap, Set<String> blockedIndices) {
         if (explain == false) {
             return HealthIndicatorDetails.EMPTY;
         }
-        return (builder, params) -> {
+        Map<HealthStatus, Integer> healthNodesCount = new HashMap<>();
+        for (HealthStatus healthStatus : HealthStatus.values()) {
+            healthNodesCount.put(healthStatus, 0);
+        }
+        for (DiskHealthInfo diskHealthInfo : diskHealthInfoMap.values()) {
+            healthNodesCount.computeIfPresent(diskHealthInfo.healthStatus(), (key, oldCount) -> oldCount + 1);
+        }
+        return ((builder, params) -> {
             builder.startObject();
-            builder.array("nodes", arrayXContentBuilder -> {
-                for (Map.Entry<String, DiskHealthInfo> entry : diskHealthInfoMap.entrySet()) {
-                    builder.startObject();
-                    String nodeId = entry.getKey();
-                    builder.field("node_id", nodeId);
-                    String nodeName = getNameForNodeId(nodeId, clusterState);
-                    if (nodeName != null) {
-                        builder.field("name", nodeName);
-                    }
-                    builder.field("status", entry.getValue().healthStatus());
-                    DiskHealthInfo.Cause cause = entry.getValue().cause();
-                    if (cause != null) {
-                        builder.field("cause", entry.getValue().cause());
-                    }
-                    builder.endObject();
-                }
-            });
+            builder.field("blocked_indices", blockedIndices.size());
+            for (HealthStatus healthStatus : HealthStatus.values()) {
+                builder.field(healthStatus.name().toLowerCase(Locale.ROOT) + "_nodes", healthNodesCount.get(healthStatus));
+            }
             return builder.endObject();
-        };
-    }
-
-    /**
-     * Returns the name of the node with the given nodeId, as seen in the cluster state at this moment. The name of a node is optional,
-     * so if the node does not have a name (or the node with the given nodeId is no longer in the cluster state), null is returned.
-     * @param nodeId The id of the node whose name is to be returned
-     * @return The current name of the node, or null if the node is not in the cluster state or does not have a name
-     */
-    @Nullable
-    private String getNameForNodeId(String nodeId, ClusterState clusterState) {
-        DiscoveryNode node = clusterState.nodes().get(nodeId);
-        return node == null ? null : node.getName();
+        });
     }
 }

@@ -768,63 +768,59 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void assertRollupIndexSettings(String sourceIndex, String rollupIndex, GetIndexResponse indexSettingsResp) {
-        // Assert rollup metadata are set in index settings
-        assertEquals("success", indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY));
-
-        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_INDEX_UUID));
-        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY));
-        assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_INDEX_UUID),
-            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY)
-        );
-
-        assertEquals(sourceIndex, indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY));
-        assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, IndexSettings.MODE.getKey()),
-            indexSettingsResp.getSetting(rollupIndex, IndexSettings.MODE.getKey())
-        );
-
-        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexSettings.TIME_SERIES_START_TIME.getKey()));
-        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_START_TIME.getKey()));
-        assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, IndexSettings.TIME_SERIES_START_TIME.getKey()),
-            indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_START_TIME.getKey())
-        );
-
-        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexSettings.TIME_SERIES_END_TIME.getKey()));
-        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_END_TIME.getKey()));
-        assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, IndexSettings.TIME_SERIES_END_TIME.getKey()),
-            indexSettingsResp.getSetting(rollupIndex, IndexSettings.TIME_SERIES_END_TIME.getKey())
-        );
-        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexMetadata.INDEX_ROUTING_PATH.getKey()));
-        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROUTING_PATH.getKey()));
-        assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, IndexMetadata.INDEX_ROUTING_PATH.getKey()),
-            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROUTING_PATH.getKey())
-        );
-
-        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS));
-        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS));
-        assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS),
-            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)
-        );
-
-        assertNotNull(indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS));
-        assertNotNull(indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS));
-        assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS),
-            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)
-        );
-        assertEquals("true", indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_BLOCKS_WRITE));
-        assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, IndexMetadata.SETTING_INDEX_HIDDEN),
-            indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_INDEX_HIDDEN)
-        );
-
         Settings sourceSettings = indexSettingsResp.settings().get(sourceIndex);
         Settings rollupSettings = indexSettingsResp.settings().get(rollupIndex);
+
+        // Assert rollup metadata are set in index settings
+        assertEquals("success", rollupSettings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY));
+
+        assertNotNull(sourceSettings.get(IndexMetadata.SETTING_INDEX_UUID));
+        assertNotNull(rollupSettings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY));
+        assertEquals(
+            sourceSettings.get(IndexMetadata.SETTING_INDEX_UUID),
+            rollupSettings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID_KEY)
+        );
+
+        assertEquals(sourceIndex, rollupSettings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY));
+        assertEquals(sourceSettings.get(IndexSettings.MODE.getKey()), rollupSettings.get(IndexSettings.MODE.getKey()));
+
+        assertNotNull(sourceSettings.get(IndexSettings.TIME_SERIES_START_TIME.getKey()));
+        assertNotNull(rollupSettings.get(IndexSettings.TIME_SERIES_START_TIME.getKey()));
+        assertEquals(
+            sourceSettings.get(IndexSettings.TIME_SERIES_START_TIME.getKey()),
+            rollupSettings.get(IndexSettings.TIME_SERIES_START_TIME.getKey())
+        );
+
+        assertNotNull(sourceSettings.get(IndexSettings.TIME_SERIES_END_TIME.getKey()));
+        assertNotNull(rollupSettings.get(IndexSettings.TIME_SERIES_END_TIME.getKey()));
+        assertEquals(
+            sourceSettings.get(IndexSettings.TIME_SERIES_END_TIME.getKey()),
+            rollupSettings.get(IndexSettings.TIME_SERIES_END_TIME.getKey())
+        );
+        assertNotNull(sourceSettings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()));
+        assertNotNull(rollupSettings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()));
+        assertEquals(
+            sourceSettings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()),
+            rollupSettings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey())
+        );
+
+        assertNotNull(sourceSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));
+        assertNotNull(rollupSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS));
+        assertEquals(
+            sourceSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS),
+            rollupSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS)
+        );
+
+        assertNotNull(sourceSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS));
+        assertNotNull(rollupSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS));
+        assertEquals(
+            sourceSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS),
+            rollupSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS)
+        );
+
+        assertEquals("true", rollupSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
+        assertEquals(sourceSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN), rollupSettings.get(IndexMetadata.SETTING_INDEX_HIDDEN));
+
         if (sourceSettings.keySet().contains(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             assertNotNull(indexSettingsResp.getSetting(rollupIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()));
         }
@@ -832,8 +828,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         if (sourceSettings.keySet().contains(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
             && rollupSettings.keySet().contains(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             assertEquals(
-                indexSettingsResp.getSetting(sourceIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()),
-                indexSettingsResp.getSetting(rollupIndex, MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
+                sourceSettings.get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()),
+                rollupSettings.get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
             );
         } else {
             assertFalse(sourceSettings.keySet().contains(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey()));

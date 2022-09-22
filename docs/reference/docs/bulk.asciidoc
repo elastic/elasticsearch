@@ -140,7 +140,7 @@ JavaScript::
     See {jsclient-current}/client-helpers.html[client.helpers.*]
 
 .NET::
-    See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
+    See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html[`BulkAllObservable`]
 
 PHP::
     See https://www.elastic.co/guide/en/elasticsearch/client/php-api/current/indexing_documents.html#_bulk_indexing[Bulk indexing]

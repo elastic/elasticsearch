@@ -29,4 +29,12 @@ public interface GroupingAggregatorFunction {
             return GroupingAvgAggregator.create(inputChannel);
         }
     };
+
+    BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> max = (AggregatorMode mode, Integer inputChannel) -> {
+        if (mode.isInputPartial()) {
+            return GroupingMaxAggregator.createIntermediate();
+        } else {
+            return GroupingMaxAggregator.create(inputChannel);
+        }
+    };
 }

@@ -268,7 +268,7 @@ public class BlendedTermQueryTests extends ESTestCase {
         int numRandomFields = random().nextInt(7);
         for (int i = 0; i < numRandomFields; i++) {
             String field = "field" + i;
-            float probability = randomBoolean() ?  1.0f : randomFloat();
+            float probability = randomBoolean() ? 1.0f : randomFloat();
             fields.put(field, probability);
         }
 

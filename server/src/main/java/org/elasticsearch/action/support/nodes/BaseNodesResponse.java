@@ -22,9 +22,9 @@ import java.util.Objects;
 
 public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> extends ActionResponse {
 
-    private ClusterName clusterName;
-    private List<FailedNodeException> failures;
-    private List<TNodeResponse> nodes;
+    private final ClusterName clusterName;
+    private final List<FailedNodeException> failures;
+    private final List<TNodeResponse> nodes;
     private Map<String, TNodeResponse> nodesMap;
 
     protected BaseNodesResponse(StreamInput in) throws IOException {

@@ -31,6 +31,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     private static final String FIPS_140_XFIELD = "fips_140";
     private static final String OPERATOR_PRIVILEGES_XFIELD = XPackField.OPERATOR_PRIVILEGES;
     private static final String DOMAINS_XFIELD = "domains";
+    private static final String USER_PROFILE_XFIELD = "user_profile";
 
     private Map<String, Object> realmsUsage;
     private Map<String, Object> rolesStoreUsage;
@@ -44,6 +45,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     private Map<String, Object> fips140Usage;
     private Map<String, Object> operatorPrivilegesUsage;
     private Map<String, Object> domainsUsage;
+    private Map<String, Object> userProfileUsage;
 
     public SecurityFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
@@ -67,6 +69,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
             domainsUsage = in.readMap();
         }
+        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            userProfileUsage = in.readMap();
+        }
     }
 
     public SecurityFeatureSetUsage(
@@ -82,7 +87,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         Map<String, Object> apiKeyServiceUsage,
         Map<String, Object> fips140Usage,
         Map<String, Object> operatorPrivilegesUsage,
-        Map<String, Object> domainsUsage
+        Map<String, Object> domainsUsage,
+        Map<String, Object> userProfileUsage
     ) {
         super(XPackField.SECURITY, true, enabled);
         this.realmsUsage = realmsUsage;
@@ -97,6 +103,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         this.fips140Usage = fips140Usage;
         this.operatorPrivilegesUsage = operatorPrivilegesUsage;
         this.domainsUsage = domainsUsage;
+        this.userProfileUsage = userProfileUsage;
     }
 
     @Override
@@ -127,6 +134,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
             out.writeGenericMap(domainsUsage);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            out.writeGenericMap(userProfileUsage);
+        }
     }
 
     @Override
@@ -146,6 +156,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field(OPERATOR_PRIVILEGES_XFIELD, operatorPrivilegesUsage);
             if (domainsUsage != null && false == domainsUsage.isEmpty()) {
                 builder.field(DOMAINS_XFIELD, domainsUsage);
+            }
+            if (userProfileUsage != null && false == userProfileUsage.isEmpty()) {
+                builder.field(USER_PROFILE_XFIELD, userProfileUsage);
             }
         } else if (sslUsage.isEmpty() == false) {
             // A trial (or basic) license can have SSL without security.

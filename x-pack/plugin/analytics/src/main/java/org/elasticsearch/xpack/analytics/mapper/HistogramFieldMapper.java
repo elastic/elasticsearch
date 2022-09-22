@@ -386,7 +386,7 @@ public class HistogramFieldMapper extends FieldMapper {
         double value;
         int count;
         boolean isExhausted;
-        ByteArrayStreamInput streamInput;
+        final ByteArrayStreamInput streamInput;
 
         InternalHistogramValue() {
             streamInput = new ByteArrayStreamInput();

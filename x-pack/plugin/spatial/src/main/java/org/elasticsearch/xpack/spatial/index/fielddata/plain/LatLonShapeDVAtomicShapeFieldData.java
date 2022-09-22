@@ -15,18 +15,17 @@ import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-final class LatLonShapeDVAtomicShapeFieldData extends LeafShapeFieldData {
+final class LatLonShapeDVAtomicShapeFieldData extends LeafShapeFieldData<GeoShapeValues> {
     private final LeafReader reader;
     private final String fieldName;
 
-    LatLonShapeDVAtomicShapeFieldData(LeafReader reader, String fieldName, ToScriptFieldFactory<ShapeValues> toScriptFieldFactory) {
+    LatLonShapeDVAtomicShapeFieldData(LeafReader reader, String fieldName, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
         super(toScriptFieldFactory);
         this.reader = reader;
         this.fieldName = fieldName;
@@ -48,7 +47,7 @@ final class LatLonShapeDVAtomicShapeFieldData extends LeafShapeFieldData {
     }
 
     @Override
-    public ShapeValues getShapeValues() {
+    public GeoShapeValues getShapeValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
             final GeoShapeValues.GeoShapeValue geoShapeValue = new GeoShapeValues.GeoShapeValue();

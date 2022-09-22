@@ -14,6 +14,7 @@ import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.stream;
 import static org.hamcrest.Matchers.containsString;
@@ -148,11 +150,11 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Path jar = tempDir.resolve("my-jar.jar");
         createMinimalJar(jar, "p.MyClassInPackageP");
 
-        URL[] urls = new URL[] { overlappingJar.toUri().toURL() };
+        URL[] urls = new URL[] { toUrl(overlappingJar) };
 
         try (
             URLClassLoader parent = URLClassLoader.newInstance(urls, UberModuleClassLoaderTests.class.getClassLoader());
-            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", List.of(jar))
+            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", Set.of(toUrl(jar)))
         ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClassInPackageP");
@@ -184,11 +186,11 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Path jar = tempDir.resolve("my-jar.jar");
         createMinimalJar(jar, "p." + className);
 
-        URL[] urls = new URL[] { overlappingJar.toUri().toURL() };
+        URL[] urls = new URL[] { toUrl(overlappingJar) };
 
         try (
             URLClassLoader parent = URLClassLoader.newInstance(urls, UberModuleClassLoaderTests.class.getClassLoader());
-            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", List.of(jar))
+            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", Set.of(toUrl(jar)))
         ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClass");
@@ -300,7 +302,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             UberModuleClassLoader denyListLoader = UberModuleClassLoader.getInstance(
                 UberModuleClassLoaderTests.class.getClassLoader(),
                 "synthetic",
-                List.of(jar),
+                Set.of(toUrl(jar)),
                 Set.of("java.sql")
             )
         ) {
@@ -338,7 +340,11 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         createServiceTestJar(jar, false, true);
 
         try (
-            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(this.getClass().getClassLoader(), "p.synthetic.test", List.of(jar))
+            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(
+                this.getClass().getClassLoader(),
+                "p.synthetic.test",
+                Set.of(toUrl(jar))
+            )
         ) {
             Class<?> demoClass = cl.loadClass("p.ServiceCaller");
             var method = demoClass.getMethod("demo");
@@ -354,7 +360,11 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         createServiceTestJar(jar, true, false);
 
         try (
-            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(this.getClass().getClassLoader(), "p.synthetic.test", List.of(jar))
+            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(
+                this.getClass().getClassLoader(),
+                "p.synthetic.test",
+                Set.of(toUrl(jar))
+            )
         ) {
             Class<?> demoClass = cl.loadClass("p.ServiceCaller");
             var method = demoClass.getMethod("demo");
@@ -370,7 +380,11 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         createServiceTestJar(jar, true, true);
 
         try (
-            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(this.getClass().getClassLoader(), "p.synthetic.test", List.of(jar))
+            UberModuleClassLoader cl = UberModuleClassLoader.getInstance(
+                this.getClass().getClassLoader(),
+                "p.synthetic.test",
+                Set.of(toUrl(jar))
+            )
         ) {
             Class<?> demoClass = cl.loadClass("p.ServiceCaller");
             var method = demoClass.getMethod("demo");
@@ -452,7 +466,19 @@ public class UberModuleClassLoaderTests extends ESTestCase {
     }
 
     private static UberModuleClassLoader getLoader(List<Path> jars) {
-        return UberModuleClassLoader.getInstance(UberModuleClassLoaderTests.class.getClassLoader(), "synthetic", jars);
+        return UberModuleClassLoader.getInstance(
+            UberModuleClassLoaderTests.class.getClassLoader(),
+            "synthetic",
+            jars.stream().map(UberModuleClassLoaderTests::pathToUrlUnchecked).collect(Collectors.toSet())
+        );
+    }
+
+    private static URL pathToUrlUnchecked(Path path) {
+        try {
+            return toUrl(path);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     /*
@@ -538,5 +564,9 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 }
             }
             """, Strings.isNullOrEmpty(packageName) ? "" : "package " + packageName + ";", className, toStringOutput);
+    }
+
+    private static URL toUrl(Path jar) throws MalformedURLException {
+        return jar.toUri().toURL();
     }
 }

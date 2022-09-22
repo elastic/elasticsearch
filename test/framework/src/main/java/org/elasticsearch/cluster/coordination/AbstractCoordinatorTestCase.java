@@ -1283,7 +1283,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     null,
                     getNamedWriteableRegistry()
                 );
-                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(coordinationDiagnosticsService);
+                stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService);
                 masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
                     settings,

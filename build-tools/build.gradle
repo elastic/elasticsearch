@@ -119,6 +119,10 @@ dependencies {
     api localGroovy()
     api gradleApi()
     api buildLibs.apache.compress
+
+    implementation buildLibs.jackson.core
+    implementation buildLibs.jackson.databind
+
     api buildLibs.ant
     api buildLibs.commmons.io
     implementation buildLibs.asm.tree

@@ -40,12 +40,23 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
+
+    public static final Set<Setting<?>> LEGACY_INDEX_SETTINGS = Set.of(
+        EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
+        IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
+        Store.FORCE_RAM_TERM_DICT
+    );
 
     public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Set.of(
         MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
@@ -184,6 +195,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.TIME_SERIES_END_TIME
     );
 
+    private static Set<String> LEGACY_INDEX_SETTING_KEYS = LEGACY_INDEX_SETTINGS.stream().map(s -> s.getKey()).collect(Collectors.toSet());
+
+    static {
+        BUILT_IN_INDEX_SETTINGS.addAll(LEGACY_INDEX_SETTINGS);
+    }
+
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
@@ -226,7 +243,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
         }
     }
-
+    
     /**
      * Validates that all registered settings are valid, but not necessarily registered
      *
@@ -239,9 +256,18 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      * @param indexMetadata the index metadata
      * @see Setting#getSettingsDependencies(String)
      */
-    public void validateLegacySettings(final IndexMetadata indexMetadata) {
+    public void validateSettings(final IndexMetadata indexMetadata) {
         assert indexMetadata.getCreationVersion().major < Version.CURRENT.major;
+        Settings settings = indexMetadata.getSettings();
 
-        validate(indexMetadata.getSettings(), true, true, true, false, true);
+        if (indexMetadata.getCreationVersion().major == Version.CURRENT.major) {
+            for (var setting : settings.keySet()) {
+                if (LEGACY_INDEX_SETTING_KEYS.contains(setting)) {
+
+                }
+            }
+        }
+
+        validate(settings, true, true, true, false);
     }
 }

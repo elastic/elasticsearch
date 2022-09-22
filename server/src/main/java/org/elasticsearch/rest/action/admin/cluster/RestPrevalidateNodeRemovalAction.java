@@ -19,13 +19,13 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_internal/prevalidate_node_removal/{nodeId}"));
+        return List.of(new Route(POST, "/_internal/prevalidate_node_removal/{nodeId}"));
     }
 
     @Override

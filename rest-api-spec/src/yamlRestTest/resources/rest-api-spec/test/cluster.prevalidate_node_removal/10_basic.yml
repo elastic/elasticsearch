@@ -2,8 +2,8 @@
 "node removal prevalidation basic test":
   - skip:
       features: contains
-      version: "- 8.4.99"
-      reason: "API added in 8.5.0"
+      version: "- 8.5.99"
+      reason: "API added in 8.6.0"
 
   # Fetch a node ID and stash it in node_id
   - do:

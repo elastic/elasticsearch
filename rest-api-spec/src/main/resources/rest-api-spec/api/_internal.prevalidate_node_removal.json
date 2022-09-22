@@ -14,7 +14,7 @@
         {
           "path":"/_internal/prevalidate_node_removal/{node}",
           "methods":[
-            "GET"
+            "POST"
           ],
           "parts":{
             "node":{

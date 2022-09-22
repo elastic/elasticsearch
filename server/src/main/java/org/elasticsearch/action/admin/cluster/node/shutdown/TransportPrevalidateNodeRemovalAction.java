@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
@@ -138,12 +137,11 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     .filter(entry -> entry.getValue().getStatus() == ClusterHealthStatus.RED)
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
-                assert redIndices.isEmpty() == false;
                 // If all red indices are searchable snapshot indices, it is safe to remove any node.
                 Set<String> redNonSSIndices = redIndices.stream()
-                    .map(index -> Tuple.tuple(index, metadata.index(index)))
-                    .filter(tuple -> tuple.v2().isSearchableSnapshot() || tuple.v2().isPartialSearchableSnapshot())
-                    .map(Tuple::v1)
+                    .map(metadata::index)
+                    .filter(i -> i.isSearchableSnapshot() == false && i.isPartialSearchableSnapshot() == false)
+                    .map(im -> im.getIndex().getName())
                     .collect(Collectors.toSet());
                 if (redNonSSIndices.isEmpty()) {
                     Result result = new Result(IsSafe.YES, "all red indices are searchable snapshot indices");

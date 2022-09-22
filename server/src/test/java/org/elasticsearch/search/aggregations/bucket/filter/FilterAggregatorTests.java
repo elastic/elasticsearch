@@ -51,7 +51,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
         QueryBuilder filter = QueryBuilders.termQuery("field", randomAlphaOfLength(5));
         FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
-        InternalFilter response = searchAndReduce(new AggTestConfig(indexSearcher, builder, fieldType));
+        InternalFilter response = searchAndReduce(new AggTestConfig<>(indexSearcher, builder, fieldType));
         assertEquals(response.getDocCount(), 0);
         assertFalse(AggregationInspectionHelper.hasValue(response));
         indexReader.close();
@@ -86,7 +86,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
             QueryBuilder filter = QueryBuilders.termQuery("field", Integer.toString(value));
             FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
 
-            final InternalFilter response = searchAndReduce(new AggTestConfig(indexSearcher, builder, fieldType));
+            final InternalFilter response = searchAndReduce(new AggTestConfig<>(indexSearcher, builder, fieldType));
             assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
             if (expectedBucketCount[value] > 0) {
                 assertTrue(AggregationInspectionHelper.hasValue(response));

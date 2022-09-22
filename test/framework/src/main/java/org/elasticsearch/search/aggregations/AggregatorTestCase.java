@@ -450,7 +450,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
      * in order to mak sure the implementation does not leak.
      */
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(AggTestConfig aggTestConfig) throws IOException {
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(AggTestConfig<A> aggTestConfig) throws IOException {
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
@@ -615,10 +615,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Consumer<V> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(new AggTestConfig(builder, buildIndex, (Consumer<InternalAggregation>) verify, fieldTypes).withQuery(query));
+        testCase(new AggTestConfig<V>(builder, buildIndex, verify, fieldTypes).withQuery(query));
     }
 
-    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(AggTestConfig aggTestConfig) throws IOException {
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(AggTestConfig<V> aggTestConfig)
+        throws IOException {
         boolean timeSeries = aggTestConfig.builder().isInSortOrderExecutionRequired();
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
@@ -679,7 +680,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 try (MultiReader multiReader = new MultiReader(readers)) {
                     IndexSearcher indexSearcher = newIndexSearcher(multiReader);
 
-                    V agg = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldTypes));
+                    V agg = searchAndReduce(new AggTestConfig<V>(indexSearcher, query, aggregationBuilder, fieldTypes));
                     verify.accept(agg);
 
                     verifyOutputFieldNames(aggregationBuilder, agg);
@@ -1023,7 +1024,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     AssertionError failure = null;
                     try {
                         InternalAggregation internalAggregation = searchAndReduce(
-                            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType)
+                            new AggTestConfig<>(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType)
                         );
                         // We should make sure if the builder says it supports sampling, that the internal aggregations returned override
                         // finalizeSampling
@@ -1484,11 +1485,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    public record AggTestConfig(
+    public record AggTestConfig<V extends InternalAggregation> (
         IndexSearcher searcher,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalAggregation> verify,
+        Consumer<V> verify,
         AggregationBuilder builder,
         int maxBuckets,
         boolean splitLeavesIntoSeparateAggregators,
@@ -1498,7 +1499,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         public AggTestConfig(
             AggregationBuilder builder,
             CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-            Consumer<InternalAggregation> verify,
+            Consumer<V> verify,
             MappedFieldType... fieldTypes
         ) {
             this(null, new MatchAllDocsQuery(), buildIndex, verify, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
@@ -1512,8 +1513,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             this(searcher, query, null, null, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
         }
 
-        public AggTestConfig withSearcher(IndexSearcher searcher) {
-            return new AggTestConfig(
+        public AggTestConfig<V> withSearcher(IndexSearcher searcher) {
+            return new AggTestConfig<V>(
                 searcher,
                 query,
                 buildIndex,
@@ -1526,8 +1527,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             );
         }
 
-        public AggTestConfig withQuery(Query query) {
-            return new AggTestConfig(
+        public AggTestConfig<V> withQuery(Query query) {
+            return new AggTestConfig<V>(
                 searcher,
                 query,
                 buildIndex,
@@ -1540,8 +1541,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             );
         }
 
-        public AggTestConfig withSplitLeavesIntoSeperateAggregators(boolean splitLeavesIntoSeparateAggregators) {
-            return new AggTestConfig(
+        public AggTestConfig<V> withSplitLeavesIntoSeperateAggregators(boolean splitLeavesIntoSeparateAggregators) {
+            return new AggTestConfig<V>(
                 searcher,
                 query,
                 buildIndex,
@@ -1554,8 +1555,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             );
         }
 
-        public AggTestConfig withShouldBeCached(boolean shouldBeCached) {
-            return new AggTestConfig(
+        public AggTestConfig<V> withShouldBeCached(boolean shouldBeCached) {
+            return new AggTestConfig<V>(
                 searcher,
                 query,
                 buildIndex,
@@ -1568,8 +1569,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             );
         }
 
-        public AggTestConfig withMaxBuckets(int maxBuckets) {
-            return new AggTestConfig(
+        public AggTestConfig<V> withMaxBuckets(int maxBuckets) {
+            return new AggTestConfig<V>(
                 searcher,
                 query,
                 buildIndex,

@@ -313,7 +313,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
 
                 InternalAggregation histogram;
                 histogram = searchAndReduce(
-                    new AggTestConfig(indexSearcher, query, aggBuilder, new MappedFieldType[] { fieldType, valueFieldType })
+                    new AggTestConfig<>(indexSearcher, query, aggBuilder, new MappedFieldType[] { fieldType, valueFieldType })
                 );
                 verify.accept(histogram);
             }

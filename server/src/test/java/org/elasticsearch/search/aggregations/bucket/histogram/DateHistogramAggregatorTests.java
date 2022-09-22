@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -1149,36 +1148,34 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     ) throws IOException {
         boolean aggregableDateIsSearchable = randomBoolean();
         DateFieldMapper.DateFieldType fieldType = aggregableDateFieldType(useNanosecondResolution, aggregableDateIsSearchable);
+        DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name");
+        if (configure != null) {
+            configure.accept(aggregationBuilder);
+        }
 
-        try (Directory directory = newDirectory()) {
+        testCase(
+            new AggTestConfig<>(aggregationBuilder, iw -> indexDates(iw, dataset, aggregableDateIsSearchable, fieldType), verify, fieldType)
+                .withMaxBuckets(maxBucket)
+                .withQuery(query)
+        );
+    }
 
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                for (String date : dataset) {
-                    long instant = asLong(date, fieldType);
-                    document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
-                    if (aggregableDateIsSearchable) {
-                        document.add(new LongPoint(AGGREGABLE_DATE, instant));
-                    }
-                    document.add(new LongPoint(SEARCHABLE_DATE, instant));
-                    indexWriter.addDocument(document);
-                    document.clear();
-                }
+    private void indexDates(
+        RandomIndexWriter indexWriter,
+        List<String> dataset,
+        boolean aggregableDateIsSearchable,
+        DateFieldMapper.DateFieldType fieldType
+    ) throws IOException {
+        Document document = new Document();
+        for (String date : dataset) {
+            long instant = asLong(date, fieldType);
+            document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
+            if (aggregableDateIsSearchable) {
+                document.add(new LongPoint(AGGREGABLE_DATE, instant));
             }
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name");
-                if (configure != null) {
-                    configure.accept(aggregationBuilder);
-                }
-
-                InternalDateHistogram histogram = searchAndReduce(
-                    new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldType).withMaxBuckets(maxBucket)
-                );
-                verify.accept(histogram);
-            }
+            document.add(new LongPoint(SEARCHABLE_DATE, instant));
+            indexWriter.addDocument(document);
+            document.clear();
         }
     }
 

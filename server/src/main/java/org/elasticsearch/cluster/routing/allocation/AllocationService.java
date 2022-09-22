@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -642,6 +643,11 @@ public class AllocationService {
     private boolean assertInitialized() {
         assert existingShardsAllocators != null : "must have set allocators first";
         return true;
+    }
+
+    // exposed for tests whose behaviour depends on this
+    boolean isBalancedShardsAllocator() {
+        return shardsAllocator instanceof BalancedShardsAllocator;
     }
 
     private static class NotFoundAllocator implements ExistingShardsAllocator {

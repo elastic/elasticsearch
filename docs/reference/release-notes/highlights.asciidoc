@@ -104,6 +104,27 @@ search features like queries and aggregations.
 
 {es-pull}88694[#88694]
 
+[discrete]
+[[synthetic_source_technical_preview]]
+=== Synthetic `_source`
+preview::[]
+When Elasticsearch ingests documents, it creates several data structures that
+enable querying, aggregating, and retrieving the data. One of those data
+structures is `_source`. It enables fetching the original documents, exactly as
+they were indexed. `_source` is used for reindexing, updating documents, and
+{kib}'s Discover. The problem with `_source` is that it uses a lot of space,
+while the ability to fetch the exact original documents is not required by many
+use cases.
+
+This release introduces a new feature in technical preview called synthetic
+`_source`. Synthetic `_source` can significantly reduce the index size by, for
+specific data types, rebuilding `_source` from doc values. Doc values are data
+structures that are typically stored already because they are needed for
+aggregations. While synthetic `_source` doesn't recreate the exact structure of
+the original documents, it is good enough for features like reindexing data.
+
+{es-pull}85649[#85649]
+
 // end::notable-highlights[]
 
 

@@ -45,6 +45,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * - node id this shard is relocating from iff state == INITIALIZING/UNASSIGNED and this is relocation target
      * - {@code null} in other cases
      */
+    @Nullable
     private final String relocatingNodeId;
     private final boolean primary;
     private final ShardRoutingState state;

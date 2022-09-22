@@ -221,25 +221,40 @@ GET _cat/shards?v=true
 // TEST[setup:my_index]
 
 [discrete]
-[[field-count-recommendation]]
-==== Data nodes should have at least 1kB of heap per field per index, plus overheads
+[[fields-heap-recommendation]]
+==== The heap of data nodes should suffice for the fields of indices, plus overheads
 
-The exact resource usage of each mapped field depends on its type, but a rule
-of thumb is to allow for approximately 1kB of heap overhead per mapped field
-per index held by each data node. In a running cluster, you can also consult the
-<<cluster-nodes-stats,Nodes stats API>>'s `mappings` indices statistic, which
-reports the number of field mappings and an estimation of their heap overhead.
+You can use the <<cluster-nodes-stats,Nodes stats API>>'s `mappings` indices
+statistic, to get the number of field mappings of indices and an estimation of
+their heap overhead per node.
+
+[source,console]
+----
+GET _nodes/stats/indices?human&filter_path=nodes.*.indices.mappings.total_estimated_overhead*
+----
+// TEST[setup:my_index]
 
 Additionally, you must also allow enough heap for {es}'s
 baseline usage as well as your workload such as indexing, searches and
 aggregations. 0.5GB of extra heap will suffice for many reasonable workloads,
 and you may need even less if your workload is very light while heavy workloads
-may require more.
+may require more. You can use the <<cluster-nodes-stats,Nodes stats API>>'s
+`jvm` statistic, to check the maximum amount of available heap memory per node.
 
-For example, if a data node holds shards from 1000 indices, each containing
-4000 mapped fields, then you should allow approximately 1000 × 4000 × 1kB = 4GB
-of heap for the fields and another 0.5GB of heap for its workload and other
-overheads, and therefore this node will need a heap size of at least 4.5GB.
+[source,console]
+----
+GET _nodes/stats/jvm?human&filter_path=nodes.*.jvm.mem.heap_max*
+----
+// TEST[setup:my_index]
+
+Ensure that the reported max heap memory for each node is 0.5GB more than the
+node's field mappings' estimated heap overhead. If this is not the case, you
+can <<set-jvm-heap-size,set the JVM heap size>> appropriately.
+
+For example, if a data node reports that the estimated heap overhead for the
+field mappings is 4GB, an additional 0.5GB of heap would need to be considered
+for its workload and other overheads, and therefore this data node will need
+a heap size of at least 4.5GB.
 
 Note that this rule defines the absolute maximum number of indices that a data
 node can manage, but does not guarantee the performance of searches or indexing

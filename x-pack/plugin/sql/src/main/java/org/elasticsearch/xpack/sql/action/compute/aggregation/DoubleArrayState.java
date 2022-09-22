@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.sql.action.compute.aggregation;
 
-import org.elasticsearch.xpack.sql.action.compute.data.Block;
-
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -23,8 +21,9 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
 
     private final DoubleArrayStateSerializer serializer;
 
-    DoubleArrayState() {
+    DoubleArrayState(double initialValue) {
         this(new double[1]);
+        values[0] = initialValue;
     }
 
     DoubleArrayState(double[] values) {
@@ -32,13 +31,8 @@ final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
         this.serializer = new DoubleArrayStateSerializer();
     }
 
-    void addIntermediate(Block groupIdBlock, DoubleArrayState state) {
-        final double[] values = state.values;
-        final int positions = groupIdBlock.getPositionCount();
-        for (int i = 0; i < positions; i++) {
-            int groupId = (int) groupIdBlock.getLong(i);
-            set(Math.max(getOrDefault(groupId, Double.MIN_VALUE), values[i]), groupId);
-        }
+    double[] getValues() {
+        return values;
     }
 
     double get(int index) {

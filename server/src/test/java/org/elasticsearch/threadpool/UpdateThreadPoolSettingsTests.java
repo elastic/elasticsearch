@@ -112,7 +112,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90210")
     public void testScalingExecutorType() throws InterruptedException {
         String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         ThreadPool threadPool = null;

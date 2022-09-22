@@ -118,7 +118,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMinimalWarnings();
     }
 
-    public final void testAggregatableConsistency() throws IOException {
+    // TODO make this final once we've worked out what is happening with DenseVector
+    public void testAggregatableConsistency() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertAggregatableConsistency(mapperService.fieldType("field"));
         assertParseMinimalWarnings();

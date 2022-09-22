@@ -161,3 +161,80 @@ disabling stored fields removes fetch sub phases:
   - match: { hits.hits.0._index: test }
   - match: { profile.shards.0.fetch.debug.stored_fields: [] }
   - is_false: profile.shards.0.fetch.children
+
+---
+dfs knn vector profiling:
+  - skip:
+      version: ' - 8.5.99'
+      reason: dfs profiling implemented in 8.6.0
+
+  - do:
+      indices.create:
+        index: images
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: "keyword"
+              image:
+                type: "dense_vector"
+                dims: 3
+                index: true
+                similarity: "l2_norm"
+
+  - do:
+      index:
+        index: images
+        id: "1"
+        refresh: true
+        body:
+          keyword: "a"
+          image: [1, 5, -20]
+
+  - do:
+      search:
+        index: images
+        body:
+          profile: true
+          knn:
+            field: "image"
+            query_vector: [-5, 9, -12]
+            k: 1
+            num_candidates: 100
+
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.dfs.type: KnnVectorQuery }
+  - gt: { profile.shards.0.dfs.time_in_nanos: 0 }
+  - match: { profile.shards.0.dfs.breakdown.rewrite_count: 1 }
+  - gt: { profile.shards.0.dfs.breakdown.rewrite: 0 }
+  - gt: { profile.shards.0.dfs.breakdown.collector: 0 }
+  - match: { profile.shards.0.dfs.breakdown.create_weight_count: 1 }
+  - gt: { profile.shards.0.dfs.breakdown.create_weight: 0 }
+
+  - do:
+      search:
+        index: images
+        search_type: dfs_query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+
+  - match: { hits.total.value: 1 }
+  - is_false: profile.shards.0.dfs
+
+  - do:
+      search:
+        index: images
+        search_type: query_then_fetch
+        body:
+          profile: true
+          query:
+            term:
+              keyword: "a"
+
+  - match: { hits.total.value: 1 }
+  - is_false: profile.shards.0.dfs

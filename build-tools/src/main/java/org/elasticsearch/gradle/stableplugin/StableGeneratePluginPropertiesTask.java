@@ -63,6 +63,9 @@ public abstract class StableGeneratePluginPropertiesTask extends DefaultTask {
     public abstract Property<String> getJavaVersion();
 
     @Input
+    public abstract Property<Boolean> getModular();
+
+    @Input
     @Optional
     public abstract Property<String> getClassname();
 
@@ -107,6 +110,8 @@ public abstract class StableGeneratePluginPropertiesTask extends DefaultTask {
         props.put("requiresKeystore", getRequiresKeystore().get());
         props.put("licensed", getIsLicensed().get());
         props.put("modulename", findModuleName());
+        props.put("modular", getModular().get());//posibly just check if module-info exist?
+        props.put("stable", true);
 
         SimpleTemplateEngine engine = new SimpleTemplateEngine();
         Path outputFile = getOutputFile().get().getAsFile().toPath();

@@ -10,15 +10,20 @@ package org.elasticsearch.plugin.analysis.nori;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ko.KoreanNumberFilter;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.plugin.analysis.api.TokenFilterFactory;
+import org.elasticsearch.plugin.api.NamedComponent;
 
-public class NoriNumberFilterFactory extends AbstractTokenFilterFactory {
+@NamedComponent(name = "nori_number")
+public class NoriNumberFilterFactory implements TokenFilterFactory {
 
-    public NoriNumberFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+    private String name;
+
+    public NoriNumberFilterFactory() {
+    }
+
+    @Override
+    public String name() {
+        return name;
     }
 
     @Override

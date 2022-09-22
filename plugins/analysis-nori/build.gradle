@@ -5,24 +5,33 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+//order is important? if stableplugin is last then it fails
+/*> Failed to apply plugin class 'org.gradle.api.plugins.JavaPlugin'.
+   > Could not create an instance of type org.gradle.api.plugins.jvm.internal.DefaultJvmTestSuite.
+      > Cannot add a SourceSet with name 'test' as a SourceSet with that name already exists.
+ */
+apply plugin: 'elasticsearch.stableesplugin'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.stableesplugin'
+//apply plugin: 'elasticsearch.java'
+
 
 stableesplugin {
   description 'The Korean (nori) Analysis plugin integrates Lucene nori analysis module into elasticsearch.'
 }
 
+String versionslucene = "9.4.0-snapshot-923a9f800ae"
+
 dependencies {
-  api "org.apache.lucene:lucene-analysis-nori:${versions.lucene}"
+  compileOnly "org.apache.lucene:lucene-core:${versionslucene}"
+  compileOnly "org.apache.lucene:lucene-analysis-nori:${versionslucene}"
+  compileOnly project(':libs:elasticsearch-plugin-api')
+  compileOnly project(':libs:elasticsearch-plugin-analysis-api')
 }
 
-//restResources {
-//  restApi {
-//    include '_common', 'indices', 'index', 'search'
-//  }
-//}
-
-tasks.named("dependencyLicenses").configure {
-  mapping from: /lucene-.*/, to: 'lucene'
+restResources {
+  restApi {
+    include '_common', 'indices', 'index', 'search'
+  }
 }
+

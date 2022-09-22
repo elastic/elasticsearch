@@ -111,6 +111,7 @@ public class StablePluginBuildPlugin implements Plugin<Project> {
         final var buildProperties = project.getTasks().register("stablepluginProperties", StableGeneratePluginPropertiesTask.class, task -> {
             task.getPluginName().set(providerFactory.provider(extension::getName));
             task.getPluginDescription().set(providerFactory.provider(extension::getDescription));
+            task.getModular().set(providerFactory.provider(extension::isModular));
             task.getPluginVersion().set(providerFactory.provider(extension::getVersion));
             task.getElasticsearchVersion().set(Version.fromString(VersionProperties.getElasticsearch()).toString());
             var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);

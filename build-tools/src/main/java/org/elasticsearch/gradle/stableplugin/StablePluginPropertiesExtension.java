@@ -53,6 +53,8 @@ public class StablePluginPropertiesExtension {
     private final Project project;
     private CopySpec bundleSpec;
 
+    private boolean modular;
+
     public StablePluginPropertiesExtension(Project project) {
         this.project = project;
     }
@@ -159,5 +161,13 @@ public class StablePluginPropertiesExtension {
 
     public CopySpec getBundleSpec() {
         return bundleSpec;
+    }
+
+    public boolean isModular() {
+        return modular;
+    }
+
+    public void setModular(boolean modular) {
+        this.modular = modular;
     }
 }

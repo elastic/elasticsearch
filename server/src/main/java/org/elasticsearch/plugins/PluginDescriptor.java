@@ -254,8 +254,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         Version esVer = readElasticsearchVersion(propsMap, name);
         String javaVer = readJavaVersion(propsMap, name);
         boolean isModular = readBoolean(propsMap, name, "modular");
+        boolean isStable = readBoolean(propsMap, name, "stable");
 
-        return new PluginDescriptor(name, desc, ver, esVer, javaVer, null, null, List.of(), false, false, isModular, true);
+        return new PluginDescriptor(name, desc, ver, esVer, javaVer, null, null, List.of(), false, false, isModular, isStable);
     }
 
     private static String readNonEmptyString(Map<String, String> propsMap, String pluginId, String name) {

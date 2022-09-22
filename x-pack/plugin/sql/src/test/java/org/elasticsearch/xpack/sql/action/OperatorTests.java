@@ -454,7 +454,7 @@ public class OperatorTests extends ESTestCase {
 
     // Basic test with small(ish) input
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
-    public void testBasicAvgGroupingOperators() {
+    public void testBasicGroupingOperators() {
         AtomicInteger pageCount = new AtomicInteger();
         AtomicInteger rowCount = new AtomicInteger();
         AtomicReference<Page> lastPage = new AtomicReference<>();
@@ -484,17 +484,26 @@ public class OperatorTests extends ESTestCase {
                 source,
                 new HashAggregationOperator(
                     0, // group by channel
-                    List.of(new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INITIAL, 1)),
+                    List.of(
+                        new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INITIAL, 1),
+                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.INITIAL, 1)
+                    ),
                     BigArrays.NON_RECYCLING_INSTANCE
                 ),
                 new HashAggregationOperator(
                     0, // group by channel
-                    List.of(new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INTERMEDIATE, 1)),
+                    List.of(
+                        new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INTERMEDIATE, 1),
+                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.INTERMEDIATE, 2)
+                    ),
                     BigArrays.NON_RECYCLING_INSTANCE
                 ),
                 new HashAggregationOperator(
                     0, // group by channel
-                    List.of(new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.FINAL, 1)),
+                    List.of(
+                        new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.FINAL, 1),
+                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.FINAL, 2)
+                    ),
                     BigArrays.NON_RECYCLING_INSTANCE
                 ),
                 new PageConsumerOperator(page -> {
@@ -509,7 +518,7 @@ public class OperatorTests extends ESTestCase {
         driver.run();
         assertEquals(1, pageCount.get());
         assertEquals(10, rowCount.get());
-        assertEquals(2, lastPage.get().getBlockCount());
+        assertEquals(3, lastPage.get().getBlockCount());
 
         final Block groupIdBlock = lastPage.get().getBlock(0);
         assertEquals(cardinality, groupIdBlock.getPositionCount());
@@ -517,11 +526,19 @@ public class OperatorTests extends ESTestCase {
         var actualGroupIds = IntStream.range(0, groupIdBlock.getPositionCount()).mapToLong(groupIdBlock::getLong).boxed().collect(toSet());
         assertEquals(expectedGroupIds, actualGroupIds);
 
-        final Block valuesBlock = lastPage.get().getBlock(1);
-        assertEquals(cardinality, valuesBlock.getPositionCount());
-        var expectedValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> 49.5 + (i * 100)));
-        var actualValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, valuesBlock::getDouble));
-        assertEquals(expectedValues, actualValues);
+        // assert average
+        final Block avgValuesBlock = lastPage.get().getBlock(1);
+        assertEquals(cardinality, avgValuesBlock.getPositionCount());
+        var expectedAvgValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> 49.5 + (i * 100)));
+        var actualAvgValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, avgValuesBlock::getDouble));
+        assertEquals(expectedAvgValues, actualAvgValues);
+
+        // assert max
+        final Block maxValuesBlock = lastPage.get().getBlock(2);
+        assertEquals(cardinality, maxValuesBlock.getPositionCount());
+        var expectedMaxValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> 99.0 + (i * 100)));
+        var actualMaxValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, maxValuesBlock::getDouble));
+        assertEquals(expectedMaxValues, actualMaxValues);
     }
 
     // Tests grouping avg aggregators with multiple intermediate partial blocks.

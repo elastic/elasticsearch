@@ -256,7 +256,7 @@ public class BlendedTermQueryTests extends ESTestCase {
         dir.close();
     }
 
-    public void testRandomDocuments() throws IOException {
+    public void testRandomFields() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
         FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);

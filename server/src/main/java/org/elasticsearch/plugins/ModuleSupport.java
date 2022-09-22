@@ -20,6 +20,7 @@ import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReader;
 import java.lang.module.ModuleReference;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -70,10 +71,10 @@ public class ModuleSupport {
                 // if we have a module declaration, trust its uses/provides
                 JarEntry moduleInfo = jf.getJarEntry("module-info.class");
                 if (moduleInfo != null) {
-                    ModuleDescriptor md = getDescriptorForModularJar(path);
-                    pkgs.addAll(md.packages());
-                    allBundledServices.addAll(md.uses());
-                    for (ModuleDescriptor.Provides p : md.provides()) {
+                    var descriptor = getDescriptorForModularJar(path);
+                    pkgs.addAll(descriptor.packages());
+                    allBundledServices.addAll(descriptor.uses());
+                    for (ModuleDescriptor.Provides p : descriptor.provides()) {
                         String serviceName = p.service();
                         List<String> providersInModule = p.providers();
 
@@ -87,8 +88,7 @@ public class ModuleSupport {
                     // read providers from the list of service files
                     for (String serviceFileName : scan.serviceFiles()) {
                         String serviceName = getServiceName(serviceFileName);
-                        List<String> providersInJar;
-                        providersInJar = getProvidersFromServiceFile(jf, serviceFileName);
+                        List<String> providersInJar = getProvidersFromServiceFile(jf, serviceFileName);
 
                         allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInJar));
                         allBundledServices.add(serviceName);
@@ -220,12 +220,11 @@ public class ModuleSupport {
         return true;
     }
 
+    @SuppressForbidden(reason = "need access to the jar file")
     private static List<String> getProvidersFromServiceFile(JarFile jf, String sf) throws IOException {
-        List<String> providersInJar;
-        try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf))))) {
-            providersInJar = bf.lines().toList();
+        try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf)), StandardCharsets.UTF_8))) {
+            return bf.lines().toList();
         }
-        return providersInJar;
     }
 
     private static List<String> createListOrAppend(List<String> currentList, List<String> newList) {

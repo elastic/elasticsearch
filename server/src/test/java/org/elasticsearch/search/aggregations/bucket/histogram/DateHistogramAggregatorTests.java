@@ -1135,27 +1135,14 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         Consumer<InternalDateHistogram> verify,
         boolean useNanosecondResolution
     ) throws IOException {
-        testSearchCase(query, dataset, configure, verify, 10000, useNanosecondResolution);
-    }
-
-    private void testSearchCase(
-        Query query,
-        List<String> dataset,
-        Consumer<DateHistogramAggregationBuilder> configure,
-        Consumer<InternalDateHistogram> verify,
-        int maxBucket,
-        boolean useNanosecondResolution
-    ) throws IOException {
         boolean aggregableDateIsSearchable = randomBoolean();
         DateFieldMapper.DateFieldType fieldType = aggregableDateFieldType(useNanosecondResolution, aggregableDateIsSearchable);
         DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name");
         if (configure != null) {
             configure.accept(aggregationBuilder);
         }
-
         testCase(
             new AggTestConfig<>(aggregationBuilder, iw -> indexDates(iw, dataset, aggregableDateIsSearchable, fieldType), verify, fieldType)
-                .withMaxBuckets(maxBucket)
                 .withQuery(query)
         );
     }

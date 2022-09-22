@@ -30,6 +30,14 @@ public interface GroupingAggregatorFunction {
         }
     };
 
+    BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> min = (AggregatorMode mode, Integer inputChannel) -> {
+        if (mode.isInputPartial()) {
+            return GroupingMinAggregator.createIntermediate();
+        } else {
+            return GroupingMinAggregator.create(inputChannel);
+        }
+    };
+
     BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> max = (AggregatorMode mode, Integer inputChannel) -> {
         if (mode.isInputPartial()) {
             return GroupingMaxAggregator.createIntermediate();

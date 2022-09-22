@@ -489,7 +489,8 @@ public class OperatorTests extends ESTestCase {
                     0, // group by channel
                     List.of(
                         new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INITIAL, 1),
-                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.INITIAL, 1)
+                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.INITIAL, 1),
+                        new GroupingAggregator(GroupingAggregatorFunction.min, AggregatorMode.INITIAL, 1)
                     ),
                     BigArrays.NON_RECYCLING_INSTANCE
                 ),
@@ -497,7 +498,8 @@ public class OperatorTests extends ESTestCase {
                     0, // group by channel
                     List.of(
                         new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.INTERMEDIATE, 1),
-                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.INTERMEDIATE, 2)
+                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.INTERMEDIATE, 2),
+                        new GroupingAggregator(GroupingAggregatorFunction.min, AggregatorMode.INTERMEDIATE, 3)
                     ),
                     BigArrays.NON_RECYCLING_INSTANCE
                 ),
@@ -505,7 +507,8 @@ public class OperatorTests extends ESTestCase {
                     0, // group by channel
                     List.of(
                         new GroupingAggregator(GroupingAggregatorFunction.avg, AggregatorMode.FINAL, 1),
-                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.FINAL, 2)
+                        new GroupingAggregator(GroupingAggregatorFunction.max, AggregatorMode.FINAL, 2),
+                        new GroupingAggregator(GroupingAggregatorFunction.min, AggregatorMode.FINAL, 3)
                     ),
                     BigArrays.NON_RECYCLING_INSTANCE
                 ),
@@ -521,7 +524,7 @@ public class OperatorTests extends ESTestCase {
         driver.run();
         assertEquals(1, pageCount.get());
         assertEquals(cardinality, rowCount.get());
-        assertEquals(3, lastPage.get().getBlockCount());
+        assertEquals(4, lastPage.get().getBlockCount());
 
         final Block groupIdBlock = lastPage.get().getBlock(0);
         assertEquals(cardinality, groupIdBlock.getPositionCount());
@@ -542,6 +545,13 @@ public class OperatorTests extends ESTestCase {
         var expectedMaxValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> 99.0 + (i * 100)));
         var actualMaxValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, maxValuesBlock::getDouble));
         assertEquals(expectedMaxValues, actualMaxValues);
+
+        // assert min
+        final Block minValuesBlock = lastPage.get().getBlock(3);
+        assertEquals(cardinality, minValuesBlock.getPositionCount());
+        var expectedMinValues = IntStream.range(0, cardinality).boxed().collect(toMap(i -> initialGroupId + i, i -> i * 100d));
+        var actualMinValues = IntStream.range(0, cardinality).boxed().collect(toMap(groupIdBlock::getLong, minValuesBlock::getDouble));
+        assertEquals(expectedMinValues, actualMinValues);
     }
 
     // Tests grouping avg aggregations with multiple intermediate partial blocks.
@@ -558,6 +568,14 @@ public class OperatorTests extends ESTestCase {
         // expected values based on the group/value pairs described in testGroupingIntermediateOperators
         Function<Integer, Double> expectedValueGenerator = i -> (99.0 + (i * 100));
         testGroupingIntermediateOperators(GroupingAggregatorFunction.max, expectedValueGenerator);
+    }
+
+    // Tests grouping min aggregations with multiple intermediate partial blocks.
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
+    public void testGroupingIntermediateMinOperators() {
+        // expected values based on the group/value pairs described in testGroupingIntermediateOperators
+        Function<Integer, Double> expectedValueGenerator = i -> i * 100d;
+        testGroupingIntermediateOperators(GroupingAggregatorFunction.min, expectedValueGenerator);
     }
 
     // Tests grouping aggregations with multiple intermediate partial blocks.

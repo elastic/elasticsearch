@@ -7,28 +7,28 @@
 
 package org.elasticsearch.xpack.sql.action.compute.aggregation;
 
-final class GroupingMaxAggregator extends AbstractGroupingMinMaxAggregator {
+final class GroupingMinAggregator extends AbstractGroupingMinMaxAggregator {
 
-    private static final double INITIAL_VALUE = Double.MIN_VALUE;
+    private static final double INITIAL_VALUE = Double.MAX_VALUE;
 
-    static GroupingMaxAggregator create(int inputChannel) {
+    static GroupingMinAggregator create(int inputChannel) {
         if (inputChannel < 0) {
             throw new IllegalArgumentException();
         }
-        return new GroupingMaxAggregator(inputChannel, new DoubleArrayState(INITIAL_VALUE));
+        return new GroupingMinAggregator(inputChannel, new DoubleArrayState(INITIAL_VALUE));
     }
 
-    static GroupingMaxAggregator createIntermediate() {
-        return new GroupingMaxAggregator(-1, new DoubleArrayState(INITIAL_VALUE));
+    static GroupingMinAggregator createIntermediate() {
+        return new GroupingMinAggregator(-1, new DoubleArrayState(INITIAL_VALUE));
     }
 
-    private GroupingMaxAggregator(int channel, DoubleArrayState state) {
+    private GroupingMinAggregator(int channel, DoubleArrayState state) {
         super(channel, state);
     }
 
     @Override
     protected double operator(double v1, double v2) {
-        return Math.max(v1, v2);
+        return Math.min(v1, v2);
     }
 
     @Override

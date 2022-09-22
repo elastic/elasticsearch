@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -723,19 +722,17 @@ public class RestoreService implements ClusterStateApplier {
         boolean changesMade = false;
         RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
         for (RestoreInProgress.Entry entry : oldRestore) {
-            ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = null;
-            for (Map.Entry<ShardId, ShardRestoreStatus> cursor : entry.shards().entrySet()) {
-                ShardId shardId = cursor.getKey();
+            Map<ShardId, ShardRestoreStatus> shards = null;
+            for (ShardId shardId : entry.shards().keySet()) {
                 if (deletedIndices.contains(shardId.getIndex())) {
                     changesMade = true;
-                    if (shardsBuilder == null) {
-                        shardsBuilder = ImmutableOpenMap.builder(entry.shards());
+                    if (shards == null) {
+                        shards = new HashMap<>(entry.shards());
                     }
-                    shardsBuilder.put(shardId, new ShardRestoreStatus(null, RestoreInProgress.State.FAILURE, "index was deleted"));
+                    shards.put(shardId, new ShardRestoreStatus(null, RestoreInProgress.State.FAILURE, "index was deleted"));
                 }
             }
-            if (shardsBuilder != null) {
-                ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
+            if (shards != null) {
                 builder.add(
                     new RestoreInProgress.Entry(
                         entry.uuid(),

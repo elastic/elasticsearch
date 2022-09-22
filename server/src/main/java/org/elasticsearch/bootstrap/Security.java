@@ -16,7 +16,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginsUtils;
-import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
@@ -257,11 +256,7 @@ final class Security {
             addSingleFilePath(policy, pidFile, "delete");
         }
         // we need to touch the operator/settings.json file when restoring from snapshots, on some OSs it needs file write permission
-        addSingleFilePath(
-            policy,
-            environment.configFile().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME),
-            "read,readlink,write"
-        );
+        addSingleFilePath(policy, environment.configFile().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME), "read,readlink,write");
     }
 
     /**

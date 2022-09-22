@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -23,14 +22,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -75,22 +74,20 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         PrevalidateNodeRemovalRequest request,
         ClusterState state,
         ActionListener<PrevalidateNodeRemovalResponse> listener
-    ) throws Exception {
+    ) {
         // TODO: Need to set masterNodeTimeOut
         List<String> nodes = request.getNodeIds();
         try {
-            List<DiscoveryNode> concreteNodes = resolveNodes(nodes, state.nodes());
+            Set<DiscoveryNode> concreteNodes = resolveNodes(nodes, state.nodes());
             request.setConcreteNodes(concreteNodes.toArray(new DiscoveryNode[0]));
             doPrevalidation(request, state, listener);
-        } catch (IllegalArgumentException e) {
-            listener.onFailure(new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST));
-        } catch (ResourceNotFoundException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    public static List<DiscoveryNode> resolveNodes(List<String> nodes, DiscoveryNodes discoveryNodes) {
-        List<DiscoveryNode> concreteNodes = new ArrayList<>(nodes.size());
+    public static Set<DiscoveryNode> resolveNodes(List<String> nodes, DiscoveryNodes discoveryNodes) {
+        Set<DiscoveryNode> concreteNodes = new HashSet<>(nodes.size());
         for (String node : nodes) {
             List<DiscoveryNode> matches = discoveryNodes.stream()
                 .filter(dn -> dn.getId().equals(node) || dn.getName().equals(node) || dn.getExternalId().equals(node))
@@ -103,7 +100,12 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             }
             concreteNodes.add(matches.get(0));
         }
-        assert concreteNodes.size() == nodes.size();
+        if (concreteNodes.size() != nodes.size()) {
+            throw new IllegalArgumentException(
+                Strings.format("provided {} values for <nodes> which resolved to {} nodes", nodes.size(), concreteNodes.size())
+            );
+        }
+        ;
         return concreteNodes;
     }
 

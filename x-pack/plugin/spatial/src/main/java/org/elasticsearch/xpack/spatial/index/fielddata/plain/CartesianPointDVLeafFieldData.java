@@ -9,20 +9,24 @@ package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSource;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-final class LatLonShapeDVAtomicShapeFieldData extends LeafShapeFieldData<GeoShapeValues> {
+final class CartesianPointDVLeafFieldData extends AbstractLeafCartesianPointFieldData {
     private final LeafReader reader;
     private final String fieldName;
 
-    LatLonShapeDVAtomicShapeFieldData(LeafReader reader, String fieldName, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
+    CartesianPointDVLeafFieldData(
+        LeafReader reader,
+        String fieldName,
+        ToScriptFieldFactory<CartesianPointValuesSource.MultiCartesianPointValues> toScriptFieldFactory
+    ) {
         super(toScriptFieldFactory);
         this.reader = reader;
         this.fieldName = fieldName;
@@ -44,9 +48,9 @@ final class LatLonShapeDVAtomicShapeFieldData extends LeafShapeFieldData<GeoShap
     }
 
     @Override
-    public GeoShapeValues getShapeValues() {
+    public SortedNumericDocValues getSortedNumericDocValues() {
         try {
-            return new GeoShapeValues.BinaryDocData(DocValues.getBinary(reader, fieldName));
+            return DocValues.getSortedNumeric(reader, fieldName);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

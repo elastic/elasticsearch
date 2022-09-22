@@ -10,67 +10,97 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Point;
+import org.apache.lucene.index.BinaryDocValues;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
 
 /**
  * A stateful lightweight per document geo values.
- * To iterate over values in a document use the following pattern:
- * <pre>
- *   MultiGeoValues values = ..;
- *   // for each docID
- *   if (values.advanceExact(docId)) {
- *     GeoValue value = values.value()
- *     final int numValues = values.count();
- *     // process value
- *   }
- * </pre>
- *
- * There is just one value for one document.
  */
-public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue> {
+public interface GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue> {
 
-    public static GeoShapeValues EMPTY = new GeoShapeValues() {
-        private final GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
-
-        @Override
-        public boolean advanceExact(int doc) {
-            return false;
-        }
-
-        @Override
-        public ValuesSourceType valuesSourceType() {
-            return DEFAULT_VALUES_SOURCE_TYPE;
-        }
-
-        @Override
-        public GeoShapeValue value() {
-            throw new UnsupportedOperationException();
-        }
-    };
+    GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
+    GeoShapeValues EMPTY = new Empty();
 
     /**
-     * Creates a new {@link GeoShapeValues} instance
+     * Produce empty ShapeValues for geo data
      */
-    protected GeoShapeValues() {
-        super(CoordinateEncoder.GEO, GeoShapeValues.GeoShapeValue::new, new GeoShapeIndexer(Orientation.CCW, "missing"));
+    class Empty extends ShapeValues.Empty<GeoShapeValue> implements GeoShapeValues {
+        Empty() {
+            super(CoordinateEncoder.GEO, GeoShapeValue::new, new GeoShapeIndexer(Orientation.CCW, "missing"), DEFAULT_VALUES_SOURCE_TYPE);
+        }
     }
 
-    /** thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
-     * the Geo decoder */
-    public static class GeoShapeValue extends ShapeValues.ShapeValue {
+    /**
+     * Produce ShapeValues for geo data that wrap existing ShapeValues but replace missing fields with the specified value
+     */
+    class Wrapped extends ShapeValues.Wrapped<GeoShapeValue> implements GeoShapeValues {
+        public Wrapped(ShapeValues<GeoShapeValue> values, GeoShapeValue missing) {
+            super(
+                CoordinateEncoder.GEO,
+                GeoShapeValue::new,
+                new GeoShapeIndexer(Orientation.CCW, "missing"),
+                DEFAULT_VALUES_SOURCE_TYPE,
+                values,
+                missing
+            );
+        }
+    }
+
+    /**
+    * Produce ShapeValues for geo data that generate each ShapeValue from the specified BinaryDocValues
+    */
+    class BinaryDocData extends ShapeValues.BinaryDocData<GeoShapeValue> implements GeoShapeValues {
+        public BinaryDocData(BinaryDocValues binaryValues) {
+            super(
+                CoordinateEncoder.GEO,
+                GeoShapeValue::new,
+                new GeoShapeIndexer(Orientation.CCW, "missing"),
+                DEFAULT_VALUES_SOURCE_TYPE,
+                binaryValues,
+                new GeoShapeValue()
+            );
+        }
+    }
+
+    /**
+     * thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using the Geo decoder
+     */
+    class GeoShapeValue extends ShapeValues.ShapeValue {
+        private final Tile2DVisitor tile2DVisitor;  // This does not work for cartesian, so we currently only support this in geo
+
         public GeoShapeValue() {
             super(CoordinateEncoder.GEO, (x, y) -> new GeoPoint(y, x));
+            this.tile2DVisitor = new Tile2DVisitor();
         }
 
         @Override
         protected Component2D centroidAsComponent2D() throws IOException {
             return LatLonGeometry.create(new Point(getY(), getX()));
+        }
+
+        /**
+         * Determine the {@link GeoRelation} between the current shape and a bounding box provided in
+         * the encoded space. This does not work for cartesian, so we currently only support this in geo.
+         */
+        public GeoRelation relate(int minX, int maxX, int minY, int maxY) throws IOException {
+            tile2DVisitor.reset(minX, minY, maxX, maxY);
+            reader.visit(tile2DVisitor);
+            return tile2DVisitor.relation();
+        }
+
+        /**
+         * Determine the {@link GeoRelation} between the current shape and a {@link LatLonGeometry}. It only supports
+         * simple geometries, therefore it will fail if the LatLonGeometry is a {@link org.apache.lucene.geo.Rectangle}
+         * that crosses the dateline.
+         * TODO: this is a test only method, perhaps should be moved to test code
+         */
+        public GeoRelation relate(LatLonGeometry geometry) throws IOException {
+            return relate(LatLonGeometry.create(geometry));
         }
     }
 }

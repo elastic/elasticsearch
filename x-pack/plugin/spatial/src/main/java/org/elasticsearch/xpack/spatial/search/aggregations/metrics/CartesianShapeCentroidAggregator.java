@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
@@ -22,24 +21,25 @@ import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.xpack.spatial.common.CartesianPoint;
+import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
 
 /**
- * A geo metric aggregator that computes a geo-centroid from a {@code geo_shape} type field
- * TODO: This can be generalized with the nearly identical class CartesianShapeCentroidAggregator
+ * A cartesian metric aggregator that computes a cartesian-centroid from a {@code shape} type field
+ * TODO: This can be generalized with the nearly identical class GeoShapeCentroidAggregator
  */
-public final class GeoShapeCentroidAggregator extends MetricsAggregator {
-    private final GeoShapeValuesSource valuesSource;
+public final class CartesianShapeCentroidAggregator extends MetricsAggregator {
+    private final CartesianShapeValuesSource valuesSource;
     private DoubleArray lonSum, lonCompensations, latSum, latCompensations, weightSum, weightCompensations;
     private LongArray counts;
     private ByteArray dimensionalShapeTypes;
 
-    public GeoShapeCentroidAggregator(
+    public CartesianShapeCentroidAggregator(
         String name,
         AggregationContext context,
         Aggregator parent,
@@ -48,7 +48,7 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
     ) throws IOException {
         super(name, context, parent, metadata);
         // TODO: stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (GeoShapeValuesSource) valuesSourceConfig.getValuesSource() : null;
+        this.valuesSource = valuesSourceConfig.hasValues() ? (CartesianShapeValuesSource) valuesSourceConfig.getValuesSource() : null;
         if (valuesSource != null) {
             lonSum = bigArrays().newDoubleArray(1, true);
             lonCompensations = bigArrays().newDoubleArray(1, true);
@@ -66,7 +66,7 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final GeoShapeValues values = valuesSource.shapeValues(aggCtx.getLeafReaderContext());
+        final CartesianShapeValues values = valuesSource.shapeValues(aggCtx.getLeafReaderContext());
         final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumWeight = new CompensatedSum(0, 0);
@@ -81,7 +81,7 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
                     final DimensionalShapeType shapeType = DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket));
-                    final GeoShapeValues.GeoShapeValue value = values.value();
+                    final CartesianShapeValues.CartesianShapeValue value = values.value();
                     final int compares = shapeType.compareTo(value.dimensionalShapeType());
                     // update the sum
                     if (compares < 0) {
@@ -133,10 +133,10 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
         }
         final long bucketCount = counts.get(bucket);
         final double bucketWeight = weightSum.get(bucket);
-        final GeoPoint bucketCentroid = (bucketWeight > 0)
-            ? new GeoPoint(latSum.get(bucket) / bucketWeight, lonSum.get(bucket) / bucketWeight)
+        final CartesianPoint bucketCentroid = (bucketWeight > 0)
+            ? new CartesianPoint(lonSum.get(bucket) / bucketWeight, latSum.get(bucket) / bucketWeight)
             : null;
-        return new InternalGeoCentroid(name, bucketCentroid, bucketCount, metadata());
+        return new InternalCartesianCentroid(name, bucketCentroid, bucketCount, metadata());
     }
 
     @Override

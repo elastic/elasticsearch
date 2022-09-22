@@ -11,18 +11,22 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-final class LatLonShapeDVAtomicShapeFieldData extends LeafShapeFieldData<GeoShapeValues> {
+final class CartesianShapeDVAtomicShapeFieldData extends LeafShapeFieldData<CartesianShapeValues> {
     private final LeafReader reader;
     private final String fieldName;
 
-    LatLonShapeDVAtomicShapeFieldData(LeafReader reader, String fieldName, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
+    CartesianShapeDVAtomicShapeFieldData(
+        LeafReader reader,
+        String fieldName,
+        ToScriptFieldFactory<CartesianShapeValues> toScriptFieldFactory
+    ) {
         super(toScriptFieldFactory);
         this.reader = reader;
         this.fieldName = fieldName;
@@ -44,9 +48,9 @@ final class LatLonShapeDVAtomicShapeFieldData extends LeafShapeFieldData<GeoShap
     }
 
     @Override
-    public GeoShapeValues getShapeValues() {
+    public CartesianShapeValues getShapeValues() {
         try {
-            return new GeoShapeValues.BinaryDocData(DocValues.getBinary(reader, fieldName));
+            return new CartesianShapeValues.BinaryDocData(DocValues.getBinary(reader, fieldName));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

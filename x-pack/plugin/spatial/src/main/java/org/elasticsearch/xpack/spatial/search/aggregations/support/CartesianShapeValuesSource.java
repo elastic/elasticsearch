@@ -11,30 +11,30 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
 
 import java.util.function.Function;
 
-public abstract class GeoShapeValuesSource extends ShapeValuesSource<GeoShapeValues> {
-    public static final GeoShapeValuesSource EMPTY = new GeoShapeValuesSource() {
+public abstract class CartesianShapeValuesSource extends ShapeValuesSource<CartesianShapeValues> {
+    public static final CartesianShapeValuesSource EMPTY = new CartesianShapeValuesSource() {
 
         @Override
-        public GeoShapeValues shapeValues(LeafReaderContext context) {
-            return GeoShapeValues.EMPTY;
+        public CartesianShapeValues shapeValues(LeafReaderContext context) {
+            return CartesianShapeValues.EMPTY;
         }
     };
 
     @Override
     protected Function<Rounding, Rounding.Prepared> roundingPreparer() {
-        throw new AggregationExecutionException("can't round a [geo_shape]");
+        throw new AggregationExecutionException("can't round a [shape]");
     }
 
-    public static class Fielddata extends GeoShapeValuesSource {
+    public static class Fielddata extends CartesianShapeValuesSource {
 
-        protected final IndexShapeFieldData<GeoShapeValues> indexFieldData;
+        protected final IndexShapeFieldData<CartesianShapeValues> indexFieldData;
 
-        public Fielddata(IndexShapeFieldData<GeoShapeValues> indexFieldData) {
+        public Fielddata(IndexShapeFieldData<CartesianShapeValues> indexFieldData) {
             this.indexFieldData = indexFieldData;
         }
 
@@ -43,7 +43,7 @@ public abstract class GeoShapeValuesSource extends ShapeValuesSource<GeoShapeVal
             return indexFieldData.load(context).getBytesValues();
         }
 
-        public GeoShapeValues shapeValues(LeafReaderContext context) {
+        public CartesianShapeValues shapeValues(LeafReaderContext context) {
             return indexFieldData.load(context).getShapeValues();
         }
     }

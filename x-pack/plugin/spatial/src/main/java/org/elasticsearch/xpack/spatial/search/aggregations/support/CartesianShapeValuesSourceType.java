@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
@@ -17,32 +16,33 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MissingValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.IndexCartesianPointFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.CartesianShapeIndexFieldData;
 
 import java.io.IOException;
 
-public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
+public class CartesianShapeValuesSourceType extends ShapeValuesSourceType {
 
-    static GeoShapeValuesSourceType INSTANCE = new GeoShapeValuesSourceType();
+    static CartesianShapeValuesSourceType INSTANCE = new CartesianShapeValuesSourceType();
 
-    public static GeoShapeValuesSourceType instance() {
+    public static CartesianShapeValuesSourceType instance() {
         return INSTANCE;
     }
 
     @Override
     public ValuesSource getEmpty() {
-        return GeoShapeValuesSource.EMPTY;
+        return CartesianShapeValuesSource.EMPTY;
     }
 
     @Override
     public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-        boolean isPoint = fieldContext.indexFieldData() instanceof IndexGeoPointFieldData;
+        boolean isPoint = fieldContext.indexFieldData() instanceof IndexCartesianPointFieldData;
         boolean isShape = fieldContext.indexFieldData() instanceof IndexShapeFieldData;
         if (isPoint == false && isShape == false) {
             throw new IllegalArgumentException(
-                "Expected geo_point or geo_shape type on field ["
+                "Expected point or shape type on field ["
                     + fieldContext.field()
                     + "], but got ["
                     + fieldContext.fieldType().typeName()
@@ -50,9 +50,9 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
             );
         }
         if (isPoint) {
-            return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
+            return new CartesianPointValuesSource.Fielddata((IndexCartesianPointFieldData) fieldContext.indexFieldData());
         }
-        return new GeoShapeValuesSource.Fielddata((LatLonShapeIndexFieldData) fieldContext.indexFieldData());
+        return new CartesianShapeValuesSource.Fielddata((CartesianShapeIndexFieldData) fieldContext.indexFieldData());
     }
 
     @Override
@@ -62,12 +62,12 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
         DocValueFormat docValueFormat,
         AggregationContext context
     ) {
-        GeoShapeValuesSource shapeValuesSource = (GeoShapeValuesSource) valuesSource;
-        final GeoShapeValues.GeoShapeValue missing = GeoShapeValues.EMPTY.missing(rawMissing.toString());
-        return new GeoShapeValuesSource() {
+        CartesianShapeValuesSource shapeValuesSource = (CartesianShapeValuesSource) valuesSource;
+        final CartesianShapeValues.CartesianShapeValue missing = CartesianShapeValues.EMPTY.missing(rawMissing.toString());
+        return new CartesianShapeValuesSource() {
             @Override
-            public GeoShapeValues shapeValues(LeafReaderContext context) {
-                return new GeoShapeValues.Wrapped(shapeValuesSource.shapeValues(context), missing);
+            public CartesianShapeValues shapeValues(LeafReaderContext context) {
+                return new CartesianShapeValues.Wrapped(shapeValuesSource.shapeValues(context), missing);
             }
 
             @Override
@@ -79,6 +79,6 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
 
     @Override
     public String typeName() {
-        return "geoshape";
+        return "shape";
     }
 }

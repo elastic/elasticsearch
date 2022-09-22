@@ -74,7 +74,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         String typeName = in.readOptionalString();
         dataType = typeName != null ? loadTypeFromName(typeName) : null;
         hitName = in.readOptionalString();
-        if (in.getVersion().before(Version.V_8_5_0)) {
+        if (in.getVersion().before(Version.V_8_6_0)) {
             this.multiValueSupport = in.readBoolean() ? MultiValueSupport.LENIENT : MultiValueSupport.NONE;
         } else {
             this.multiValueSupport = in.readEnum(MultiValueSupport.class);
@@ -93,7 +93,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         out.writeString(fieldName);
         out.writeOptionalString(dataType == null ? null : dataType.typeName());
         out.writeOptionalString(hitName);
-        if (out.getVersion().before(Version.V_8_5_0)) {
+        if (out.getVersion().before(Version.V_8_6_0)) {
             out.writeBoolean(multiValueSupport != MultiValueSupport.NONE);
         } else {
             out.writeEnum(multiValueSupport);

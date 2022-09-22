@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
 // Max Aggregator function.
-public class MaxAggregator implements AggregatorFunction {
+final class MaxAggregator implements AggregatorFunction {
 
     private final DoubleState state;
     private final int channel;

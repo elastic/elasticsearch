@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
 // Sum Aggregator function.
-public class SumAggregator implements AggregatorFunction {
+final class SumAggregator implements AggregatorFunction {
 
     private final DoubleState state;
     private final int channel;

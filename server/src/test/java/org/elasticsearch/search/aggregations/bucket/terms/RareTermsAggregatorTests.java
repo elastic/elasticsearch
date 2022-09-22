@@ -365,7 +365,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("keyword");
 
-                    InternalGlobal result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), globalBuilder, fieldType);
+                    InternalGlobal result = searchAndReduce(new AggTestConfig(indexSearcher, globalBuilder, fieldType));
                     InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                     assertThat(terms.getBuckets().size(), equalTo(3));
                     for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
@@ -401,11 +401,8 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
                 try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     InternalNested result = searchAndReduce(
-                        newIndexSearcher(indexReader),
                         // match root document only
-                        new FieldExistsQuery(PRIMARY_TERM_NAME),
-                        nested,
-                        fieldType
+                        new AggTestConfig(newIndexSearcher(indexReader), new FieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType)
                     );
                     InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                     assertThat(terms.getBuckets().size(), equalTo(1));
@@ -445,11 +442,13 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                             IllegalStateException e = expectThrows(
                                 IllegalStateException.class,
                                 () -> searchAndReduce(
-                                    newIndexSearcher(indexReader),
                                     // match root document only
-                                    new FieldExistsQuery(PRIMARY_TERM_NAME),
-                                    nested,
-                                    fieldType
+                                    new AggTestConfig(
+                                        newIndexSearcher(indexReader),
+                                        new FieldExistsQuery(PRIMARY_TERM_NAME),
+                                        nested,
+                                        fieldType
+                                    )
                                 )
                             );
                             assertThat(
@@ -462,11 +461,8 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                             );
                         } else {
                             InternalNested result = searchAndReduce(
-                                newIndexSearcher(indexReader),
                                 // match root document only
-                                new FieldExistsQuery(PRIMARY_TERM_NAME),
-                                nested,
-                                fieldType
+                                new AggTestConfig(newIndexSearcher(indexReader), new FieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType)
                             );
                             InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                             assertThat(terms.getBuckets().size(), equalTo(2));
@@ -565,7 +561,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     keywordField(KEYWORD_FIELD),
                     longField(LONG_FIELD),
                     keywordField("even_odd") };
-                return searchAndReduce(indexSearcher, query, aggregationBuilder, types);
+                return searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, types));
             }
         }
     }

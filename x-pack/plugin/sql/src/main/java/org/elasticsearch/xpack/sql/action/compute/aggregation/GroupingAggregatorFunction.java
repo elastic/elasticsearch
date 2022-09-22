@@ -45,4 +45,12 @@ public interface GroupingAggregatorFunction {
             return GroupingMaxAggregator.create(inputChannel);
         }
     };
+
+    BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> sum = (AggregatorMode mode, Integer inputChannel) -> {
+        if (mode.isInputPartial()) {
+            return GroupingSumAggregator.createIntermediate();
+        } else {
+            return GroupingSumAggregator.create(inputChannel);
+        }
+    };
 }

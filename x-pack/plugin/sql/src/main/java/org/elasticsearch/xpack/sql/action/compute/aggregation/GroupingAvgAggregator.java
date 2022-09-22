@@ -18,7 +18,7 @@ import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Objects;
 
-class GroupingAvgAggregator implements GroupingAggregatorFunction {
+final class GroupingAvgAggregator implements GroupingAggregatorFunction {
 
     private final GroupingAvgState state;
     private final int channel;

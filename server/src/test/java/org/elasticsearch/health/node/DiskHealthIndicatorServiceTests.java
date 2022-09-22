@@ -51,8 +51,6 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -81,7 +79,6 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testGreen() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         ClusterService clusterService = createClusterService(false, discoveryNodes);
@@ -93,21 +90,14 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.symptom(), equalTo("The cluster has enough available disk space."));
         assertThat(result.impacts().size(), equalTo(0));
         assertThat(result.diagnosisList().size(), equalTo(0));
-        Map<String, Object> detailsMap = xContentToMap(result.details());
-        assertThat(detailsMap.size(), equalTo(1));
-        List<Map<String, String>> nodeDetails = (List<Map<String, String>>) detailsMap.get("nodes");
-        assertThat(nodeDetails.size(), equalTo(discoveryNodes.size()));
-        Map<String, String> nodeIdToName = discoveryNodes.stream().collect(Collectors.toMap(DiscoveryNode::getId, DiscoveryNode::getName));
-        for (Map<String, String> nodeDetail : nodeDetails) {
-            assertThat(nodeDetail.size(), greaterThanOrEqualTo(3));
-            assertThat(nodeDetail.size(), lessThanOrEqualTo(4)); // Could have a cause
-            String nodeId = nodeDetail.get("node_id");
-            assertThat(nodeDetail.get("name"), equalTo(nodeIdToName.get(nodeId)));
-            assertThat(nodeDetail.get("status"), equalTo("GREEN"));
-        }
+        Map<String, Object> details = xContentToMap(result.details());
+        assertThat(details.get("green_nodes"), equalTo(discoveryNodes.size()));
+        assertThat(details.get("unknown_nodes"), equalTo(0));
+        assertThat(details.get("yellow_nodes"), equalTo(0));
+        assertThat(details.get("red_nodes"), equalTo(0));
+        assertThat(details.get("blocked_indices"), equalTo(0));
     }
 
-    @SuppressWarnings("unchecked")
     public void testRedNoBlocksNoIndices() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         ClusterService clusterService = createClusterService(false, discoveryNodes);
@@ -138,25 +128,14 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             .findAny()
             .orElseThrow();
         assertThat(affectedResources.get(0), equalTo(expectedRedNodeId));
-        Map<String, Object> detailsMap = xContentToMap(result.details());
-        assertThat(detailsMap.size(), equalTo(1));
-        List<Map<String, String>> nodeDetails = (List<Map<String, String>>) detailsMap.get("nodes");
-        assertThat(nodeDetails.size(), equalTo(discoveryNodes.size()));
-        Map<String, String> nodeIdToName = discoveryNodes.stream().collect(Collectors.toMap(DiscoveryNode::getId, DiscoveryNode::getName));
-        for (Map<String, String> nodeDetail : nodeDetails) {
-            assertThat(nodeDetail.size(), greaterThanOrEqualTo(3));
-            assertThat(nodeDetail.size(), lessThanOrEqualTo(4)); // Could have a cause
-            String nodeId = nodeDetail.get("node_id");
-            assertThat(nodeDetail.get("name"), equalTo(nodeIdToName.get(nodeId)));
-            if (nodeId.equals(expectedRedNodeId)) {
-                assertThat(nodeDetail.get("status"), equalTo("RED"));
-            } else {
-                assertThat(nodeDetail.get("status"), equalTo("GREEN"));
-            }
-        }
+        Map<String, Object> details = xContentToMap(result.details());
+        assertThat(details.get("green_nodes"), equalTo(discoveryNodes.size() - 1));
+        assertThat(details.get("unknown_nodes"), equalTo(0));
+        assertThat(details.get("yellow_nodes"), equalTo(0));
+        assertThat(details.get("red_nodes"), equalTo(1));
+        assertThat(details.get("blocked_indices"), equalTo(0));
     }
 
-    @SuppressWarnings("unchecked")
     public void testRedNoBlocksWithIndices() throws IOException {
         /*
          * This method tests that we get the expected behavior when there are nodes with indices that report RED status and there are no
@@ -215,22 +194,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         List<String> affectedResources = diagnosis.affectedResources();
         assertThat(affectedResources.size(), equalTo(numberOfRedNodes));
         assertTrue(affectedResources.containsAll(redNodeIds));
-        Map<String, Object> detailsMap = xContentToMap(result.details());
-        assertThat(detailsMap.size(), equalTo(1));
-        List<Map<String, String>> nodeDetails = (List<Map<String, String>>) detailsMap.get("nodes");
-        assertThat(nodeDetails.size(), equalTo(discoveryNodes.size()));
-        Map<String, String> nodeIdToName = discoveryNodes.stream().collect(Collectors.toMap(DiscoveryNode::getId, DiscoveryNode::getName));
-        for (Map<String, String> nodeDetail : nodeDetails) {
-            assertThat(nodeDetail.size(), greaterThanOrEqualTo(3));
-            assertThat(nodeDetail.size(), lessThanOrEqualTo(4)); // Could have a cause
-            String nodeId = nodeDetail.get("node_id");
-            assertThat(nodeDetail.get("name"), equalTo(nodeIdToName.get(nodeId)));
-            if (redNodeIds.contains(nodeId)) {
-                assertThat(nodeDetail.get("status"), equalTo("RED"));
-            } else {
-                assertThat(nodeDetail.get("status"), equalTo("GREEN"));
-            }
-        }
+        Map<String, Object> details = xContentToMap(result.details());
+        assertThat(details.get("green_nodes"), equalTo(discoveryNodes.size() - numberOfRedNodes));
+        assertThat(details.get("unknown_nodes"), equalTo(0));
+        assertThat(details.get("yellow_nodes"), equalTo(0));
+        assertThat(details.get("red_nodes"), equalTo(numberOfRedNodes));
+        assertThat(details.get("blocked_indices"), equalTo(0));
     }
 
     public void testHasBlockButOtherwiseGreen() {
@@ -264,7 +233,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.symptom(), containsString(" out of disk or running low on disk space."));
     }
 
-    public void testHasBlockButOtherwiseRed() {
+    public void testHasBlockButOtherwiseRed() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         HealthStatus expectedStatus = HealthStatus.RED;
         int numberOfRedNodes = randomIntBetween(1, discoveryNodes.size());
@@ -316,6 +285,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             result.symptom(),
             containsString(allUnhealthyNodes.size() + " node" + (allUnhealthyNodes.size() == 1 ? "" : "s") + " with roles: [data")
         );
+        Map<String, Object> details = xContentToMap(result.details());
+        assertThat(details.get("green_nodes"), equalTo(discoveryNodes.size() - numberOfRedNodes));
+        assertThat(details.get("unknown_nodes"), equalTo(0));
+        assertThat(details.get("yellow_nodes"), equalTo(0));
+        assertThat(details.get("red_nodes"), equalTo(numberOfRedNodes));
+        assertThat(details.get("blocked_indices"), equalTo(blockedIndices.size()));
     }
 
     public void testMissingHealthInfo() {

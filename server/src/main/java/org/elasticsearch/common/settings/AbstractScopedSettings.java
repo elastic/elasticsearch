@@ -492,9 +492,40 @@ public abstract class AbstractScopedSettings {
         final boolean ignoreArchivedSettings,
         final boolean validateInternalOrPrivateIndex
     ) {
+        validate(settings, validateValues, ignorePrivateSettings, ignoreArchivedSettings, validateInternalOrPrivateIndex, false);
+    }
+
+    /**
+     * Validates that all registered settings are valid, but not necessarily registered unless asked for
+     *
+     * <p>
+     * We ignore unregistered settings in validation of index settings on legacy indices, e.g. with major one
+     * behind our current major. When settings are missing registration we simply ignore them,
+     * otherwise we won't be able to perform rolling upgrades.
+     * Protected on purpose, because it's used only by IndexScopedSettings.
+     *
+     * @param settings                       the settings
+     * @param validateValues                 true if values should be validated, otherwise only keys are validated
+     * @param ignorePrivateSettings          true if private settings should be ignored during validation
+     * @param ignoreArchivedSettings         true if archived settings should be ignored during validation
+     * @param validateInternalOrPrivateIndex true if index internal settings should be validated
+     * @param ignoreUnregistered             true if we should ignore the unregistered settings
+     * @see Setting#getSettingsDependencies(String)
+     */
+    protected final void validate(
+        final Settings settings,
+        final boolean validateValues,
+        final boolean ignorePrivateSettings,
+        final boolean ignoreArchivedSettings,
+        final boolean validateInternalOrPrivateIndex,
+        final boolean ignoreUnregistered
+    ) {
         final List<RuntimeException> exceptions = new ArrayList<>();
         for (final String key : settings.keySet()) { // settings iterate in deterministic fashion
             final Setting<?> setting = getRaw(key);
+            if (setting == null && ignoreUnregistered) {
+                continue;
+            }
             if (((isPrivateSetting(key) || (setting != null && setting.isPrivateIndex())) && ignorePrivateSettings)) {
                 continue;
             }

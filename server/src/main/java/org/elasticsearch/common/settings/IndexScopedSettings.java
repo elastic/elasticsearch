@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -224,5 +225,23 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             default:
                 return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
         }
+    }
+
+    /**
+     * Validates that all registered settings are valid, but not necessarily registered
+     *
+     * <p>
+     * This is used for validation of index settings on legacy indices, e.g. with major one
+     * behind our current major. When settings are missing registration we simply ignore them,
+     * otherwise we won't be able to perform rolling upgrades. This method is not to be used on
+     * the current major.
+     *
+     * @param indexMetadata the index metadata
+     * @see Setting#getSettingsDependencies(String)
+     */
+    public void validateLegacySettings(final IndexMetadata indexMetadata) {
+        assert indexMetadata.getCreationVersion().major < Version.CURRENT.major;
+
+        validate(indexMetadata.getSettings(), true, true, true, false, true);
     }
 }

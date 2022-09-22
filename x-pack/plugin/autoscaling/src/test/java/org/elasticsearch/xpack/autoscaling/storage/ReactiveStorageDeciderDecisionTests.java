@@ -201,9 +201,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                     new Predicate<Map<ShardId, NodeDecisions>>() {
                         @Override
                         public boolean test(Map<ShardId, NodeDecisions> shardIdNodeDecisionsMap) {
-                            return singleNoDecision(shardIdNodeDecisionsMap.values().iterator().next().canAllocateDecisions().get(0)).equals(
-                                Decision.single(Decision.Type.NO, "disk_threshold", "test")
-                            );
+                            return singleNoDecision(shardIdNodeDecisionsMap.values().iterator().next().canAllocateDecisions().get(0))
+                                .equals(Decision.single(Decision.Type.NO, "disk_threshold", "test"));
                         }
                     },
                     mockCanAllocateDiskDecider

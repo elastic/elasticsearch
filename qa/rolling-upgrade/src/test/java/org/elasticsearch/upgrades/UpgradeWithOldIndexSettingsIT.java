@@ -9,6 +9,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -32,9 +33,11 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
     public void testOldIndexSettings() throws Exception {
         switch (CLUSTER_TYPE) {
             case OLD -> {
-                // create index with settings no longer valid
                 Request createTestIndex = new Request("PUT", "/" + INDEX_NAME);
-                createTestIndex.setJsonEntity("{\"settings\": {\"index.indexing.slowlog.level\": \"INFO\"}}");
+                if (UPGRADE_FROM_VERSION.before(Version.V_8_0_0)) {
+                    // create index with settings no longer valid
+                    createTestIndex.setJsonEntity("{\"settings\": {\"index.indexing.slowlog.level\": \"INFO\"}}");
+                }
                 createTestIndex.setOptions(expectWarnings(EXPECTED_WARNING));
                 client().performRequest(createTestIndex);
 

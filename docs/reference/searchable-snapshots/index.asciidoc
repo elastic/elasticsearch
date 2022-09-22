@@ -227,7 +227,7 @@ the periodic cleanup of the `.snapshot-blob-cache` index. Defaults to `100`.
 
 `searchable_snapshots.blob_cache.periodic_cleanup.pit_keep_alive`::
 (<<dynamic-cluster-setting,Dynamic>>)
-The value used for the <point-in-time-keep-alive,point-in-time keep alive>>
+The value used for the <<point-in-time-keep-alive,point-in-time keep alive>>
 requests executed during the periodic cleanup of the `.snapshot-blob-cache`
 index. Defaults to `10m`.
 

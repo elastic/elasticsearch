@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -55,6 +56,33 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DiskHealthIndicatorServiceTests extends ESTestCase {
+
+    public static final Set<DiscoveryNodeRole> DATA_ROLES = Set.of(
+        DiscoveryNodeRole.DATA_ROLE,
+        DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
+        DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
+        DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+        DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
+        DiscoveryNodeRole.DATA_WARM_NODE_ROLE
+    );
+    public static final Set<DiscoveryNodeRole> NON_DATA_ROLES = Set.of(
+        DiscoveryNodeRole.MASTER_ROLE,
+        DiscoveryNodeRole.ML_ROLE,
+        DiscoveryNodeRole.INGEST_ROLE,
+        DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
+        DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+        DiscoveryNodeRole.TRANSFORM_ROLE
+    );
+
+    // Other nodes refers to non-data, non-master roles in the scope of the disk health indicator
+    public static final Set<DiscoveryNodeRole> OTHER_ROLES = Set.of(
+        DiscoveryNodeRole.ML_ROLE,
+        DiscoveryNodeRole.INGEST_ROLE,
+        DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
+        DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+        DiscoveryNodeRole.TRANSFORM_ROLE
+    );
+
     public void testServiceBasics() {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         ClusterService clusterService = createClusterService(false, discoveryNodes);
@@ -116,7 +144,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(impactAreas.get(0), equalTo(ImpactArea.INGEST));
         assertThat(impact.severity(), equalTo(1));
         assertThat(impact.impactDescription(), equalTo("Cannot insert or update documents in the affected indices."));
-        assertThat(result.diagnosisList().size(), equalTo(3));
+        assertThat(result.diagnosisList().size(), equalTo(2));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         List<String> affectedResources = diagnosis.affectedResources();
         assertThat(affectedResources.size(), equalTo(1));
@@ -164,7 +192,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             String indexName = randomAlphaOfLength(20);
             /*
              * The following is artificial but useful for making sure the test has the right counts. The first numberOfRedIndices indices
-             *  are always placed on all of the red nodes. All other indices are placed on all of the non red nodes.
+             *  are always placed on all the red nodes. All other indices are placed on all the non-red nodes.
              */
             if (i < numberOfRedIndices) {
                 indexNameToNodeIdsMap.put(indexName, redNodeIds);
@@ -189,7 +217,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(impactAreas.get(0), equalTo(ImpactArea.INGEST));
         assertThat(impact.severity(), equalTo(1));
         assertThat(impact.impactDescription(), equalTo("Cannot insert or update documents in the affected indices."));
-        assertThat(result.diagnosisList().size(), equalTo(3));
+        assertThat(result.diagnosisList().size(), equalTo(2));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         List<String> affectedResources = diagnosis.affectedResources();
         assertThat(affectedResources.size(), equalTo(numberOfRedNodes));
@@ -331,16 +359,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testMasterNodeProblems() {
-        Set<DiscoveryNodeRole> roles = Set.of(
-            DiscoveryNodeRole.MASTER_ROLE,
-            randomFrom(
-                DiscoveryNodeRole.ML_ROLE,
-                DiscoveryNodeRole.INGEST_ROLE,
-                DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
-                DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
-                DiscoveryNodeRole.TRANSFORM_ROLE
-            )
-        );
+        Set<DiscoveryNodeRole> roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, randomFrom(OTHER_ROLES));
         Set<DiscoveryNode> discoveryNodes = createNodes(roles);
         ClusterService clusterService = createClusterService(false, discoveryNodes);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
@@ -372,7 +391,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(impacts.get(1).impactAreas(), equalTo(List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
 
         List<Diagnosis> diagnosisList = result.diagnosisList();
-        assertThat(diagnosisList.size(), equalTo(2));
+        assertThat(diagnosisList.size(), equalTo(1));
         Diagnosis diagnosis = diagnosisList.get(0);
         List<String> affectedResources = diagnosis.affectedResources();
         assertThat(affectedResources.size(), equalTo(numberOfProblemNodes));
@@ -572,31 +591,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testGetNodesWithDataRole() {
-        Set<DiscoveryNodeRole> nonDataRoles = Set.of(
-            DiscoveryNodeRole.MASTER_ROLE,
-            DiscoveryNodeRole.ML_ROLE,
-            DiscoveryNodeRole.INGEST_ROLE,
-            DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
-            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
-            DiscoveryNodeRole.TRANSFORM_ROLE
-        );
-        Set<DiscoveryNodeRole> dataRoles = Set.of(
-            DiscoveryNodeRole.DATA_ROLE,
-            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
-            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
-            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
-            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
-            DiscoveryNodeRole.DATA_WARM_NODE_ROLE
-        );
-        Set<DiscoveryNode> nonDataNodes = createNodes(
-            new HashSet<>(randomSubsetOf(randomIntBetween(1, nonDataRoles.size()), nonDataRoles))
-        );
-        Set<DiscoveryNode> pureDataNodes = createNodes(new HashSet<>(randomSubsetOf(randomIntBetween(1, dataRoles.size()), dataRoles)));
+        Set<DiscoveryNode> nonDataNodes = createNodes(new HashSet<>(randomNonEmptySubsetOf(NON_DATA_ROLES)));
+        Set<DiscoveryNode> pureDataNodes = createNodes(new HashSet<>(randomNonEmptySubsetOf(DATA_ROLES)));
         Set<DiscoveryNode> mixedNodes = createNodes(
-            Stream.concat(
-                randomSubsetOf(randomIntBetween(1, nonDataRoles.size()), nonDataRoles).stream(),
-                randomSubsetOf(randomIntBetween(1, dataRoles.size()), dataRoles).stream()
-            ).collect(Collectors.toSet())
+            Stream.concat(randomNonEmptySubsetOf(NON_DATA_ROLES).stream(), randomNonEmptySubsetOf(DATA_ROLES).stream())
+                .collect(Collectors.toSet())
         );
         Set<DiscoveryNode> allNodes = Stream.concat(Stream.concat(nonDataNodes.stream(), pureDataNodes.stream()), mixedNodes.stream())
             .collect(Collectors.toSet());
@@ -611,29 +610,10 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testGetNodesWithMasterRole() {
-        Set<DiscoveryNodeRole> nonDataRoles = Set.of(
-            DiscoveryNodeRole.ML_ROLE,
-            DiscoveryNodeRole.INGEST_ROLE,
-            DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
-            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
-            DiscoveryNodeRole.TRANSFORM_ROLE,
-            DiscoveryNodeRole.DATA_ROLE,
-            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
-            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
-            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
-            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
-            DiscoveryNodeRole.DATA_WARM_NODE_ROLE
-        );
-        Set<DiscoveryNode> nonMasterNodes = createNodes(
-            new HashSet<>(randomSubsetOf(randomIntBetween(1, nonDataRoles.size()), nonDataRoles))
-        );
+        Set<DiscoveryNodeRole> nonMasterRoles = Sets.union(DATA_ROLES, OTHER_ROLES);
+        Set<DiscoveryNode> nonMasterNodes = createNodes(new HashSet<>(randomNonEmptySubsetOf(nonMasterRoles)));
         Set<DiscoveryNode> pureMasterNodes = createNodes(Set.of(DiscoveryNodeRole.MASTER_ROLE));
-        Set<DiscoveryNode> mixedNodes = createNodes(
-            Stream.concat(
-                randomSubsetOf(randomIntBetween(1, nonDataRoles.size()), nonDataRoles).stream(),
-                Stream.of(DiscoveryNodeRole.MASTER_ROLE)
-            ).collect(Collectors.toSet())
-        );
+        Set<DiscoveryNode> mixedNodes = createNodes(DiscoveryNodeRole.roles());
         Set<DiscoveryNode> allNodes = Stream.concat(Stream.concat(nonMasterNodes.stream(), pureMasterNodes.stream()), mixedNodes.stream())
             .collect(Collectors.toSet());
         ClusterService clusterService = createClusterService(false, allNodes);
@@ -647,33 +627,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testGetNodesWithNonDataNonMasterRoles() {
-        Set<DiscoveryNodeRole> dataAndMasterRoles = Set.of(
-            DiscoveryNodeRole.MASTER_ROLE,
-            DiscoveryNodeRole.DATA_ROLE,
-            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
-            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
-            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
-            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
-            DiscoveryNodeRole.DATA_WARM_NODE_ROLE
-        );
-        Set<DiscoveryNodeRole> nonDataNonMasterRoles = Set.of(
-            DiscoveryNodeRole.ML_ROLE,
-            DiscoveryNodeRole.INGEST_ROLE,
-            DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
-            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
-            DiscoveryNodeRole.TRANSFORM_ROLE
-        );
-        Set<DiscoveryNode> dataAndMasterNodes = createNodes(
-            new HashSet<>(randomSubsetOf(randomIntBetween(1, dataAndMasterRoles.size()), dataAndMasterRoles))
-        );
-        Set<DiscoveryNode> pureNonDataNonMasterNodes = createNodes(
-            new HashSet<>(randomSubsetOf(randomIntBetween(1, nonDataNonMasterRoles.size()), nonDataNonMasterRoles))
-        );
+        Set<DiscoveryNodeRole> dataAndMasterRoles = Sets.union(Set.of(DiscoveryNodeRole.MASTER_ROLE), DATA_ROLES);
+        Set<DiscoveryNode> dataAndMasterNodes = createNodes(new HashSet<>(randomNonEmptySubsetOf(dataAndMasterRoles)));
+        Set<DiscoveryNode> pureNonDataNonMasterNodes = createNodes(new HashSet<>(randomNonEmptySubsetOf(OTHER_ROLES)));
         Set<DiscoveryNode> mixedNodes = createNodes(
-            Stream.concat(
-                randomSubsetOf(randomIntBetween(1, dataAndMasterRoles.size()), dataAndMasterRoles).stream(),
-                randomSubsetOf(randomIntBetween(1, nonDataNonMasterRoles.size()), nonDataNonMasterRoles).stream()
-            ).collect(Collectors.toSet())
+            Stream.concat(randomNonEmptySubsetOf(dataAndMasterRoles).stream(), randomNonEmptySubsetOf(OTHER_ROLES).stream())
+                .collect(Collectors.toSet())
         );
         Set<DiscoveryNode> allNodes = Stream.concat(
             Stream.concat(dataAndMasterNodes.stream(), pureNonDataNonMasterNodes.stream()),
@@ -685,9 +644,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 allNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet()),
                 clusterService.state()
             ),
-            equalTo(
-                Stream.concat(pureNonDataNonMasterNodes.stream(), mixedNodes.stream()).map(DiscoveryNode::getId).collect(Collectors.toSet())
-            )
+            equalTo(pureNonDataNonMasterNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet()))
         );
     }
 

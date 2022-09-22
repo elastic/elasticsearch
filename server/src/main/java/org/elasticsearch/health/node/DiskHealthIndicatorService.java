@@ -132,15 +132,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             );
             List<HealthIndicatorImpact> impacts = getImpacts(
                 indicesWithBlock,
-                indicesOnRedNodes,
-                indicesOnYellowNodes,
-                nodesWithBlockedIndices,
                 redDataNodes,
                 yellowDataNodes,
-                redMasterNodes,
-                yellowMasterNodes,
-                redNonDataNonMasterNodes,
-                yellowNonDataNonMasterNodes
+                nodesReportingRed,
+                nodesReportingYellow,
+                clusterState
             );
             List<Diagnosis> diagnosisList = getDiagnoses(
                 indicesWithBlock,
@@ -198,21 +194,14 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     private List<HealthIndicatorImpact> getImpacts(
         Set<String> indicesWithBlock,
-        Set<String> indicesOnRedNodes,
-        Set<String> indicesOnYellowNodes,
-        Set<String> nodesWithBlockedIndices,
         Set<String> redDataNodes,
         Set<String> yellowDataNodes,
-        Set<String> redMasterNodes,
-        Set<String> yellowMasterNodes,
-        Set<String> redNonDataNonMasterNodes,
-        Set<String> yellowNonDataNonMasterNodes
+        Set<String> nodesReportingRed,
+        Set<String> nodesReportingYellow,
+        ClusterState clusterState
     ) {
         List<HealthIndicatorImpact> impacts = new ArrayList<>();
-        if (indicesWithBlock.isEmpty() == false
-            || indicesOnRedNodes.isEmpty() == false
-            || nodesWithBlockedIndices.isEmpty() == false
-            || redDataNodes.isEmpty() == false) {
+        if (indicesWithBlock.isEmpty() == false || redDataNodes.isEmpty() == false) {
             impacts.add(
                 new HealthIndicatorImpact(
                     NAME,
@@ -222,7 +211,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     List.of(ImpactArea.INGEST)
                 )
             );
-        } else if (indicesOnYellowNodes.isEmpty() == false || yellowDataNodes.isEmpty() == false) {
+        } else if (yellowDataNodes.isEmpty() == false) {
             impacts.add(
                 new HealthIndicatorImpact(
                     NAME,
@@ -233,7 +222,9 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 )
             );
         }
-        if (redMasterNodes.isEmpty() == false || yellowMasterNodes.isEmpty() == false) {
+        Set<String> unhealthyNodes = Stream.concat(nodesReportingRed.stream(), nodesReportingYellow.stream()).collect(Collectors.toSet());
+        Set<DiscoveryNodeRole> unhealthyRoles = getRolesOnNodes(unhealthyNodes, clusterState);
+        if (unhealthyRoles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
             impacts.add(
                 new HealthIndicatorImpact(
                     NAME,
@@ -244,7 +235,9 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 )
             );
         }
-        if (redNonDataNonMasterNodes.isEmpty() == false || yellowNonDataNonMasterNodes.isEmpty() == false) {
+        boolean hasUnhealthyNonMasterNonDataRoles = unhealthyRoles.stream()
+            .anyMatch(role -> role.canContainData() == false && role.equals(DiscoveryNodeRole.MASTER_ROLE) == false);
+        if (hasUnhealthyNonMasterNonDataRoles) {
             impacts.add(
                 new HealthIndicatorImpact(
                     NAME,
@@ -376,7 +369,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .values()
             .stream()
             .filter(node -> nodeIds.contains(node.getId()))
-            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.MASTER_ROLE))
+            .filter(DiscoveryNode::isMasterNode)
             .map(DiscoveryNode::getId)
             .collect(Collectors.toSet());
     }
@@ -388,11 +381,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .values()
             .stream()
             .filter(node -> nodeIds.contains(node.getId()))
-            .filter(
-                node -> node.getRoles()
-                    .stream()
-                    .anyMatch(role -> (role.equals(DiscoveryNodeRole.MASTER_ROLE) || role.canContainData()) == false)
-            )
+            .filter(node -> node.canContainData() == false && node.isMasterNode() == false)
             .map(DiscoveryNode::getId)
             .collect(Collectors.toSet());
     }
@@ -419,7 +408,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     /**
      * This method logs if any nodes in the cluster state do not have health info results reported. This is logged at debug level and is
-     * not ordinarly important, but could be useful in tracking down problems where nodes have stopped reporting health node information.
+     * not ordinary important, but could be useful in tracking down problems where nodes have stopped reporting health node information.
      * @param diskHealthInfoMap A map of nodeId to DiskHealthInfo
      */
     private void logMissingHealthInfoData(Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {

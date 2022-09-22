@@ -21,12 +21,12 @@ class NodeDecisions implements ToXContentObject, Writeable {
     private final List<NodeDecision> canAllocateDecisions;
     private final List<NodeDecision> canRemainDecisions;
 
-    public NodeDecisions(List<NodeDecision> canAllocateDecisions, List<NodeDecision> canRemainDecisions) {
+    NodeDecisions(List<NodeDecision> canAllocateDecisions, List<NodeDecision> canRemainDecisions) {
         this.canAllocateDecisions = canAllocateDecisions;
         this.canRemainDecisions = canRemainDecisions;
     }
 
-    public NodeDecisions(StreamInput in) throws IOException {
+    NodeDecisions(StreamInput in) throws IOException {
         canAllocateDecisions = in.readList(NodeDecision::new);
         canRemainDecisions = in.readList(NodeDecision::new);
     }

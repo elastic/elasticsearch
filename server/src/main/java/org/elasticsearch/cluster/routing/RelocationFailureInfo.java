@@ -32,7 +32,7 @@ public class RelocationFailureInfo implements ToXContentFragment, Writeable {
         this.failedRelocations = in.readVInt();
     }
 
-    public int getFailedAllocations() {
+    public int getFailedRelocations() {
         return failedRelocations;
     }
 

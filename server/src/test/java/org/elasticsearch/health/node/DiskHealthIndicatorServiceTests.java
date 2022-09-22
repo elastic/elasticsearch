@@ -52,6 +52,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -126,9 +127,19 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(details.get("blocked_indices"), equalTo(0));
     }
 
-    public void testRedNoBlocksNoIndices() throws IOException {
+    /*
+     * This method tests that we get the expected behavior when there are all role nodes with indices that report RED status and there are
+     * no blocks in the cluster state. We expect 3 impacts and 1 diagnosis.
+     */
+    public void testNoBlockedIndicesAndRedAllRoleNodes() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
-        ClusterService clusterService = createClusterService(false, discoveryNodes);
+        Map<String, Set<String>> indexNameToNodeIdsMap = new HashMap<>();
+        Set<String> nodeIds = discoveryNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+        for (int i = 0; i < randomIntBetween(1, 20); i++) {
+            String indexName = randomAlphaOfLength(20);
+            indexNameToNodeIdsMap.put(indexName, new HashSet<>(randomNonEmptySubsetOf(nodeIds)));
+        }
+        ClusterService clusterService = createClusterService(Set.of(), discoveryNodes, indexNameToNodeIdsMap);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthStatus expectedStatus = HealthStatus.RED;
         HealthInfo healthInfo = createHealthInfo(expectedStatus, discoveryNodes);
@@ -143,8 +154,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(impactAreas.size(), equalTo(1));
         assertThat(impactAreas.get(0), equalTo(ImpactArea.INGEST));
         assertThat(impact.severity(), equalTo(1));
-        assertThat(impact.impactDescription(), equalTo("Cannot insert or update documents in the affected indices."));
-        assertThat(result.diagnosisList().size(), equalTo(2));
+        assertThat(
+            impact.impactDescription(),
+            startsWith("The cluster is at risk of not being able to insert or update documents in the affected indices [")
+        );
+        assertThat(result.diagnosisList().size(), equalTo(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         List<String> affectedResources = diagnosis.affectedResources();
         assertThat(affectedResources.size(), equalTo(1));
@@ -164,11 +178,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(details.get("blocked_indices"), equalTo(0));
     }
 
-    public void testRedNoBlocksWithIndices() throws IOException {
-        /*
-         * This method tests that we get the expected behavior when there are nodes with indices that report RED status and there are no
-         * blocks in the cluster state.
-         */
+    /*
+     * This method tests that we get the expected behavior when there are nodes with indices that report RED status and there are no
+     * blocks in the cluster state. We expect the status to be RED, to have 3 impacts and 1 diagnosis.
+     */
+    public void testRedNodesAndNoBlockedIndices() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         HealthStatus expectedStatus = HealthStatus.RED;
         int numberOfRedNodes = randomIntBetween(1, discoveryNodes.size());
@@ -216,8 +230,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(impactAreas.size(), equalTo(1));
         assertThat(impactAreas.get(0), equalTo(ImpactArea.INGEST));
         assertThat(impact.severity(), equalTo(1));
-        assertThat(impact.impactDescription(), equalTo("Cannot insert or update documents in the affected indices."));
-        assertThat(result.diagnosisList().size(), equalTo(2));
+        assertThat(
+            impact.impactDescription(),
+            startsWith("The cluster is at risk of not being able to insert or update documents in the affected indices [")
+        );
+        assertThat(result.diagnosisList().size(), equalTo(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         List<String> affectedResources = diagnosis.affectedResources();
         assertThat(affectedResources.size(), equalTo(numberOfRedNodes));
@@ -230,10 +247,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(details.get("blocked_indices"), equalTo(0));
     }
 
+    /*
+     * Tests when there is an index that has a block on it but the nodes report green (so the lock is probably about to be released or
+     * shards are being rebalanced).
+     */
     public void testHasBlockButOtherwiseGreen() {
-        /*
-         * Tests when there is an index that has a block on it but the nodes report green (so the lock is probably about to be released).
-         */
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         ClusterService clusterService = createClusterService(true, discoveryNodes);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
@@ -242,28 +260,45 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             HealthInfo healthInfo = createHealthInfo(HealthStatus.GREEN, discoveryNodes);
             HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
             assertThat(result.status(), equalTo(expectedStatus));
-            assertThat(result.symptom(), equalTo("1 index is blocked and cannot be updated but 0 nodes are currently out of space."));
+            assertThat(
+                result.symptom(),
+                equalTo(
+                    "1 index is not allowed to be updated because the cluster was running out of "
+                        + "disk space. The cluster is recovering and you should be able to update them within a few minutes."
+                )
+            );
         }
     }
 
+    /*
+     * Tests when there is an index that has a block on it but the nodes report yellow.
+     */
     public void testHasBlockButOtherwiseYellow() {
-        /*
-         * Tests when there is an index that has a block on it but the nodes report yellow.
-         */
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
-        ClusterService clusterService = createClusterService(true, discoveryNodes);
+        ClusterService clusterService = createClusterService(1, 1, discoveryNodes);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthStatus expectedStatus = HealthStatus.RED;
         int numberOfYellowNodes = randomIntBetween(1, discoveryNodes.size());
         HealthInfo healthInfo = createHealthInfo(HealthStatus.YELLOW, numberOfYellowNodes, discoveryNodes);
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
         assertThat(result.status(), equalTo(expectedStatus));
-        assertThat(result.symptom(), containsString(" out of disk or running low on disk space."));
+        assertThat(
+            result.symptom(),
+            equalTo(
+                "1 index is not allowed to be updated because "
+                    + (numberOfYellowNodes == 1 ? "1 node is" : numberOfYellowNodes + " nodes are")
+                    + " out of disk or running low on disk space."
+            )
+        );
     }
 
-    public void testHasBlockButOtherwiseRed() throws IOException {
-        Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
+    /*
+     * In this test, there are blocked indices, all-role nodes that report RED. We expect the overall status to be RED and 3 impacts and
+     * 1 diagnosis.
+     */
+    public void testHasBlockedIndicesAndUnhealthyAllRolesNodes() throws IOException {
         HealthStatus expectedStatus = HealthStatus.RED;
+        Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         int numberOfRedNodes = randomIntBetween(1, discoveryNodes.size());
         HealthInfo healthInfo = createHealthInfo(HealthStatus.RED, numberOfRedNodes, discoveryNodes);
         Set<String> redNodeIds = healthInfo.diskInfoByNode()
@@ -281,23 +316,19 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Map<String, Set<String>> indexNameToNodeIdsMap = new HashMap<>();
         int numberOfIndices = randomIntBetween(1, 1000);
         Set<String> blockedIndices = new HashSet<>();
-        int numberOfRedIndices = randomIntBetween(1, numberOfIndices);
-        Set<String> redIndices = new HashSet<>();
-        Set<String> allUnhealthyNodes = new HashSet<>();
-        allUnhealthyNodes.addAll(redNodeIds);
+        int numberOfBlockedIndices = randomIntBetween(1, numberOfIndices);
         for (int i = 0; i < numberOfIndices; i++) {
             String indexName = randomAlphaOfLength(20);
             /*
-             * The following is artificial but useful for making sure the test has the right counts. The first numberOfRedIndices indices
-             *  are always placed on all of the red nodes. All other indices are placed on all of the non red nodes.
+             * The following is artificial but useful for making sure the test represents blocked indices in nodes that are recovering and
+             * nodes that are still out of space.
              */
-            if (i < numberOfRedIndices) {
+            if (randomBoolean()) {
                 indexNameToNodeIdsMap.put(indexName, redNodeIds);
-                redIndices.add(indexName);
             } else {
                 indexNameToNodeIdsMap.put(indexName, nonRedNodeIds);
             }
-            if (randomBoolean()) {
+            if (i < numberOfBlockedIndices) {
                 blockedIndices.add(indexName);
             }
         }
@@ -305,13 +336,14 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
         assertThat(result.status(), equalTo(expectedStatus));
-        assertThat(result.symptom(), containsString(" out of disk or running low on disk space."));
-        for (String index : blockedIndices) {
-            allUnhealthyNodes.addAll(indexNameToNodeIdsMap.get(index));
-        }
         assertThat(
             result.symptom(),
-            containsString(allUnhealthyNodes.size() + " node" + (allUnhealthyNodes.size() == 1 ? "" : "s") + " with roles: [data")
+            equalTo(
+                (numberOfBlockedIndices == 1 ? "1 index is" : numberOfBlockedIndices + " indices are")
+                    + " not allowed to be updated because "
+                    + (numberOfRedNodes == 1 ? "1 node is" : numberOfRedNodes + " nodes are")
+                    + " out of disk or running low on disk space."
+            )
         );
         Map<String, Object> details = xContentToMap(result.details());
         assertThat(details.get("green_nodes"), equalTo(discoveryNodes.size() - numberOfRedNodes));
@@ -358,8 +390,13 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    /*
+     * In this test, there are no blocked indices, only master nodes that report RED or YELLOW. We expect the overall status
+     * to indicate an issue, with 2 impacts and 1 diagnosis.
+     */
     public void testMasterNodeProblems() {
-        Set<DiscoveryNodeRole> roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, randomFrom(OTHER_ROLES));
+        DiscoveryNodeRole otherRole = randomFrom(OTHER_ROLES);
+        Set<DiscoveryNodeRole> roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, otherRole);
         Set<DiscoveryNode> discoveryNodes = createNodes(roles);
         ClusterService clusterService = createClusterService(false, discoveryNodes);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
@@ -386,7 +423,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(impacts.get(0).impactDescription(), equalTo("Cluster stability might be impaired."));
         assertThat(impacts.get(0).severity(), equalTo(2));
         assertThat(impacts.get(0).impactAreas(), equalTo(List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
-        assertThat(impacts.get(1).impactDescription(), equalTo("Some cluster functionality might be unavailable."));
+        assertThat(impacts.get(1).impactDescription(), equalTo("The [" + otherRole.roleName() + "] functionality might be impaired."));
         assertThat(impacts.get(1).severity(), equalTo(2));
         assertThat(impacts.get(1).impactAreas(), equalTo(List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
 
@@ -403,25 +440,21 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    /*
+     * In this test, there are no blocked indices, only non-master, non-data nodes that report RED or YELLOW. We expect the overall status
+     * to indicate an issue, with 1 impact and 1 diagnosis.
+     */
     public void testNonDataNonMasterNodeProblems() {
-        Set<DiscoveryNodeRole> nonMasterNonDataRoles = Set.of(
-            DiscoveryNodeRole.ML_ROLE,
-            DiscoveryNodeRole.INGEST_ROLE,
-            DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
-            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
-            DiscoveryNodeRole.TRANSFORM_ROLE
-        );
-        Set<DiscoveryNodeRole> roles = new HashSet<>(
-            randomSubsetOf(randomIntBetween(1, nonMasterNonDataRoles.size()), nonMasterNonDataRoles)
-        );
-        Set<DiscoveryNode> discoveryNodes = createNodes(roles);
-        ClusterService clusterService = createClusterService(false, discoveryNodes);
+        Set<DiscoveryNodeRole> roles = new HashSet<>(randomNonEmptySubsetOf(OTHER_ROLES));
+        Set<DiscoveryNode> nodes = createNodes(roles);
+        ClusterService clusterService = createClusterService(false, nodes);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         HealthStatus expectedStatus = randomFrom(HealthStatus.RED, HealthStatus.YELLOW);
-        int numberOfProblemNodes = randomIntBetween(1, discoveryNodes.size());
-        HealthInfo healthInfo = createHealthInfo(expectedStatus, numberOfProblemNodes, discoveryNodes);
+        int numberOfProblemNodes = randomIntBetween(1, nodes.size());
+        HealthInfo healthInfo = createHealthInfo(expectedStatus, numberOfProblemNodes, nodes);
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
         assertThat(result.status(), equalTo(expectedStatus));
+        String displayRoles = roles.stream().map(DiscoveryNodeRole::roleName).sorted().collect(Collectors.joining(", "));
         assertThat(
             result.symptom(),
             equalTo(
@@ -429,7 +462,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                     + " node"
                     + (numberOfProblemNodes == 1 ? "" : "s")
                     + " with roles: ["
-                    + roles.stream().map(DiscoveryNodeRole::roleName).sorted().collect(Collectors.joining(", "))
+                    + displayRoles
                     + "] "
                     + (numberOfProblemNodes == 1 ? "is" : "are")
                     + " out of disk or running low on disk space."
@@ -437,7 +470,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         );
         List<HealthIndicatorImpact> impacts = result.impacts();
         assertThat(impacts.size(), equalTo(1));
-        assertThat(impacts.get(0).impactDescription(), equalTo("Some cluster functionality might be unavailable."));
+        assertThat(impacts.get(0).impactDescription(), equalTo("The [" + displayRoles + "] functionality might be impaired."));
         assertThat(impacts.get(0).severity(), equalTo(2));
         assertThat(impacts.get(0).impactAreas(), equalTo(List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
         List<Diagnosis> diagnosisList = result.diagnosisList();
@@ -453,35 +486,21 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    /*
+     * In this test, there are indices with blocks on them, master nodes that report RED, non-data nodes that report RED, and data
+     * nodes that report YELLOW. We expect the overall status will be RED, with 3 impacts and 3 diagnoses (for the 3 different node
+     * types experiencing problems).
+     */
     public void testBlockedIndexWithRedNonDataNodesAndYellowDataNodes() {
-        /*
-         * In this test, there are indices with blocks on them, master nodes that report RED, non-data nodes that report RED, and data
-         * nodes that report YELLOW. We expect the overall status will be RED, with 3 impacts and 3 diagnoses (for the 3 different node
-         * types experiencing problems).
-         */
-        Set<DiscoveryNodeRole> allNonDataNonMasterRoles = Set.of(
-            DiscoveryNodeRole.ML_ROLE,
-            DiscoveryNodeRole.INGEST_ROLE,
-            DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE,
-            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
-            DiscoveryNodeRole.TRANSFORM_ROLE
-        );
-        Set<DiscoveryNodeRole> nonDataNonMasterRoles = new HashSet<>(
-            randomSubsetOf(randomIntBetween(1, allNonDataNonMasterRoles.size()), allNonDataNonMasterRoles)
-        );
-        Set<DiscoveryNodeRole> allDataRoles = Set.of(
-            DiscoveryNodeRole.DATA_ROLE,
-            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
-            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
-            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
-            DiscoveryNodeRole.DATA_WARM_NODE_ROLE
-        );
-        Set<DiscoveryNodeRole> dataRoles = new HashSet<>(randomSubsetOf(randomIntBetween(1, allDataRoles.size()), allDataRoles));
-        Set<DiscoveryNode> masterDiscoveryNodes = createNodes(Set.of(DiscoveryNodeRole.MASTER_ROLE));
+        Set<DiscoveryNodeRole> nonDataNonMasterRoles = new HashSet<>(randomNonEmptySubsetOf(OTHER_ROLES));
+        Set<DiscoveryNodeRole> dataRoles = new HashSet<>(randomNonEmptySubsetOf(DATA_ROLES));
+        Set<DiscoveryNodeRole> masterRole = Set.of(DiscoveryNodeRole.MASTER_ROLE);
+        Set<DiscoveryNode> masterDiscoveryNodes = createNodes(masterRole);
         Set<DiscoveryNode> nonDataNonMasterDiscoveryNodes = createNodes(nonDataNonMasterRoles);
         Set<DiscoveryNode> dataDiscoveryNodes = createNodes(dataRoles);
         ClusterService clusterService = createClusterService(
-            true,
+            1,
+            1,
             Stream.concat(
                 masterDiscoveryNodes.stream(),
                 (Stream.concat(nonDataNonMasterDiscoveryNodes.stream(), dataDiscoveryNodes.stream()))
@@ -504,16 +523,34 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         );
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
         assertThat(result.status(), equalTo(HealthStatus.RED));
-        assertThat(result.symptom(), containsString(" out of disk or running low on disk space."));
+        assertThat(
+            result.symptom(),
+            equalTo(
+                "1 index is not allowed to be updated because "
+                    + (numberOfYellowDataNodes + (numberOfYellowDataNodes == 1 ? " node is" : " nodes are"))
+                    + " out of disk or running low on disk space. Furthermore "
+                    + (numberOfRedMasterNodes + numberOfRedNonDataNonMasterNodes)
+                    + " nodes with roles: "
+                    + Stream.concat(masterRole.stream(), nonDataNonMasterRoles.stream()).map(DiscoveryNodeRole::roleName).sorted().toList()
+                    + " are out of disk or running low on disk space."
+            )
+        );
         List<HealthIndicatorImpact> impacts = result.impacts();
         assertThat(impacts.size(), equalTo(3));
-        assertThat(impacts.get(0).impactDescription(), equalTo("Cannot insert or update documents in the affected indices."));
+        assertThat(impacts.get(0).impactDescription(), containsString("Cannot insert or update documents in the affected indices ["));
         assertThat(impacts.get(0).severity(), equalTo(1));
         assertThat(impacts.get(0).impactAreas(), equalTo(List.of(ImpactArea.INGEST)));
         assertThat(impacts.get(1).impactDescription(), equalTo("Cluster stability might be impaired."));
         assertThat(impacts.get(1).severity(), equalTo(2));
         assertThat(impacts.get(1).impactAreas(), equalTo(List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
-        assertThat(impacts.get(2).impactDescription(), equalTo("Some cluster functionality might be unavailable."));
+        assertThat(
+            impacts.get(2).impactDescription(),
+            equalTo(
+                "The "
+                    + nonDataNonMasterRoles.stream().map(DiscoveryNodeRole::roleName).sorted().toList()
+                    + " functionality might be impaired."
+            )
+        );
         assertThat(impacts.get(2).severity(), equalTo(2));
         assertThat(impacts.get(2).impactAreas(), equalTo(List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
 
@@ -622,7 +659,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 allNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet()),
                 clusterService.state()
             ),
-            equalTo(Stream.concat(pureMasterNodes.stream(), mixedNodes.stream()).map(DiscoveryNode::getId).collect(Collectors.toSet()))
+            equalTo(pureMasterNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet()))
         );
     }
 

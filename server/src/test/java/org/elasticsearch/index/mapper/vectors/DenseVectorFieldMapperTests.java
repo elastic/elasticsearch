@@ -130,9 +130,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     // We override this because dense vectors are the only field type that are not aggregatable but
-    // that do provide fielddata.  TODO: resolve this inconsistency!
+    // that do provide fielddata. TODO: resolve this inconsistency!
     @Override
-    public void testAggregatableConsistency() { }
+    public void testAggregatableConsistency() {}
 
     public void testDims() {
         {

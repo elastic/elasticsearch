@@ -107,7 +107,20 @@ The role definition might be missing or invalid.
 
 |======================
 
-To help track down these possibilities, add the following lines to the end of
+To help track down these possibilities, enable additional logging to troubleshoot further. 
+You can enable debug logging by configuring the following persistent setting:
+
+[source, console]
+----
+PUT /_cluster/settings
+{
+  "persistent": {
+    "logger.org.elasticsearch.xpack.security.authc": "debug"
+  }
+}
+----
+
+Alternatively, you can add the following lines to the end of 
 the `log4j2.properties` configuration file in the `ES_PATH_CONF`:
 
 [source,properties]
@@ -115,6 +128,9 @@ the `log4j2.properties` configuration file in the `ES_PATH_CONF`:
 logger.authc.name = org.elasticsearch.xpack.security.authc
 logger.authc.level = DEBUG
 ----------------
+
+Refer to <<configuring-logging-levels,configuring logging levels>> for more
+information.
 
 A successful authentication should produce debug statements that list groups and
 role mappings.

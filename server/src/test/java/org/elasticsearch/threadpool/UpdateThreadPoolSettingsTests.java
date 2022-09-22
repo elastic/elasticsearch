@@ -112,7 +112,6 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90210")
     public void testScalingExecutorType() throws InterruptedException {
         String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         ThreadPool threadPool = null;
@@ -122,7 +121,11 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testScalingExecutorType")
                 .build();
             threadPool = new ThreadPool(nodeSettings);
-            final int expectedMinimum = "generic".equals(threadPoolName) ? 4 : 1;
+            final int expectedMinimum = switch (threadPoolName) {
+                case "generic" -> 4;
+                case "management" -> 2;
+                default -> 1;
+            };
             assertThat(info(threadPool, threadPoolName).getMin(), equalTo(expectedMinimum));
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(10));
             final long expectedKeepAlive = "generic".equals(threadPoolName) || Names.SNAPSHOT_META.equals(threadPoolName) ? 30 : 300;

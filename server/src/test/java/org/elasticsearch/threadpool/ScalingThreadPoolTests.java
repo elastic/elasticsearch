@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90210")
     public void testScalingThreadPoolConfiguration() throws InterruptedException {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         final Settings.Builder builder = Settings.builder();
@@ -49,7 +48,12 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             core = randomIntBetween(0, 8);
             builder.put("thread_pool." + threadPoolName + ".core", core);
         } else {
-            core = "generic".equals(threadPoolName) ? 4 : 1; // the defaults
+            // the defaults
+            core = switch (threadPoolName) {
+                case "generic" -> 4;
+                case "management" -> 2;
+                default -> 1;
+            };
         }
 
         final int availableProcessors = Runtime.getRuntime().availableProcessors();
@@ -148,10 +152,13 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90210")
     public void testScalingThreadPoolThreadsAreTerminatedAfterKeepAlive() throws InterruptedException {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
-        final int min = "generic".equals(threadPoolName) ? 4 : 1;
+        final int min = switch (threadPoolName) {
+            case "generic" -> 4;
+            case "management" -> 2;
+            default -> 1;
+        };
         final Settings settings = Settings.builder()
             .put("thread_pool." + threadPoolName + ".max", 128)
             .put("thread_pool." + threadPoolName + ".keep_alive", "1ms")

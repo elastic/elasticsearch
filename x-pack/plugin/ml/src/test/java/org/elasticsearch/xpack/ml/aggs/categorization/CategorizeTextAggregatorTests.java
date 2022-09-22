@@ -19,6 +19,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -46,7 +47,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             TestEnvironment.newEnvironment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
             ),
-            List.of(new MachineLearning(Settings.EMPTY), new CommonAnalysisPlugin())
+            List.of(new MachineLearning(Settings.EMPTY), new CommonAnalysisPlugin()),
+            new StablePluginsRegistry()
         );
     }
 

@@ -180,5 +180,5 @@ neighbors for each new node. Defaults to `100`.
 ====
 
 [[dense-vector-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic `_source`
 `dense_vector` fields support <<synthetic-source,synthetic `_source`>> .

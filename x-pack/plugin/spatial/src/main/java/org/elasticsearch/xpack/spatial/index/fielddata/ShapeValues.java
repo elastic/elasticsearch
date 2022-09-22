@@ -41,15 +41,15 @@ import java.util.function.Supplier;
  *
  * There is just one value for one document.
  */
-public abstract class ShapeValues {
+public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
     protected final CoordinateEncoder encoder;
-    protected final Supplier<ShapeValue> supplier;
+    protected final Supplier<T> supplier;
     protected final ShapeIndexer missingShapeIndexer;
 
     /**
      * Creates a new {@link ShapeValues} instance
      */
-    protected ShapeValues(CoordinateEncoder encoder, Supplier<ShapeValue> supplier, ShapeIndexer missingShapeIndexer) {
+    protected ShapeValues(CoordinateEncoder encoder, Supplier<T> supplier, ShapeIndexer missingShapeIndexer) {
         this.encoder = encoder;
         this.supplier = supplier;
         this.missingShapeIndexer = missingShapeIndexer;
@@ -70,14 +70,14 @@ public abstract class ShapeValues {
      *
      * @return the value for the current docID set to {@link #advanceExact(int)}.
      */
-    public abstract ShapeValue value() throws IOException;
+    public abstract T value() throws IOException;
 
-    public ShapeValue missing(String missing) {
+    public T missing(String missing) {
         try {
             final Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing);
             final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder);
             field.add(missingShapeIndexer.indexShape(geometry), geometry);
-            final ShapeValue value = supplier.get();
+            final T value = supplier.get();
             value.reset(field.binaryValue());
             return value;
         } catch (IOException | ParseException e) {
@@ -87,7 +87,7 @@ public abstract class ShapeValues {
 
     /** thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
      * the Geo decoder */
-    public abstract static class ShapeValue implements ToXContentFragment {
+    protected abstract static class ShapeValue implements ToXContentFragment {
         protected final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
         private final Tile2DVisitor tile2DVisitor;

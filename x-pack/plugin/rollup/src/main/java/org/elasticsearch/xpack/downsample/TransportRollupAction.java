@@ -48,9 +48,11 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -206,14 +208,19 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndexName + "]"));
 
             // 2. Extract rollup config from index mappings
+            final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
+            final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+
+            // Validate downsampling interval
+            validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
+
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
             final List<String> labelFields = new ArrayList<>();
-            final TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(
-                indicesService,
-                sourceIndexMappings,
-                sourceIndexMetadata
-            ).build(request.getDownsampleConfig().getTimestampField());
+            final TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(mapperService).build(
+                request.getDownsampleConfig().getTimestampField()
+            );
             MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
                 if (helper.isTimeSeriesDimension(field, mapping)) {
                     dimensionFields.add(field);
@@ -236,10 +243,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 listener.onFailure(validationException);
                 return;
             }
-
-            final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
-            final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
 
             final String mapping;
             try {
@@ -471,6 +474,59 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
                 .field(TIME_SERIES_METRIC_PARAM, metricType)
                 .endObject();
+        }
+    }
+
+    private static void validateDownsamplingInterval(MapperService mapperService, DownsampleConfig config) {
+        MappedFieldType timestampFieldType = mapperService.fieldType(config.getTimestampField());
+        assert timestampFieldType != null : "Cannot find timestamp field [" + config.getTimestampField() + "] in the mapping";
+        RollupActionRequestValidationException e = new RollupActionRequestValidationException();
+
+        Map<String, String> meta = timestampFieldType.meta();
+        if (meta.isEmpty() == false) {
+            String interval = meta.get(config.getIntervalType());
+            if (interval != null) {
+                DateHistogramInterval sourceIndexInterval = new DateHistogramInterval(interval);
+                DateHistogramInterval targetIndexInterval = config.getInterval();
+                long sourceMillis = sourceIndexInterval.estimateMillis();
+                long targetMillis = targetIndexInterval.estimateMillis();
+                if (sourceMillis >= targetMillis) {
+                    // Downsampling interval must be greater than source interval
+                    e.addValidationError(
+                        "Source index is a downsampled index. Downsampling interval ["
+                            + targetIndexInterval
+                            + "] must be greater than the the source index interval ["
+                            + sourceIndexInterval
+                            + "]"
+                    );
+                } else if (targetMillis % sourceMillis != 0) {
+                    // Downsampling interval must be a multiple of the source interval
+                    e.addValidationError(
+                        "Source index is a downsampled index. Downsampling interval ["
+                            + targetIndexInterval
+                            + "] must be a multiple of the source index interval ["
+                            + sourceIndexInterval
+                            + "]"
+                    );
+                }
+            }
+
+            // Validate that timezones match
+            String sourceTimezone = meta.get(DownsampleConfig.TIME_ZONE);
+            if (sourceTimezone != null && sourceTimezone.equals(config.getTimeZone()) == false) {
+                e.addValidationError(
+                    "Source index is a downsampled index. Downsampling timezone ["
+                        + config.getTimeZone()
+                        + "] cannot be different than the source index timezone ["
+                        + sourceTimezone
+                        + "]"
+                );
+            }
+
+            if (e.validationErrors().isEmpty() == false) {
+                throw e;
+            }
+
         }
     }
 

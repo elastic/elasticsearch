@@ -58,7 +58,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             knnResults = in.readOptionalWriteable(DfsKnnResults::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
             profileResult = in.readOptionalWriteable(ProfileResult::new);
         }
     }
@@ -135,7 +135,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeOptionalWriteable(knnResults);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
             out.writeOptionalWriteable(profileResult);
         }
     }

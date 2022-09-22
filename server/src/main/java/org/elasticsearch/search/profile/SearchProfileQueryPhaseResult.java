@@ -42,7 +42,7 @@ public class SearchProfileQueryPhaseResult implements Writeable {
     }
 
     public SearchProfileQueryPhaseResult(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
             dfsProfileResult = in.readOptionalWriteable(ProfileResult::new);
         }
         int profileSize = in.readVInt();
@@ -57,7 +57,7 @@ public class SearchProfileQueryPhaseResult implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
             out.writeOptionalWriteable(dfsProfileResult);
         }
         out.writeVInt(queryProfileResults.size());

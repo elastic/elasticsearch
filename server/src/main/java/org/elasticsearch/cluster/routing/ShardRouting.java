@@ -91,7 +91,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         assert (currentNodeId == null) == (state == ShardRoutingState.UNASSIGNED)
             : "unassigned shard must not be assigned to a node " + this;
         assert relocatingNodeId == null || state != ShardRoutingState.STARTED
-            : "reallocating shard must node be started " + this;
+            : "reallocating shard must not be started " + this;
     }
 
     @Nullable

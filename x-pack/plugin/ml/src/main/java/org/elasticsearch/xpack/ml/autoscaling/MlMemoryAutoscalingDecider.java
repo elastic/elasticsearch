@@ -214,7 +214,7 @@ class MlMemoryAutoscalingDecider {
 
         // This should rarely happen, it could imply a bug. However, it is possible to happen
         // if there are persistent tasks that do not have matching configs stored.
-        // Also, it could be that have tasks where the required job memory is 0, which should be impossible.
+        // Also, it could be that we have tasks where the required job memory is 0, which should be impossible.
         // This can also happen if a job that is awaiting assignment ceases to have the AWAITING_LAZY_ASSIGNMENT
         // assignment explanation, for example because some other explanation overrides it. (This second situation
         // arises because, for example, anomalyDetectionTasks contains a task that is waiting but waitingAnomalyJobs

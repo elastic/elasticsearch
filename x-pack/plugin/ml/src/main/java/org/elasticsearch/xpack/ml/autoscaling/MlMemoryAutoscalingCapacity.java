@@ -36,6 +36,7 @@ public record MlMemoryAutoscalingCapacity(ByteSizeValue nodeSize, ByteSizeValue 
         private String reason;
 
         public Builder(ByteSizeValue nodeSize, ByteSizeValue tierSize) {
+            assert (nodeSize == null) == (tierSize == null) : "nodeSize " + nodeSize + " tierSize " + tierSize;
             this.nodeSize = nodeSize;
             this.tierSize = tierSize;
         }

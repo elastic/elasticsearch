@@ -45,14 +45,14 @@ public class ReactiveReasonTests extends ESTestCase {
         SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         DiscoveryNode discoveryNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         Map<ShardId, NodeDecisions> unassignedShardAllocationDecision = Map.of(
-            new ShardId(indexName, indexUUID, randomInt(1000)),
+            unassignedShardIds.first(),
             new NodeDecisions(
                 List.of(new NodeDecision(discoveryNode, Decision.single(Decision.Type.NO, "no_label", "No space to allocate"))),
                 List.of()
             )
         );
         Map<ShardId, NodeDecisions> assignedShardAllocateDecision = Map.of(
-            new ShardId(indexName, indexUUID, randomInt(1000)),
+            assignedShardIds.first(),
             new NodeDecisions(
                 List.of(),
                 List.of(new NodeDecision(discoveryNode, Decision.single(Decision.Type.YES, "yes_label", "There's enough space")))
@@ -101,19 +101,21 @@ public class ReactiveReasonTests extends ESTestCase {
             assertSorted(xContentAssignedShardIds.stream().map(ShardId::fromString).toList());
             assertEquals(assignedShardIds.size(), map.get("assigned_shards_count"));
 
-            List<Map<String, Object>> unassignedAllocateResults = (List<Map<String, Object>>) map.get("unassigned_node_decisions");
-            assertEquals("node1", unassignedAllocateResults.get(0).get("node_id"));
-            Map<String, Object> unassignedDeciders = (Map<String, Object>) unassignedAllocateResults.get(0).get("node_decision");
-            assertEquals("NO", unassignedDeciders.get("decision"));
-            assertEquals("no_label", unassignedDeciders.get("decider"));
-            assertEquals("No space to allocate", unassignedDeciders.get("explanation"));
+            List<Map<String, Object>> canAllocateDecisions = (List<Map<String, Object>>) ((Map<String, Object>) ((Map<String, Object>) map
+                .get("unassigned_node_decisions")).get(unassignedShardIds.first().toString())).get("can_allocate_decisions");
+            assertEquals("node1", canAllocateDecisions.get(0).get("node_id"));
+            assertEquals(
+                Map.of("decision", "NO", "decider", "no_label", "explanation", "No space to allocate"),
+                canAllocateDecisions.get(0).get("node_decision")
+            );
 
-            List<Map<String, Object>> assignedAllocateResults = (List<Map<String, Object>>) map.get("assigned_node_decisions");
-            assertEquals("node1", assignedAllocateResults.get(0).get("node_id"));
-            Map<String, Object> assignedDeciders = (Map<String, Object>) assignedAllocateResults.get(0).get("node_decision");
-            assertEquals("YES", assignedDeciders.get("decision"));
-            assertEquals("yes_label", assignedDeciders.get("decider"));
-            assertEquals("There's enough space", assignedDeciders.get("explanation"));
+            List<Map<String, Object>> canRemainDecisions = (List<Map<String, Object>>) ((Map<String, Object>) ((Map<String, Object>) map
+                .get("assigned_node_decisions")).get(unassignedShardIds.first().toString())).get("can_remain_decisions");
+            assertEquals("node1", canRemainDecisions.get(0).get("node_id"));
+            assertEquals(
+                Map.of("decision", "YES", "decider", "yes_label", "explanation", "There's enough space"),
+                canRemainDecisions.get(0).get("node_decision")
+            );
         }
     }
 
@@ -134,8 +136,8 @@ public class ReactiveReasonTests extends ESTestCase {
             )
         ) {
             Map<String, Object> map = parser.map();
-            assertEquals(List.of(), map.get("unassigned_node_decisions"));
-            assertEquals(List.of(), map.get("assigned_node_decisions"));
+            assertEquals(Map.of(), map.get("unassigned_node_decisions"));
+            assertEquals(Map.of(), map.get("assigned_node_decisions"));
         }
     }
 

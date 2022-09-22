@@ -48,8 +48,8 @@ class NodeDecisions implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.xContentList("canAllocateDecision", canAllocateDecisions);
-        builder.xContentList("canRemainDecisions", canRemainDecisions);
+        builder.xContentList("can_allocate_decisions", canAllocateDecisions);
+        builder.xContentList("can_remain_decisions", canRemainDecisions);
         builder.endObject();
         return null;
     }

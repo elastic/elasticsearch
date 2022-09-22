@@ -110,7 +110,7 @@ public class ReactiveReasonTests extends ESTestCase {
             );
 
             List<Map<String, Object>> canRemainDecisions = (List<Map<String, Object>>) ((Map<String, Object>) ((Map<String, Object>) map
-                .get("assigned_node_decisions")).get(unassignedShardIds.first().toString())).get("can_remain_decisions");
+                .get("assigned_node_decisions")).get(assignedShardIds.first().toString())).get("can_remain_decisions");
             assertEquals("node1", canRemainDecisions.get(0).get("node_id"));
             assertEquals(
                 Map.of("decision", "YES", "decider", "yes_label", "explanation", "There's enough space"),

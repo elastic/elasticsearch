@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -289,7 +290,13 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 unassignedShards.stream().map(e -> e.shard.shardId()).collect(Collectors.toCollection(TreeSet::new)),
                 unassignedShards.stream()
                     .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                    .collect(Collectors.toMap(snd -> snd.shard.shardId(), snd -> new NodeDecisions(snd.nodeDecisions, List.of())))
+                    .collect(
+                        Collectors.toMap(
+                            snd -> snd.shard.shardId(),
+                            snd -> new NodeDecisions(snd.nodeDecisions, List.of()),
+                            this::mergeNodeDecisions
+                        )
+                    )
             );
         }
 
@@ -361,7 +368,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 otherNodesOnTierAllocationDecisions.stream()
             )
                 .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                .collect(Collectors.toMap(snd -> snd.shard.shardId(), snd -> snd.nodeDecisions));
+                .collect(Collectors.toMap(snd -> snd.shard.shardId(), snd -> snd.nodeDecisions, CollectionUtils::concatLists));
             return new ShardsAllocationResults(
                 unallocatableBytes + unmovableBytes,
                 Stream.concat(unmovableShardNodeDecisions.stream(), unallocatedShardNodeDecisions.stream())
@@ -372,9 +379,20 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     .collect(
                         Collectors.toMap(
                             snd -> snd.shard.shardId(),
-                            snd -> new NodeDecisions(shardAllocateDecisions.getOrDefault(snd.shard.shardId(), List.of()), snd.nodeDecisions)
+                            snd -> new NodeDecisions(
+                                shardAllocateDecisions.getOrDefault(snd.shard.shardId(), List.of()),
+                                snd.nodeDecisions
+                            ),
+                            this::mergeNodeDecisions
                         )
                     )
+            );
+        }
+
+        private NodeDecisions mergeNodeDecisions(NodeDecisions a, NodeDecisions b) {
+            return new NodeDecisions(
+                CollectionUtils.concatLists(a.canAllocateDecisions(), b.canAllocateDecisions()),
+                CollectionUtils.concatLists(a.canRemainDecisions(), b.canRemainDecisions())
             );
         }
 

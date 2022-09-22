@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
@@ -23,44 +24,50 @@ import static org.hamcrest.Matchers.is;
 
 public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
 
+    private static final String INDEX_NAME = "test_index_old_settings";
+    private static final String EXPECTED_WARNING = "[index.indexing.slowlog.level] setting was deprecated in Elasticsearch and will "
+        + "be removed in a future release! See the breaking changes documentation for the next major version.";
+
     @SuppressWarnings("unchecked")
     public void testOldIndexSettings() throws Exception {
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 // create index with settings no longer valid
-                Request createTestIndex = new Request("PUT", "/test_index_old");
+                Request createTestIndex = new Request("PUT", "/" + INDEX_NAME);
                 createTestIndex.setJsonEntity("{\"settings\": {\"index.indexing.slowlog.level\": \"INFO\"}}");
+                createTestIndex.setOptions(expectWarnings(EXPECTED_WARNING));
                 client().performRequest(createTestIndex);
 
                 // add some data
                 Request bulk = new Request("POST", "/_bulk");
                 bulk.addParameter("refresh", "true");
-                bulk.setJsonEntity("""
-                    {"index": {"_index": "test_index_old"}}
+                bulk.setOptions(expectWarnings(EXPECTED_WARNING));
+                bulk.setJsonEntity(String.format(Locale.ROOT, """
+                    {"index": {"_index": "%s"}}
                     {"f1": "v1", "f2": "v2"}
-                    """);
+                    """, INDEX_NAME));
                 client().performRequest(bulk);
             }
             case MIXED -> {
                 // add some more data
                 Request bulk = new Request("POST", "/_bulk");
                 bulk.addParameter("refresh", "true");
-                bulk.setJsonEntity("""
-                    {"index": {"_index": "test_index_old"}}
+                bulk.setOptions(expectWarnings(EXPECTED_WARNING));
+                bulk.setJsonEntity(String.format(Locale.ROOT, """
+                    {"index": {"_index": "%s"}}
                     {"f1": "v3", "f2": "v4"}
-                    """);
+                    """, INDEX_NAME));
                 client().performRequest(bulk);
             }
             case UPGRADED -> {
-                Request indexSettingsRequest = new Request("GET", "/test_index_old/_settings");
+                Request indexSettingsRequest = new Request("GET", "/" + INDEX_NAME + "/_settings");
                 Map<String, Object> response = entityAsMap(client().performRequest(indexSettingsRequest));
 
-                Map<?, ?> slowLog = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("settings.index.indexing.slowlog", response)))
-                    .get(0);
+                var slowLog = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("settings.index.indexing.slowlog", response))).get(0);
 
                 // Make sure our non-system index is still non-system
                 assertThat(slowLog.get("level"), is("INFO"));
-                assertCount("test_index_old", 2);
+                assertCount(INDEX_NAME, 2);
             }
         }
     }

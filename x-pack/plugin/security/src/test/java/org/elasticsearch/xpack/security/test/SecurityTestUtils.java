@@ -35,6 +35,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
+import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class SecurityTestUtils {
@@ -79,7 +80,10 @@ public class SecurityTestUtils {
                 IndexRoutingTable.builder(index)
                     .addIndexShard(
                         IndexShardRoutingTable.builder(new ShardId(index, 0))
-                            .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted())
+                            .addShard(
+                                shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
+                                    .moveToStarted(UNAVAILABLE_EXPECTED_SHARD_SIZE)
+                            )
                     )
                     .build()
             )

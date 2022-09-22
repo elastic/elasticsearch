@@ -141,7 +141,7 @@ field. This limitation also affects <<transforms,{transforms}>>.
 ---
 
 [[date-nanos-synthetic-source]]
-==== Synthetic source preview:[]
+==== Synthetic `_source`
 `date_nanos` fields support <<synthetic-source,synthetic `_source`>> in their
 default configuration. Synthetic `_source` cannot be used together with
 <<copy-to,`copy_to`>>, <<ignore-malformed,`ignore_malformed`>> set to true

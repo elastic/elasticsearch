@@ -10,12 +10,14 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -26,6 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -77,6 +80,9 @@ public class RoutingAllocation {
     @Nullable
     private final DesiredNodes desiredNodes;
 
+    // Tracks the sizes of the searchable snapshots that aren't yet registered in ClusterInfo by their cluster node id
+    private final Map<String, Long> unaccountedSearchableSnapshotSizes;
+
     public RoutingAllocation(
         AllocationDeciders deciders,
         ClusterState clusterState,
@@ -100,7 +106,7 @@ public class RoutingAllocation {
         AllocationDeciders deciders,
         @Nullable RoutingNodes routingNodes,
         ClusterState clusterState,
-        ClusterInfo clusterInfo,
+        @Nullable ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
@@ -119,6 +125,30 @@ public class RoutingAllocation {
         }
         this.nodeReplacementTargets = Map.copyOf(targetNameToShutdown);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+        unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
+    }
+
+    private static Map<String, Long> unaccountedSearchableSnapshotSizes(ClusterState clusterState, ClusterInfo clusterInfo) {
+        Map<String, Long> unaccountedSearchableSnapshotSizes = new HashMap<>();
+        if (clusterInfo != null) {
+            for (RoutingNode node : clusterState.getRoutingNodes()) {
+                DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
+                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
+                long totalSize = 0;
+                for (ShardRouting shard : node.started()) {
+                    if (shard.getExpectedShardSize() > 0
+                        && clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
+                        && reservedSpace.containsShardId(shard.shardId()) == false
+                        && clusterInfo.getShardSize(shard) == null) {
+                        totalSize += shard.getExpectedShardSize();
+                    }
+                }
+                if (totalSize > 0) {
+                    unaccountedSearchableSnapshotSizes.put(node.nodeId(), totalSize);
+                }
+            }
+        }
+        return Collections.unmodifiableMap(unaccountedSearchableSnapshotSizes);
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -331,6 +361,13 @@ public class RoutingAllocation {
      */
     public void setHasPendingAsyncFetch() {
         this.hasPendingAsyncFetch = true;
+    }
+
+    /**
+     * Returns an approximation of the size (in bytes) of the unaccounted searchable snapshots before the allocation
+     */
+    public long unaccountedSearchableSnapshotSize(RoutingNode routingNode) {
+        return unaccountedSearchableSnapshotSizes.getOrDefault(routingNode.nodeId(), 0L);
     }
 
     public enum DebugMode {

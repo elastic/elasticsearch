@@ -1,5 +1,5 @@
 [[synthetic-source]]
-==== Synthetic `_source` preview:[]
+==== Synthetic `_source`
 
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you

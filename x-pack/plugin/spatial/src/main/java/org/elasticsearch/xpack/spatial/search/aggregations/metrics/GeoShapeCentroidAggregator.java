@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 
 import java.io.IOException;
@@ -65,7 +65,7 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final ShapeValues values = valuesSource.shapeValues(aggCtx.getLeafReaderContext());
+        final GeoShapeValues values = valuesSource.shapeValues(aggCtx.getLeafReaderContext());
         final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumWeight = new CompensatedSum(0, 0);
@@ -80,7 +80,7 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
                     final DimensionalShapeType shapeType = DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket));
-                    final ShapeValues.ShapeValue value = values.value();
+                    final GeoShapeValues.GeoShapeValue value = values.value();
                     final int compares = shapeType.compareTo(value.dimensionalShapeType());
                     // update the sum
                     if (compares < 0) {

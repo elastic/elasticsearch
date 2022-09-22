@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -964,16 +963,13 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         boolean hasDiscoveredQuorum
     ) {
         Map<String, DiscoveryNode> masterEligibleNodesMap = Map.of("node1", node1, "node2", node2, "node3", node3);
-        List<String> initialMasterNodesSetting = Arrays.stream(generateRandomStringArray(7, 30, false, false)).toList();
+        List<String> initialMasterNodesSetting = Arrays.asList(generateRandomStringArray(7, 30, false, false));
         DiscoveryNode localNode = masterEligibleNodesMap.values().stream().findAny().get();
-        ImmutableOpenMap.Builder<String, DiscoveryNode> masterEligibleNodesBuilder = new ImmutableOpenMap.Builder<>();
-        masterEligibleNodesMap.forEach(masterEligibleNodesBuilder::put);
-        ImmutableOpenMap<String, DiscoveryNode> masterEligibleNodes = masterEligibleNodesBuilder.build();
         List<DiscoveryNode> allMasterEligibleNodes = List.of(node1, node2, node3);
         return new ClusterFormationFailureHelper.ClusterFormationState(
             initialMasterNodesSetting,
             localNode,
-            masterEligibleNodes,
+            Map.copyOf(masterEligibleNodesMap),
             randomLong(),
             randomLong(),
             new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),

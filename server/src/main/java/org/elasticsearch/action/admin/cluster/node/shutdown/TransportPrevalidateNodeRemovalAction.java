@@ -40,7 +40,7 @@ import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalP
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.NodeResult;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.Result;
 
-// TODO: action with
+// TODO: action with status?
 public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeReadAction<
     PrevalidateNodeRemovalRequest,
     PrevalidateNodeRemovalResponse> {
@@ -143,21 +143,22 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     .filter(i -> i.isSearchableSnapshot() == false && i.isPartialSearchableSnapshot() == false)
                     .map(im -> im.getIndex().getName())
                     .collect(Collectors.toSet());
+                Result result;
+                List<NodeResult> nodes;
                 if (redNonSSIndices.isEmpty()) {
-                    Result result = new Result(IsSafe.YES, "all red indices are searchable snapshot indices");
-                    List<NodeResult> nodes = prevalidationRequest.getConcreteNodes()
+                    result = new Result(IsSafe.YES, "all red indices are searchable snapshot indices");
+                    nodes = prevalidationRequest.getConcreteNodes()
                         .stream()
                         .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
                         .toList();
-                    listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodes)));
                 } else {
-                    Result result = new Result(IsSafe.UNKNOWN, "cluster health is RED");
-                    List<NodeResult> nodes = prevalidationRequest.getConcreteNodes()
+                    result = new Result(IsSafe.UNKNOWN, "cluster health is RED");
+                    nodes = prevalidationRequest.getConcreteNodes()
                         .stream()
                         .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.UNKNOWN, "")))
                         .toList();
-                    listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodes)));
                 }
+                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodes)));
             }
         }
     }

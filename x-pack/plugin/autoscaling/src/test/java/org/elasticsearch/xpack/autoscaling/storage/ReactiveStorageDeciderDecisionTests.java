@@ -475,20 +475,19 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         }, mockCanAllocateDiskDecider, mockCanRemainDiskDecider);
 
         verifyScale(nodes, "not enough storage available, needs " + nodes + "b", nodeDecisions -> {
-            assertEquals(hotNodes, nodeDecisions.values().iterator().next().canAllocateDecisions().size());
-            assertEquals(
-                Decision.single(Decision.Type.NO, "disk_threshold", "test"),
-                singleNoDecision(nodeDecisions.values().iterator().next().canAllocateDecisions().get(0))
-            );
+            assertEquals(hotNodes - 1, nodeDecisions.values().iterator().next().canAllocateDecisions().size());
             assertTrue(
                 nodeDecisions.values()
                     .iterator()
                     .next()
                     .canAllocateDecisions()
                     .stream()
-                    .skip(1)
                     .map(NodeDecision::decision)
                     .allMatch(d -> d.type() == Decision.Type.NO)
+            );
+            assertEquals(
+                Decision.single(Decision.Type.NO, "disk_threshold", "test"),
+                singleNoDecision(nodeDecisions.values().iterator().next().canRemainDecisions().get(0))
             );
             return true;
         }, Map::isEmpty, mockCanRemainDiskDecider, CAN_ALLOCATE_NO_DECIDER);

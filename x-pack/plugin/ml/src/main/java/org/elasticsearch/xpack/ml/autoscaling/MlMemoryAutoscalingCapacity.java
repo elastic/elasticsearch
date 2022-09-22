@@ -25,6 +25,10 @@ public record MlMemoryAutoscalingCapacity(ByteSizeValue nodeSize, ByteSizeValue 
         return "MlMemoryAutoscalingCapacity{" + "nodeSize=" + nodeSize + ", tierSize=" + tierSize + ", reason='" + reason + '\'' + '}';
     }
 
+    public boolean isUndetermined() {
+        return nodeSize == null && tierSize == null;
+    }
+
     public static class Builder {
 
         private ByteSizeValue nodeSize;

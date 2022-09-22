@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
@@ -31,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -123,7 +123,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             Collections.emptyList(),
             0,
             1,
-            ImmutableOpenMap.of(),
+            Map.of(),
             null,
             null,
             null

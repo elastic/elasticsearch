@@ -48,7 +48,12 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             core = randomIntBetween(0, 8);
             builder.put("thread_pool." + threadPoolName + ".core", core);
         } else {
-            core = "generic".equals(threadPoolName) ? 4 : 1; // the defaults
+            // the defaults
+            core = switch (threadPoolName) {
+                case "generic" -> 4;
+                case "management" -> 2;
+                default -> 1;
+            };
         }
 
         final int availableProcessors = Runtime.getRuntime().availableProcessors();

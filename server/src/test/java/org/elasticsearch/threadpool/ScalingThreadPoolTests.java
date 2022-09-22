@@ -154,7 +154,11 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
     public void testScalingThreadPoolThreadsAreTerminatedAfterKeepAlive() throws InterruptedException {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
-        final int min = "generic".equals(threadPoolName) ? 4 : 1;
+        final int min = switch (threadPoolName) {
+            case "generic" -> 4;
+            case "management" -> 2;
+            default -> 1;
+        };
         final Settings settings = Settings.builder()
             .put("thread_pool." + threadPoolName + ".max", 128)
             .put("thread_pool." + threadPoolName + ".keep_alive", "1ms")

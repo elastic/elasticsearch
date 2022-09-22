@@ -121,6 +121,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testAggregatableConsistency() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertAggregatableConsistency(mapperService.fieldType("field"));
+        assertParseMinimalWarnings();
     }
 
     protected void assertAggregatableConsistency(MappedFieldType ft) {

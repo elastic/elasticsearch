@@ -12,5 +12,4 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.Map;
 import java.util.SortedSet;
 
-record ShardsAllocationResults(long sizeInBytes, SortedSet<ShardId> shardIds, Map<ShardId, NodeDecisions> shardNodeDecisions) {
-}
+record ShardsAllocationResults(long sizeInBytes, SortedSet<ShardId> shardIds, Map<ShardId, NodeDecisions> shardNodeDecisions) {}

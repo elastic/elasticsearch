@@ -805,7 +805,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * This method will throw an exception if the creation or the update fails.
      * The created {@link IndexService} will not be registered and will be closed immediately.
      */
-    public synchronized void verifyIndexMetadata(IndexMetadata metadata, IndexMetadata metadataUpdate, boolean checkMappings) throws IOException {
+    public synchronized void verifyIndexMetadata(IndexMetadata metadata, IndexMetadata metadataUpdate, boolean checkMappings)
+        throws IOException {
         final List<Closeable> closeables = new ArrayList<>();
         try {
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {

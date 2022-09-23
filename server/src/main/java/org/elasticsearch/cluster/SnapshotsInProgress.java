@@ -312,11 +312,21 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
      * @return true if all shards have completed (either successfully or failed), false otherwise
      */
     public static boolean completed(Collection<ShardSnapshotStatus> shards) {
-        return shards.stream().allMatch(s -> s.state().completed());
+        for (ShardSnapshotStatus status : shards) {
+            if (status.state().completed == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean hasFailures(Map<RepositoryShardId, ShardSnapshotStatus> clones) {
-        return clones.values().stream().anyMatch(s -> s.state().failed());
+        for (ShardSnapshotStatus value : clones.values()) {
+            if (value.state().failed()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean assertConsistentEntries(Map<String, ByRepo> entries) {
@@ -779,14 +789,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.dataStreams = List.copyOf(dataStreams);
             this.featureStates = List.copyOf(featureStates);
             this.startTime = startTime;
-            this.shards = Map.copyOf(shards);
+            this.shards = shards;
             this.repositoryStateId = repositoryStateId;
             this.failure = failure;
             this.userMetadata = userMetadata == null ? null : Map.copyOf(userMetadata);
             this.version = version;
             this.source = source;
             this.shardStatusByRepoShardId = Map.copyOf(shardStatusByRepoShardId);
-            this.snapshotIndices = Map.copyOf(snapshotIndices);
+            this.snapshotIndices = snapshotIndices;
             assert assertShardsConsistent(this.source, this.state, this.indices, this.shards, this.shardStatusByRepoShardId);
         }
 

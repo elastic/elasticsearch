@@ -303,7 +303,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 UberModuleClassLoaderTests.class.getClassLoader(),
                 "synthetic",
                 Set.of(toUrl(jar)),
-                Set.of("java.sql")
+                Set.of("java.sql", "java.sql.rowset") // if present, java.sql.rowset requires java.sql transitively
             )
         ) {
             Class<?> denyListed = denyListLoader.loadClass("p.MyImportingClass");

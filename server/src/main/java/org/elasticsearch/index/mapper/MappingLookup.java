@@ -298,7 +298,7 @@ public final class MappingLookup {
         }
     }
 
-    void checkObjectDepthLimit(long limit, String objectPath) {
+    static void checkObjectDepthLimit(long limit, String objectPath) {
         int numDots = 0;
         for (int i = 0; i < objectPath.length(); ++i) {
             if (objectPath.charAt(i) == '.') {

@@ -228,7 +228,7 @@ public abstract class DocumentParserContext {
     public final void addDynamicMapper(Mapper mapper) {
         // eagerly check object depth limit here to avoid stack overflow errors
         if (mapper instanceof ObjectMapper) {
-            mappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), mapper.name());
+            MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), mapper.name());
         }
         // eagerly check field name limit here to avoid OOM errors
         // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting

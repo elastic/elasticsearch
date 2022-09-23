@@ -198,41 +198,41 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     public void testUnmappedMissingString() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name").field("number").missing("🍌🍌🍌");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalValueCount>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
         }, valueCount -> {
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        });
+        }));
     }
 
     public void testUnmappedMissingNumber() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name").field("number").missing(1234);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalValueCount>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
         }, valueCount -> {
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        });
+        }));
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name").field("number")
             .missing(new GeoPoint(42.39561, -71.13051));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalValueCount>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
         }, valueCount -> {
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        });
+        }));
     }
 
     public void testRangeFieldValues() throws IOException {
@@ -242,7 +242,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         final String fieldName = "rangeField";
         MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
         final ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name").field(fieldName);
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalValueCount>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range2)))));
@@ -250,7 +250,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }, count -> {
             assertEquals(4.0, count.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(count));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testValueScriptNumber() throws IOException {
@@ -259,14 +259,14 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.NUMERIC);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalValueCount>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 8)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 9)));
         }, valueCount -> {
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testSingleScriptNumber() throws IOException {
@@ -276,7 +276,9 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.NUMERIC);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        // Note: The field values won't be taken into account. The script will only be called
+        // once per document, and only expect a count of 3
+        testCase(new AggTestConfig<InternalValueCount>(aggregationBuilder, iw -> {
             Document doc = new Document();
             doc.add(new SortedNumericDocValuesField(FIELD_NAME, 7));
             doc.add(new SortedNumericDocValuesField(FIELD_NAME, 7));
@@ -296,7 +298,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             // once per document, and only expect a count of 3
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testValueScriptString() throws IOException {
@@ -305,14 +307,14 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.STRING);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalValueCount>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("2"))));
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("3"))));
         }, valueCount -> {
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testSingleScriptString() throws IOException {
@@ -322,7 +324,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.STRING);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalValueCount>(aggregationBuilder, iw -> {
             Document doc = new Document();
             // Note: unlike numerics, lucene de-dupes strings so we increment here
             doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("1")));
@@ -343,7 +345,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             // once per document, and only expect a count of 3
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        }, fieldType);
+        }, fieldType));
     }
 
     private void testAggregation(
@@ -372,17 +374,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }
         aggregationBuilder.field(FIELD_NAME);
 
-        testAggregation(aggregationBuilder, query, indexer, verify, fieldType);
-    }
-
-    private void testAggregation(
-        AggregationBuilder aggregationBuilder,
-        Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalValueCount> verify,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        testCase(new AggTestConfig<>(aggregationBuilder, buildIndex, verify, fieldTypes).withQuery(query));
+        testCase(new AggTestConfig<InternalValueCount>(aggregationBuilder, indexer, verify, fieldType).withQuery(query));
     }
 
     private static MappedFieldType createMappedFieldType(String name, ValueType valueType) {

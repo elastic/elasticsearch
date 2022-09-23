@@ -11,14 +11,14 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
-public class NodesRemovalPrevalidation implements ToXContentFragment, Writeable {
+public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
 
     private final Result result;
     private final List<NodeResult> nodes;
@@ -43,15 +43,29 @@ public class NodesRemovalPrevalidation implements ToXContentFragment, Writeable 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field("result", result);
         builder.xContentList("nodes", nodes, params);
-        return builder;
+        return builder.endObject();
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         result.writeTo(out);
         out.writeList(nodes);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof NodesRemovalPrevalidation == false) return false;
+        NodesRemovalPrevalidation other = (NodesRemovalPrevalidation) o;
+        return Objects.equals(result, other.result) && Objects.equals(nodes, other.nodes);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(result, nodes);
     }
 
     public record Result(IsSafe isSafe, String reason) implements ToXContentObject, Writeable {
@@ -67,8 +81,6 @@ public class NodesRemovalPrevalidation implements ToXContentFragment, Writeable 
             builder.endObject();
             return builder;
         }
-
-        // TODO: do I need fromXContent?
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

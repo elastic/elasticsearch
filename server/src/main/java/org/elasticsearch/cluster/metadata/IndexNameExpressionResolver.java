@@ -1474,7 +1474,15 @@ public class IndexNameExpressionResolver {
 
         public static List<String> resolve(final Context context, List<String> expressions) {
             List<String> result = new ArrayList<>(expressions.size());
-            for (String expression : expressions) {
+            boolean wildcardSeen = false;
+            for (int i = 0; i < expressions.size(); i++) {
+                String expression = expressions.get(i);
+                if (expression.charAt(0) == '-' && wildcardSeen) {
+                    expression = expression.substring(1);
+                }
+                if (Regex.isSimpleMatchPattern(expression)) {
+                    wildcardSeen = true;
+                }
                 result.add(resolveExpression(expression, context::getStartTime));
             }
             return result;

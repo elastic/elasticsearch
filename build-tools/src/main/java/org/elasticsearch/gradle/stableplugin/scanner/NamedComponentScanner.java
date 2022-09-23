@@ -14,15 +14,19 @@ import org.objectweb.asm.Opcodes;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class NamedComponentScanner {
 
 
     // Map<String, Map<String,String> - extensible interface -> map{ namedName -> className }
-    public Map<String, Map<String, String>> scanForNamedClasses(Stream<ClassReader> classReaderStream) {
-
-
+    public Map<String, Map<String, String>> scanForNamedClasses(Supplier<Stream<ClassReader>> classReaderStream) {
+        ClassScanner extensibleClassScanner = new ClassScanner("Lorg/elasticsearch/plugin/api/Extensible;", (classname, map) -> {
+            map.put(classname, classname);
+            return null;
+        });
+        extensibleClassScanner.visit(classReaderStream.get());
 
         ClassScanner namedComponentsScanner = new ClassScanner(
             "Lorg/elasticsearch/plugin/api/NamedComponent;"/*NamedComponent.class*/,
@@ -36,7 +40,7 @@ public class NamedComponentScanner {
             }
         );
 
-        namedComponentsScanner.visit(classReaderStream);
+        namedComponentsScanner.visit(classReaderStream.get());
 
 //        ClassScanner localExtensible = new ClassScanner(extensiblesRegistry.getExtensibleClassScanner());
 //        localExtensible.addExtensibleDescendants(namedComponentsScanner.getClassHierarchy());
@@ -45,7 +49,7 @@ public class NamedComponentScanner {
         for (var e : namedComponentsScanner.getFoundClasses().entrySet()) {
             String name = e.getKey();
             String classnameWithSlashes = e.getValue();
-            String extensibleClassnameWithSlashes = classnameWithSlashes;//localExtensible.getFoundClasses().get(classnameWithSlashes);
+            String extensibleClassnameWithSlashes = extensibleClassScanner.getFoundClasses().get(classnameWithSlashes);
             if (extensibleClassnameWithSlashes == null) {
                 throw new RuntimeException(
                     "Named component " + name + "(" + pathToClassName(classnameWithSlashes) + ") does not extend from an extensible class"

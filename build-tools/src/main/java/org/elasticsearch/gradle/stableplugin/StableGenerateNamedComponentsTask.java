@@ -8,6 +8,8 @@
 
 package org.elasticsearch.gradle.stableplugin;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.elasticsearch.gradle.stableplugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugin.scanner.impl.ClassReaders;
 import org.gradle.api.DefaultTask;
@@ -25,8 +27,6 @@ import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.internal.impldep.com.fasterxml.jackson.core.JsonProcessingException;
-import org.gradle.internal.impldep.com.fasterxml.jackson.databind.ObjectMapper;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
@@ -37,6 +37,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 
@@ -94,13 +95,15 @@ public abstract class StableGenerateNamedComponentsTask extends DefaultTask {
             LOGGER.info(files.toString());
             LOGGER.info(pluginFiles.toString());
 
-            Stream<Path> pluginJars = Stream.concat(files.stream(), pluginFiles.stream())
-                .map(File::toPath);
-            Stream<ClassReader> classReaderStream = ClassReaders.ofPaths(pluginJars);
 
+            Supplier<Stream<ClassReader>> classReaderStreamSupplier = () -> {
+                Stream<Path> pluginJars = Stream.concat(files.stream(), pluginFiles.stream())
+                    .map(File::toPath);
+                return ClassReaders.ofPaths(pluginJars);
+            };
             NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
             Map<String, Map<String, String>> namedComponentsMap
-                = namedComponentScanner.scanForNamedClasses(classReaderStream);
+                = namedComponentScanner.scanForNamedClasses(classReaderStreamSupplier);
             writeToFile(namedComponentsMap);
         }
 

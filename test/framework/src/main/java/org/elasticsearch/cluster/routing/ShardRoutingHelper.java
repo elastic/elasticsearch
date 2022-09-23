@@ -24,7 +24,11 @@ public class ShardRoutingHelper {
     }
 
     public static ShardRouting moveToStarted(ShardRouting routing) {
-        return routing.moveToStarted();
+        return routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+    }
+
+    public static ShardRouting moveToStarted(ShardRouting routing, long expectedShardSize) {
+        return routing.moveToStarted(expectedShardSize);
     }
 
     public static ShardRouting initialize(ShardRouting routing, String nodeId) {

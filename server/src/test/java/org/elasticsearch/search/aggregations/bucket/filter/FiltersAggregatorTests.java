@@ -120,10 +120,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
         builder.otherBucketKey("other");
         InternalFilters response = searchAndReduce(
-            indexSearcher,
-            new MatchAllDocsQuery(),
-            builder,
-            new KeywordFieldMapper.KeywordFieldType("field")
+            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, new KeywordFieldType("field"))
         );
         assertEquals(response.getBuckets().size(), numFilters);
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
@@ -221,10 +218,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         builder.otherBucket(true);
         builder.otherBucketKey("other");
         final InternalFilters filters = searchAndReduce(
-            indexSearcher,
-            new MatchAllDocsQuery(),
-            builder,
-            new KeywordFieldMapper.KeywordFieldType("field")
+            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, new KeywordFieldType("field"))
         );
         assertEquals(filters.getBuckets().size(), 7);
         assertEquals(filters.getBucketByKey("foobar").getDocCount(), 2);
@@ -281,10 +275,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             builder.otherBucketKey("other");
 
             final InternalFilters response = searchAndReduce(
-                indexSearcher,
-                new MatchAllDocsQuery(),
-                builder,
-                new KeywordFieldMapper.KeywordFieldType("field")
+                new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, new KeywordFieldType("field"))
             );
             List<InternalFilters.InternalBucket> buckets = response.getBuckets();
             assertEquals(buckets.size(), filters.length + 1);
@@ -364,6 +355,27 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             InternalFilters filters = (InternalFilters) result;
             assertThat(filters.getBuckets(), hasSize(1));
             assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
+        }, ft);
+    }
+
+    public void testWithEmptyMergedPointRangeQueries() throws IOException {
+        MappedFieldType ft = new DateFieldMapper.DateFieldType("test", Resolution.MILLISECONDS);
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new RangeQueryBuilder("test").from("2020-01-01").to("2020-02-01").includeUpper(false))
+        );
+        Query query = LongPoint.newRangeQuery(
+            "test",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-01"),
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2015-02-01")
+        );
+        testCase(builder, query, iw -> {
+            iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))));
+            iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))));
+        }, result -> {
+            InternalFilters filters = (InternalFilters) result;
+            assertThat(filters.getBuckets(), hasSize(1));
+            assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(0L));
         }, ft);
     }
 
@@ -1612,7 +1624,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     private Map<String, Object> collectAndGetFilterDebugInfo(IndexSearcher searcher, Aggregator aggregator) throws IOException {
         aggregator.preCollection();
         for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
-            LeafBucketCollector leafCollector = aggregator.getLeafCollector(new AggregationExecutionContext(ctx, null, null));
+            LeafBucketCollector leafCollector = aggregator.getLeafCollector(new AggregationExecutionContext(ctx, null, null, null));
             assertTrue(leafCollector.isNoop());
         }
         Map<String, Object> debug = new HashMap<>();

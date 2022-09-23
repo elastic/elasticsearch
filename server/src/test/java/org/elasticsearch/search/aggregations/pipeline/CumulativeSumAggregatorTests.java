@@ -312,7 +312,9 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram;
-                histogram = searchAndReduce(indexSearcher, query, aggBuilder, new MappedFieldType[] { fieldType, valueFieldType });
+                histogram = searchAndReduce(
+                    new AggTestConfig(indexSearcher, query, aggBuilder, new MappedFieldType[] { fieldType, valueFieldType })
+                );
                 verify.accept(histogram);
             }
         }

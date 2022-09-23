@@ -5,7 +5,7 @@
 <titleabbrev>Get users</titleabbrev>
 ++++
 
-Retrieves information about users in the native realm and built-in users. 
+Retrieves information about users in the native realm and built-in users.
 
 
 [[security-api-get-user-request]]
@@ -13,19 +13,19 @@ Retrieves information about users in the native realm and built-in users.
 
 `GET /_security/user` +
 
-`GET /_security/user/<username>` 
+`GET /_security/user/<username>`
 
 [[security-api-get-user-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_security` cluster privilege.
+* To use this API, you must have at least the `read_security` cluster privilege.
 
 
 [[security-api-get-user-desc]]
 ==== {api-description-title}
 
-For more information about the native realm, see 
-<<realms>> and <<native-realm>>. 
+For more information about the native realm, see
+<<realms>> and <<native-realm>>.
 
 [[security-api-get-user-path-params]]
 ==== {api-path-parms-title}
@@ -60,7 +60,7 @@ GET /_security/user/jacknich
 
 [source,console-result]
 --------------------------------------------------
-{  
+{
   "jacknich": {
     "username": "jacknich",
     "roles": [

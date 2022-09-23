@@ -59,6 +59,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     private WatchService watchService; // null;
     private CountDownLatch watcherThreadLatch;
+    private volatile CountDownLatch processingLatch;
 
     private volatile FileUpdateState fileUpdateState = null;
     private volatile WatchKey settingsDirWatchKey = null;
@@ -82,13 +83,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
     }
 
-    // package private for testing
-    Path operatorSettingsDir() {
+    public Path operatorSettingsDir() {
         return operatorSettingsDir;
     }
 
-    // package private for testing
-    Path operatorSettingsFile() {
+    public Path operatorSettingsFile() {
         return operatorSettingsDir().resolve(SETTINGS_FILE_NAME);
     }
 
@@ -202,8 +201,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
-    // package private for testing
-    boolean watching() {
+    public boolean watching() {
         return this.watchService != null;
     }
 
@@ -311,7 +309,15 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                             settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDir);
 
                             if (watchedFileChanged(path)) {
-                                processFileSettings(path, (e) -> logger.error("Error processing operator settings json file", e)).await();
+                                processingLatch = processFileSettings(
+                                    path,
+                                    (e) -> logger.error("Error processing operator settings json file", e)
+                                );
+                                // After we get and set the processing latch, we need to check if stop wasn't
+                                // invoked in the meantime. Stop will invalidate all watch keys.
+                                if (configDirWatchKey != null) {
+                                    processingLatch.await();
+                                }
                             }
                         } catch (IOException e) {
                             logger.warn("encountered I/O error while watching file settings", e);
@@ -335,12 +341,18 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         logger.debug("stopping watcher ...");
         if (watching()) {
             try {
+                // make sure the watcher thread hits the processing latch correctly
                 cleanupWatchKeys();
                 fileUpdateState = null;
                 watchService.close();
+                if (processingLatch != null) {
+                    processingLatch.countDown();
+                }
                 if (watcherThreadLatch != null) {
                     watcherThreadLatch.await();
                 }
+                // the watcher thread might have snuck in behind us and re-created the settings watch again
+                cleanupWatchKeys();
             } catch (IOException e) {
                 logger.warn("encountered exception while closing watch service", e);
             } catch (InterruptedException interruptedException) {

@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -21,7 +19,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -708,8 +705,8 @@ public class ThreadContextTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String authorizationHeader = randomCase("authorization");
         final String authorizationHeader2 = randomCase("es-secondary-authorization");
-        threadContext.putHeader(authorizationHeader,  randomAsciiLettersOfLengthBetween(1,10));
-        threadContext.putHeader(authorizationHeader2,  randomAsciiLettersOfLengthBetween(1,10));
+        threadContext.putHeader(authorizationHeader, randomAsciiLettersOfLengthBetween(1, 10));
+        threadContext.putHeader(authorizationHeader2, randomAsciiLettersOfLengthBetween(1, 10));
         Set<Tuple<String, String>> additionalHeaders = IntStream.range(0, randomInt(10))
             .mapToObj(i -> new Tuple<>(randomAsciiLettersOfLengthBetween(1, 10), randomAsciiLettersOfLengthBetween(1, 10)))
             .collect(Collectors.toSet());
@@ -735,7 +732,7 @@ public class ThreadContextTests extends ESTestCase {
 
     private String randomCase(String original) {
         int i = randomInt(original.length() - 1);
-        StringBuilder sb =  new StringBuilder(original);
+        StringBuilder sb = new StringBuilder(original);
         sb.setCharAt(i, Character.toUpperCase(original.toCharArray()[i]));
         return sb.toString();
     }

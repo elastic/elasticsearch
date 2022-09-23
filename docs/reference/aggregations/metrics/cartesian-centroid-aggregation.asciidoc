@@ -1,11 +1,11 @@
-[[search-aggregations-metrics-geocentroid-aggregation]]
-=== Geo-centroid aggregation
+[[search-aggregations-metrics-cartesian-centroid-aggregation]]
+=== Cartesian-centroid aggregation
 
 ++++
-<titleabbrev>Geo-centroid</titleabbrev>
+<titleabbrev>Cartesian-centroid</titleabbrev>
 ++++
 
-A metric aggregation that computes the weighted {wikipedia}/Centroid[centroid] from all coordinate values for geo fields.
+A metric aggregation that computes the weighted {wikipedia}/Centroid[centroid] from all coordinate values for point and shape fields.
 
 Example:
 
@@ -16,7 +16,7 @@ PUT /museums
   "mappings": {
     "properties": {
       "location": {
-        "type": "geo_point"
+        "type": "point"
       }
     }
   }
@@ -24,23 +24,23 @@ PUT /museums
 
 POST /museums/_bulk?refresh
 {"index":{"_id":1}}
-{"location": "POINT (4.912350 52.374081)", "city": "Amsterdam", "name": "NEMO Science Museum"}
+{"location": "POINT (491.2350 5237.4081)", "city": "Amsterdam", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
-{"location": "POINT (4.901618 52.369219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
+{"location": "POINT (490.1618 5236.9219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
 {"index":{"_id":3}}
-{"location": "POINT (4.914722 52.371667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
+{"location": "POINT (491.4722 5237.1667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
 {"index":{"_id":4}}
-{"location": "POINT (4.405200 51.222900)", "city": "Antwerp", "name": "Letterenhuis"}
+{"location": "POINT (440.5200 5122.2900)", "city": "Antwerp", "name": "Letterenhuis"}
 {"index":{"_id":5}}
-{"location": "POINT (2.336389 48.861111)", "city": "Paris", "name": "Musée du Louvre"}
+{"location": "POINT (233.6389 4886.1111)", "city": "Paris", "name": "Musée du Louvre"}
 {"index":{"_id":6}}
-{"location": "POINT (2.327000 48.860000)", "city": "Paris", "name": "Musée d'Orsay"}
+{"location": "POINT (232.7000 4886.0000)", "city": "Paris", "name": "Musée d'Orsay"}
 
 POST /museums/_search?size=0
 {
   "aggs": {
     "centroid": {
-      "geo_centroid": {
+      "cartesian_centroid": {
         "field": "location" <1>
       }
     }
@@ -48,7 +48,8 @@ POST /museums/_search?size=0
 }
 --------------------------------------------------
 
-<1> The `geo_centroid` aggregation specifies the field to use for computing the centroid. (NOTE: field must be a <<geo-point>> type)
+<1> The `cartesian_centroid` aggregation specifies the field to use for computing the centroid.
+(NOTE: field must be a <<point>> or a <<shape>> type)
 
 The above aggregation demonstrates how one would compute the centroid of the location field for all museums' documents.
 
@@ -61,8 +62,8 @@ The response for the above aggregation:
   "aggregations": {
     "centroid": {
       "location": {
-        "lat": 51.00982965203002,
-        "lon": 3.9662131341174245
+        "x": 396.6213124593099,
+        "y": 5100.982991536458
       },
       "count": 6
     }
@@ -71,7 +72,7 @@ The response for the above aggregation:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
-The `geo_centroid` aggregation is more interesting when combined as a sub-aggregation to other bucket aggregations.
+The `cartesian_centroid` aggregation is more interesting when combined as a sub-aggregation to other bucket aggregations.
 
 Example:
 
@@ -84,7 +85,7 @@ POST /museums/_search?size=0
       "terms": { "field": "city.keyword" },
       "aggs": {
         "centroid": {
-          "geo_centroid": { "field": "location" }
+          "cartesian_centroid": { "field": "location" }
         }
       }
     }
@@ -93,9 +94,8 @@ POST /museums/_search?size=0
 --------------------------------------------------
 // TEST[continued]
 
-The above example uses `geo_centroid` as a sub-aggregation to a
-<<search-aggregations-bucket-terms-aggregation, terms>> bucket aggregation
-for finding the central location for museums in each city.
+The above example uses `cartesian_centroid` as a sub-aggregation to a
+<<search-aggregations-bucket-terms-aggregation, terms>> bucket aggregation for finding the central location for museums in each city.
 
 The response for the above aggregation:
 
@@ -113,8 +113,8 @@ The response for the above aggregation:
           "doc_count": 3,
           "centroid": {
             "location": {
-              "lat": 52.371655656024814,
-              "lon": 4.909563297405839
+              "x": 490.9563297405839,
+              "y": 5237.1655656024814
             },
             "count": 3
           }
@@ -124,8 +124,8 @@ The response for the above aggregation:
           "doc_count": 2,
           "centroid": {
             "location": {
-              "lat": 48.86055548675358,
-              "lon": 2.3316944623366
+              "x": 233.16944623366,
+              "y": 4886.055548675358
             },
             "count": 2
           }
@@ -135,8 +135,8 @@ The response for the above aggregation:
           "doc_count": 1,
           "centroid": {
             "location": {
-              "lat": 51.22289997059852,
-              "lon": 4.40519998781383
+              "x": 440.519998781383,
+              "y": 5122.289997059852
             },
             "count": 1
           }
@@ -151,14 +151,14 @@ The response for the above aggregation:
 
 [discrete]
 [role="xpack"]
-[[geocentroid-aggregation-geo-shape]]
-==== Geo Centroid Aggregation on `geo_shape` fields
+[[cartesian-centroid-aggregation-geo-shape]]
+==== Cartesian Centroid Aggregation on `shape` fields
 
-The centroid metric for geoshapes is more nuanced than for points. The centroid of a specific aggregation bucket
-containing shapes is the centroid of the highest-dimensionality shape type in the bucket. For example, if a bucket contains
-shapes comprising of polygons and lines, then the lines do not contribute to the centroid metric. Each type of shape's
-centroid is calculated differently. Envelopes and circles ingested via the <<ingest-circle-processor>> are treated
-as polygons.
+The centroid metric for shapes is more nuanced than for points.
+The centroid of a specific aggregation bucket containing shapes is the centroid of the highest-dimensionality shape type in the bucket.
+For example, if a bucket contains shapes consisting of polygons and lines, then the lines do not contribute to the centroid metric.
+Each type of shape's centroid is calculated differently.
+Envelopes and circles ingested via the <<ingest-circle-processor>> are treated as polygons.
 
 |===
 |Geometry Type | Centroid Calculation
@@ -167,15 +167,15 @@ as polygons.
 |equally weighted average of all the coordinates
 
 |[Multi]LineString
-|a weighted average of all the centroids of each segment, where the weight of each segment is its length in degrees
+|a weighted average of all the centroids of each segment, where the weight of each segment is its length in the same units as the coordinates
 
 |[Multi]Polygon
 |a weighted average of all the centroids of all the triangles of a polygon where the triangles are formed by every two consecutive vertices and the starting-point.
- holes have negative weights. weights represent the area of the triangle in deg^2 calculated
+holes have negative weights. weights represent the area of the triangle is calculated in the square of the units of the coordinates
 
 |GeometryCollection
 |The centroid of all the underlying geometries with the highest dimension. If Polygons and Lines and/or Points, then lines and/or points are ignored.
- If Lines and Points, then points are ignored
+If Lines and Points, then points are ignored
 |===
 
 Example:
@@ -203,7 +203,7 @@ POST /places/_search?size=0
 {
   "aggs": {
     "centroid": {
-      "geo_centroid": {
+      "cartesian_centroid": {
         "field": "geometry"
       }
     }
@@ -231,15 +231,12 @@ POST /places/_search?size=0
 
 
 [WARNING]
-.Using `geo_centroid` as a sub-aggregation of `geohash_grid`
+.Using `cartesian_centroid` as a sub-aggregation of `geohash_grid`
 ====
 The <<search-aggregations-bucket-geohashgrid-aggregation,`geohash_grid`>>
-aggregation places documents, not individual geopoints, into buckets. If a
-document's `geo_point` field contains <<array,multiple values>>, the document
-could be assigned to multiple buckets, even if one or more of its geopoints are
-outside the bucket boundaries.
+aggregation places documents, not individual geopoints, into buckets.
+If a document's `geo_point` field contains <<array,multiple values>>, the document could be assigned to multiple buckets, even if one or more of its geopoints are outside the bucket boundaries.
 
-If a `geocentroid` sub-aggregation is also used, each centroid is calculated
-using all geopoints in a bucket, including those outside the bucket boundaries.
+If a `cartesian_centroid` sub-aggregation is also used, each centroid is calculated using all geopoints in a bucket, including those outside the bucket boundaries.
 This can result in centroids outside of bucket boundaries.
 ====

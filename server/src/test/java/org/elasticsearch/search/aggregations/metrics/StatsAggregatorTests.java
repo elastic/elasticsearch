@@ -14,12 +14,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -42,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -64,20 +61,20 @@ public class StatsAggregatorTests extends AggregatorTestCase {
 
     public void testEmpty() throws IOException {
         final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
-        testCase(stats("_name").field(ft.name()), iw -> {}, stats -> {
+        testCase(new AggTestConfig<InternalStats>(stats("_name").field(ft.name()), iw -> {}, stats -> {
             assertEquals(0d, stats.getCount(), 0);
             assertEquals(0d, stats.getSum(), 0);
             assertEquals(Float.NaN, stats.getAvg(), 0);
             assertEquals(Double.POSITIVE_INFINITY, stats.getMin(), 0);
             assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(stats));
-        }, ft);
+        }, ft));
     }
 
     public void testRandomDoubles() throws IOException {
         final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE);
         final SimpleStatsAggregator expected = new SimpleStatsAggregator();
-        testCase(stats("_name").field(ft.name()), iw -> {
+        testCase(new AggTestConfig<InternalStats>(stats("_name").field(ft.name()), iw -> {
             int numDocs = randomIntBetween(10, 50);
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
@@ -97,7 +94,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             assertEquals(expected.max, stats.getMax(), 0);
             assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
             assertTrue(AggregationInspectionHelper.hasValue(stats));
-        }, ft);
+        }, ft));
     }
 
     public void testRandomLongs() throws IOException {
@@ -159,7 +156,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         }
         double expectedMax = max;
         double expectedMin = min;
-        testCase(stats("_name").field(ft.name()), iw -> {
+        testCase(new AggTestConfig<InternalStats>(stats("_name").field(ft.name()), iw -> {
             List<List<NumericDocValuesField>> docs = new ArrayList<>();
             for (double value : values) {
                 docs.add(singletonList(new NumericDocValuesField(ft.name(), NumericUtils.doubleToSortableLong(value))));
@@ -172,8 +169,8 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedMax, stats.getMax(), 0d);
             assertEquals(expectedMin, stats.getMin(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(stats));
-        }, ft);
-        testCase(stats("_name").field(ft.name()), iw -> {
+        }, ft));
+        testCase(new AggTestConfig<InternalStats>(stats("_name").field(ft.name()), iw -> {
             for (double value : values) {
                 iw.addDocument(singletonList(new NumericDocValuesField(ft.name(), NumericUtils.doubleToSortableLong(value))));
             }
@@ -184,7 +181,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedMax, stats.getMax(), 0d);
             assertEquals(expectedMin, stats.getMin(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(stats));
-        }, ft);
+        }, ft));
     }
 
     public void testUnmapped() throws IOException {
@@ -344,14 +341,16 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             }
         }
 
-        testCase(stats("_name").field(ft.name()).missing(missingValue), iw -> iw.addDocuments(docs), stats -> {
-            assertEquals(expected.count, stats.getCount(), 0);
-            assertEquals(expected.sum, stats.getSum(), TOLERANCE);
-            assertEquals(expected.max, stats.getMax(), 0);
-            assertEquals(expected.min, stats.getMin(), 0);
-            assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
-            assertTrue(AggregationInspectionHelper.hasValue(stats));
-        }, ft);
+        testCase(
+            new AggTestConfig<InternalStats>(stats("_name").field(ft.name()).missing(missingValue), iw -> iw.addDocuments(docs), stats -> {
+                assertEquals(expected.count, stats.getCount(), 0);
+                assertEquals(expected.sum, stats.getSum(), TOLERANCE);
+                assertEquals(expected.max, stats.getMax(), 0);
+                assertEquals(expected.min, stats.getMin(), 0);
+                assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
+                assertTrue(AggregationInspectionHelper.hasValue(stats));
+            }, ft)
+        );
     }
 
     public void testMissingUnmapped() throws IOException {
@@ -385,16 +384,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             values.forEach(expected::add);
         }
 
-        testCase(builder, iw -> iw.addDocuments(docs), stats -> verify.accept(expected, stats), ft);
-    }
-
-    private void testCase(
-        StatsAggregationBuilder builder,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalStats> verify,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        testCase(new AggTestConfig<>(builder, buildIndex, verify, fieldTypes).withQuery(new MatchAllDocsQuery()));
+        testCase(new AggTestConfig<InternalStats>(builder, iw -> iw.addDocuments(docs), stats -> verify.accept(expected, stats), ft));
     }
 
     static class SimpleStatsAggregator {

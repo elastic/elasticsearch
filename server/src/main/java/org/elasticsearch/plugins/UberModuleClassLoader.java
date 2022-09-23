@@ -17,6 +17,7 @@ import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
+import java.lang.module.ResolvedModule;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -67,15 +68,29 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls, Set<String> moduleDenyList) {
         Path[] jarPaths = jarUrls.stream().map(UberModuleClassLoader::urlToPathUnchecked).toArray(Path[]::new);
 
+        // TODO: can we cache this JDK/module stuff, since it will be the same for every plugin?
+
+        // the boot layer may contain application modules...
         ModuleLayer mparent = ModuleLayer.boot();
         // Every module requires java.base by default, but we can add all other modules
         // that are not in the deny list so that plugins can use, for example, java.management
-        Set<String> requires = mparent.modules()
+        Set<String> requires = mparent.configuration()
+            .modules()
             .stream()
-            .filter(Module::isNamed)
-            .map(Module::getName)
-            .filter(name -> "java.base".equals(name) == false)
+            // only get jdk modules (which are loaded from jrt )
+            .filter(rm -> rm.reference().location().isPresent() && rm.reference().location().get().getScheme().equals("jrt"))
+            // only get modules that have unqualified exports
+            .filter(rm -> rm.reference().descriptor().exports().stream().anyMatch(e -> e.isQualified() == false))
+            .map(ResolvedModule::name)
             .filter(name -> moduleDenyList.contains(name) == false)
+            .collect(Collectors.toSet());
+        // find all
+        Set<String> exportedPackages = requires.stream()
+            .map(mparent::findModule)
+            .flatMap(Optional::stream)
+            .flatMap(m -> m.getDescriptor().exports().stream())
+            .filter(e -> e.isQualified() == false)
+            .map(ModuleDescriptor.Exports::source)
             .collect(Collectors.toSet());
         // We also need to gather the service names in the public Java API and mark our
         // synthetic plugin as using them, since we don't know which services our jars
@@ -83,10 +98,11 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         Set<String> uses = mparent.modules()
             .stream()
             .map(Module::getDescriptor)
+            .filter(d -> requires.contains(d.name()))
             .map(ModuleDescriptor::provides)
             .flatMap(Set::stream)
             .map(ModuleDescriptor.Provides::service)
-            .filter(name -> name.startsWith("java.") || name.startsWith("javax."))
+            .filter(serviceName -> exportedPackages.contains(packageName(serviceName)))
             .collect(Collectors.toSet());
 
         ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(moduleName, jarPaths, requires, uses);
@@ -266,7 +282,7 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     /**
      * Returns the package name for the given class name
      */
-    private String packageName(String cn) {
+    private static String packageName(String cn) {
         int pos = cn.lastIndexOf('.');
         return (pos < 0) ? "" : cn.substring(0, pos);
     }

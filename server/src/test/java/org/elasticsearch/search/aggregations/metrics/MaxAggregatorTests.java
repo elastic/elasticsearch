@@ -286,7 +286,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         Consumer<Max> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(new AggTestConfig<Max>(aggregationBuilder, buildIndex, verify, fieldTypes).withQuery(query));
+        testCase(new AggTestConfig<>(aggregationBuilder, buildIndex, verify, fieldTypes).withQuery(query));
     }
 
     public void testMaxShortcutRandom() throws Exception {

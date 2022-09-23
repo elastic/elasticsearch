@@ -11,14 +11,12 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -105,10 +103,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         KeywordFieldMapper.KeywordFieldType k2ft = new KeywordFieldMapper.KeywordFieldType("k2");
         NumberFieldMapper.NumberFieldType nft = new NumberFieldMapper.NumberFieldType("n", NumberType.LONG);
         DateFieldMapper.DateFieldType dft = aggregableDateFieldType(false, randomBoolean());
-        testCase(
-            new AggTestConfig<R>(builder, iw -> buildIndex.accept(iw, dft), verify, new MappedFieldType[] { k1ft, k2ft, nft, dft })
-                .withQuery(new MatchAllDocsQuery())
-        );
+        testCase(new AggTestConfig<R>(builder, iw -> buildIndex.accept(iw, dft), verify, k1ft, k2ft, nft, dft));
     }
 
     protected final DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {

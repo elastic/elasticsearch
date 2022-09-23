@@ -394,7 +394,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         Consumer<InternalStats> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(new AggTestConfig<InternalStats>(builder, buildIndex, verify, fieldTypes).withQuery(new MatchAllDocsQuery()));
+        testCase(new AggTestConfig<>(builder, buildIndex, verify, fieldTypes).withQuery(new MatchAllDocsQuery()));
     }
 
     static class SimpleStatsAggregator {

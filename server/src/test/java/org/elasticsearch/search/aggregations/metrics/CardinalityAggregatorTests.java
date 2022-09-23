@@ -534,7 +534,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(cardinality, ((InternalAggregation) global).getProperty("cardinality"));
             assertEquals(numDocs, (double) ((InternalAggregation) global).getProperty("cardinality.value"), 0);
             assertEquals(numDocs, (double) ((InternalAggregation) cardinality).getProperty("value"), 0);
-        }, fieldType).withQuery(new MatchAllDocsQuery()));
+        }, fieldType));
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
@@ -561,7 +561,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .subAggregation(AggregationBuilders.cardinality("cardinality").field("number"));
 
         // ("even", "odd")
-        testCase(new AggTestConfig<InternalAggregation>(aggregationBuilder, iw -> {
+        testCase(new AggTestConfig<StringTerms>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(
@@ -571,9 +571,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                     )
                 );
             }
-        }, topLevelAgg -> {
+        }, terms -> {
             int expectedTermBucketsCount = 2; // ("even", "odd")
-            final Terms terms = (StringTerms) topLevelAgg;
             assertNotNull(terms);
             List<? extends Terms.Bucket> buckets = terms.getBuckets();
             assertNotNull(buckets);
@@ -590,7 +589,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 assertEquals("cardinality", cardinality.getName());
                 assertEquals(5, cardinality.getValue());
             }
-        }, mappedFieldTypes).withQuery(new MatchAllDocsQuery()));
+        }, mappedFieldTypes));
     }
 
     private void testAggregation(
@@ -610,10 +609,10 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         Consumer<InternalCardinality> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(new AggTestConfig<InternalCardinality>(aggregationBuilder, buildIndex, verify, fieldTypes).withQuery(query));
+        testCase(new AggTestConfig<>(aggregationBuilder, buildIndex, verify, fieldTypes).withQuery(query));
         for (CardinalityAggregatorFactory.ExecutionMode mode : CardinalityAggregatorFactory.ExecutionMode.values()) {
             aggregationBuilder.executionHint(mode.toString().toLowerCase(Locale.ROOT));
-            testCase(new AggTestConfig<InternalCardinality>(aggregationBuilder, buildIndex, verify, fieldTypes).withQuery(query));
+            testCase(new AggTestConfig<>(aggregationBuilder, buildIndex, verify, fieldTypes).withQuery(query));
         }
     }
 }

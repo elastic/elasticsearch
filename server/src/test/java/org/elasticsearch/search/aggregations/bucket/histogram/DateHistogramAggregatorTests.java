@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -83,7 +82,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     public void testBooleanFieldDeprecated() throws IOException {
         final String fieldName = "bogusBoolean";
         testCase(
-            new AggTestConfig<InternalAggregation>(
+            new AggTestConfig<>(
                 new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
                 iw -> {
                     Document d = new Document();

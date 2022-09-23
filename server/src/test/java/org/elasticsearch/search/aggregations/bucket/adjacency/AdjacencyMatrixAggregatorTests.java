@@ -9,12 +9,10 @@
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,7 +34,7 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
         AdjacencyMatrixAggregationBuilder tooBig = new AdjacencyMatrixAggregationBuilder("dummy", filters);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(new AggTestConfig<InternalAggregation>(tooBig, iw -> {}, r -> {}).withQuery(new MatchAllDocsQuery()))
+            () -> testCase(new AggTestConfig<>(tooBig, iw -> {}, r -> {}))
         );
         assertThat(
             ex.getMessage(),
@@ -48,10 +46,13 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
 
     public void testNoFilters() throws IOException {
         AdjacencyMatrixAggregationBuilder aggregationBuilder = new AdjacencyMatrixAggregationBuilder("dummy", Map.of());
-        testCase(new AggTestConfig<InternalAggregation>(aggregationBuilder, iw -> iw.addDocument(List.of()), r -> {
-            InternalAdjacencyMatrix result = (InternalAdjacencyMatrix) r;
-            assertThat(result.getBuckets(), equalTo(List.of()));
-        }).withQuery(new MatchAllDocsQuery()));
+        testCase(
+            new AggTestConfig<InternalAdjacencyMatrix>(
+                aggregationBuilder,
+                iw -> iw.addDocument(List.of()),
+                result -> assertThat(result.getBuckets(), equalTo(List.of()))
+            )
+        );
     }
 
     public void testAFewFilters() throws IOException {
@@ -59,8 +60,7 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
             "dummy",
             Map.of("a", new MatchAllQueryBuilder(), "b", new MatchAllQueryBuilder())
         );
-        testCase(new AggTestConfig<InternalAggregation>(aggregationBuilder, iw -> iw.addDocument(List.of()), r -> {
-            InternalAdjacencyMatrix result = (InternalAdjacencyMatrix) r;
+        testCase(new AggTestConfig<InternalAdjacencyMatrix>(aggregationBuilder, iw -> iw.addDocument(List.of()), result -> {
             assertThat(result.getBuckets(), hasSize(3));
             InternalAdjacencyMatrix.InternalBucket a = result.getBucketByKey("a");
             InternalAdjacencyMatrix.InternalBucket b = result.getBucketByKey("b");
@@ -68,6 +68,6 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
             assertThat(a.getDocCount(), equalTo(1L));
             assertThat(b.getDocCount(), equalTo(1L));
             assertThat(ab.getDocCount(), equalTo(1L));
-        }).withQuery(new MatchAllDocsQuery()));
+        }));
     }
 }

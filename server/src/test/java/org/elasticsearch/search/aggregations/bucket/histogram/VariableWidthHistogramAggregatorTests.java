@@ -498,10 +498,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         };
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(
-                new AggTestConfig<LongTerms>(builder, buildIndex, verify, new MappedFieldType[] { longField("t"), longField("v") })
-                    .withQuery(DEFAULT_QUERY)
-            )
+            () -> testCase(new AggTestConfig<LongTerms>(builder, buildIndex, verify, longField("t"), longField("v")))
         );
         assertThat(e.getMessage(), containsString("cannot be nested"));
     }

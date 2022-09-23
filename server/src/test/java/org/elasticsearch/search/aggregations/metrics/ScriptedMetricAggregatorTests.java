@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -22,7 +21,6 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -550,10 +548,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         testCase(
             new AggTestConfig<InternalScriptedMetric>(
                 aggregationBuilder,
-                iw -> { iw.addDocument(new Document()); },
-                (InternalScriptedMetric r) -> { assertEquals(1, r.aggregation()); },
-                new MappedFieldType[] {}
-            ).withQuery(new MatchAllDocsQuery())
+                iw -> iw.addDocument(new Document()),
+                r -> assertEquals(1, r.aggregation())
+            )
         );
     }
 
@@ -581,13 +578,6 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             ScriptedMetric oddMetric = odd.getAggregations().get("scripted");
             assertThat(oddMetric.aggregation(), equalTo(49));
         };
-        testCase(
-            new AggTestConfig<StringTerms>(
-                aggregationBuilder,
-                buildIndex,
-                verify,
-                new MappedFieldType[] { keywordField("t"), longField("number") }
-            ).withQuery(new MatchAllDocsQuery())
-        );
+        testCase(new AggTestConfig<>(aggregationBuilder, buildIndex, verify, keywordField("t"), longField("number")));
     }
 }

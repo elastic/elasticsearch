@@ -201,10 +201,10 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(KEYWORD_FIELD1, new BytesRef("item-7"))
                 )
             );
-        }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
+        }, results -> {
             assertNotNull(results);
             assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
-        }, new MappedFieldType[] { keywordType }).withQuery(query));
+        }, keywordType).withQuery(query));
     }
 
     public void testMixedSingleValues() throws IOException {
@@ -377,10 +377,10 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-2"))
                 )
             );
-        }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
+        }, results -> {
             assertNotNull(results);
             assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
-        }, new MappedFieldType[] { keywordType1, keywordType2, keywordType3, intType, floatType, ipType }).withQuery(query));
+        }, keywordType1, keywordType2, keywordType3, intType, floatType, ipType).withQuery(query));
 
     }
 
@@ -565,10 +565,10 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-02"))
                 )
             );
-        }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
+        }, results -> {
             assertNotNull(results);
             assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
-        }, new MappedFieldType[] { keywordType1, keywordType2, keywordType3, dateType, ipType }).withQuery(query));
+        }, keywordType1, keywordType2, keywordType3, dateType, ipType).withQuery(query));
 
     }
 

@@ -379,7 +379,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
         Consumer<Sum> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(new AggTestConfig<Sum>(aggregationBuilder, indexer, verify, fieldTypes).withQuery(query));
+        testCase(new AggTestConfig<>(aggregationBuilder, indexer, verify, fieldTypes).withQuery(query));
     }
 
     @Override

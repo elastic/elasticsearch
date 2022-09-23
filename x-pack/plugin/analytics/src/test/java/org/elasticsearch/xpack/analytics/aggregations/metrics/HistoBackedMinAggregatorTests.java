@@ -110,11 +110,7 @@ public class HistoBackedMinAggregatorTests extends AggregatorTestCase {
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Min> verify) throws IOException {
-        testCase(
-            new AggTestConfig<Min>(min("_name").field(FIELD_NAME), indexer, verify, new MappedFieldType[] { defaultFieldType() }).withQuery(
-                query
-            )
-        );
+        testCase(new AggTestConfig<>(min("_name").field(FIELD_NAME), indexer, verify, defaultFieldType()).withQuery(query));
     }
 
     @Override

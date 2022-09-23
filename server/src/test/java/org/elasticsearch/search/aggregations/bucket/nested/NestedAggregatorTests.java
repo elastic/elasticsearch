@@ -22,7 +22,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -815,8 +814,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     new TermsAggregationBuilder("resellers").field("reseller_id").size(numResellers)
                 )
             );
-        testCase(new AggTestConfig<InternalAggregation>(b, buildResellerData(numProducts, numResellers), result -> {
-            LongTerms products = (LongTerms) result;
+        testCase(new AggTestConfig<LongTerms>(b, buildResellerData(numProducts, numResellers), products -> {
             assertThat(
                 products.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
                 equalTo(LongStream.range(0, numProducts).mapToObj(Long::valueOf).collect(toList()))
@@ -832,7 +830,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     equalTo(LongStream.range(0, numResellers).mapToObj(Long::valueOf).collect(toList()))
                 );
             }
-        }, resellersMappedFields()).withQuery(new MatchAllDocsQuery()));
+        }, resellersMappedFields()));
     }
 
     public static CheckedConsumer<RandomIndexWriter, IOException> buildResellerData(int numProducts, int numResellers) {

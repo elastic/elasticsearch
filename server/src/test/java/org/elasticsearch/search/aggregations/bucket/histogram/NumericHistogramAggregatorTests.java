@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -441,13 +440,6 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 }
             }
         };
-        testCase(
-            new AggTestConfig<InternalHistogram>(
-                request,
-                buildIndex,
-                verify,
-                new MappedFieldType[] { longField("outer"), longField("inner"), longField("n") }
-            ).withQuery(new MatchAllDocsQuery())
-        );
+        testCase(new AggTestConfig<>(request, buildIndex, verify, longField("outer"), longField("inner"), longField("n")));
     }
 }

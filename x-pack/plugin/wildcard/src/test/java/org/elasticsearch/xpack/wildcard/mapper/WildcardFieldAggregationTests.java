@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.LuceneDocument;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -83,7 +81,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             indexStrings(iw, "b");
             indexStrings(iw, "b");
             indexStrings(iw, "c");
-        }, (StringTerms result) -> {
+        }, result -> {
             assertTrue(AggregationInspectionHelper.hasValue(result));
 
             assertEquals(3, result.getBuckets().size());
@@ -93,7 +91,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             assertEquals(3L, result.getBuckets().get(1).getDocCount());
             assertEquals("c", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, new MappedFieldType[] { wildcardFieldType }).withQuery(new MatchAllDocsQuery()));
+        }, wildcardFieldType));
     }
 
     public void testCompositeTermsAggregation() throws IOException {
@@ -108,7 +106,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             indexStrings(iw, "a");
             indexStrings(iw, "d");
             indexStrings(iw, "c");
-        }, (InternalComposite result) -> {
+        }, result -> {
             assertTrue(AggregationInspectionHelper.hasValue(result));
 
             assertEquals(3, result.getBuckets().size());
@@ -119,7 +117,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{terms_key=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, new MappedFieldType[] { wildcardFieldType }).withQuery(new MatchAllDocsQuery()));
+        }, wildcardFieldType));
     }
 
     public void testCompositeTermsSearchAfter() throws IOException {
@@ -134,13 +132,13 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             indexStrings(iw, "a");
             indexStrings(iw, "d");
             indexStrings(iw, "c");
-        }, (InternalComposite result) -> {
+        }, result -> {
             assertEquals(2, result.getBuckets().size());
             assertEquals("{terms_key=d}", result.afterKey().toString());
             assertEquals("{terms_key=c}", result.getBuckets().get(0).getKeyAsString());
             assertEquals(2L, result.getBuckets().get(0).getDocCount());
             assertEquals("{terms_key=d}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(1).getDocCount());
-        }, new MappedFieldType[] { wildcardFieldType }).withQuery(new MatchAllDocsQuery()));
+        }, wildcardFieldType));
     }
 }

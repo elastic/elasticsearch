@@ -737,7 +737,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
                 id++;
             }
-        }, (InternalComposite result) -> {
+        }, result -> {
             assertEquals(3, result.getBuckets().size());
             assertEquals("{keyword=d}", result.afterKey().toString());
             assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
@@ -746,7 +746,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, FIELD_TYPES).withQuery(new MatchAllDocsQuery()));
+        }, FIELD_TYPES));
     }
 
     /**
@@ -785,7 +785,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             sequenceIDFields.addFields(root);
             documents.add(root);
             iw.addDocuments(documents);
-        }, (InternalSingleBucketAggregation parent) -> {
+        }, parent -> {
             assertEquals(1, parent.getAggregations().asList().size());
             InternalComposite result = (InternalComposite) parent.getProperty("compositeAggName");
             assertEquals(3, result.getBuckets().size());
@@ -797,10 +797,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals("{keyword=Stationary}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
         },
-            new MappedFieldType[] {
-                new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
-                new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG) }
-        ).withQuery(new MatchAllDocsQuery()));
+            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+        ));
     }
 
     /**
@@ -842,7 +841,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             sequenceIDFields.addFields(root);
             documents.add(root);
             iw.addDocuments(documents);
-        }, (InternalSingleBucketAggregation parent) -> {
+        }, parent -> {
             assertEquals(1, parent.getAggregations().asList().size());
             InternalComposite result = (InternalComposite) parent.getProperty("compositeAggName");
             assertEquals(1, result.getBuckets().size());
@@ -850,10 +849,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals("{keyword=Stationary}", result.getBuckets().get(0).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(0).getDocCount());
         },
-            new MappedFieldType[] {
-                new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
-                new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG) }
-        ).withQuery(new MatchAllDocsQuery()));
+            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+        ));
     }
 
     public void testWithKeywordAndMissingBucket() throws Exception {

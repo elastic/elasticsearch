@@ -228,7 +228,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         Consumer<InternalMedianAbsoluteDeviation> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(new AggTestConfig<InternalMedianAbsoluteDeviation>(aggregationBuilder, indexer, verify, fieldTypes).withQuery(query));
+        testCase(new AggTestConfig<>(aggregationBuilder, indexer, verify, fieldTypes).withQuery(query));
     }
 
     public static class IsCloseToRelative extends TypeSafeMatcher<Double> {

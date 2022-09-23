@@ -14,13 +14,11 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -466,12 +464,14 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             }
         };
         testCase(
-            new AggTestConfig<InternalHistogram>(
+            new AggTestConfig<>(
                 request,
                 buildIndex,
                 verify,
-                new MappedFieldType[] { rangeField("outer", RangeType.LONG), rangeField("inner", RangeType.LONG), longField("n") }
-            ).withQuery(new MatchAllDocsQuery())
+                rangeField("outer", RangeType.LONG),
+                rangeField("inner", RangeType.LONG),
+                longField("n")
+            )
         );
     }
 }

@@ -134,11 +134,7 @@ public class AggregateMetricBackedValueCountAggregatorTests extends AggregatorTe
         throws IOException {
         MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
-        testCase(
-            new AggTestConfig<InternalValueCount>(aggregationBuilder, buildIndex, verify, new MappedFieldType[] { fieldType }).withQuery(
-                query
-            )
-        );
+        testCase(new AggTestConfig<>(aggregationBuilder, buildIndex, verify, fieldType).withQuery(query));
     }
 
     @Override

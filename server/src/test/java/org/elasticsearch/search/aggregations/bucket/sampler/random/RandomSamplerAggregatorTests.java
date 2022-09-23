@@ -11,12 +11,10 @@ package org.elasticsearch.search.aggregations.bucket.sampler.random;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -62,7 +60,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                     new RandomSamplerAggregationBuilder("my_agg").subAggregation(AggregationBuilders.avg("avg").field(NUMERIC_FIELD_NAME))
                         .setProbability(0.25),
                     RandomSamplerAggregatorTests::writeTestDocs,
-                    (InternalRandomSampler result) -> {
+                    result -> {
                         counts[integer.get()] = result.getDocCount();
                         if (result.getDocCount() > 0) {
                             Avg agg = result.getAggregations().get("avg");
@@ -70,8 +68,8 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                             avgs[integer.get()] = agg.getValue();
                         }
                     },
-                    new MappedFieldType[] { longField(NUMERIC_FIELD_NAME) }
-                ).withQuery(new MatchAllDocsQuery())
+                    longField(NUMERIC_FIELD_NAME)
+                )
             );
         } while (integer.incrementAndGet() < 5);
         long avgCount = LongStream.of(counts).sum() / integer.get();
@@ -94,7 +92,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                         )
                 ).setProbability(0.25),
                 RandomSamplerAggregatorTests::writeTestDocs,
-                (InternalRandomSampler result) -> {
+                result -> {
                     long sampledDocCount = result.getDocCount();
                     Filter agg = result.getAggregations().get("filter_outer");
                     long outerFilterDocCount = agg.getDocCount();
@@ -113,8 +111,9 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                         assertThat(outerFilterDocCount, greaterThan(sampledDocCount));
                     }
                 },
-                new MappedFieldType[] { longField(NUMERIC_FIELD_NAME), keywordField(KEYWORD_FIELD_NAME) }
-            ).withQuery(new MatchAllDocsQuery())
+                longField(NUMERIC_FIELD_NAME),
+                keywordField(KEYWORD_FIELD_NAME)
+            )
         );
     }
 
@@ -125,14 +124,14 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                     AggregationBuilders.max("max").field(RANDOM_NUMERIC_FIELD_NAME)
                 ).subAggregation(AggregationBuilders.min("min").field(RANDOM_NUMERIC_FIELD_NAME)).setProbability(0.25),
                 RandomSamplerAggregatorTests::writeTestDocsWithTrueMinMax,
-                (InternalRandomSampler result) -> {
+                result -> {
                     Min min = result.getAggregations().get("min");
                     Max max = result.getAggregations().get("max");
                     assertThat(min.value(), equalTo((double) TRUE_MIN));
                     assertThat(max.value(), equalTo((double) TRUE_MAX));
                 },
-                new MappedFieldType[] { longField(RANDOM_NUMERIC_FIELD_NAME) }
-            ).withQuery(new MatchAllDocsQuery())
+                longField(RANDOM_NUMERIC_FIELD_NAME)
+            )
         );
     }
 

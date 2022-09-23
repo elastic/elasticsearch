@@ -110,11 +110,7 @@ public class HistoBackedMaxAggregatorTests extends AggregatorTestCase {
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Max> verify) throws IOException {
-        testCase(
-            new AggTestConfig<Max>(max("_name").field(FIELD_NAME), indexer, verify, new MappedFieldType[] { defaultFieldType() }).withQuery(
-                query
-            )
-        );
+        testCase(new AggTestConfig<>(max("_name").field(FIELD_NAME), indexer, verify, defaultFieldType()).withQuery(query));
     }
 
     @Override

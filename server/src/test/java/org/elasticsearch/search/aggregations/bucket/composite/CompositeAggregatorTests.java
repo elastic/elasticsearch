@@ -728,7 +728,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 createDocument("keyword", "c")
             )
         );
-        testCase(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalComposite>(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), iw -> {
             Document document = new Document();
             int id = 0;
             for (Map<String, List<Object>> fields : dataset) {
@@ -746,7 +746,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, FIELD_TYPES);
+        }, FIELD_TYPES).withQuery(new MatchAllDocsQuery()));
     }
 
     /**
@@ -762,7 +762,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         NestedAggregationBuilder builder = new NestedAggregationBuilder("nestedAggName", nestedPath);
         builder.subAggregation(new CompositeAggregationBuilder("compositeAggName", Collections.singletonList(terms)));
         // Without after
-        testCase(builder, new MatchAllDocsQuery(), iw -> {
+        // Sub-Docs
+        // Root docs
+        testCase(new AggTestConfig<InternalSingleBucketAggregation>(builder, iw -> {
             // Sub-Docs
             List<Iterable<IndexableField>> documents = new ArrayList<>();
             documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price", 10L));
@@ -795,9 +797,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals("{keyword=Stationary}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
         },
-            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
-            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-        );
+            new MappedFieldType[] {
+                new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+                new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG) }
+        ).withQuery(new MatchAllDocsQuery()));
     }
 
     /**
@@ -816,7 +819,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 createAfterKey("keyword", "Pens and Stuff")
             )
         );
-        testCase(builder, new MatchAllDocsQuery(), iw -> {
+        // Sub-Docs
+        // Root docs
+        testCase(new AggTestConfig<InternalSingleBucketAggregation>(builder, iw -> {
             // Sub-Docs
             List<Iterable<IndexableField>> documents = new ArrayList<>();
             documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price", 10L));
@@ -845,9 +850,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals("{keyword=Stationary}", result.getBuckets().get(0).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(0).getDocCount());
         },
-            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
-            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-        );
+            new MappedFieldType[] {
+                new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+                new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG) }
+        ).withQuery(new MatchAllDocsQuery()));
     }
 
     public void testWithKeywordAndMissingBucket() throws Exception {

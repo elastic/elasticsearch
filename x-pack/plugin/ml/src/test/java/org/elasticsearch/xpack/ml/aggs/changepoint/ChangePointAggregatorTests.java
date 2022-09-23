@@ -16,6 +16,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -208,10 +209,10 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                     .subAggregation(AggregationBuilders.max("max").field(NUMERIC_FIELD_NAME))
             )
             .subAggregation(new ChangePointAggregationBuilder("changes", "time>max"));
-        testCase(dummy, new MatchAllDocsQuery(), w -> writeTestDocs(w, bucketValues), (InternalFilter result) -> {
+        testCase(new AggTestConfig<InternalFilter>(dummy, w -> writeTestDocs(w, bucketValues), (InternalFilter result) -> {
             InternalChangePointAggregation agg = result.getAggregations().get("changes");
             changeTypeAssertions.accept(agg.getChangeType());
-        }, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME));
+        }, new MappedFieldType[] { longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME) }).withQuery(new MatchAllDocsQuery()));
     }
 
     private static void writeTestDocs(RandomIndexWriter w, double[] bucketValues) throws IOException {

@@ -815,7 +815,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     new TermsAggregationBuilder("resellers").field("reseller_id").size(numResellers)
                 )
             );
-        testCase(b, new MatchAllDocsQuery(), buildResellerData(numProducts, numResellers), result -> {
+        testCase(new AggTestConfig<InternalAggregation>(b, buildResellerData(numProducts, numResellers), result -> {
             LongTerms products = (LongTerms) result;
             assertThat(
                 products.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
@@ -832,7 +832,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     equalTo(LongStream.range(0, numResellers).mapToObj(Long::valueOf).collect(toList()))
                 );
             }
-        }, resellersMappedFields());
+        }, resellersMappedFields()).withQuery(new MatchAllDocsQuery()));
     }
 
     public static CheckedConsumer<RandomIndexWriter, IOException> buildResellerData(int numProducts, int numResellers) {

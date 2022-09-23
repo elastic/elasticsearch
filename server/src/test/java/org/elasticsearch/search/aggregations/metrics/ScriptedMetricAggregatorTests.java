@@ -22,6 +22,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -547,10 +548,12 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             .combineScript(COMBINE_SCRIPT)
             .reduceScript(REDUCE_SCRIPT);
         testCase(
-            aggregationBuilder,
-            new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(new Document()); },
-            (InternalScriptedMetric r) -> { assertEquals(1, r.aggregation()); }
+            new AggTestConfig<InternalScriptedMetric>(
+                aggregationBuilder,
+                iw -> { iw.addDocument(new Document()); },
+                (InternalScriptedMetric r) -> { assertEquals(1, r.aggregation()); },
+                new MappedFieldType[] {}
+            ).withQuery(new MatchAllDocsQuery())
         );
     }
 
@@ -578,6 +581,13 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             ScriptedMetric oddMetric = odd.getAggregations().get("scripted");
             assertThat(oddMetric.aggregation(), equalTo(49));
         };
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, verify, keywordField("t"), longField("number"));
+        testCase(
+            new AggTestConfig<StringTerms>(
+                aggregationBuilder,
+                buildIndex,
+                verify,
+                new MappedFieldType[] { keywordField("t"), longField("number") }
+            ).withQuery(new MatchAllDocsQuery())
+        );
     }
 }

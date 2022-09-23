@@ -135,7 +135,9 @@ public class AggregateMetricBackedAvgAggregatorTests extends AggregatorTestCase 
         throws IOException {
         MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        testCase(
+            new AggTestConfig<InternalAvg>(aggregationBuilder, buildIndex, verify, new MappedFieldType[] { fieldType }).withQuery(query)
+        );
     }
 
     @Override

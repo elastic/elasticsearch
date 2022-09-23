@@ -634,7 +634,14 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 builder.size(randomIntBetween(10, 200));
             }
         }
-        testCase(builder, query, buildIndex, verify, dateType, intType, floatType, keywordType);
+        testCase(
+            new AggTestConfig<InternalMultiTerms>(
+                builder,
+                buildIndex,
+                verify,
+                new MappedFieldType[] { dateType, intType, floatType, keywordType }
+            ).withQuery(query)
+        );
     }
 
     @Override

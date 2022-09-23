@@ -608,16 +608,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
 
-    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
-        T builder,
-        Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<V> verify,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        testCase(new AggTestConfig<V>(builder, buildIndex, verify, fieldTypes).withQuery(query));
-    }
-
     protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(AggTestConfig<V> aggTestConfig)
         throws IOException {
         boolean timeSeries = aggTestConfig.builder().isInSortOrderExecutionRequired();

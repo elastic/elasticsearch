@@ -266,7 +266,11 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         ExtendedStatsAggregationBuilder aggBuilder = new ExtendedStatsAggregationBuilder("my_agg").field("field")
             .sigma(randomDoubleBetween(0, 10, true));
 
-        testCase(aggBuilder, new MatchAllDocsQuery(), buildIndex, verify, ft);
+        testCase(
+            new AggTestConfig<InternalExtendedStats>(aggBuilder, buildIndex, verify, new MappedFieldType[] { ft }).withQuery(
+                new MatchAllDocsQuery()
+            )
+        );
     }
 
     static class ExtendedSimpleStatsAggregator extends StatsAggregatorTests.SimpleStatsAggregator {

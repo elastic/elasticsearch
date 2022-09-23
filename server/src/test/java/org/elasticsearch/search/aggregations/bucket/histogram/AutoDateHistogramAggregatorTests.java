@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -409,19 +410,19 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
         final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
-        testCase(aggregation, DEFAULT_QUERY, iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
+        testCase(new AggTestConfig<InternalAutoDateHistogram>(aggregation, iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
             assertEquals(0, histogram.getBuckets().size());
             assertFalse(AggregationInspectionHelper.hasValue(histogram));
-        }, fieldType);
+        }, new MappedFieldType[] { fieldType }).withQuery(DEFAULT_QUERY));
     }
 
     public void testBooleanFieldDeprecated() throws IOException {
         final String fieldName = "bogusBoolean";
-        testCase(new AutoDateHistogramAggregationBuilder("name").field(fieldName), new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAggregation>(new AutoDateHistogramAggregationBuilder("name").field(fieldName), iw -> {
             Document d = new Document();
             d.add(new SortedNumericDocValuesField(fieldName, 0));
             iw.addDocument(d);
-        }, a -> {}, new BooleanFieldMapper.BooleanFieldType(fieldName));
+        }, a -> {}, new BooleanFieldMapper.BooleanFieldType(fieldName)).withQuery(new MatchAllDocsQuery()));
         assertWarnings("Running AutoIntervalDateHistogram aggregations on [boolean] fields is deprecated");
     }
 
@@ -432,10 +433,10 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
         final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
-        testCase(aggregation, DEFAULT_QUERY, iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
+        testCase(new AggTestConfig<InternalAutoDateHistogram>(aggregation, iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
             assertEquals(0, histogram.getBuckets().size());
             assertFalse(AggregationInspectionHelper.hasValue(histogram));
-        }, fieldType);
+        }, new MappedFieldType[] { fieldType }).withQuery(DEFAULT_QUERY));
     }
 
     public void testIntervalYear() throws IOException {

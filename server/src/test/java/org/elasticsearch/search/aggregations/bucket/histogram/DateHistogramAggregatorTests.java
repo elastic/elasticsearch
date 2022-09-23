@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -82,15 +83,16 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     public void testBooleanFieldDeprecated() throws IOException {
         final String fieldName = "bogusBoolean";
         testCase(
-            new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
-            new MatchAllDocsQuery(),
-            iw -> {
-                Document d = new Document();
-                d.add(new SortedNumericDocValuesField(fieldName, 0));
-                iw.addDocument(d);
-            },
-            a -> {},
-            new BooleanFieldMapper.BooleanFieldType(fieldName)
+            new AggTestConfig<InternalAggregation>(
+                new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
+                iw -> {
+                    Document d = new Document();
+                    d.add(new SortedNumericDocValuesField(fieldName, 0));
+                    iw.addDocument(d);
+                },
+                a -> {},
+                new BooleanFieldMapper.BooleanFieldType(fieldName)
+            ).withQuery(new MatchAllDocsQuery())
         );
         assertWarnings("Running DateHistogram aggregations on [boolean] fields is deprecated");
     }

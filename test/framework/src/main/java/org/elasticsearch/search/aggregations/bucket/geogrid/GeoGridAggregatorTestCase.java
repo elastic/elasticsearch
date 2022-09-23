@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -214,7 +215,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             gridBuilder.setGeoBoundingBox(bbox);
         }
         aggregationBuilder.subAggregation(gridBuilder);
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAggregation>(aggregationBuilder, iw -> {
             List<IndexableField> fields = new ArrayList<>();
             Set<String> distinctHashesPerDoc = new HashSet<>();
             String t = randomAlphaOfLength(1);
@@ -254,7 +255,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 actual.put(tb.getKeyAsString(), sub);
             }
             assertThat(actual, equalTo(expectedCountPerTPerGeoHash));
-        }, keywordField("t"), geoPointField(FIELD_NAME));
+        }, keywordField("t"), geoPointField(FIELD_NAME)).withQuery(new MatchAllDocsQuery()));
     }
 
     private double[] randomLatLng() {

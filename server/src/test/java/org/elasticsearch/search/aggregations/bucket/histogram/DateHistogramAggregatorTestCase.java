@@ -18,6 +18,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -104,7 +105,10 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         KeywordFieldMapper.KeywordFieldType k2ft = new KeywordFieldMapper.KeywordFieldType("k2");
         NumberFieldMapper.NumberFieldType nft = new NumberFieldMapper.NumberFieldType("n", NumberType.LONG);
         DateFieldMapper.DateFieldType dft = aggregableDateFieldType(false, randomBoolean());
-        testCase(builder, new MatchAllDocsQuery(), iw -> buildIndex.accept(iw, dft), verify, k1ft, k2ft, nft, dft);
+        testCase(
+            new AggTestConfig<R>(builder, iw -> buildIndex.accept(iw, dft), verify, new MappedFieldType[] { k1ft, k2ft, nft, dft })
+                .withQuery(new MatchAllDocsQuery())
+        );
     }
 
     protected final DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {

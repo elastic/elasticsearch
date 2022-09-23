@@ -20,6 +20,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -465,13 +466,12 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             }
         };
         testCase(
-            request,
-            new MatchAllDocsQuery(),
-            buildIndex,
-            verify,
-            rangeField("outer", RangeType.LONG),
-            rangeField("inner", RangeType.LONG),
-            longField("n")
+            new AggTestConfig<InternalHistogram>(
+                request,
+                buildIndex,
+                verify,
+                new MappedFieldType[] { rangeField("outer", RangeType.LONG), rangeField("inner", RangeType.LONG), longField("n") }
+            ).withQuery(new MatchAllDocsQuery())
         );
     }
 }

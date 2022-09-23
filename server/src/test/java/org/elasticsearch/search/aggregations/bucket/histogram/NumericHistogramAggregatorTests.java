@@ -441,6 +441,13 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 }
             }
         };
-        testCase(request, new MatchAllDocsQuery(), buildIndex, verify, longField("outer"), longField("inner"), longField("n"));
+        testCase(
+            new AggTestConfig<InternalHistogram>(
+                request,
+                buildIndex,
+                verify,
+                new MappedFieldType[] { longField("outer"), longField("inner"), longField("n") }
+            ).withQuery(new MatchAllDocsQuery())
+        );
     }
 }

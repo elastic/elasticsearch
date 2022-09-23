@@ -1300,11 +1300,11 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                 }
             }
 
-            for (ShardRouting shardsWithRelocationFailure : shardsWithRelocationFailures) {
-                routingNode.update(
-                    shardsWithRelocationFailure,
-                    shardsWithRelocationFailure.updateRelocationFailure(new RelocationFailureInfo(0))
-                );
+            for (ShardRouting original : shardsWithRelocationFailures) {
+                ShardRouting updated = original.updateRelocationFailure(new RelocationFailureInfo(0));
+                routingNode.update(original, updated);
+                assignedShardsRemove(original);
+                assignedShardsAdd(updated);
             }
         }
     }

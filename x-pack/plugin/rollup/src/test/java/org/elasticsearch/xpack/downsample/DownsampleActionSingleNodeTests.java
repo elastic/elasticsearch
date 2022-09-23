@@ -528,7 +528,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             try {
                 assertEquals(client().admin().indices().prepareGetIndex().addIndices(rollupIndex).get().getIndices().length, 1);
             } catch (IndexNotFoundException e) {
-                fail("rollup index has not created");
+                fail("rollup index has not been created");
             }
         });
         ResourceAlreadyExistsException exception = expectThrows(

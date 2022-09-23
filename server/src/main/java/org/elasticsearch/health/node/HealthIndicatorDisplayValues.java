@@ -18,7 +18,7 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.joining;
 
-public class HealthIndicatorDisplayStringGetter {
+public class HealthIndicatorDisplayValues {
 
     public static String getNodeName(DiscoveryNode node) {
         if (node.getName() != null) {
@@ -30,7 +30,7 @@ public class HealthIndicatorDisplayStringGetter {
     public static String getTruncatedIndices(Set<String> indices, Metadata clusterMetadata) {
         final int maxIndices = 10;
         String truncatedIndicesString = indices.stream()
-            .sorted(byPriorityThenByName(clusterMetadata))
+            .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
             .limit(maxIndices)
             .collect(joining(", "));
         if (maxIndices < indices.size()) {
@@ -45,7 +45,7 @@ public class HealthIndicatorDisplayStringGetter {
      * @param clusterMetadata Used to look up index priority.
      * @return Comparator instance
      */
-    public static Comparator<String> byPriorityThenByName(Metadata clusterMetadata) {
+    public static Comparator<String> indicesComparatorByPriorityAndName(Metadata clusterMetadata) {
         // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
         return Comparator.comparingInt((String indexName) -> {
             IndexMetadata indexMetadata = clusterMetadata.index(indexName);

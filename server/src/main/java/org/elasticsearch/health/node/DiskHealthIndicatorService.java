@@ -37,7 +37,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.health.node.HealthIndicatorDisplayStringGetter.getTruncatedIndices;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
 
 public class DiskHealthIndicatorService implements HealthIndicatorService {
     public static final String NAME = "disk";
@@ -179,8 +179,9 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             if (unhealthyDataNodes.isEmpty()) {
                 // In this case the disk issue has been resolved but the index block has not been removed yet or the
                 // cluster is still moving shards away from data nodes that are over the high watermark.
-                symptom += ("the cluster was running out of disk space. The cluster is recovering and ingest capabilities should be restored "
-                    + "within a few minutes.");
+                symptom +=
+                    ("the cluster was running out of disk space. The cluster is recovering and ingest capabilities should be restored "
+                        + "within a few minutes.");
             } else {
                 symptom += String.format(
                     Locale.ROOT,
@@ -191,28 +192,32 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             }
             if (unhealthyDataNodes.size() < allUnhealthyNodes.size()) {
                 Set<String> unhealthyNonDataNodes = Sets.difference(allUnhealthyNodes, unhealthyDataNodes);
-                Set<String> roles = getRolesOnNodes(unhealthyNonDataNodes, clusterState).stream()
+                String roles = getRolesOnNodes(unhealthyNonDataNodes, clusterState).stream()
                     .map(DiscoveryNodeRole::roleName)
-                    .collect(Collectors.toSet());
+                    .distinct()
+                    .sorted()
+                    .collect(Collectors.joining(", "));
                 symptom += String.format(
                     Locale.ROOT,
                     " Furthermore %d node%s with roles: [%s] %s out of disk or running low on disk space.",
                     unhealthyNonDataNodes.size(),
                     unhealthyNonDataNodes.size() == 1 ? "" : "s",
-                    roles.stream().sorted().collect(Collectors.joining(", ")),
+                    roles,
                     unhealthyNonDataNodes.size() == 1 ? "is" : "are"
                 );
             }
         } else {
-            Set<String> roles = getRolesOnNodes(allUnhealthyNodes, clusterState).stream()
+            String roles = getRolesOnNodes(allUnhealthyNodes, clusterState).stream()
                 .map(DiscoveryNodeRole::roleName)
-                .collect(Collectors.toSet());
+                .distinct()
+                .sorted()
+                .collect(Collectors.joining(", "));
             symptom = String.format(
                 Locale.ROOT,
                 "%d node%s with roles: [%s] %s out of disk or running low on disk space.",
                 allUnhealthyNodes.size(),
                 allUnhealthyNodes.size() == 1 ? "" : "s",
-                roles.stream().sorted().collect(Collectors.joining(", ")),
+                roles,
                 allUnhealthyNodes.size() == 1 ? "is" : "are"
             );
         }
@@ -269,21 +274,19 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 )
             );
         }
-        Set<String> unhealthyNonMasterNonDataRoles = unhealthyRoles.stream()
+        String unhealthyNonMasterNonDataRoles = unhealthyRoles.stream()
             .filter(role -> role.canContainData() == false && role.equals(DiscoveryNodeRole.MASTER_ROLE) == false)
             .map(DiscoveryNodeRole::roleName)
-            .collect(Collectors.toSet());
-        if (unhealthyNonMasterNonDataRoles.isEmpty() == false) {
+            .distinct()
+            .sorted()
+            .collect(Collectors.joining(", "));
+        if (unhealthyNonMasterNonDataRoles.isBlank() == false) {
             impacts.add(
                 new HealthIndicatorImpact(
                     NAME,
                     IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID,
                     2,
-                    String.format(
-                        Locale.ROOT,
-                        "The [%s] functionality might be impaired.",
-                        unhealthyNonMasterNonDataRoles.stream().sorted().collect(Collectors.joining(", "))
-                    ),
+                    String.format(Locale.ROOT, "The [%s] functionality might be impaired.", unhealthyNonMasterNonDataRoles),
                     List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                 )
             );
@@ -459,7 +462,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             if (nodeIdsInHealthInfo.containsAll(nodeIdsInClusterState) == false) {
                 String nodesWithMissingData = nodesInClusterState.stream()
                     .filter(node -> nodeIdsInHealthInfo.contains(node.getId()) == false)
-                    .map(HealthIndicatorDisplayStringGetter::getNodeName)
+                    .map(HealthIndicatorDisplayValues::getNodeName)
                     .collect(Collectors.joining(", "));
                 logger.debug("The following nodes are in the cluster state but not reporting health data: [{}]", nodesWithMissingData);
             }

@@ -71,8 +71,8 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAl
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.node.HealthIndicatorDisplayStringGetter.byPriorityThenByName;
-import static org.elasticsearch.health.node.HealthIndicatorDisplayStringGetter.getTruncatedIndices;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indicesComparatorByPriorityAndName;
 
 /**
  * This indicator reports health for shards.
@@ -913,7 +913,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         .map(
                             e -> new Diagnosis(
                                 e.getKey(),
-                                e.getValue().stream().sorted(byPriorityThenByName(clusterMetadata)).collect(Collectors.toList())
+                                e.getValue()
+                                    .stream()
+                                    .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
+                                    .collect(Collectors.toList())
                             )
                         )
                         .collect(Collectors.toList());

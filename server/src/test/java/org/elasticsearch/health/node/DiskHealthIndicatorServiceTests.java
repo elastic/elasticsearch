@@ -264,7 +264,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 result.symptom(),
                 equalTo(
                     "1 index is not allowed to be updated because the cluster was running out of "
-                        + "disk space. The cluster is recovering and you should be able to update them within a few minutes."
+                        + "disk space. The cluster is recovering and ingest capabilities should be restored within a few minutes."
                 )
             );
         }

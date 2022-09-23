@@ -69,8 +69,10 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (getDfsPhase() != null) {
-            builder.field("dfs");
+            builder.startObject("dfs");
+            builder.field("query"); // add query to allow expansion of profiling dfs stats later
             getDfsPhase().toXContent(builder, params);
+            builder.endObject();
         }
         builder.startArray("searches");
         for (QueryProfileShardResult result : queryPhase.getQueryProfileResults()) {

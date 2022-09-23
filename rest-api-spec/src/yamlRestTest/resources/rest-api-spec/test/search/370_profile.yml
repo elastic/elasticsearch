@@ -176,8 +176,6 @@ dfs knn vector profiling:
             index.number_of_shards: 1
           mappings:
             properties:
-              keyword:
-                type: "keyword"
               image:
                 type: "dense_vector"
                 dims: 3
@@ -190,7 +188,6 @@ dfs knn vector profiling:
         id: "1"
         refresh: true
         body:
-          keyword: "a"
           image: [1, 5, -20]
 
   - do:
@@ -205,17 +202,41 @@ dfs knn vector profiling:
             num_candidates: 100
 
   - match: { hits.total.value: 1 }
-  - match: { profile.shards.0.dfs.type: KnnVectorQuery }
-  - gt: { profile.shards.0.dfs.time_in_nanos: 0 }
-  - match: { profile.shards.0.dfs.breakdown.rewrite_count: 1 }
-  - gt: { profile.shards.0.dfs.breakdown.rewrite: 0 }
-  - gt: { profile.shards.0.dfs.breakdown.collector: 0 }
-  - match: { profile.shards.0.dfs.breakdown.create_weight_count: 1 }
-  - gt: { profile.shards.0.dfs.breakdown.create_weight: 0 }
+  - match: { profile.shards.0.dfs.query.type: KnnVectorQuery }
+  - gt: { profile.shards.0.dfs.query.time_in_nanos: 0 }
+  - match: { profile.shards.0.dfs.query.breakdown.rewrite_count: 1 }
+  - gt: { profile.shards.0.dfs.query.breakdown.rewrite: 0 }
+  - gt: { profile.shards.0.dfs.query.breakdown.collector: 0 }
+  - match: { profile.shards.0.dfs.query.breakdown.create_weight_count: 1 }
+  - gt: { profile.shards.0.dfs.query.breakdown.create_weight: 0 }
+
+---
+dfs without knn search profiling:
+  - skip:
+      version: ' - 8.5.99'
+      reason: dfs profiling implemented in 8.6.0
+
+  - do:
+      indices.create:
+        index: keywords
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: "keyword"
+  - do:
+      index:
+        index: keywords
+        id: "1"
+        refresh: true
+        body:
+          keyword: "a"
 
   - do:
       search:
-        index: images
+        index: keywords
         search_type: dfs_query_then_fetch
         body:
           profile: true
@@ -228,7 +249,7 @@ dfs knn vector profiling:
 
   - do:
       search:
-        index: images
+        index: keywords
         search_type: query_then_fetch
         body:
           profile: true

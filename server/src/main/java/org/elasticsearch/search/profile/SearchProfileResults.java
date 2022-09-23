@@ -156,9 +156,14 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("dfs".equals(currentFieldName)) {
+                    parser.nextToken(); // skip start object
+                    parser.nextToken(); // skip "query" field
                     dfsResult = ProfileResult.fromXContent(parser);
+                    parser.nextToken(); // skip closing object
                 } else if ("fetch".equals(currentFieldName)) {
                     fetchResult = ProfileResult.fromXContent(parser);
+                } else {
+                    parser.skipChildren();
                 }
             } else {
                 parser.skipChildren();

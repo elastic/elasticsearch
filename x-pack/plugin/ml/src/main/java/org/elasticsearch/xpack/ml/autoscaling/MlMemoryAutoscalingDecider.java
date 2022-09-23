@@ -347,7 +347,9 @@ class MlMemoryAutoscalingDecider {
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = getAnomalyMemoryRequirement(t);
-                    logger.warn("unexpected null for anomaly detection memory requirement for [{}]", MlTasks.jobId(t.getId()));
+                    if (mem == null) {
+                        logger.warn("unexpected null for anomaly detection memory requirement for [{}]", MlTasks.jobId(t.getId()));
+                    }
                     assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
                     return mem;
                 })
@@ -358,7 +360,9 @@ class MlMemoryAutoscalingDecider {
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = getAnomalyMemoryRequirement(t);
-                    logger.warn("unexpected null for snapshot upgrade memory requirement for [{}]", MlTasks.jobId(t.getId()));
+                    if (mem == null) {
+                        logger.warn("unexpected null for snapshot upgrade memory requirement for [{}]", MlTasks.jobId(t.getId()));
+                    }
                     assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
                     return mem;
                 })
@@ -372,7 +376,9 @@ class MlMemoryAutoscalingDecider {
                 // Memory SHOULD be recently refreshed, so in our current state, we should at least have an idea of the memory used
                 .mapToLong(t -> {
                     Long mem = this.getAnalyticsMemoryRequirement(t);
-                    logger.warn("unexpected null for analytics memory requirement for [{}]", MlTasks.dataFrameAnalyticsId(t.getId()));
+                    if (mem == null) {
+                        logger.warn("unexpected null for analytics memory requirement for [{}]", MlTasks.dataFrameAnalyticsId(t.getId()));
+                    }
                     assert mem != null : "unexpected null for analytics memory requirement after recent stale check";
                     return mem;
                 })

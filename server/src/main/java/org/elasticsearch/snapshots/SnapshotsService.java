@@ -3110,7 +3110,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * Package private to allow for tests.
      */
-    static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR =
+    static final ClusterStateTaskExecutor<SnapshotClusterStateUpdateTask> SHARD_STATE_EXECUTOR =
         batchExecutionContext -> new SnapshotShardsUpdateContext(batchExecutionContext).computeUpdatedState();
 
     private static boolean isQueued(@Nullable ShardSnapshotStatus status) {
@@ -3130,7 +3130,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         private int startedCount = 0;
 
         // batch execution context
-        private final ClusterStateTaskExecutor.BatchExecutionContext<ShardSnapshotUpdate> batchExecutionContext;
+        private final ClusterStateTaskExecutor.BatchExecutionContext<SnapshotClusterStateUpdateTask> batchExecutionContext;
 
         // initial cluster state for update computation
         private final ClusterState initialState;
@@ -3141,13 +3141,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // updates that were used to update an existing in-progress shard snapshot
         private final Set<ShardSnapshotUpdate> executedUpdates = new HashSet<>();
 
-        SnapshotShardsUpdateContext(ClusterStateTaskExecutor.BatchExecutionContext<ShardSnapshotUpdate> batchExecutionContext) {
+        SnapshotShardsUpdateContext(ClusterStateTaskExecutor.BatchExecutionContext<SnapshotClusterStateUpdateTask> batchExecutionContext) {
             this.batchExecutionContext = batchExecutionContext;
             this.initialState = batchExecutionContext.initialState();
             this.updatesByRepo = new HashMap<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
-                updatesByRepo.computeIfAbsent(taskContext.getTask().snapshot.getRepository(), r -> new ArrayList<>())
-                    .add(taskContext.getTask());
+                if (taskContext.getTask()instanceof ShardSnapshotUpdate shardSnapshotUpdate) {
+                    updatesByRepo.computeIfAbsent(shardSnapshotUpdate.snapshot.getRepository(), r -> new ArrayList<>())
+                        .add(shardSnapshotUpdate);
+                }
             }
         }
 
@@ -3167,7 +3169,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 updated = updated.withUpdatedEntriesForRepo(repoName, newEntries);
             }
 
-            final var result = new ShardSnapshotUpdateResult(initialState.metadata(), updated);
+            final var result = new SnapshotUpdateResult(initialState.metadata(), updated);
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 taskContext.success(() -> taskContext.getTask().listener.onResponse(result));
             }
@@ -3406,15 +3408,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * The result of a {@link ShardSnapshotUpdate}, capturing the info needed to finalize the relevant snapshot if appropriate.
+     * The result of a {@link ShardSnapshotUpdate} or other snapshot cluster state update, capturing the info needed to finalize the
+     * relevant snapshot if appropriate.
      */
-    record ShardSnapshotUpdateResult(Metadata metadata, SnapshotsInProgress snapshotsInProgress) {}
+    record SnapshotUpdateResult(Metadata metadata, SnapshotsInProgress snapshotsInProgress) {}
 
-    private abstract static class SnapshotClusterStateUpdateTask<T> implements ClusterStateTaskListener {
+    private abstract static class SnapshotClusterStateUpdateTask implements ClusterStateTaskListener {
 
-        protected final ActionListener<T> listener;
+        protected final ActionListener<SnapshotUpdateResult> listener;
 
-        SnapshotClusterStateUpdateTask(ActionListener<T> listener) {
+        SnapshotClusterStateUpdateTask(ActionListener<SnapshotUpdateResult> listener) {
             this.listener = listener;
         }
 
@@ -3425,20 +3428,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * Package private for testing
      */
-    static final class ShardSnapshotUpdate extends SnapshotClusterStateUpdateTask<ShardSnapshotUpdateResult> {
+    static final class ShardSnapshotUpdate extends SnapshotClusterStateUpdateTask {
 
         private final Snapshot snapshot;
         private final ShardId shardId;
         private final RepositoryShardId repoShardId;
         private final ShardSnapshotStatus updatedState;
 
-
         ShardSnapshotUpdate(
             Snapshot snapshot,
             ShardId shardId,
             RepositoryShardId repoShardId,
             ShardSnapshotStatus updatedState,
-            ActionListener<ShardSnapshotUpdateResult> listener
+            ActionListener<SnapshotUpdateResult> listener
         ) {
             super((listener));
             assert shardId != null ^ repoShardId != null;

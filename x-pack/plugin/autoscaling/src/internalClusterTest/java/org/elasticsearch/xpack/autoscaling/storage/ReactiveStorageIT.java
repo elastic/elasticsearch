@@ -113,8 +113,11 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             .get("reactive_storage")
             .reason();
         assertEquals(reactiveReason.assignedShardIds(), reactiveReason.assignedNodeDecisions().keySet());
-        NodeDecision nodeAllocationResult = reactiveReason.assignedNodeDecisions().values().iterator().next().canRemainDecisions().get(0);
-        Decision decision = nodeAllocationResult.decision()
+        NodeDecision canRemainNodeDecision = reactiveReason.assignedNodeDecisions()
+            .get(reactiveReason.assignedShardIds().first())
+            .canRemainDecisions()
+            .get(0);
+        Decision decision = canRemainNodeDecision.decision()
             .getDecisions()
             .stream()
             .filter(d -> d.type() == Decision.Type.NO)

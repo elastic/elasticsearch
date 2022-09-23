@@ -60,24 +60,29 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     private static final Map<String, Set<String>> platformModulesToServices;
 
     static {
+        Set<String> unqualifiedExports = ModuleLayer.boot()
+            .modules()
+            .stream()
+            .flatMap(module -> module.getDescriptor().exports().stream())
+            .filter(Predicate.not(ModuleDescriptor.Exports::isQualified))
+            .map(ModuleDescriptor.Exports::source)
+            .collect(Collectors.toSet());
         platformModulesToServices = ModuleLayer.boot()
             .modules()
             .stream()
             .map(Module::getDescriptor)
             .filter(ModuleSupport::isJavaPlatformModule)
             .filter(ModuleSupport::hasAtLeastOneUnqualifiedExport)
-            .collect(Collectors.toMap(ModuleDescriptor::name, md -> {
-                Set<String> unqualifiedExports = md.exports()
-                    .stream()
-                    .filter(Predicate.not(ModuleDescriptor.Exports::isQualified))
-                    .map(ModuleDescriptor.Exports::source)
-                    .collect(Collectors.toSet());
-                return md.provides()
-                    .stream()
-                    .map(ModuleDescriptor.Provides::service)
-                    .filter(name -> unqualifiedExports.contains(packageName(name)))
-                    .collect(Collectors.toSet());
-            }));
+            .collect(
+                Collectors.toMap(
+                    ModuleDescriptor::name,
+                    md -> md.provides()
+                        .stream()
+                        .map(ModuleDescriptor.Provides::service)
+                        .filter(name -> unqualifiedExports.contains(packageName(name)))
+                        .collect(Collectors.toSet())
+                )
+            );
     }
 
     static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls) {

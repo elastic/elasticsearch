@@ -86,7 +86,7 @@ down, or cluster is unavailable, no action needed).
 . On the Elasticsearch side, convert the follower indices in the `prod2`
 into regular indices so that it will be capable of accepting writes.
 +
-[source,console-result]
+[source,console]
 ----
 ### On prod2 cluster ###
 POST /my_index/_ccr/pause_follow
@@ -98,7 +98,7 @@ POST /my_index/_open
 . On the Client side, manually re-enable ingestion of `my_index` and
 direct to the `prod2` cluster. (You can test that the index should be writable:
 +
-[source,console-result]
+[source,console]
 ----
 ### On prod2 cluster ###
 POST my_index/_doc/2
@@ -122,7 +122,7 @@ most up-to-date data is available on `prod2` prior to deleting the index on
 . Create follower indices in `prod1`, to follow the leader index in
 `prod2`.  
 +
-[source,console-result]
+[source,console]
 ----
 ### On prod1 cluster ###
 DELETE my_index

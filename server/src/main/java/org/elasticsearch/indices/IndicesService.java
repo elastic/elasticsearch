@@ -802,6 +802,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * This method verifies that the given {@code metadata} holds sane values to create an {@link IndexService}.
      * This method tries to update the meta data of the created {@link IndexService} if the given {@code metadataUpdate}
      * is different from the given {@code metadata}.
+     * The update must not change the mapping version.
      * This method will throw an exception if the creation or the update fails.
      * The created {@link IndexService} will not be registered and will be closed immediately.
      */
@@ -822,9 +823,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 emptyList()
             );
             closeables.add(() -> service.close("metadata verification", false));
-            if (metadata.getMappingVersion() != metadataUpdate.getMappingVersion()) {
-                service.mapperService().merge(metadata, MapperService.MergeReason.MAPPING_RECOVERY);
-            }
+            assert metadata.getMappingVersion() == metadataUpdate.getMappingVersion();
             if (metadata.equals(metadataUpdate) == false) {
                 service.updateMetadata(metadata, metadataUpdate);
             }

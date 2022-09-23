@@ -351,7 +351,7 @@ class MlMemoryAutoscalingDecider {
                         logger.warn("unexpected null for anomaly detection memory requirement for [{}]", MlTasks.jobId(t.getId()));
                     }
                     assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                    return mem;
+                    return mem == null ? 0 : mem;
                 })
                 .max()
                 .orElse(0L),
@@ -364,7 +364,7 @@ class MlMemoryAutoscalingDecider {
                         logger.warn("unexpected null for snapshot upgrade memory requirement for [{}]", MlTasks.jobId(t.getId()));
                     }
                     assert mem != null : "unexpected null for anomaly memory requirement after recent stale check";
-                    return mem;
+                    return mem == null ? 0 : mem;
                 })
                 .max()
                 .orElse(0L)
@@ -380,7 +380,7 @@ class MlMemoryAutoscalingDecider {
                         logger.warn("unexpected null for analytics memory requirement for [{}]", MlTasks.dataFrameAnalyticsId(t.getId()));
                     }
                     assert mem != null : "unexpected null for analytics memory requirement after recent stale check";
-                    return mem;
+                    return mem == null ? 0 : mem;
                 })
                 .max()
                 .orElse(0L)

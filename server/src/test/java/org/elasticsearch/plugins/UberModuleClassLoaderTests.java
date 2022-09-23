@@ -14,6 +14,7 @@ import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.stream;
 import static org.hamcrest.Matchers.containsString;
@@ -152,7 +154,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
         try (
             URLClassLoader parent = URLClassLoader.newInstance(urls, UberModuleClassLoaderTests.class.getClassLoader());
-            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", List.of(jar))
+            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", Set.of(jar.toUri().toURL()))
         ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClassInPackageP");
@@ -188,7 +190,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
         try (
             URLClassLoader parent = URLClassLoader.newInstance(urls, UberModuleClassLoaderTests.class.getClassLoader());
-            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", List.of(jar))
+            UberModuleClassLoader loader = UberModuleClassLoader.getInstance(parent, "synthetic", Set.of(jar.toUri().toURL()))
         ) {
             // stable plugin loader gives us the good class...
             Class<?> c = loader.loadClass("p.MyClass");
@@ -300,7 +302,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             UberModuleClassLoader denyListLoader = UberModuleClassLoader.getInstance(
                 UberModuleClassLoaderTests.class.getClassLoader(),
                 "synthetic",
-                List.of(jar),
+                Set.of(jar.toUri().toURL()),
                 Set.of("java.sql")
             )
         ) {
@@ -336,7 +338,19 @@ public class UberModuleClassLoaderTests extends ESTestCase {
     }
 
     private static UberModuleClassLoader getLoader(List<Path> jars) {
-        return UberModuleClassLoader.getInstance(UberModuleClassLoaderTests.class.getClassLoader(), "synthetic", jars);
+        return UberModuleClassLoader.getInstance(
+            UberModuleClassLoaderTests.class.getClassLoader(),
+            "synthetic",
+            jars.stream().map(UberModuleClassLoaderTests::pathToUrlUnchecked).collect(Collectors.toSet())
+        );
+    }
+
+    private static URL pathToUrlUnchecked(Path path) {
+        try {
+            return path.toUri().toURL();
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     /*

@@ -81,7 +81,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
 
     public void testUnmappedField() throws IOException {
         StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field("text");
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalStringStats>(aggregationBuilder, iw -> {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(singleton(new TextField("text", "test" + i, Field.Store.NO)));
             }
@@ -93,12 +93,12 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertTrue(stats.getDistribution().isEmpty());
             assertEquals(0.0, stats.getEntropy(), 0);
 
-        });
+        }));
     }
 
     public void testUnmappedWithMissingField() throws IOException {
         StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field("text").missing("abca");
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalStringStats>(aggregationBuilder, iw -> {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(singleton(new TextField("text", "test" + i, Field.Store.NO)));
             }
@@ -112,7 +112,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals(0.25, stats.getDistribution().get("b"), 0);
             assertEquals(0.25, stats.getDistribution().get("c"), 0);
             assertEquals(1.5, stats.getEntropy(), 0);
-        });
+        }));
     }
 
     public void testMissing() throws IOException {
@@ -122,7 +122,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field(fieldType.name())
             .missing("b");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalStringStats>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new TextField(fieldType.name(), "a", Field.Store.NO)));
             iw.addDocument(emptySet());
             iw.addDocument(singleton(new TextField(fieldType.name(), "a", Field.Store.NO)));
@@ -136,7 +136,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals(0.5, stats.getDistribution().get("a"), 0);
             assertEquals(0.5, stats.getDistribution().get("b"), 0);
             assertEquals(1.0, stats.getEntropy(), 0);
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testSingleValuedField() throws IOException {
@@ -199,7 +199,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             .format("0000.00")
             .showDistribution(true);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalStringStats>(aggregationBuilder, iw -> {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(singleton(new TextField("text", "test" + i, Field.Store.NO)));
             }
@@ -209,7 +209,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals("0005.00", stats.getMinLengthAsString());
             assertEquals("0005.00", stats.getAvgLengthAsString());
             assertEquals("0002.58", stats.getEntropyAsString());
-        }, fieldType);
+        }, fieldType));
     }
 
     /**
@@ -279,7 +279,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field(fieldType.name())
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap()));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalStringStats>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new TextField(fieldType.name(), "b", Field.Store.NO)));
             iw.addDocument(singleton(new TextField(fieldType.name(), "b", Field.Store.NO)));
         }, stats -> {
@@ -291,7 +291,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals(0.5, stats.getDistribution().get("a"), 0);
             assertEquals(0.5, stats.getDistribution().get("b"), 0);
             assertEquals(1.0, stats.getEntropy(), 0);
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testValueScriptMultiValuedField() throws IOException {
@@ -301,7 +301,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         final StringStatsAggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field(fieldType.name())
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap()));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalStringStats>(aggregationBuilder, iw -> {
             iw.addDocument(
                 Set.of(new TextField(fieldType.name(), "b", Field.Store.NO), new TextField(fieldType.name(), "c", Field.Store.NO))
             );
@@ -318,7 +318,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals(0.25, stats.getDistribution().get("b"), 0);
             assertEquals(0.25, stats.getDistribution().get("c"), 0);
             assertEquals(1.5, stats.getEntropy(), 0);
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testFieldScriptSingleValuedField() throws IOException {
@@ -329,7 +329,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_NAME, singletonMap("field", fieldType.name()))
         );
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalStringStats>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new TextField(fieldType.name(), "b", Field.Store.NO)));
             iw.addDocument(singleton(new TextField(fieldType.name(), "b", Field.Store.NO)));
         }, stats -> {
@@ -341,7 +341,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals(0.5, stats.getDistribution().get("a"), 0);
             assertEquals(0.5, stats.getDistribution().get("b"), 0);
             assertEquals(1.0, stats.getEntropy(), 0);
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testFieldScriptMultiValuedField() throws IOException {
@@ -352,7 +352,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_NAME, singletonMap("field", fieldType.name()))
         );
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalStringStats>(aggregationBuilder, iw -> {
             iw.addDocument(
                 Set.of(new TextField(fieldType.name(), "b", Field.Store.NO), new TextField(fieldType.name(), "c", Field.Store.NO))
             );
@@ -369,7 +369,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals(0.25, stats.getDistribution().get("b"), 0);
             assertEquals(0.25, stats.getDistribution().get("c"), 0);
             assertEquals(1.5, stats.getEntropy(), 0);
-        }, fieldType);
+        }, fieldType));
     }
 
     private void testAggregation(
@@ -381,17 +381,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         fieldType.setFielddata(true);
 
         AggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field("text");
-        testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
-    }
-
-    private void testAggregation(
-        AggregationBuilder aggregationBuilder,
-        Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalStringStats> verify,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        testCase(new AggTestConfig<>(aggregationBuilder, buildIndex, verify, fieldTypes).withQuery(query));
+        testCase(new AggTestConfig<InternalStringStats>(aggregationBuilder, buildIndex, verify, fieldType).withQuery(query));
     }
 
     @Override

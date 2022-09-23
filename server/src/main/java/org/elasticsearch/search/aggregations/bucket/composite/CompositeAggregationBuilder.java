@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -174,13 +173,11 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     private static AggregatorFactory validateParentAggregations(AggregatorFactory factory) {
         if (factory == null) {
             return null;
-        } else if (factory instanceof NestedAggregatorFactory
-            || factory instanceof FilterAggregatorFactory
-            || factory instanceof RandomSamplerAggregatorFactory) {
-                return validateParentAggregations(factory.getParent());
-            } else {
-                return factory;
-            }
+        } else if (factory instanceof NestedAggregatorFactory || factory instanceof RandomSamplerAggregatorFactory) {
+            return validateParentAggregations(factory.getParent());
+        } else {
+            return factory;
+        }
     }
 
     private static void validateSources(List<CompositeValuesSourceBuilder<?>> sources) {

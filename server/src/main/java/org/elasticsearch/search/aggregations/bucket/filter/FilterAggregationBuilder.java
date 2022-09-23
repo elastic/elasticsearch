@@ -15,14 +15,19 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -101,7 +106,37 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        return new FilterAggregatorFactory(name, filter, context, parent, subFactoriesBuilder, metadata);
+        final var inner = new FiltersAggregatorFactory(
+            name,
+            List.of(new FiltersAggregator.KeyedFilter("1", filter)),
+            false,
+            false,
+            null,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
+        return new AggregatorFactory(name, context, parent, subFactoriesBuilder, metadata) {
+            @Override
+            protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+                throws IOException {
+                final var innerAggregator = inner.createInternal(parent, cardinality, metadata);
+                return new AdaptingAggregator(parent, factories, aggregatorFactories -> innerAggregator) {
+                    @Override
+                    protected InternalAggregation adapt(InternalAggregation delegateResult) throws IOException {
+                        InternalFilters innerResult = (InternalFilters) delegateResult;
+                        var innerBucket = innerResult.getBuckets().get(0);
+                        return new InternalFilter(
+                            name,
+                            innerBucket.getDocCount(),
+                            innerBucket.getAggregations(),
+                            innerResult.getMetadata()
+                        );
+                    }
+                };
+            }
+        };
     }
 
     @Override

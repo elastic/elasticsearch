@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,14 +25,6 @@ abstract class AbstractRollupFieldProducer<T> {
         this.name = name;
         this.isEmpty = true;
     }
-
-    /**
-     * Collect a value for the field applying the specific subclass collection strategy.
-     *
-     * @param field the name of the field to collect
-     * @param value the value to collect.
-     */
-    public abstract void collect(String field, T value);
 
     /**
      * @return the name of the field.
@@ -55,4 +49,10 @@ abstract class AbstractRollupFieldProducer<T> {
     public boolean isEmpty() {
         return isEmpty;
     }
+
+    @FunctionalInterface interface LeafCollector {
+        void collect(int doc) throws IOException;
+    }
+
+    public abstract LeafCollector leaf(LeafReaderContext ctx) throws IOException;
 }

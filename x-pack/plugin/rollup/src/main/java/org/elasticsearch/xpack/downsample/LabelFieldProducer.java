@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -24,38 +24,13 @@ import java.util.Map;
  */
 abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
 
-    private final Label label;
-
-    LabelFieldProducer(String name, Label label) {
+    LabelFieldProducer(String name) {
         super(name);
-        this.label = label;
     }
 
     public String name() {
         return name;
     }
-
-    /** Collect the value of a raw field  */
-    @Override
-    public void collect(String field, Object value) {
-        label.collect(value);
-        isEmpty = false;
-    }
-
-    public Label label() {
-        return this.label;
-    }
-
-    public void reset() {
-        label.reset();
-        isEmpty = true;
-    }
-
-    /**
-     * Return the downsampled value as computed after collecting all raw values.
-     * @return
-     */
-    public abstract Object value();
 
     abstract static class Label {
         final String name;
@@ -72,8 +47,6 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
             return name;
         }
 
-        abstract void collect(Object value);
-
         abstract Object get();
 
         abstract void reset();
@@ -87,21 +60,39 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
      * ignoring everything else.
      */
     static class LastValueLabel extends Label {
+        private final CheckedFunction<LeafReaderContext, FormattedDocValues, IOException> leaf;
         private Object lastValue;
 
-        LastValueLabel(String name) {
+        LastValueLabel(String name, CheckedFunction<LeafReaderContext, FormattedDocValues, IOException> leaf) {
             super(name);
+            this.leaf = leaf;
         }
 
-        LastValueLabel() {
-            super("last_value");
+        LastValueLabel(CheckedFunction<LeafReaderContext, FormattedDocValues, IOException> leaf) {
+            this("last_value", leaf);
         }
 
-        @Override
-        void collect(Object value) {
-            if (lastValue == null) {
-                lastValue = value;
-            }
+        LeafCollector leaf(LeafReaderContext ctx) throws IOException {
+            final FormattedDocValues docValues = leaf.apply(ctx);
+            return docId -> {
+                if (lastValue != null) {
+                    return;
+                }
+                if (docValues.advanceExact(docId) == false) {
+                    return;
+                }
+
+                assert docValues.docValueCount() > 0;
+                if (docValues.docValueCount() == 1) {
+                    lastValue = docValues.nextValue();
+                    return;
+                }
+                Object[] values = new Object[docValues.docValueCount()];
+                for (int i = 0; i < values.length; i++) {
+                    values[i] = docValues.nextValue();
+                }
+                lastValue = values;
+            };
         }
 
         @Override
@@ -119,47 +110,62 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
      * {@link LabelFieldProducer} implementation for a last value label
      */
     static class LabelLastValueFieldProducer extends LabelFieldProducer {
+        private final LastValueLabel label;
 
-        LabelLastValueFieldProducer(String name) {
-            super(name, new LastValueLabel());
-        }
-
-        @Override
-        public Object value() {
-            return label().get();
+        LabelLastValueFieldProducer(String name, CheckedFunction<LeafReaderContext, FormattedDocValues, IOException> leaf) {
+            super(name);
+            this.label = new LastValueLabel(name, leaf);
         }
 
         @Override
         public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
-                builder.field(name(), value());
+                builder.field(name(), label.get());
             }
+        }
+
+        @Override
+        public LeafCollector leaf(LeafReaderContext ctx) throws IOException {
+            return label.leaf(ctx);
+        }
+
+        @Override
+        public void reset() {
+            label.reset();
+            isEmpty = true;
         }
     }
 
     static class AggregateMetricFieldProducer extends LabelFieldProducer {
+        private LastValueLabel[] labels;
 
-        private Map<String, Label> labelsByField = new LinkedHashMap<>();
-
-        AggregateMetricFieldProducer(String name) {
-            super(name, null);
-        }
-
-        public void addLabel(String field, Label label) {
-            labelsByField.put(field, label);
+        AggregateMetricFieldProducer(String name, Map<String, CheckedFunction<LeafReaderContext, FormattedDocValues, IOException>> metrics) {
+            super(name);
+            labels = new LastValueLabel[metrics.size()];
+            int i = 0;
+            for (var e : metrics.entrySet()) {
+                labels[i++] = new LastValueLabel(e.getKey(), e.getValue());
+            }
         }
 
         @Override
-        public void collect(String field, Object value) {
-            labelsByField.get(field).collect(value);
-            isEmpty = false;
+        public LeafCollector leaf(LeafReaderContext ctx) throws IOException {
+            LeafCollector[] labelLeaves = new LeafCollector[labels.length];
+            for (int i = 0; i < labelLeaves.length; i++) {
+                labelLeaves[i] = labels[i].leaf(ctx);
+            }
+            return docId -> {
+                for (LeafCollector l : labelLeaves) {
+                    l.collect(docId);
+                }
+            };
         }
 
         @Override
         public void write(XContentBuilder builder) throws IOException {
             if (isEmpty() == false) {
                 builder.startObject(name());
-                for (Label label : labels()) {
+                for (Label label : labels) {
                     if (label.get() != null) {
                         builder.field(label.name(), label.get());
                     }
@@ -168,46 +174,12 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
             }
         }
 
-        public Collection<Label> labels() {
-            return labelsByField.values();
-        }
-
-        @Override
-        public Object value() {
-            return labelsByField;
-        }
-
         @Override
         public void reset() {
-            labels().forEach(Label::reset);
+            for (LastValueLabel l : labels) {
+                l.reset();
+            }
             isEmpty = true;
         }
-    }
-
-    /**
-     * Create a collection of label field producers.
-     */
-    static Map<String, LabelFieldProducer> createLabelFieldProducers(SearchExecutionContext context, String[] labelFields) {
-        final Map<String, LabelFieldProducer> fields = new LinkedHashMap<>();
-        for (String field : labelFields) {
-            MappedFieldType fieldType = context.getFieldType(field);
-            assert fieldType != null : "Unknown field type for field: [" + field + "]";
-
-            if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
-                // If the field is an aggregate_metric_double field, we should use the correct subfields
-                // for each aggregation. This is a rollup-of-rollup case
-                AggregateMetricFieldProducer producer = new AggregateMetricFieldProducer.AggregateMetricFieldProducer(field);
-                for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
-                    AggregateDoubleMetricFieldMapper.Metric metric = e.getKey();
-                    NumberFieldMapper.NumberFieldType metricSubField = e.getValue();
-                    producer.addLabel(metricSubField.name(), new LastValueLabel(metric.name()));
-                    fields.put(metricSubField.name(), producer);
-                }
-            } else {
-                LabelFieldProducer producer = new LabelLastValueFieldProducer(field);
-                fields.put(field, producer);
-            }
-        }
-        return Collections.unmodifiableMap(fields);
     }
 }

@@ -16,8 +16,10 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -54,6 +56,58 @@ class FieldValueFetcher {
 
     FormattedDocValues getLeaf(LeafReaderContext context) {
         return fieldData.load(context).getFormattedValues(format);
+    }
+
+    public List<MetricFieldProducer> metricProducer(SearchExecutionContext context) {
+        MappedFieldType fieldType = context.getFieldType(name);
+        assert fieldType != null : "Unknown field type for field: [" + name + "]";
+        assert fieldType.getMetricType() != null : "Unknown metric type for metric field: [" + name + "]";
+
+        if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
+            // If the field is an aggregate_metric_double field, we should use the correct subfields
+            // for each aggregation. This is a rollup-of-rollup case
+            MetricFieldProducer.AggregateMetricFieldProducer producer = new MetricFieldProducer.AggregateMetricFieldProducer(name);
+            List<MetricFieldProducer> result = new ArrayList<>();
+            for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
+                AggregateDoubleMetricFieldMapper.Metric metric = e.getKey();
+                NumberFieldMapper.NumberFieldType metricSubField = e.getValue();
+                MetricFieldProducer.Metric metricOperation = switch (metric) {
+                    case max -> new MetricFieldProducer.Max();
+                    case min -> new MetricFieldProducer.Min();
+                    case sum -> new MetricFieldProducer.Sum();
+                    // To compute value_count summary, we must sum all field values
+                    case value_count -> new MetricFieldProducer.Sum(AggregateDoubleMetricFieldMapper.Metric.value_count.name());
+                };
+                producer.addMetric(metricSubField.name(), metricOperation);
+                return result;
+            }
+        }
+        MetricFieldProducer producer = switch (fieldType.getMetricType()) {
+            case gauge -> new MetricFieldProducer.GaugeMetricFieldProducer(name);
+            case counter -> new MetricFieldProducer.CounterMetricFieldProducer(name);
+        };
+        return List.of(producer);
+    }
+
+    public List<LabelFieldProducer> labelFieldProducer(SearchExecutionContext context) {
+        MappedFieldType fieldType = context.getFieldType(name);
+        assert fieldType != null : "Unknown field type for field: [" + name + "]";
+
+        if (fieldType instanceof AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType aggMetricFieldType) {
+            // If the field is an aggregate_metric_double field, we should use the correct subfields
+            // for each aggregation. This is a rollup-of-rollup case
+            List<LabelFieldProducer> result = new ArrayList<>();
+            for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
+                AggregateDoubleMetricFieldMapper.Metric metric = e.getKey();
+                NumberFieldMapper.NumberFieldType metricSubField = e.getValue();
+                result.add(producer);
+            }
+            LabelFieldProducer.AggregateMetricFieldProducer producer =
+                new LabelFieldProducer.AggregateMetricFieldProducer.AggregateMetricFieldProducer(name);
+
+            return result;
+        }
+        return List.of(new LabelFieldProducer.LabelLastValueFieldProducer(name, this::getLeaf));
     }
 
     /**

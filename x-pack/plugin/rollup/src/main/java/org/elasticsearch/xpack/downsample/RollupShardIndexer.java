@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -355,12 +356,16 @@ class RollupShardIndexer {
         private int tsidOrd = -1;
         private long timestamp;
         private int docCount;
-        private final Map<String, MetricFieldProducer> metricFieldProducers;
-        private final Map<String, LabelFieldProducer> labelFieldProducers;
+        private final List<MetricFieldProducer> metricFieldProducers = new ArrayList<>();
+        private final List<LabelFieldProducer> labelFieldProducers = new ArrayList<>();
 
         RollupBucketBuilder() {
-            this.metricFieldProducers = MetricFieldProducer.createMetricFieldProducers(searchExecutionContext, metricFields);
-            this.labelFieldProducers = LabelFieldProducer.createLabelFieldProducers(searchExecutionContext, labelFields);
+            for (String m : metricFields) {
+                metricFieldProducers.addAll(fieldValueFetchers.get(m).metricProducer(searchExecutionContext));
+            }
+            for (String m : labelFields) {
+                labelFieldProducers.addAll(fieldValueFetchers.get(m).labelFieldProducer(searchExecutionContext));
+            }
         }
 
         /**
@@ -378,8 +383,8 @@ class RollupShardIndexer {
         public RollupBucketBuilder resetTimestamp(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
-            this.metricFieldProducers.values().forEach(MetricFieldProducer::reset);
-            this.labelFieldProducers.values().forEach(LabelFieldProducer::reset);
+            this.metricFieldProducers.forEach(MetricFieldProducer::reset);
+            this.labelFieldProducers.forEach(LabelFieldProducer::reset);
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "New bucket for _tsid: [{}], @timestamp: [{}]",

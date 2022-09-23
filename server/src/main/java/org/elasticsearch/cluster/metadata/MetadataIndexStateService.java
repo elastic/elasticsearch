@@ -1163,7 +1163,7 @@ public class MetadataIndexStateService {
                     // version, so we need to verify its compatibility.
                     newIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(newIndexMetadata, minIndexCompatibilityVersion);
                     try {
-                        indicesService.verifyIndexMetadata(newIndexMetadata, newIndexMetadata);
+                        indicesService.verifyIndexMetadata(newIndexMetadata, newIndexMetadata, true);
                     } catch (Exception e) {
                         throw new ElasticsearchException("Failed to verify index " + index, e);
                     }

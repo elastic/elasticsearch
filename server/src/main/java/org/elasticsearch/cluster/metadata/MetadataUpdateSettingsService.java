@@ -277,16 +277,16 @@ public class MetadataUpdateSettingsService {
                 for (Index index : openIndices) {
                     final IndexMetadata currentMetadata = currentState.metadata().getIndexSafe(index);
                     final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
-                    indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
+                    indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata, false);
                 }
                 for (Index index : closedIndices) {
                     final IndexMetadata currentMetadata = currentState.metadata().getIndexSafe(index);
                     final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
                     // Verifies that the current index settings can be updated with the updated dynamic settings.
-                    indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
+                    indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata, false);
                     // Now check that we can create the index with the updated settings (dynamic and non-dynamic).
                     // This step is mandatory since we allow to update non-dynamic settings on closed indices.
-                    indicesService.verifyIndexMetadata(updatedMetadata, updatedMetadata);
+                    indicesService.verifyIndexMetadata(updatedMetadata, updatedMetadata, false);
                 }
             } catch (IOException ex) {
                 throw ExceptionsHelper.convertToElastic(ex);

@@ -147,13 +147,13 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             FIELD_NAME
         );
 
-        testAggregation(aggregationBuilder, new FieldExistsQuery(FIELD_NAME), iw -> {
+        testCase(new AggTestConfig<InternalMedianAbsoluteDeviation>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
         }, agg -> {
             assertEquals(Double.NaN, agg.getMedianAbsoluteDeviation(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(agg));
-        });
+        }).withQuery(new FieldExistsQuery(FIELD_NAME)));
     }
 
     public void testUnmappedMissing() throws IOException {
@@ -161,14 +161,14 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             FIELD_NAME
         ).missing(1234);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalMedianAbsoluteDeviation>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
         }, agg -> {
             assertEquals(0, agg.getMedianAbsoluteDeviation(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(agg));
-        });
+        }));
     }
 
     public void testValueScript() throws IOException {
@@ -180,13 +180,13 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
         final int size = randomIntBetween(100, 1000);
         final List<Long> sample = new ArrayList<>(size);
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), randomSample(size, point -> {
+        testCase(new AggTestConfig<InternalMedianAbsoluteDeviation>(aggregationBuilder, randomSample(size, point -> {
             sample.add(point);
             return singleton(new SortedNumericDocValuesField(FIELD_NAME, point));
         }), agg -> {
             assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
             assertTrue(AggregationInspectionHelper.hasValue(agg));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testSingleScript() throws IOException {
@@ -198,14 +198,14 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
         final int size = randomIntBetween(100, 1000);
         final List<Long> sample = new ArrayList<>(size);
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalMedianAbsoluteDeviation>(aggregationBuilder, iw -> {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, i + 1)));
             }
         }, agg -> {
             assertEquals(0, agg.getMedianAbsoluteDeviation(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(agg));
-        }, fieldType);
+        }, fieldType));
     }
 
     private void testAggregation(
@@ -218,17 +218,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-        testAggregation(builder, query, buildIndex, verify, fieldType);
-    }
-
-    private void testAggregation(
-        AggregationBuilder aggregationBuilder,
-        Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> indexer,
-        Consumer<InternalMedianAbsoluteDeviation> verify,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        testCase(new AggTestConfig<>(aggregationBuilder, indexer, verify, fieldTypes).withQuery(query));
+        testCase(new AggTestConfig<InternalMedianAbsoluteDeviation>(builder, buildIndex, verify, fieldType).withQuery(query));
     }
 
     public static class IsCloseToRelative extends TypeSafeMatcher<Double> {

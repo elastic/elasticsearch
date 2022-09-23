@@ -24,7 +24,6 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -48,6 +47,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
+import org.elasticsearch.xpack.downsample.FieldValueFetcher.DocValueFetcher;
+import org.elasticsearch.xpack.downsample.FieldValueFetcher.ValueType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -58,7 +59,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -89,7 +89,7 @@ class RollupShardIndexer {
     private final String[] dimensionFields;
     private final String[] metricFields;
     private final String[] labelFields;
-    private final Map<String, FieldValueFetcher> fieldValueFetchers;
+    private final FieldValueFetcher[] fieldValueFetchers;
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
     private final AtomicLong numFailed = new AtomicLong();
@@ -126,7 +126,7 @@ class RollupShardIndexer {
             this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
-            this.fieldValueFetchers = FieldValueFetcher.create(searchExecutionContext, ArrayUtils.concat(metricFields, labelFields));
+            this.fieldValueFetchers = FieldValueFetcher.create(searchExecutionContext, metricFields, labelFields);
             toClose = null;
         } finally {
             IOUtils.closeWhileHandlingException(toClose);
@@ -229,7 +229,7 @@ class RollupShardIndexer {
             final LeafReaderContext ctx = aggCtx.getLeafReaderContext();
             final DocCountProvider docCountProvider = new DocCountProvider();
             docCountProvider.setLeafReaderContext(ctx);
-            final Map<String, FormattedDocValues> docValuesFetchers = FieldValueFetcher.docValuesFetchers(ctx, fieldValueFetchers);
+            final DocValueFetcher[] docValuesFetchers = FieldValueFetcher.docValuesFetchers(ctx, fieldValueFetchers);
 
             return new LeafBucketCollector() {
                 @Override
@@ -296,23 +296,8 @@ class RollupShardIndexer {
 
                     final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
-                    for (Map.Entry<String, FormattedDocValues> e : docValuesFetchers.entrySet()) {
-                        final String fieldName = e.getKey();
-                        final FormattedDocValues leafField = e.getValue();
-
-                        if (leafField.advanceExact(docId)) {
-                            rollupBucketBuilder.collect(fieldName, leafField.docValueCount(), docValueCount -> {
-                                final Object[] values = new Object[docValueCount];
-                                for (int i = 0; i < docValueCount; ++i) {
-                                    try {
-                                        values[i] = leafField.nextValue();
-                                    } catch (IOException ex) {
-                                        throw new ElasticsearchException("Failed to read values for field [" + fieldName + "]");
-                                    }
-                                }
-                                return values;
-                            });
-                        }
+                    for (DocValueFetcher docValueFetcher : docValuesFetchers) {
+                        rollupBucketBuilder.collect(docValueFetcher, docId);
                     }
                     docsProcessed++;
                 }
@@ -390,27 +375,39 @@ class RollupShardIndexer {
             return this;
         }
 
-        public void collect(final String field, int docValueCount, final Function<Integer, Object[]> fieldValues) {
-            final Object[] values = fieldValues.apply(docValueCount);
-            if (metricFieldProducers.containsKey(field)) {
-                // TODO: missing support for array metrics
-                collectMetric(field, values);
-            } else if (labelFieldProducers.containsKey(field)) {
-                if (values.length == 1) {
-                    collectLabel(field, values[0]);
-                } else {
-                    collectLabel(field, values);
+        public void collect(DocValueFetcher docValueFetcher, int docId) throws IOException {
+            final String fieldName = docValueFetcher.name();
+            final FormattedDocValues leafField = docValueFetcher.formattedDocValues();
+            if (leafField.advanceExact(docId)) {
+                int docValueCount = leafField.docValueCount();
+                final Object[] values = new Object[docValueCount];
+                for (int i = 0; i < docValueCount; ++i) {
+                    try {
+                        values[i] = leafField.nextValue();
+                    } catch (IOException ex) {
+                        throw new ElasticsearchException("Failed to read values for field [" + fieldName + "]");
+                    }
                 }
-            } else {
-                throw new IllegalArgumentException(
-                    "Field '"
-                        + field
-                        + "' is not a label nor a metric, existing labels: [ "
-                        + String.join(",", labelFieldProducers.keySet())
-                        + "], existing metrics: ["
-                        + String.join(", ", metricFieldProducers.keySet())
-                        + "]"
-                );
+
+                if (docValueFetcher.valueType() == ValueType.METRIC) {
+                    collectMetric(fieldName, values);
+                } else if (docValueFetcher.valueType() == ValueType.LABEL) {
+                    if (values.length == 1) {
+                        collectLabel(fieldName, values[0]);
+                    } else {
+                        collectLabel(fieldName, values);
+                    }
+                } else {
+                    throw new IllegalArgumentException(
+                        "Field '"
+                            + fieldName
+                            + "' is not a label nor a metric, existing labels: [ "
+                            + String.join(",", labelFieldProducers.keySet())
+                            + "], existing metrics: ["
+                            + String.join(", ", metricFieldProducers.keySet())
+                            + "]"
+                    );
+                }
             }
         }
 

@@ -103,7 +103,6 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 Strings.format("provided {} values for <nodes> which resolved to {} nodes", nodes.size(), concreteNodes.size())
             );
         }
-        ;
         return concreteNodes;
     }
 

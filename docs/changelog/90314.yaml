@@ -1,0 +1,5 @@
+pr: 90314
+summary: Ensure `cross_fields` always uses valid term statistics
+area: Ranking
+type: regression
+issues: []

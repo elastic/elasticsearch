@@ -9,11 +9,7 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -31,7 +27,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
@@ -42,37 +37,37 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
     private static final String FIELD_NAME = "field";
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Sum>(sum("_name").field(FIELD_NAME), iw -> {
             // Intentionally not writing any docs
         }, sum -> {
             assertEquals(0L, sum.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(sum));
-        });
+        }, defaultFieldType()));
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Sum>(sum("_name").field(FIELD_NAME), iw -> {
             iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] { 3, 1.2, 10 })));
             iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] { 5.3, 6, 20 })));
         }, sum -> {
             assertEquals(0L, sum.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(sum));
-        });
+        }, defaultFieldType()));
     }
 
     public void testSimpleHistogram() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Sum>(sum("_name").field(FIELD_NAME), iw -> {
             iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { 3, 1.2, 10 })));
             iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { 5.3, 6, 6, 20 })));
             iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { -10, 0.01, 1, 90 })));
         }, sum -> {
             assertEquals(132.51d, sum.value(), 0.01d);
             assertTrue(AggregationInspectionHelper.hasValue(sum));
-        });
+        }, defaultFieldType()));
     }
 
     public void testQueryFiltering() throws IOException {
-        testCase(new TermQuery(new Term("match", "yes")), iw -> {
+        testCase(new AggTestConfig<Sum>(sum("_name").field(FIELD_NAME), iw -> {
             iw.addDocument(
                 Arrays.asList(
                     new StringField("match", "yes", Field.Store.NO),
@@ -106,11 +101,7 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
         }, sum -> {
             assertEquals(126.51d, sum.value(), 0.01d);
             assertTrue(AggregationInspectionHelper.hasValue(sum));
-        });
-    }
-
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Sum> verify) throws IOException {
-        testCase(new AggTestConfig<>(sum("_name").field(FIELD_NAME), indexer, verify, defaultFieldType()).withQuery(query));
+        }, defaultFieldType()).withQuery(new TermQuery(new Term("match", "yes"))));
     }
 
     @Override

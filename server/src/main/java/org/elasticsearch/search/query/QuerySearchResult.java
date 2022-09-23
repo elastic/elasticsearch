@@ -231,6 +231,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void setDfsProfileResult(ProfileResult dfsProfileResult) {
+        if (profileShardResults == null) {
+            return;
+        }
         profileShardResults.setDfsProfileResult(dfsProfileResult);
     }
 

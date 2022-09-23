@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -69,6 +71,9 @@ public class Classification implements DataFrameAnalysis {
      * The max number of classes classification supports
      */
     public static final int MAX_DEPENDENT_VARIABLE_CARDINALITY = 100;
+
+    private static final Logger logger = LogManager.getLogger(Classification.class);
+
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<Classification, Void> createParser(boolean lenient) {
@@ -209,6 +214,8 @@ public class Classification implements DataFrameAnalysis {
         this.featureProcessors = featureProcessors == null ? Collections.emptyList() : Collections.unmodifiableList(featureProcessors);
         // Early stopping is true by default
         this.earlyStoppingEnabled = earlyStoppingEnabled == null ? true : earlyStoppingEnabled;
+
+        logger.info("Classification randomize seed:" + this.randomizeSeed );
     }
 
     public Classification(String dependentVariable) {
@@ -329,6 +336,7 @@ public class Classification implements DataFrameAnalysis {
             );
         }
         params.put(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
+        params.put(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         return params;
     }
 

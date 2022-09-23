@@ -74,6 +74,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static java.util.stream.Collectors.toMap;
+
 public class ReactiveStorageDeciderService implements AutoscalingDeciderService {
     public static final String NAME = "reactive_storage";
     /**
@@ -289,9 +291,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 unassignedShards.stream().map(e -> e.shard.shardId()).collect(Collectors.toCollection(TreeSet::new)),
                 unassignedShards.stream()
                     .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                    .collect(
-                        Collectors.toMap(snd -> snd.shard.shardId(), snd -> new NodeDecisions(snd.nodeDecisions, List.of()), (a, b) -> b)
-                    )
+                    .collect(toMap(snd -> snd.shard.shardId(), snd -> new NodeDecisions(snd.nodeDecisions, List.of()), (a, b) -> b))
             );
         }
 
@@ -363,7 +363,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 otherNodesOnTierAllocationDecisions.stream()
             )
                 .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                .collect(Collectors.toMap(snd -> snd.shard.shardId(), snd -> snd.nodeDecisions, (a, b) -> b));
+                .collect(toMap(snd -> snd.shard.shardId(), snd -> snd.nodeDecisions, (a, b) -> b));
             return new ShardsAllocationResults(
                 unallocatableBytes + unmovableBytes,
                 Stream.concat(unmovableShardNodeDecisions.stream(), unallocatedShardNodeDecisions.stream())
@@ -372,7 +372,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 Stream.concat(unmovableShardNodeDecisions.stream(), canRemainDecisionsForUnallocatedShards.stream())
                     .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
                     .collect(
-                        Collectors.toMap(
+                        toMap(
                             snd -> snd.shard.shardId(),
                             snd -> new NodeDecisions(
                                 shardAllocateDecisions.getOrDefault(snd.shard.shardId(), List.of()),
@@ -895,7 +895,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
-        static final int MAX_AMOUNT_OF_DECISIONS = 5;
+        static final int MAX_AMOUNT_OF_SHARD_DECISIONS = 5;
         private static final Version SHARD_IDS_OUTPUT_VERSION = Version.V_8_4_0;
         private static final Version UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = Version.V_8_5_0;
 
@@ -1012,15 +1012,15 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 "unassigned_node_decisions",
                 unassignedNodeDecisions.entrySet()
                     .stream()
-                    .limit(MAX_AMOUNT_OF_DECISIONS)
-                    .collect(Collectors.toMap(e -> e.getKey().toString(), Map.Entry::getValue))
+                    .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
+                    .collect(toMap(e -> e.getKey().toString(), Map.Entry::getValue))
             );
             builder.xContentValuesMap(
                 "assigned_node_decisions",
                 assignedNodeDecisions.entrySet()
                     .stream()
-                    .limit(MAX_AMOUNT_OF_DECISIONS)
-                    .collect(Collectors.toMap(e -> e.getKey().toString(), Map.Entry::getValue))
+                    .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
+                    .collect(toMap(e -> e.getKey().toString(), Map.Entry::getValue))
             );
             builder.endObject();
             return builder;

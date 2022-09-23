@@ -1475,15 +1475,15 @@ public class IndexNameExpressionResolver {
         public static List<String> resolve(final Context context, List<String> expressions) {
             List<String> result = new ArrayList<>(expressions.size());
             boolean wildcardSeen = false;
-            for (int i = 0; i < expressions.size(); i++) {
-                String expression = expressions.get(i);
+            for (String expression : expressions) {
                 if (expression.charAt(0) == '-' && wildcardSeen) {
-                    expression = expression.substring(1);
+                    result.add("-" + resolveExpression(expression.substring(1), context::getStartTime));
+                } else {
+                    result.add(resolveExpression(expression, context::getStartTime));
                 }
                 if (Regex.isSimpleMatchPattern(expression)) {
                     wildcardSeen = true;
                 }
-                result.add(resolveExpression(expression, context::getStartTime));
             }
             return result;
         }

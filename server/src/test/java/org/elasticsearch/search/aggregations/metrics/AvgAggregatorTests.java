@@ -221,30 +221,30 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
     public void testUnmappedField() throws IOException {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
-        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(avg));
-        });
+        }).withQuery(new FieldExistsQuery("number")));
     }
 
     public void testUnmappedWithMissingField() throws IOException {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number").missing(0L);
-        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, avg -> {
             assertEquals(0.0, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        });
+        }).withQuery(new FieldExistsQuery("number")));
     }
 
     private void verifyAvgOfDoubles(double[] values, double expected, double delta) throws IOException {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.DOUBLE);
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             List<List<IndexableField>> docs = new ArrayList<>();
             for (double value : values) {
                 docs.add(List.of(new NumericDocValuesField("number", NumericUtils.doubleToSortableLong(value))));
@@ -258,7 +258,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
              * test.
              */
             iw.addDocuments(docs);
-        }, avg -> assertEquals(expected, avg.getValue(), delta), fieldType);
+        }, avg -> assertEquals(expected, avg.getValue(), delta), fieldType));
     }
 
     public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
@@ -316,7 +316,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -325,7 +325,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             assertEquals((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
             assertEquals("6", avg.getValueAsString());
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testSingleValuedFieldWithValueScript() throws IOException {
@@ -334,7 +334,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -342,7 +342,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testScriptSingleValued() throws IOException {
@@ -352,7 +352,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_FIELD_SCRIPT, Collections.emptyMap())
         );
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -360,7 +360,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals((double) (1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10) / 10, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testScriptSingleValuedWithParams() throws IOException {
@@ -374,7 +374,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params)
         );
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -382,7 +382,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals((double) (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) / 10, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testMultiValuedField() throws IOException {
@@ -407,7 +407,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap())
         );
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -422,7 +422,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 0
             );
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testScriptMultiValuedWithParams() throws Exception {
@@ -436,7 +436,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params)
         );
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -451,7 +451,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 0
             );
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testSingleValuedFieldWithValueScriptWithParams() throws IOException {
@@ -461,7 +461,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, params));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -469,7 +469,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals((double) (2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) / 10, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testMultiValuedFieldWithValueScriptWithParams() throws IOException {
@@ -479,7 +479,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, params));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -494,7 +494,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 0
             );
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testMultiValuedFieldWithValueScript() throws IOException {
@@ -503,7 +503,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<InternalAvg>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -518,7 +518,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
                 0
             );
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testOrderByEmptyAggregation() throws IOException {
@@ -576,17 +576,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
-        testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
-    }
-
-    private void testAggregation(
-        AggregationBuilder aggregationBuilder,
-        Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalAvg> verify,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        testCase(new AggTestConfig<>(aggregationBuilder, buildIndex, verify, fieldTypes).withQuery(query));
+        testCase(new AggTestConfig<>(aggregationBuilder, buildIndex, verify, new MappedFieldType[] { fieldType }).withQuery(query));
     }
 
     /**

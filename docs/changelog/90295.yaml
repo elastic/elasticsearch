@@ -1,5 +1,5 @@
 pr: 90295
-summary: "[Downsampling] Add ILM validations"
-area: "ILM+SLM, Rollup"
+summary: "Add validations for the downsampling ILM action"
+area: "ILM+SLM"
 type: enhancement
 issues: []

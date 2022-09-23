@@ -587,8 +587,8 @@ _source filtering:
 ---
 ip with ignore_malformed:
   - skip:
-      version: " - 8.4.99"
-      reason: introduced in 8.5.0
+      version: " - 8.5.99"
+      reason: introduced in 8.6.0
 
   - do:
       indices.create:

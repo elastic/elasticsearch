@@ -184,7 +184,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     private void verifySummationOfDoubles(double[] values, double expected, double delta) throws IOException {
-        testAggregation(sum("_name").field(FIELD_NAME), new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Sum>(sum("_name").field(FIELD_NAME), iw -> {
             /*
              * The sum agg uses a Kahan sumation on the shard to limit
              * floating point errors. But it doesn't ship the sums to the
@@ -202,7 +202,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
                     .mapToObj(value -> singleton(new NumericDocValuesField(FIELD_NAME, NumericUtils.doubleToSortableLong(value))))
                     .collect(toList())
             );
-        }, result -> assertEquals(expected, result.value(), delta), defaultFieldType(NumberType.DOUBLE));
+        }, result -> assertEquals(expected, result.value(), delta), defaultFieldType(NumberType.DOUBLE)));
     }
 
     public void testUnmapped() throws IOException {
@@ -314,16 +314,17 @@ public class SumAggregatorTests extends AggregatorTestCase {
         }
         final long finalSum = sum;
 
-        testAggregation(
-            sum("_name").field(aggField.name()).missing(missingValue),
-            new MatchAllDocsQuery(),
-            writer -> writer.addDocuments(docs),
-            internalSum -> {
-                assertEquals(finalSum, internalSum.value(), 0d);
-                assertTrue(AggregationInspectionHelper.hasValue(internalSum));
-            },
-            aggField,
-            irrelevantField
+        testCase(
+            new AggTestConfig<Sum>(
+                sum("_name").field(aggField.name()).missing(missingValue),
+                writer -> writer.addDocuments(docs),
+                internalSum -> {
+                    assertEquals(finalSum, internalSum.value(), 0d);
+                    assertTrue(AggregationInspectionHelper.hasValue(internalSum));
+                },
+                aggField,
+                irrelevantField
+            )
         );
     }
 
@@ -357,29 +358,20 @@ public class SumAggregatorTests extends AggregatorTestCase {
         }
         final long finalSum = sum;
 
-        testAggregation(
-            builder,
-            new MatchAllDocsQuery(),
-            writer -> writer.addDocuments(docs),
-            internalSum -> verify.apply(finalSum, docs, internalSum),
-            fieldType
+        testCase(
+            new AggTestConfig<Sum>(
+                builder,
+                writer -> writer.addDocuments(docs),
+                internalSum -> verify.apply(finalSum, docs, internalSum),
+                fieldType
+            )
         );
     }
 
     private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Sum> verify)
         throws IOException {
         AggregationBuilder aggregationBuilder = sum("_name").field(FIELD_NAME);
-        testAggregation(aggregationBuilder, query, indexer, verify, defaultFieldType());
-    }
-
-    private void testAggregation(
-        AggregationBuilder aggregationBuilder,
-        Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> indexer,
-        Consumer<Sum> verify,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        testCase(new AggTestConfig<>(aggregationBuilder, indexer, verify, fieldTypes).withQuery(query));
+        testCase(new AggTestConfig<Sum>(aggregationBuilder, indexer, verify, defaultFieldType()).withQuery(query));
     }
 
     @Override

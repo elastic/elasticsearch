@@ -34,9 +34,9 @@ setup:
           }
 
 ---
-"Test downsampling a downsample index with the same interval":
+"Test downsampling in multiple phases with the same interval":
   - do:
-      catch: /Your policy is configured to run the delete phase \(min_age\:\ 5s\) before the warm phase \(min_age\:\ 10s\). You should change the phase timing so that the phases will execute in the order of hot, warm, then cold./
+      catch: /Downsampling interval \[3h\] for phase \[cold\] must be greater than the interval \[3h\] for phase \[warm\]/
       ilm.put_lifecycle:
         policy: "bad_policy"
         body: |

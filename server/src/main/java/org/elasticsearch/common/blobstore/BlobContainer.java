@@ -122,6 +122,9 @@ public interface BlobContainer {
     /**
      * Write a blob by providing a consumer that will write its contents to an output stream. This method allows serializing a blob's
      * contents directly to the blob store without having to materialize the serialized version in full before writing.
+     * Note that some implementations of this method use large buffers to store serialized bytes while uploading to enable retries.
+     * As a result, this method should only be used for streaming serialization of repository metadata that is known to be of limited size
+     * at any point in time and across all concurrent invocations of this method.
      *
      * @param blobName            the name of the blob to write
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists

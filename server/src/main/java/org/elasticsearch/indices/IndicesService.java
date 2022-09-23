@@ -822,7 +822,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 emptyList()
             );
             closeables.add(() -> service.close("metadata verification", false));
-            service.mapperService().merge(metadata, MapperService.MergeReason.MAPPING_RECOVERY);
+            if (metadata.getMappingVersion() != metadataUpdate.getMappingVersion()) {
+                service.mapperService().merge(metadata, MapperService.MergeReason.MAPPING_RECOVERY);
+            }
             if (metadata.equals(metadataUpdate) == false) {
                 service.updateMetadata(metadata, metadataUpdate);
             }

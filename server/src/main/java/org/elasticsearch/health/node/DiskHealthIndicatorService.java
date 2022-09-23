@@ -179,7 +179,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             if (unhealthyDataNodes.isEmpty()) {
                 // In this case the disk issue has been resolved but the index block has not been removed yet or the
                 // cluster is still moving shards away from data nodes that are over the high watermark.
-                symptom += ("the cluster was running out of disk space. The cluster is recovering and you should be able to update them "
+                symptom += ("the cluster was running out of disk space. The cluster is recovering and ingest capabilities should be restored "
                     + "within a few minutes.");
             } else {
                 symptom += String.format(

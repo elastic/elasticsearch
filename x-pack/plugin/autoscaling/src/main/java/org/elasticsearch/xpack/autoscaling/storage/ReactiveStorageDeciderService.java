@@ -925,8 +925,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.assigned = assigned;
             this.unassignedShardIds = unassignedShardIds;
             this.assignedShardIds = assignedShardIds;
-            this.unassignedNodeDecisions = Objects.requireNonNullElseGet(unassignedNodeDecisions, Map::of);
-            this.assignedNodeDecisions = Objects.requireNonNullElseGet(assignedNodeDecisions, Map::of);
+            this.unassignedNodeDecisions = Objects.requireNonNull(unassignedNodeDecisions);
+            this.assignedNodeDecisions = Objects.requireNonNull(assignedNodeDecisions);
         }
 
         public ReactiveReason(StreamInput in) throws IOException {

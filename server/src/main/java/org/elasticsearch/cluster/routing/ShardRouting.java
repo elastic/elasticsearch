@@ -434,7 +434,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             ShardRoutingState.RELOCATING,
             recoverySource,
             null,
-            null,
+            relocationFailureInfo,
             AllocationId.newRelocation(allocationId),
             expectedShardSize
         );
@@ -456,7 +456,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             ShardRoutingState.STARTED,
             recoverySource,
             null,
-            new RelocationFailureInfo(relocationFailureInfo != null ? relocationFailureInfo.getFailedRelocations() + 1 : 0),
+            new RelocationFailureInfo(relocationFailureInfo != null ? relocationFailureInfo.getFailedRelocations() + 1 : 1),
             AllocationId.cancelRelocation(allocationId),
             UNAVAILABLE_EXPECTED_SHARD_SIZE
         );

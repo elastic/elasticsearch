@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.adjacency;
+package org.elasticsearch.aggregations.bucket;
 
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;

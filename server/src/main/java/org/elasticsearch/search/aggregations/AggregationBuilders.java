@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
-import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -81,7 +79,6 @@ import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuild
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Utility class to create aggregations.
@@ -165,20 +162,6 @@ public class AggregationBuilders {
      */
     public static FiltersAggregationBuilder filters(String name, QueryBuilder... filters) {
         return new FiltersAggregationBuilder(name, filters);
-    }
-
-    /**
-     * Create a new {@link AdjacencyMatrix} aggregation with the given name.
-     */
-    public static AdjacencyMatrixAggregationBuilder adjacencyMatrix(String name, Map<String, QueryBuilder> filters) {
-        return new AdjacencyMatrixAggregationBuilder(name, filters);
-    }
-
-    /**
-     * Create a new {@link AdjacencyMatrix} aggregation with the given name and separator
-     */
-    public static AdjacencyMatrixAggregationBuilder adjacencyMatrix(String name, String separator, Map<String, QueryBuilder> filters) {
-        return new AdjacencyMatrixAggregationBuilder(name, separator, filters);
     }
 
     /**

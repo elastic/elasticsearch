@@ -716,7 +716,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                             Collections.emptyList(),
                             Math.abs(randomLong()),
                             randomIntBetween(0, 1000),
-                            ImmutableOpenMap.of(),
+                            Map.of(),
                             null,
                             SnapshotInfoTestUtils.randomUserMetadata(),
                             randomVersion(random())

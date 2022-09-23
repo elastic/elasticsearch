@@ -113,7 +113,7 @@ public abstract class RemoteClusterAware {
             ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
             ProxyConnectionStrategy.SERVER_NAME
         );
-        if (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED) {
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             remoteClusterSettings = new ArrayList<>(remoteClusterSettings); // temporarily make it mutable to append a setting
             remoteClusterSettings.add(SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION);
             remoteClusterSettings = Collections.unmodifiableList(remoteClusterSettings); // immutable again

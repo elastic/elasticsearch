@@ -143,7 +143,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             getNodePredicate(settings),
             REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            ClusterSettings.CCX2_FEATURE_FLAG_ENABLED
+            TcpTransport.isUntrustedRemoteClusterEnabled()
                 ? REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).get(settings)
                 : null
         );
@@ -218,7 +218,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         String authorization = REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         return nodeConnections != maxNumRemoteConnections
             || seedsChanged(configuredSeedNodes, addresses)
-            || (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED && authorizationChanged(this.authorization, authorization))
+            || (TcpTransport.isUntrustedRemoteClusterEnabled() && authorizationChanged(this.authorization, authorization))
             || proxyChanged(proxyAddress, proxy);
     }
 

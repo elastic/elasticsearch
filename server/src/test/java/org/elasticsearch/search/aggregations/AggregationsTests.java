@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
-import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrixTests;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalCompositeTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFiltersTests;
@@ -138,7 +137,6 @@ public class AggregationsTests extends ESTestCase {
         new InternalDateRangeTests(),
         new InternalGeoDistanceTests(),
         new InternalFiltersTests(),
-        new InternalAdjacencyMatrixTests(),
         new SignificantLongTermsTests(),
         new SignificantStringTermsTests(),
         new InternalScriptedMetricTests(),

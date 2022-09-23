@@ -12,9 +12,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.joining;
 
@@ -37,6 +41,14 @@ public class HealthIndicatorDisplayValues {
             truncatedIndicesString = truncatedIndicesString + ", ...";
         }
         return truncatedIndicesString;
+    }
+
+    public static <T> String getSortedUniqueValuesString(Collection<T> values, Predicate<T> predicate, Function<T, String> toString) {
+        return values.stream().filter(predicate).map(toString).distinct().sorted().collect(Collectors.joining(", "));
+    }
+
+    public static <T> String getSortedUniqueValuesString(Collection<T> values, Function<T, String> toString) {
+        return values.stream().map(toString).distinct().sorted().collect(Collectors.joining(", "));
     }
 
     /**

@@ -63,9 +63,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
+import org.elasticsearch.xpack.core.downsample.DownsampleActionValidationException;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -231,7 +231,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
             });
 
-            RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
+            DownsampleActionValidationException validationException = new DownsampleActionValidationException();
             if (dimensionFields.isEmpty()) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
             }
@@ -480,7 +480,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     private static void validateDownsamplingInterval(MapperService mapperService, DownsampleConfig config) {
         MappedFieldType timestampFieldType = mapperService.fieldType(config.getTimestampField());
         assert timestampFieldType != null : "Cannot find timestamp field [" + config.getTimestampField() + "] in the mapping";
-        RollupActionRequestValidationException e = new RollupActionRequestValidationException();
+        DownsampleActionValidationException e = new DownsampleActionValidationException();
 
         Map<String, String> meta = timestampFieldType.meta();
         if (meta.isEmpty() == false) {

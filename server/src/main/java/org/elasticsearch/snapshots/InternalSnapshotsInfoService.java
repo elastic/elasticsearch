@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -32,9 +31,11 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
@@ -64,7 +65,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     private final Supplier<RerouteService> rerouteService;
 
     /** contains the snapshot shards for which the size is known **/
-    private volatile ImmutableOpenMap<SnapshotShard, Long> knownSnapshotShards;
+    private volatile Map<SnapshotShard, Long> knownSnapshotShards;
 
     private volatile boolean isMaster;
 
@@ -91,7 +92,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         this.threadPool = clusterService.getClusterApplierService().threadPool();
         this.repositoriesService = repositoriesServiceSupplier;
         this.rerouteService = rerouteServiceSupplier;
-        this.knownSnapshotShards = ImmutableOpenMap.of();
+        this.knownSnapshotShards = Map.of();
         this.unknownSnapshotShards = new LinkedHashSet<>();
         this.failedSnapshotShards = new LinkedHashSet<>();
         this.queue = new LinkedList<>();
@@ -112,14 +113,15 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     @Override
     public SnapshotShardSizeInfo snapshotShardSizes() {
         synchronized (mutex) {
-            final ImmutableOpenMap.Builder<SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.builder(knownSnapshotShards);
+            Map<SnapshotShard, Long> snapshotShardSizes = knownSnapshotShards;
             if (failedSnapshotShards.isEmpty() == false) {
+                snapshotShardSizes = new HashMap<>(snapshotShardSizes); // create a new map to modify
                 for (SnapshotShard snapshotShard : failedSnapshotShards) {
                     Long previous = snapshotShardSizes.put(snapshotShard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                     assert previous == null : "snapshot shard size already known for " + snapshotShard;
                 }
             }
-            return new SnapshotShardSizeInfo(snapshotShardSizes.build());
+            return new SnapshotShardSizeInfo(snapshotShardSizes);
         }
     }
 
@@ -161,7 +163,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
             // have to repopulate the data over and over in an unstable master situation?
             synchronized (mutex) {
                 // information only needed on current master
-                knownSnapshotShards = ImmutableOpenMap.of();
+                knownSnapshotShards = Map.of();
                 failedSnapshotShards.clear();
                 isMaster = false;
                 SnapshotShard snapshotShard;
@@ -226,12 +228,10 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                 removed = unknownSnapshotShards.remove(snapshotShard);
                 assert removed : "snapshot shard to remove does not exist " + snapshotShardSize;
                 if (isMaster) {
-                    final ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes = ImmutableOpenMap.builder(
-                        knownSnapshotShards
-                    );
+                    final Map<SnapshotShard, Long> newSnapshotShardSizes = new HashMap<>(knownSnapshotShards);
                     updated = newSnapshotShardSizes.put(snapshotShard, snapshotShardSize) == null;
                     assert updated : "snapshot shard size already exists for " + snapshotShard;
-                    knownSnapshotShards = newSnapshotShardSizes.build();
+                    knownSnapshotShards = Map.copyOf(newSnapshotShardSizes);
                 }
                 activeFetches -= 1;
                 assert invariant();
@@ -269,17 +269,17 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     private void cleanUpSnapshotShardSizes(Set<SnapshotShard> requiredSnapshotShards) {
         assert Thread.holdsLock(mutex);
-        ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes = null;
+        Map<SnapshotShard, Long> newSnapshotShardSizes = null;
         for (SnapshotShard shard : knownSnapshotShards.keySet()) {
             if (requiredSnapshotShards.contains(shard) == false) {
                 if (newSnapshotShardSizes == null) {
-                    newSnapshotShardSizes = ImmutableOpenMap.builder(knownSnapshotShards);
+                    newSnapshotShardSizes = new HashMap<>(knownSnapshotShards);
                 }
                 newSnapshotShardSizes.remove(shard);
             }
         }
         if (newSnapshotShardSizes != null) {
-            knownSnapshotShards = newSnapshotShardSizes.build();
+            knownSnapshotShards = Map.copyOf(newSnapshotShardSizes);
         }
         failedSnapshotShards.retainAll(requiredSnapshotShards);
     }
@@ -293,11 +293,11 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
             assert failedSnapshotShards.contains(shard) == false : "cannot be known and failed at same time: " + shard;
         }
         for (SnapshotShard shard : unknownSnapshotShards) {
-            assert knownSnapshotShards.keySet().contains(shard) == false : "cannot be unknown and known at same time: " + shard;
+            assert knownSnapshotShards.containsKey(shard) == false : "cannot be unknown and known at same time: " + shard;
             assert failedSnapshotShards.contains(shard) == false : "cannot be unknown and failed at same time: " + shard;
         }
         for (SnapshotShard shard : failedSnapshotShards) {
-            assert knownSnapshotShards.keySet().contains(shard) == false : "cannot be failed and known at same time: " + shard;
+            assert knownSnapshotShards.containsKey(shard) == false : "cannot be failed and known at same time: " + shard;
             assert unknownSnapshotShards.contains(shard) == false : "cannot be failed and unknown at same time: " + shard;
         }
         return true;

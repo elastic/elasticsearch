@@ -129,8 +129,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         );
     }
 
+    // Impact IDs
+    public static final String PRIMARY_UNASSIGNED_IMPACT_ID = "primary_unassigned";
+    public static final String REPLICA_UNASSIGNED_IMPACT_ID = "replica_unassigned";
+
     public static final String RESTORE_FROM_SNAPSHOT_ACTION_GUIDE = "http://ela.st/restore-snapshot";
     public static final Diagnosis.Definition ACTION_RESTORE_FROM_SNAPSHOT = new Diagnosis.Definition(
+        NAME,
         "restore_from_snapshot",
         "Elasticsearch isn't allowed to allocate some shards because there are no copies of the shards in the cluster. Elasticsearch will "
             + "allocate these shards when nodes holding good copies of the data join the cluster.",
@@ -140,6 +145,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String DIAGNOSE_SHARDS_ACTION_GUIDE = "http://ela.st/diagnose-shards";
     public static final Diagnosis.Definition ACTION_CHECK_ALLOCATION_EXPLAIN_API = new Diagnosis.Definition(
+        NAME,
         "explain_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in the cluster.",
         "Diagnose the issue by calling the allocation explain API for an index [GET _cluster/allocation/explain]. Choose a node to which "
@@ -150,6 +156,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String FIX_DELAYED_SHARDS_GUIDE = "http://ela.st/fix-delayed-shard-allocation";
     public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS = new Diagnosis.Definition(
+        NAME,
         "delayed_shard_allocations",
         "Elasticsearch is not allocating some shards because they are marked for delayed allocation. Shards that have become "
             + "unavailable are usually marked for delayed allocation because it is more efficient to wait and see if the shards return "
@@ -160,6 +167,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "http://ela.st/fix-index-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new Diagnosis.Definition(
+        NAME,
         "enable_index_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at "
             + "the index level.",
@@ -172,6 +180,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     );
     public static final String ENABLE_CLUSTER_ALLOCATION_ACTION_GUIDE = "http://ela.st/fix-cluster-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION = new Diagnosis.Definition(
+        NAME,
         "enable_cluster_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled at "
             + "the cluster level.",
@@ -189,7 +198,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "enable_data_tiers_" + tier,
+                    NAME,
+                    "enable_data_tiers:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because the indices expect to be allocated to "
                         + "data tier nodes, but there were not any nodes with the expected tiers found in the cluster.",
                     "Add nodes with the [" + tier + "] role to the cluster.",
@@ -200,6 +210,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String INCREASE_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/index-total-shards";
     public static final Diagnosis.Definition ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING = new Diagnosis.Definition(
+        NAME,
         "increase_shard_limit_index_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached the index "
             + "shard limit. ",
@@ -215,7 +226,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "increase_shard_limit_index_setting_" + tier,
+                    NAME,
+                    "increase_shard_limit_index_setting:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
                         + "] tier has reached the index shard limit. ",
@@ -229,6 +241,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE = "http://ela.st/cluster-total-shards";
     public static final Diagnosis.Definition ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING = new Diagnosis.Definition(
+        NAME,
         "increase_shard_limit_cluster_setting",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached the "
             + "cluster shard limit.",
@@ -244,7 +257,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "increase_shard_limit_cluster_setting_" + tier,
+                    NAME,
+                    "increase_shard_limit_cluster_setting:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                         + tier
                         + "] tier has reached the cluster shard limit. ",
@@ -258,6 +272,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String MIGRATE_TO_TIERS_ACTION_GUIDE = "http://ela.st/migrate-to-tiers";
     public static final Diagnosis.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA = new Diagnosis.Definition(
+        NAME,
         "migrate_data_tiers_require_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the desired data tiers because the "
             + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier.",
@@ -274,7 +289,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "migrate_data_tiers_require_data_" + tier,
+                    NAME,
+                    "migrate_data_tiers_require_data:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the ["
                         + tier
                         + "] data tier because the indices are configured with allocation filter rules that are incompatible with the "
@@ -290,6 +306,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         );
 
     public static final Diagnosis.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA = new Diagnosis.Definition(
+        NAME,
         "migrate_data_tiers_include_data",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the desired data tiers because the "
             + "indices are configured with allocation filter rules that are incompatible with the nodes in this tier. ",
@@ -306,7 +323,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "migrate_data_tiers_include_data_" + tier,
+                    NAME,
+                    "migrate_data_tiers_include_data:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices to any nodes in the ["
                         + tier
                         + "] data tier because the indices are configured with allocation filter rules that are incompatible with the "
@@ -323,6 +341,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final String TIER_CAPACITY_ACTION_GUIDE = "http://ela.st/tier-capacity";
     public static final Diagnosis.Definition ACTION_INCREASE_NODE_CAPACITY = new Diagnosis.Definition(
+        NAME,
         "increase_node_capacity_for_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because there are not enough nodes in the cluster to "
             + "allocate each shard copy on a different node.",
@@ -335,7 +354,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             Collectors.toUnmodifiableMap(
                 tier -> tier,
                 tier -> new Diagnosis.Definition(
-                    "increase_tier_capacity_for_allocations_" + tier,
+                    NAME,
+                    "increase_tier_capacity_for_allocations:tier:" + tier,
                     "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in the desired data tier "
                         + "because there are not enough nodes in the ["
                         + tier
@@ -836,7 +856,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(primaries.indicesWithUnavailableShards, clusterMetadata)
                 );
-                impacts.add(new HealthIndicatorImpact(1, impactDescription, List.of(ImpactArea.INGEST, ImpactArea.SEARCH)));
+                impacts.add(
+                    new HealthIndicatorImpact(
+                        NAME,
+                        PRIMARY_UNASSIGNED_IMPACT_ID,
+                        1,
+                        impactDescription,
+                        List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                    )
+                );
             }
             /*
              * It is possible that we're working with an intermediate cluster state, and that for an index we have no primary but a replica
@@ -853,7 +881,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(indicesWithUnavailableReplicasOnly, clusterMetadata)
                 );
-                impacts.add(new HealthIndicatorImpact(2, impactDescription, List.of(ImpactArea.SEARCH)));
+                impacts.add(
+                    new HealthIndicatorImpact(NAME, REPLICA_UNASSIGNED_IMPACT_ID, 2, impactDescription, List.of(ImpactArea.SEARCH))
+                );
             }
             return impacts;
         }

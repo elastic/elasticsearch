@@ -222,39 +222,39 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
     public void testUnmappedField() throws IOException {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
-        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(max.value(), Double.NEGATIVE_INFINITY, 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
-        });
+        }).withQuery(new FieldExistsQuery("number")));
     }
 
     public void testUnmappedWithMissingField() throws IOException {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number").missing(19L);
 
-        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(max.value(), 19.0, 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        });
+        }).withQuery(new FieldExistsQuery("number")));
     }
 
     public void testMissingFieldOptimization() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
         AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number").missing(19L);
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
             iw.addDocument(emptyList());
         }, max -> {
             assertEquals(max.value(), 19.0, 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testScript() throws IOException {
@@ -263,30 +263,21 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SCRIPT_NAME, Collections.emptyMap()));
 
-        testAggregation(aggregationBuilder, new FieldExistsQuery("number"), iw -> {
+        // Note this is the script value (19L), not the doc values above
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, max -> {
             assertEquals(max.value(), SCRIPT_VALUE, 0); // Note this is the script value (19L), not the doc values above
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, fieldType);
+        }, fieldType).withQuery(new FieldExistsQuery("number")));
     }
 
     private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Max> verify)
         throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
-        testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
-    }
-
-    private void testAggregation(
-        AggregationBuilder aggregationBuilder,
-        Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<Max> verify,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        testCase(new AggTestConfig<>(aggregationBuilder, buildIndex, verify, fieldTypes).withQuery(query));
+        testCase(new AggTestConfig<Max>(aggregationBuilder, buildIndex, verify, fieldType).withQuery(query));
     }
 
     public void testMaxShortcutRandom() throws Exception {
@@ -410,7 +401,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").format("0000.0").field("value");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -419,7 +410,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             assertEquals(10.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
             assertEquals("0010.0", max.getValueAsString());
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testSingleValuedFieldGetProperty() throws IOException {
@@ -506,7 +497,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -515,7 +506,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             assertTrue(AggregationInspectionHelper.hasValue(max));
             assertEquals(10.0, max.value(), 0);
             assertEquals("max", max.getName());
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testSingleValuedFieldWithValueScriptWithParams() throws IOException {
@@ -525,7 +516,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, params));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -534,7 +525,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             assertEquals(11.0, max.value(), 0);
             assertEquals("max", max.getName());
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testMultiValuedField() throws IOException {
@@ -558,7 +549,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -569,7 +560,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(12.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testMultiValuedFieldWithValueScriptWithParams() throws IOException {
@@ -579,7 +570,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, params));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -590,7 +581,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(13.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testScriptSingleValued() throws IOException {
@@ -600,7 +591,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_FIELD_SCRIPT, Collections.emptyMap())
         );
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -608,7 +599,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(10.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testScriptSingleValuedWithParams() throws IOException {
@@ -622,7 +613,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params)
         );
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
@@ -630,7 +621,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(11.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testScriptMultiValued() throws IOException {
@@ -640,7 +631,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap())
         );
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -651,7 +642,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(12.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testScriptMultiValuedWithParams() throws IOException {
@@ -665,7 +656,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SUM_FIELD_PARAMS_SCRIPT, params)
         );
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(new AggTestConfig<Max>(aggregationBuilder, iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -676,7 +667,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(13.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, fieldType);
+        }, fieldType));
     }
 
     public void testEmptyAggregation() throws Exception {

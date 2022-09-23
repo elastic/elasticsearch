@@ -115,10 +115,9 @@ public class DfsPhase {
 
     private void executeKnnVectorQueryWithoutProfiling(SearchContext context) throws IOException {
         KnnSearchBuilder knnSearch = context.request().source().knnSearch();
-        IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader());
         Query query = buildKnnVectorQuery(context);
 
-        TopDocs topDocs = searcher.search(query, knnSearch.k());
+        TopDocs topDocs = context.searcher().search(query, knnSearch.k());
 
         DfsKnnResults knnResults = new DfsKnnResults(topDocs.scoreDocs);
         context.dfsResult().knnResults(knnResults);
@@ -132,9 +131,16 @@ public class DfsPhase {
         Timer rewriteTimer = new Timer();
         Timer createWeightTimer = new Timer();
 
+        // we add an IndexSearcher wrapper for two reasons --
+        // 1. we want to time the relevant method calls used for a knn vector query
+        // 2. we do not want to interfere with the QueryProfiler attached to the ContextIndexSearcher
         IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
             @Override
             public Query rewrite(Query original) throws IOException {
+                if (context.isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
+                }
+
                 rewriteTimer.start();
 
                 try {
@@ -146,6 +152,10 @@ public class DfsPhase {
 
             @Override
             public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
+                if (context.isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
+                }
+
                 createWeightTimer.start();
 
                 try {

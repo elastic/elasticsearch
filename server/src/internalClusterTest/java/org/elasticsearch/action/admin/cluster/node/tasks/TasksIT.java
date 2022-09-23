@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -38,7 +38,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -63,12 +65,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
@@ -82,6 +86,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -98,7 +103,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class TasksIT extends ESIntegTestCase {
 
-    private Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();
+    private final Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
@@ -754,6 +759,14 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testTasksWaitForAllTask() throws Exception {
+        // Find tasks that are not expected to complete and identify the nodes running them
+        List<PersistentTasksCustomMetadata.PersistentTask<?>> alwaysRunningTasks = findTasks(
+            clusterService().state(),
+            HealthNode.TASK_NAME
+        );
+        Set<String> nodesRunningTasks = alwaysRunningTasks.stream()
+            .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
+            .collect(Collectors.toSet());
         // Spin up a request to wait for all tasks in the cluster to make sure it doesn't cause an infinite loop
         ListTasksResponse response = client().admin()
             .cluster()
@@ -762,8 +775,13 @@ public class TasksIT extends ESIntegTestCase {
             .setTimeout(timeValueSeconds(10))
             .get();
 
-        // It should finish quickly and without complaint and list the list tasks themselves
-        assertThat(response.getNodeFailures(), emptyCollectionOf(ElasticsearchException.class));
+        // We expect the nodes that are running always-running-tasks to report FailedNodeException and fail to list their tasks
+        assertThat(response.getNodeFailures().size(), equalTo(nodesRunningTasks.size()));
+        assertThat(
+            response.getNodeFailures().stream().map(f -> ((FailedNodeException) f).nodeId()).collect(Collectors.toSet()),
+            equalTo(nodesRunningTasks)
+        );
+        // We expect no task failures, at least one task the completed, the listTasks task on a node with completed tasks (1 out of min 2).
         assertThat(response.getTaskFailures(), emptyCollectionOf(TaskOperationFailure.class));
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(1));
     }

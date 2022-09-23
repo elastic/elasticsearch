@@ -29,6 +29,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -89,6 +90,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     private final Version channelVersion;
 
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    private final boolean forceSyntheticSource;
+
     public ShardSearchRequest(
         OriginalIndices originalIndices,
         SearchRequest searchRequest,
@@ -145,7 +154,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             readerId,
             keepAlive,
             computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
-            searchRequest.getWaitForCheckpointsTimeout()
+            searchRequest.getWaitForCheckpointsTimeout(),
+            searchRequest.isForceSyntheticSource()
         );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
@@ -185,7 +195,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             null,
             null,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
-            SearchService.NO_TIMEOUT
+            SearchService.NO_TIMEOUT,
+            false
         );
     }
 
@@ -206,7 +217,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         ShardSearchContextId readerId,
         TimeValue keepAlive,
         long waitForCheckpoint,
-        TimeValue waitForCheckpointsTimeout
+        TimeValue waitForCheckpointsTimeout,
+        boolean forceSyntheticSource
     ) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -227,6 +239,31 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.channelVersion = Version.CURRENT;
         this.waitForCheckpoint = waitForCheckpoint;
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
+        this.forceSyntheticSource = forceSyntheticSource;
+    }
+
+    public ShardSearchRequest(ShardSearchRequest clone) {
+        this.shardId = clone.shardId;
+        this.shardRequestIndex = clone.shardRequestIndex;
+        this.searchType = clone.searchType;
+        this.numberOfShards = clone.numberOfShards;
+        this.scroll = clone.scroll;
+        this.source(clone.source);
+        this.aliasFilter = clone.aliasFilter;
+        this.indexBoost = clone.indexBoost;
+        this.nowInMillis = clone.nowInMillis;
+        this.requestCache = clone.requestCache;
+        this.clusterAlias = clone.clusterAlias;
+        this.allowPartialSearchResults = clone.allowPartialSearchResults;
+        this.canReturnNullResponseIfMatchNoDocs = clone.canReturnNullResponseIfMatchNoDocs;
+        this.bottomSortValues = clone.bottomSortValues;
+        this.originalIndices = clone.originalIndices;
+        this.readerId = clone.readerId;
+        this.keepAlive = clone.keepAlive;
+        this.channelVersion = clone.channelVersion;
+        this.waitForCheckpoint = clone.waitForCheckpoint;
+        this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
+        this.forceSyntheticSource = clone.forceSyntheticSource;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -276,30 +313,17 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             waitForCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
             waitForCheckpointsTimeout = SearchService.NO_TIMEOUT;
         }
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            forceSyntheticSource = in.readBoolean();
+        } else {
+            /*
+             * Synthetic source is not supported before 8.3.0 so any request
+             * from a coordinating node of that version will not want to
+             * force it.
+             */
+            forceSyntheticSource = false;
+        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
-    }
-
-    public ShardSearchRequest(ShardSearchRequest clone) {
-        this.shardId = clone.shardId;
-        this.shardRequestIndex = clone.shardRequestIndex;
-        this.searchType = clone.searchType;
-        this.numberOfShards = clone.numberOfShards;
-        this.scroll = clone.scroll;
-        this.source(clone.source);
-        this.aliasFilter = clone.aliasFilter;
-        this.indexBoost = clone.indexBoost;
-        this.nowInMillis = clone.nowInMillis;
-        this.requestCache = clone.requestCache;
-        this.clusterAlias = clone.clusterAlias;
-        this.allowPartialSearchResults = clone.allowPartialSearchResults;
-        this.canReturnNullResponseIfMatchNoDocs = clone.canReturnNullResponseIfMatchNoDocs;
-        this.bottomSortValues = clone.bottomSortValues;
-        this.originalIndices = clone.originalIndices;
-        this.readerId = clone.readerId;
-        this.keepAlive = clone.keepAlive;
-        this.channelVersion = clone.channelVersion;
-        this.waitForCheckpoint = clone.waitForCheckpoint;
-        this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
     }
 
     @Override
@@ -356,6 +380,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                     + waitForCheckpointsVersion
                     + "] or greater."
             );
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeBoolean(forceSyntheticSource);
+        } else {
+            if (forceSyntheticSource) {
+                throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
+            }
         }
     }
 
@@ -637,5 +668,15 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
      */
     public Version getChannelVersion() {
         return channelVersion;
+    }
+
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public boolean isForceSyntheticSource() {
+        return forceSyntheticSource;
     }
 }

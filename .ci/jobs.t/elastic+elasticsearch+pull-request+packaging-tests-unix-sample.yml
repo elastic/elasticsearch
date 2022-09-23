@@ -21,7 +21,6 @@
           cancel-builds-on-update: true
           black-list-target-branches:
             - 6.8
-            - feature/desired-balance-allocator
           excluded-regions:
             - ^docs/.*
           black-list-labels:
@@ -32,7 +31,7 @@
           type: label-expression
           name: os
           values:
-            - rocky-linux-8-packaging
+            - rhel-8-packaging
             - ubuntu-20.04-packaging
       - axis:
           type: user-defined

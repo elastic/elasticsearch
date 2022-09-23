@@ -1,5 +1,0 @@
-pr: 86868
-summary: "Script: Fix setter shortcut for unbridged setters"
-area: Infra/Scripting
-type: bug
-issues: []

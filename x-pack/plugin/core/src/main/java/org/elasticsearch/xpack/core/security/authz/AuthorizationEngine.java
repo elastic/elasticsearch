@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -291,6 +292,16 @@ public interface AuthorizationEngine {
             }
             if (index == null) {
                 validationException = addValidationError("indexPrivileges must not be null", validationException);
+            } else {
+                for (int i = 0; i < index.length; i++) {
+                    BytesReference query = index[i].getQuery();
+                    if (query != null) {
+                        validationException = addValidationError(
+                            "may only check index privileges without any DLS query [" + query.utf8ToString() + "]",
+                            validationException
+                        );
+                    }
+                }
             }
             if (application == null) {
                 validationException = addValidationError("applicationPrivileges must not be null", validationException);

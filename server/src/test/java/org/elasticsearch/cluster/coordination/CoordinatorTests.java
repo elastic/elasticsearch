@@ -16,7 +16,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
@@ -77,6 +76,7 @@ import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MAS
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
@@ -155,6 +155,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89860")
     public void testDoesNotElectNonMasterNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
             cluster.runRandomly();
@@ -604,6 +605,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90158")
     public void testUnhealthyLeaderIsReplaced() {
         final AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(HEALTHY, "healthy-info"));
         final int initialClusterSize = between(1, 3);
@@ -616,7 +618,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final int newClusterNodes = between(initialClusterSize + 1, 4);
             logger.info("--> adding [{}] new healthy nodes", newClusterNodes);
             final NodeHealthService alwaysHealthy = () -> new StatusInfo(HEALTHY, "healthy-info");
-            final Set<String> newNodeIds = new HashSet<>(newClusterNodes);
+            final Set<String> newNodeIds = Sets.newHashSetWithExpectedSize(newClusterNodes);
             for (int i = 0; i < newClusterNodes; i++) {
                 final ClusterNode node = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, alwaysHealthy);
                 newNodeIds.add(node.getId());
@@ -1132,7 +1134,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("unchanged", cs -> {
                 computeAdvancer.advanceTime();
                 return cs;
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
@@ -1219,7 +1221,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("update", cs -> {
                 computeAdvancer.advanceTime();
                 return ClusterState.builder(cs).putCustom(customName, new DelayedCustom(contextAdvancer)).build();
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
@@ -1280,7 +1282,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("update", cs -> {
                 computeAdvancer.advanceTime();
                 return ClusterState.builder(cs).build();
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     fail("shouldn't have processed cluster state");
@@ -1902,6 +1904,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89867")
     public void testSingleNodeDiscoveryStabilisesEvenWhenDisrupted() {
         try (
             Cluster cluster = new Cluster(
@@ -2106,6 +2109,69 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             for (ClusterNode clusterNode : cluster.clusterNodes) {
                 clusterNode.heal();
             }
+        }
+    }
+
+    @TestLogging(
+        reason = "testing warning of a single-node cluster having discovery seed hosts",
+        value = "org.elasticsearch.cluster.coordination.Coordinator:WARN"
+    )
+    public void testLogsWarningPeriodicallyIfSingleNodeClusterHasSeedHosts() throws IllegalAccessException {
+        final long warningDelayMillis;
+        final Settings settings;
+        final String fakeSeedHost = buildNewFakeTransportAddress().toString();
+        if (randomBoolean()) {
+            settings = Settings.builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), fakeSeedHost).build();
+            warningDelayMillis = Coordinator.SINGLE_NODE_CLUSTER_SEED_HOSTS_CHECK_INTERVAL_SETTING.get(settings).millis();
+        } else {
+            warningDelayMillis = randomLongBetween(1, 100000);
+            settings = Settings.builder()
+                .put(ClusterFormationFailureHelper.DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.getKey(), warningDelayMillis + "ms")
+                .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), fakeSeedHost)
+                .build();
+        }
+        logger.info("--> emitting warnings every [{}ms]", warningDelayMillis);
+
+        try (Cluster cluster = new Cluster(1, true, settings)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
+                final MockLogAppender mockLogAppender = new MockLogAppender();
+                try {
+                    mockLogAppender.start();
+                    Loggers.addAppender(LogManager.getLogger(Coordinator.class), mockLogAppender);
+                    mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                        String loggedClusterUuid;
+
+                        @Override
+                        public void match(LogEvent event) {
+                            final String message = event.getMessage().getFormattedMessage();
+                            assertThat(message, startsWith("This node is a fully-formed single-node cluster with cluster UUID"));
+                            loggedClusterUuid = (String) event.getMessage().getParameters()[0];
+                        }
+
+                        @Override
+                        public void assertMatched() {
+                            final String clusterUuid = cluster.getAnyNode().getLastAppliedClusterState().metadata().clusterUUID();
+                            assertThat(loggedClusterUuid + " vs " + clusterUuid, clusterUuid, equalTo(clusterUuid));
+                        }
+                    });
+                    cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
+                    mockLogAppender.assertAllExpectationsMatched();
+                } finally {
+                    Loggers.removeAppender(LogManager.getLogger(Coordinator.class), mockLogAppender);
+                    mockLogAppender.stop();
+                }
+            }
+        }
+    }
+
+    public void testInvariantWhenTwoNodeClusterBecomesSingleNodeCluster() {
+        try (Cluster cluster = new Cluster(2)) {
+            cluster.stabilise();
+            assertTrue(cluster.getAnyNodeExcept(cluster.getAnyLeader()).disconnect()); // Remove non-leader node
+            cluster.stabilise();
         }
     }
 
@@ -2319,6 +2385,23 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion2);
 
             assertFalse(Coordinator.validVotingConfigExclusionState(newState2));
+        }
+    }
+
+    public void testPeerFinderListener() throws Exception {
+        try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            ClusterNode leader = cluster.getAnyLeader();
+            ClusterNode nodeWithListener = cluster.getAnyNodeExcept(leader);
+            AtomicBoolean listenerCalled = new AtomicBoolean(false);
+            nodeWithListener.coordinator.addPeerFinderListener(() -> listenerCalled.set(true));
+            assertFalse(listenerCalled.get());
+            leader.disconnect();
+            cluster.runFor(DEFAULT_STABILISATION_TIME, "Letting disconnect take effect");
+            cluster.stabilise();
+            assertTrue(cluster.clusterNodes.contains(nodeWithListener));
+            assertBusy(() -> assertTrue(listenerCalled.get()));
         }
     }
 

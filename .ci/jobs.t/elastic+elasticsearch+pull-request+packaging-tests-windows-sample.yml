@@ -24,7 +24,6 @@
           black-list-target-branches:
             - 7.17
             - 7.16
-            - feature/desired-balance-allocator
           excluded-regions:
             - ^docs/.*
           black-list-labels:

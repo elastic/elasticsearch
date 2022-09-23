@@ -14,7 +14,6 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginDescriptor;
-import org.elasticsearch.plugins.PluginsSynchronizer;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
@@ -42,7 +41,7 @@ import java.util.stream.Collectors;
  * This action cannot be called from the command line. It is used exclusively by Elasticsearch on startup, but only
  * if the config file exists and the distribution type allows it.
  */
-public class SyncPluginsAction implements PluginsSynchronizer {
+public class SyncPluginsAction {
     public static final String ELASTICSEARCH_PLUGINS_YML = "elasticsearch-plugins.yml";
     public static final String ELASTICSEARCH_PLUGINS_YML_CACHE = ".elasticsearch-plugins.yml.cache";
 
@@ -77,7 +76,6 @@ public class SyncPluginsAction implements PluginsSynchronizer {
      *
      * @throws Exception if anything goes wrong
      */
-    @Override
     public void execute() throws Exception {
         final Path configPath = this.env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML);
         final Path previousConfigPath = this.env.pluginsFile().resolve(ELASTICSEARCH_PLUGINS_YML_CACHE);

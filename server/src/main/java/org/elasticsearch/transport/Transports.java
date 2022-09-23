@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.tasks.Task;
 
-import java.util.Arrays;
 import java.util.Set;
 
 public enum Transports {
@@ -26,6 +25,11 @@ public enum Transports {
     /** threads whose name is prefixed by this string will be considered network threads, even though they aren't */
     public static final String TEST_MOCK_TRANSPORT_THREAD_PREFIX = "__mock_network_thread";
 
+    private static final String[] TRANSPORT_THREAD_NAMES = new String[] {
+        '[' + HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX + ']',
+        '[' + TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX + ']',
+        TEST_MOCK_TRANSPORT_THREAD_PREFIX };
+
     /**
      * Utility method to detect whether a thread is a network thread. Typically
      * used in assertions to make sure that we do not call blocking code from
@@ -33,11 +37,7 @@ public enum Transports {
      */
     public static boolean isTransportThread(Thread t) {
         final String threadName = t.getName();
-        for (String s : Arrays.asList(
-            HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
-            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
-            TEST_MOCK_TRANSPORT_THREAD_PREFIX
-        )) {
+        for (String s : TRANSPORT_THREAD_NAMES) {
             if (threadName.contains(s)) {
                 return true;
             }

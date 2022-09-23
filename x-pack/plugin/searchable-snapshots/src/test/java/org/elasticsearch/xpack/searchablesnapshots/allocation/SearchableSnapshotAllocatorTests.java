@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.IndexModule;
@@ -250,19 +249,12 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         long shardSize,
         AllocationDeciders allocationDeciders
     ) {
-        return new RoutingAllocation(
-            allocationDeciders,
-            state.mutableRoutingNodes(),
-            state,
-            null,
-            new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
-                @Override
-                public Long getShardSize(ShardRouting shardRouting) {
-                    return shardSize;
-                }
-            },
-            TimeUnit.MILLISECONDS.toNanos(deterministicTaskQueue.getCurrentTimeMillis())
-        );
+        return new RoutingAllocation(allocationDeciders, state.mutableRoutingNodes(), state, null, new SnapshotShardSizeInfo(Map.of()) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                return shardSize;
+            }
+        }, TimeUnit.MILLISECONDS.toNanos(deterministicTaskQueue.getCurrentTimeMillis()));
     }
 
     private static void allocateAllUnassigned(RoutingAllocation allocation, ExistingShardsAllocator allocator) {

@@ -133,7 +133,7 @@ public final class GeoTileUtils {
      */
     public static int getYTile(double latitude, long tiles) {
         double latSin = SloppyMath.cos(PI_DIV_2 - Math.toRadians(normalizeLat(latitude)));
-        int yTile = (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
+        int yTile = (int) Math.floor((0.5 - (ESSloppyMath.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
 
         if (yTile < 0) {
             yTile = 0;

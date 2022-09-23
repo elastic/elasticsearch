@@ -1,7 +1,7 @@
 keyword:
   - skip:
-      version: " - 8.2.99"
-      reason: introduced in 8.3.0
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
 
   - do:
       indices.create:
@@ -9,7 +9,7 @@ keyword:
         body:
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -33,3 +33,553 @@ keyword:
   - match:
       _source:
         kwd: foo
+  - is_false: fields
+
+---
+fetch without refresh also produces synthetic source:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              refresh_interval: -1
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              obj:
+                properties:
+                  kwd:
+                    type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: false # no refreshing!
+        body:
+          obj.kwd: foo
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source: # synthetic source will convert the dotted field names into an object, even when loading from the translog
+        obj:
+          kwd: foo
+  - is_false: fields
+
+---
+force_synthetic_source_ok:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: stored
+            properties:
+              obj:
+                properties:
+                  kwd:
+                    type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          obj.kwd: foo
+  - is_false: fields
+
+  # When _source is used in the fetch the original _source is perfect
+  - do:
+      get:
+        index: test
+        id: 1
+  - match:
+      _source:
+        obj.kwd: foo
+
+  # When we force synthetic source dots in field names get turned into objects
+  - do:
+      get:
+        index: test
+        id: 1
+        force_synthetic_source: true
+  - match:
+      _source:
+        obj:
+          kwd: foo
+  - is_false: fields
+
+---
+force_synthetic_source_bad_mapping:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1 # Use a single shard to get consistent error messages
+          mappings:
+            _source:
+              mode: stored
+            properties:
+              text:
+                type: text
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          text: foo
+
+  # When _source is used in the fetch the original _source is perfect
+  - do:
+      get:
+        index: test
+        id: 1
+  - match:
+      _source:
+        text: foo
+
+  # Forcing synthetic source fails because the mapping is invalid
+  - do:
+      catch: bad_request
+      get:
+        index: test
+        id: 1
+        force_synthetic_source: true
+
+---
+stored text:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              text:
+                type: text
+                store: true
+  - is_false: fields
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          text: the quick brown fox
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        text: the quick brown fox
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    1
+        stored_fields: text
+        _source: true
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        text: the quick brown fox
+  - match:
+      fields:
+        text: [the quick brown fox]
+
+  - do:
+      get:
+        index: test
+        id:    1
+        stored_fields: garbage
+        _source: true
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        text: the quick brown fox
+  - is_false: fields
+
+---
+stored keyword:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                store: true
+  - is_false: fields
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: the quick brown fox
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: the quick brown fox
+  - is_false: fields
+
+---
+doc values keyword with ignore_above:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                ignore_above: 10
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: the quick brown fox
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          kwd: short
+  - do:
+      index:
+        index:   test
+        id:      3
+        refresh: true
+        body:
+          kwd:
+            - jumped over the lazy dog
+            - short
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: the quick brown fox
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    2
+  - match: {_index: "test"}
+  - match: {_id: "2"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: short
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    3
+  - match: {_index: "test"}
+  - match: {_id: "3"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd:
+          - short
+          - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
+  - is_false: fields
+
+---
+stored keyword with ignore_above:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                doc_values: false
+                store: true
+                ignore_above: 10
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: the quick brown fox
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          kwd: short
+  - do:
+      index:
+        index:   test
+        id:      3
+        refresh: true
+        body:
+          kwd:
+            - jumped over the lazy dog
+            - short
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: the quick brown fox
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    2
+  - match: {_index: "test"}
+  - match: {_id: "2"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: short
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    3
+  - match: {_index: "test"}
+  - match: {_id: "3"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd:
+          - short
+          - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
+  - is_false: fields
+
+---
+indexed dense vectors:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          name: cow.jpg
+          vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        name: cow.jpg
+        vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+  - is_false: fields
+
+---
+non-indexed dense vectors:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: false
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          name: cow.jpg
+          vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        name: cow.jpg
+        vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+  - is_false: fields
+
+---
+_source filtering:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+              extra:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: foo
+          extra: bar
+
+  - do:
+      get:
+        index: test
+        id:    1
+        _source: kwd
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: foo
+  - is_false: fields

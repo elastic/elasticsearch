@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -39,7 +40,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
@@ -56,7 +56,9 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.shuffle;
@@ -458,9 +460,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         }
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
 
-        final ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.builder(
-            numberOfShards
-        );
+        final Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes = new HashMap<>(numberOfShards);
         final Index index = metadata.index("test").getIndex();
         for (int i = 0; i < numberOfShards; i++) {
             final ShardId shardId = new ShardId(index, i);
@@ -487,7 +487,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            () -> new SnapshotShardSizeInfo(snapshotShardSizes.build())
+            () -> new SnapshotShardSizeInfo(snapshotShardSizes)
         );
         state = strategy.reroute(state, new AllocationCommands(), true, false).clusterState();
 
@@ -578,8 +578,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
 
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
-        RoutingNode newNode = new RoutingNode("newNode", newNode("newNode", Version.CURRENT));
-        RoutingNode oldNode = new RoutingNode("oldNode", newNode("oldNode", VersionUtils.getPreviousVersion()));
+        RoutingNode newNode = RoutingNodesHelper.routingNode("newNode", newNode("newNode", Version.CURRENT));
+        RoutingNode oldNode = RoutingNodesHelper.routingNode("oldNode", newNode("oldNode", VersionUtils.getPreviousVersion()));
 
         final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
         ClusterState clusterState = ClusterState.builder(clusterName)
@@ -679,7 +679,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final ShardRouting startedPrimary = routingNodes.startShard(
             logger,
             routingNodes.initializeShard(primaryShard, "newNode", null, 0, routingChangesObserver),
-            routingChangesObserver
+            routingChangesObserver,
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
         routingAllocation = new RoutingAllocation(null, routingNodes, clusterState, null, null, 0);
         routingAllocation.debugDecision(true);
@@ -700,7 +701,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         routingNodes.startShard(
             logger,
             routingNodes.relocateShard(startedPrimary, "oldNode", 0, routingChangesObserver).v2(),
-            routingChangesObserver
+            routingChangesObserver,
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
         routingAllocation = new RoutingAllocation(null, routingNodes, clusterState, null, null, 0);
         routingAllocation.debugDecision(true);

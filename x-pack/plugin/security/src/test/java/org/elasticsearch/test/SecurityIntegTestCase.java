@@ -193,11 +193,15 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 .map(p -> p.descriptor().getClassname())
                 .collect(Collectors.toList());
             assertThat(
-                "plugin [" + LocalStateSecurity.class.getName() + "] not found in [" + pluginNames + "]",
+                "plugin [" + xpackPluginClass().getName() + "] not found in [" + pluginNames + "]",
                 pluginNames,
-                hasItem(LocalStateSecurity.class.getName())
+                hasItem(xpackPluginClass().getName())
             );
         }
+    }
+
+    protected Class<?> xpackPluginClass() {
+        return LocalStateSecurity.class;
     }
 
     @Override

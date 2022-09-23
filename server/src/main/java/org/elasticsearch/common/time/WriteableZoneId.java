@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -27,18 +26,6 @@ public class WriteableZoneId implements Writeable, ToXContentFragment {
 
     public WriteableZoneId(ZoneId zoneId) {
         this.zoneId = zoneId;
-    }
-
-    public WriteableZoneId(StreamInput in) throws IOException {
-        zoneId = ZoneId.of(in.readString());
-    }
-
-    public static WriteableZoneId of(String input) {
-        return new WriteableZoneId(ZoneId.of(input));
-    }
-
-    public ZoneId zoneId() {
-        return zoneId;
     }
 
     @Override

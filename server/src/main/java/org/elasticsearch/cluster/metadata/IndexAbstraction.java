@@ -98,13 +98,6 @@ public interface IndexAbstraction {
     }
 
     /**
-     * @return the names of aliases referring to this instance.
-     *         Returns <code>null</code> if aliases can't point to this instance.
-     */
-    @Nullable
-    List<String> getAliases();
-
-    /**
      * An index abstraction type.
      */
     enum Type {
@@ -148,7 +141,6 @@ public interface IndexAbstraction {
         private final Index concreteIndex;
         private final boolean isHidden;
         private final boolean isSystem;
-        private final List<String> aliases;
         private final DataStream dataStream;
 
         public ConcreteIndex(IndexMetadata indexMetadata, DataStream dataStream) {
@@ -156,7 +148,6 @@ public interface IndexAbstraction {
             this.concreteIndex = indexMetadata.getIndex();
             this.isHidden = indexMetadata.isHidden();
             this.isSystem = indexMetadata.isSystem();
-            this.aliases = indexMetadata.getAliases() != null ? List.copyOf(indexMetadata.getAliases().keySet()) : null;
             this.dataStream = dataStream;
         }
 
@@ -200,11 +191,6 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public List<String> getAliases() {
-            return aliases;
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -212,13 +198,12 @@ public interface IndexAbstraction {
             return isHidden == that.isHidden
                 && isSystem == that.isSystem
                 && concreteIndex.equals(that.concreteIndex)
-                && Objects.equals(aliases, that.aliases)
                 && Objects.equals(dataStream, that.dataStream);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(concreteIndex, isHidden, isSystem, aliases, dataStream);
+            return Objects.hash(concreteIndex, isHidden, isSystem, dataStream);
         }
     }
 
@@ -250,6 +235,7 @@ public interface IndexAbstraction {
                 }
                 isSystem = isSystem && imd.isSystem();
             }
+            this.referenceIndices.sort(Index.COMPARE_BY_NAME);
 
             if (widx == null && indexMetadatas.size() == 1 && indexMetadatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
                 widx = indexMetadatas.get(0).getIndex();
@@ -311,11 +297,6 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public List<String> getAliases() {
-            return null;
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -347,11 +328,9 @@ public interface IndexAbstraction {
         );
 
         private final org.elasticsearch.cluster.metadata.DataStream dataStream;
-        private final List<String> referencedByDataStreamAliases;
 
-        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream, List<String> aliases) {
+        public DataStream(org.elasticsearch.cluster.metadata.DataStream dataStream) {
             this.dataStream = dataStream;
-            this.referencedByDataStreamAliases = aliases;
         }
 
         @Override
@@ -477,11 +456,6 @@ public interface IndexAbstraction {
             return true;
         }
 
-        @Override
-        public List<String> getAliases() {
-            return referencedByDataStreamAliases;
-        }
-
         public org.elasticsearch.cluster.metadata.DataStream getDataStream() {
             return dataStream;
         }
@@ -491,12 +465,12 @@ public interface IndexAbstraction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStream that = (DataStream) o;
-            return dataStream.equals(that.dataStream) && Objects.equals(referencedByDataStreamAliases, that.referencedByDataStreamAliases);
+            return dataStream.equals(that.dataStream);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(dataStream, referencedByDataStreamAliases);
+            return Objects.hash(dataStream);
         }
     }
 

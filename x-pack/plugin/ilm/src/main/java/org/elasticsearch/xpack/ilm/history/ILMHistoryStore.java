@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm.history;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -36,6 +35,8 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.ILM_TEMPLATE_NAME;
@@ -74,15 +75,15 @@ public class ILMHistoryStore implements Closeable {
                 if (clusterService.state().getMetadata().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
                     ElasticsearchException e = new ElasticsearchException("no ILM history template");
                     logger.warn(
-                        new ParameterizedMessage(
-                            "unable to index the following ILM history items:\n{}",
+                        () -> format(
+                            "unable to index the following ILM history items:\n%s",
                             request.requests()
                                 .stream()
                                 .filter(dwr -> (dwr instanceof IndexRequest))
                                 .map(dwr -> ((IndexRequest) dwr))
                                 .map(IndexRequest::sourceAsMap)
                                 .map(Object::toString)
-                                .collect(Collectors.joining("\n"))
+                                .collect(joining("\n"))
                         ),
                         e
                     );
@@ -162,20 +163,13 @@ public class ILMHistoryStore implements Closeable {
                     processor.add(request);
                 } catch (Exception e) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "failed add ILM history item to queue for index [{}]: [{}]",
-                            ILM_HISTORY_DATA_STREAM,
-                            item
-                        ),
+                        () -> format("failed add ILM history item to queue for index [%s]: [%s]", ILM_HISTORY_DATA_STREAM, item),
                         e
                     );
                 }
             });
         } catch (IOException exception) {
-            logger.error(
-                new ParameterizedMessage("failed to queue ILM history item in index [{}]: [{}]", ILM_HISTORY_DATA_STREAM, item),
-                exception
-            );
+            logger.error(() -> format("failed to queue ILM history item in index [%s]: [%s]", ILM_HISTORY_DATA_STREAM, item), exception);
         }
     }
 

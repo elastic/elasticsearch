@@ -250,7 +250,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                     TimeValue.ZERO,
                     Map.of(
                         RolloverAction.NAME,
-                        new RolloverAction(null, null, null, 1L, null),
+                        new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                         SearchableSnapshotAction.NAME,
                         new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))
                     )
@@ -265,7 +265,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertThat(
             exception.getMessage(),
             containsString(
-                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup]"
+                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, downsample]"
                     + " actions which are not allowed after a managed index is mounted as a searchable snapshot"
             )
         );
@@ -281,7 +281,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null),
+                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo)
                 )
@@ -360,7 +360,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null),
+                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo)
                 )
@@ -452,7 +452,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + "-000001";
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         Map<String, LifecycleAction> hotActions = new HashMap<>();
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()));
         createPolicy(
             client(),
@@ -620,7 +620,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null),
+                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo, randomBoolean())
                 )
@@ -664,6 +664,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Map<String, Object> hotIndexSettings = getIndexSettingsAsMap(restoredIndex);
         // searchable snapshots mounted in the hot phase should be pinned to hot nodes
         assertThat(hotIndexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
+
+        assertOK(client().performRequest(new Request("DELETE", "_data_stream/" + dataStream)));
+        assertOK(client().performRequest(new Request("DELETE", "_ilm/policy/" + policy)));
     }
 
     // See: https://github.com/elastic/elasticsearch/issues/77269

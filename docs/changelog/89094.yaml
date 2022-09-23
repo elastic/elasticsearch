@@ -1,0 +1,5 @@
+pr: 89094
+summary: Deduplicate fetching doc-values fields
+area: Search
+type: bug
+issues: []

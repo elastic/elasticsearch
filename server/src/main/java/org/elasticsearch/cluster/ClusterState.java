@@ -54,6 +54,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -151,7 +152,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     private final ClusterBlocks blocks;
 
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final Map<String, Custom> customs;
 
     private final ClusterName clusterName;
 
@@ -183,7 +184,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         RoutingTable routingTable,
         DiscoveryNodes nodes,
         ClusterBlocks blocks,
-        ImmutableOpenMap<String, Custom> customs,
+        Map<String, Custom> customs,
         boolean wasReadFromDiff,
         @Nullable RoutingNodes routingNodes
     ) {
@@ -281,11 +282,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return blocks;
     }
 
-    public ImmutableOpenMap<String, Custom> customs() {
+    public Map<String, Custom> customs() {
         return this.customs;
     }
 
-    public ImmutableOpenMap<String, Custom> getCustoms() {
+    public Map<String, Custom> getCustoms() {
         return this.customs;
     }
 
@@ -319,11 +320,22 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      * Returns a built (on demand) routing nodes view of the routing table.
      */
     public RoutingNodes getRoutingNodes() {
-        if (routingNodes != null) {
-            return routingNodes;
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
         }
-        routingNodes = RoutingNodes.immutable(routingTable, nodes);
-        return routingNodes;
+        r = buildRoutingNodes();
+        return r;
+    }
+
+    private synchronized RoutingNodes buildRoutingNodes() {
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
+        }
+        r = RoutingNodes.immutable(routingTable, nodes);
+        routingNodes = r;
+        return r;
     }
 
     /**
@@ -338,6 +350,39 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         // we don't have any routing nodes for this state, likely because it's a temporary state in the reroute logic, don't compute an
         // immutable copy that will never be used and instead directly build a mutable copy
         return RoutingNodes.mutable(routingTable, this.nodes);
+    }
+
+    /**
+     * Initialize data structures that lazy computed for this instance in the background by using the giving executor.
+     * @param executor executor to run initialization tasks on
+     */
+    public void initializeAsync(Executor executor) {
+        if (routingNodes == null) {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    getRoutingNodes();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of routing nodes for cluster state " + version();
+                }
+            });
+        }
+        if (metadata.indicesLookupInitialized() == false) {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    metadata.getIndicesLookup();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of indices lookup for cluster state " + version();
+                }
+            });
+        }
     }
 
     @Override
@@ -698,14 +743,16 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder customs(ImmutableOpenMap<String, Custom> customs) {
+        public Builder customs(Map<String, Custom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
             return this;
         }
 
-        public Builder fromDiff(boolean fromDiff) {
-            this.fromDiff = fromDiff;
+        // set previous cluster state that this builder is created from during diff application
+        private Builder fromDiff(ClusterState previous) {
+            this.fromDiff = true;
+            this.previous = previous;
             return this;
         }
 
@@ -814,7 +861,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         private final Diff<ClusterBlocks> blocks;
 
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final Diff<Map<String, Custom>> customs;
 
         ClusterStateDiff(ClusterState before, ClusterState after) {
             fromUuid = before.stateUUID;
@@ -837,7 +884,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
             if (in.getVersion().before(Version.V_8_0_0)) {
                 in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }
@@ -876,7 +923,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));
-            builder.fromDiff(true);
+            builder.fromDiff(state);
             return builder.build();
         }
     }

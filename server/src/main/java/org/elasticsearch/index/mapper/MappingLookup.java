@@ -8,12 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,6 +48,7 @@ public final class MappingLookup {
     /** Full field name to mapper */
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
+    private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
@@ -181,11 +182,28 @@ public final class MappingLookup {
         // make all fields into compact+fast immutable maps
         this.fieldMappers = Map.copyOf(fieldMappers);
         this.objectMappers = Map.copyOf(objects);
+        this.runtimeFieldMappersCount = runtimeFields.size();
         this.indexAnalyzersMap = Map.copyOf(indexAnalyzersMap);
         this.completionFields = Set.copyOf(completionFields);
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
+        assert assertMapperNamesInterned(this.fieldMappers, this.objectMappers);
+    }
+
+    private static boolean assertMapperNamesInterned(Map<String, Mapper> mappers, Map<String, ObjectMapper> objectMappers) {
+        mappers.forEach(MappingLookup::assertNamesInterned);
+        objectMappers.forEach(MappingLookup::assertNamesInterned);
+        return true;
+    }
+
+    private static void assertNamesInterned(String name, Mapper mapper) {
+        assert name == name.intern();
+        assert mapper.name() == mapper.name().intern();
+        assert mapper.simpleName() == mapper.simpleName().intern();
+        if (mapper instanceof ObjectMapper) {
+            ((ObjectMapper) mapper).mappers.forEach(MappingLookup::assertNamesInterned);
+        }
     }
 
     /**
@@ -200,6 +218,13 @@ public final class MappingLookup {
 
     FieldTypeLookup fieldTypesLookup() {
         return fieldTypeLookup;
+    }
+
+    /**
+     * Returns the total number of fields defined in the mappings, including field mappers, object mappers as well as runtime fields.
+     */
+    public long getTotalFieldsCount() {
+        return fieldMappers.size() + objectMappers.size() + runtimeFieldMappersCount;
     }
 
     FieldTypeLookup indexTimeLookup() {
@@ -234,20 +259,6 @@ public final class MappingLookup {
         return completionFields.contains(field) ? CompletionFieldMapper.postingsFormat() : null;
     }
 
-    /**
-     * Returns the knn vectors format for a particular field
-     * @param field the field to retrieve a knn vectors format for
-     * @return the knn vectors format for the field, or {@code null} if the default format should be used
-     */
-    public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-        Mapper fieldMapper = fieldMappers.get(field);
-        if (fieldMapper instanceof PerFieldKnnVectorsFormatFieldMapper) {
-            return ((PerFieldKnnVectorsFormatFieldMapper) fieldMapper).getKnnVectorsFormatForField();
-        } else {
-            return null;
-        }
-    }
-
     void checkLimits(IndexSettings settings) {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
@@ -261,7 +272,7 @@ public final class MappingLookup {
     }
 
     void checkFieldLimit(long limit, int additionalFieldsToAdd) {
-        if (fieldMappers.size() + objectMappers.size() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit) {
+        if (getTotalFieldsCount() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit) {
             throw new IllegalArgumentException(
                 "Limit of total fields ["
                     + limit
@@ -399,14 +410,28 @@ public final class MappingLookup {
         return this != EMPTY;
     }
 
+    /**
+     * Will there be {@code _source}.
+     */
     public boolean isSourceEnabled() {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
         return sfm != null && sfm.enabled();
     }
 
+    /**
+     * Does the source need to be rebuilt on the fly?
+     */
+    public boolean isSourceSynthetic() {
+        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
+        return sfm != null && sfm.isSynthetic();
+    }
+
+    /**
+     * Build something to load source {@code _source}.
+     */
     public SourceLoader newSourceLoader() {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
-        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping.getRoot());
+        return sfm == null ? SourceLoader.FROM_STORED_SOURCE : sfm.newSourceLoader(mapping);
     }
 
     /**
@@ -461,6 +486,20 @@ public final class MappingLookup {
         }
         if (shadowed.getMetricType() != null) {
             throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
+        }
+    }
+
+    /**
+     * Returns a SourceProvider describing how to read the source. If using synthetic source, returns the null source provider
+     * expecting the source to either be provided later by a fetch phase or not be accessed at all (as in scripts).
+     * @return
+     */
+    public SourceLookup.SourceProvider getSourceProvider() {
+        SourceFieldMapper sourceMapper = (SourceFieldMapper) getMapper("_source");
+        if (sourceMapper == null || sourceMapper.isSynthetic() == false) {
+            return new SourceLookup.ReaderSourceProvider();
+        } else {
+            return new SourceLookup.NullSourceProvider();
         }
     }
 }

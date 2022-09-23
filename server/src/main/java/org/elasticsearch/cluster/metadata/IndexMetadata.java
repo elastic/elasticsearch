@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -32,15 +33,19 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xcontent.ToXContent;
@@ -68,11 +73,11 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
+import static org.elasticsearch.cluster.metadata.Metadata.DEDUPLICATED_MAPPINGS_PARAM;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
@@ -122,6 +127,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         RestStatus.TOO_MANY_REQUESTS,
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
+
+    // TODO: refactor this method after adding more downsampling metadata
+    public boolean isDownsampledIndex() {
+        final String sourceIndex = settings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY);
+        final String indexDownsamplingStatus = settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY);
+        final boolean downsamplingSuccess = DownsampleTaskStatus.SUCCESS.name()
+            .toLowerCase(Locale.ROOT)
+            .equals(indexDownsamplingStatus != null ? indexDownsamplingStatus.toLowerCase(Locale.ROOT) : DownsampleTaskStatus.UNKNOWN);
+        return Strings.isNullOrEmpty(sourceIndex) == false && downsamplingSuccess;
+    }
 
     public enum State implements Writeable {
         OPEN((byte) 0),
@@ -476,6 +491,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_SETTINGS = "settings";
     static final String KEY_STATE = "state";
     static final String KEY_MAPPINGS = "mappings";
+    static final String KEY_MAPPINGS_HASH = "mappings_hash";
     static final String KEY_ALIASES = "aliases";
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_SYSTEM = "system";
@@ -557,6 +573,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final boolean isPartialSearchableSnapshot;
 
+    @Nullable
+    private final IndexMode indexMode;
+    @Nullable
+    private final Instant timeSeriesStart;
+    @Nullable
+    private final Instant timeSeriesEnd;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -594,7 +617,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final LifecycleExecutionState lifecycleExecutionState,
         final AutoExpandReplicas autoExpandReplicas,
         final boolean isSearchableSnapshot,
-        final boolean isPartialSearchableSnapshot
+        final boolean isPartialSearchableSnapshot,
+        @Nullable final IndexMode indexMode,
+        @Nullable final Instant timeSeriesStart,
+        @Nullable final Instant timeSeriesEnd,
+        final Version indexCompatibilityVersion
     ) {
         this.index = index;
         this.version = version;
@@ -640,7 +667,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.autoExpandReplicas = autoExpandReplicas;
         this.isSearchableSnapshot = isSearchableSnapshot;
         this.isPartialSearchableSnapshot = isPartialSearchableSnapshot;
-        this.indexCompatibilityVersion = SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
+        this.indexCompatibilityVersion = indexCompatibilityVersion;
+        assert indexCompatibilityVersion.equals(SETTING_INDEX_VERSION_COMPATIBILITY.get(settings));
+        this.indexMode = indexMode;
+        this.timeSeriesStart = timeSeriesStart;
+        this.timeSeriesEnd = timeSeriesEnd;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -685,7 +716,221 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.lifecycleExecutionState,
             this.autoExpandReplicas,
             this.isSearchableSnapshot,
-            this.isPartialSearchableSnapshot
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd,
+            this.indexCompatibilityVersion
+        );
+    }
+
+    /**
+     * Copy constructor that sets the in-sync allocation ids for the specified shard.
+     * @param shardId shard id to set in-sync allocation ids for
+     * @param inSyncSet new in-sync allocation ids
+     * @return updated instance
+     */
+    public IndexMetadata withInSyncAllocationIds(int shardId, Set<String> inSyncSet) {
+        if (inSyncSet.equals(inSyncAllocationIds.get(shardId))) {
+            return this;
+        }
+        return new IndexMetadata(
+            this.index,
+            this.version,
+            this.mappingVersion,
+            this.settingsVersion,
+            this.aliasesVersion,
+            this.primaryTerms,
+            this.state,
+            this.numberOfShards,
+            this.numberOfReplicas,
+            this.settings,
+            this.mapping,
+            this.aliases,
+            this.customData,
+            Maps.copyMapWithAddedOrReplacedEntry(this.inSyncAllocationIds, shardId, Set.copyOf(inSyncSet)),
+            this.requireFilters,
+            this.initialRecoveryFilters,
+            this.includeFilters,
+            this.excludeFilters,
+            this.indexCreatedVersion,
+            this.routingNumShards,
+            this.routingPartitionSize,
+            this.routingPaths,
+            this.waitForActiveShards,
+            this.rolloverInfos,
+            this.isSystem,
+            this.isHidden,
+            this.timestampRange,
+            this.priority,
+            this.creationDate,
+            this.ignoreDiskWatermarks,
+            this.tierPreference,
+            this.shardsPerNodeLimit,
+            this.lifecyclePolicyName,
+            this.lifecycleExecutionState,
+            this.autoExpandReplicas,
+            this.isSearchableSnapshot,
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd,
+            this.indexCompatibilityVersion
+        );
+    }
+
+    /**
+     * Creates a copy of this instance that has the primary term for the given shard id incremented.
+     * @param shardId shard id to increment primary term for
+     * @return updated instance with incremented primary term
+     */
+    public IndexMetadata withIncrementedPrimaryTerm(int shardId) {
+        final long[] incremented = this.primaryTerms.clone();
+        incremented[shardId]++;
+        return new IndexMetadata(
+            this.index,
+            this.version,
+            this.mappingVersion,
+            this.settingsVersion,
+            this.aliasesVersion,
+            incremented,
+            this.state,
+            this.numberOfShards,
+            this.numberOfReplicas,
+            this.settings,
+            this.mapping,
+            this.aliases,
+            this.customData,
+            this.inSyncAllocationIds,
+            this.requireFilters,
+            this.initialRecoveryFilters,
+            this.includeFilters,
+            this.excludeFilters,
+            this.indexCreatedVersion,
+            this.routingNumShards,
+            this.routingPartitionSize,
+            this.routingPaths,
+            this.waitForActiveShards,
+            this.rolloverInfos,
+            this.isSystem,
+            this.isHidden,
+            this.timestampRange,
+            this.priority,
+            this.creationDate,
+            this.ignoreDiskWatermarks,
+            this.tierPreference,
+            this.shardsPerNodeLimit,
+            this.lifecyclePolicyName,
+            this.lifecycleExecutionState,
+            this.autoExpandReplicas,
+            this.isSearchableSnapshot,
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd,
+            this.indexCompatibilityVersion
+        );
+    }
+
+    /**
+     * @param timestampRange new timestamp range
+     * @return copy of this instance with updated timestamp range
+     */
+    public IndexMetadata withTimestampRange(IndexLongFieldRange timestampRange) {
+        if (timestampRange.equals(this.timestampRange)) {
+            return this;
+        }
+        return new IndexMetadata(
+            this.index,
+            this.version,
+            this.mappingVersion,
+            this.settingsVersion,
+            this.aliasesVersion,
+            this.primaryTerms,
+            this.state,
+            this.numberOfShards,
+            this.numberOfReplicas,
+            this.settings,
+            this.mapping,
+            this.aliases,
+            this.customData,
+            this.inSyncAllocationIds,
+            this.requireFilters,
+            this.initialRecoveryFilters,
+            this.includeFilters,
+            this.excludeFilters,
+            this.indexCreatedVersion,
+            this.routingNumShards,
+            this.routingPartitionSize,
+            this.routingPaths,
+            this.waitForActiveShards,
+            this.rolloverInfos,
+            this.isSystem,
+            this.isHidden,
+            timestampRange,
+            this.priority,
+            this.creationDate,
+            this.ignoreDiskWatermarks,
+            this.tierPreference,
+            this.shardsPerNodeLimit,
+            this.lifecyclePolicyName,
+            this.lifecycleExecutionState,
+            this.autoExpandReplicas,
+            this.isSearchableSnapshot,
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd,
+            this.indexCompatibilityVersion
+        );
+    }
+
+    /**
+     * @return a copy of this instance that has its version incremented by one
+     */
+    public IndexMetadata withIncrementedVersion() {
+        return new IndexMetadata(
+            this.index,
+            this.version + 1,
+            this.mappingVersion,
+            this.settingsVersion,
+            this.aliasesVersion,
+            this.primaryTerms,
+            this.state,
+            this.numberOfShards,
+            this.numberOfReplicas,
+            this.settings,
+            this.mapping,
+            this.aliases,
+            this.customData,
+            this.inSyncAllocationIds,
+            this.requireFilters,
+            this.initialRecoveryFilters,
+            this.includeFilters,
+            this.excludeFilters,
+            this.indexCreatedVersion,
+            this.routingNumShards,
+            this.routingPartitionSize,
+            this.routingPaths,
+            this.waitForActiveShards,
+            this.rolloverInfos,
+            this.isSystem,
+            this.isHidden,
+            this.timestampRange,
+            this.priority,
+            this.creationDate,
+            this.ignoreDiskWatermarks,
+            this.tierPreference,
+            this.shardsPerNodeLimit,
+            this.lifecyclePolicyName,
+            this.lifecycleExecutionState,
+            this.autoExpandReplicas,
+            this.isSearchableSnapshot,
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd,
+            this.indexCompatibilityVersion
         );
     }
 
@@ -695,18 +940,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public String getIndexUUID() {
         return index.getUUID();
-    }
-
-    /**
-     * Test whether the current index UUID is the same as the given one. Returns true if either are _na_
-     */
-    public boolean isSameUUID(String otherUUID) {
-        assert otherUUID != null;
-        assert getIndexUUID() != null;
-        if (INDEX_UUID_NA_VALUE.equals(otherUUID) || INDEX_UUID_NA_VALUE.equals(getIndexUUID())) {
-            return true;
-        }
-        return otherUUID.equals(getIndexUUID());
     }
 
     public long getVersion() {
@@ -846,6 +1079,41 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
+     * @return the mode this index is in. This determines the behaviour and features it supports.
+     *         If <code>null</code> is returned then this in index is in standard mode.
+     */
+    @Nullable
+    public IndexMode getIndexMode() {
+        return indexMode;
+    }
+
+    /**
+     * If this index is in {@link IndexMode#TIME_SERIES} then this returns the lower boundary of the time series time range.
+     * Together with {@link #getTimeSeriesEnd()} this defines the time series time range this index has and the range of
+     * timestamps all documents in this index have.
+     *
+     * @return If this index is in {@link IndexMode#TIME_SERIES} then this returns the lower boundary of the time series time range.
+     *         If this index isn't in {@link IndexMode#TIME_SERIES} then <code>null</code> is returned.
+     */
+    @Nullable
+    public Instant getTimeSeriesStart() {
+        return timeSeriesStart;
+    }
+
+    /**
+     * If this index is in {@link IndexMode#TIME_SERIES} then this returns the upper boundary of the time series time range.
+     * Together with {@link #getTimeSeriesStart()} this defines the time series time range this index has and the range of
+     * timestamps all documents in this index have.
+     *
+     * @return If this index is in {@link IndexMode#TIME_SERIES} then this returns the upper boundary of the time series time range.
+     *         If this index isn't in {@link IndexMode#TIME_SERIES} then <code>null</code> is returned.
+     */
+    @Nullable
+    public Instant getTimeSeriesEnd() {
+        return timeSeriesEnd;
+    }
+
+    /**
      * Return the concrete mapping for this index or {@code null} if this index has no mappings at all.
      */
     @Nullable
@@ -864,17 +1132,38 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             : null;
     }
 
-    public static final String INDEX_ROLLUP_SOURCE_UUID_KEY = "index.rollup.source.uuid";
-    public static final String INDEX_ROLLUP_SOURCE_NAME_KEY = "index.rollup.source.name";
-    public static final Setting<String> INDEX_ROLLUP_SOURCE_UUID = Setting.simpleString(
-        INDEX_ROLLUP_SOURCE_UUID_KEY,
+    public static final String INDEX_DOWNSAMPLE_SOURCE_UUID_KEY = "index.downsample.source.uuid";
+    public static final String INDEX_DOWNSAMPLE_SOURCE_NAME_KEY = "index.downsample.source.name";
+
+    public static final String INDEX_DOWNSAMPLE_STATUS_KEY = "index.downsample.status";
+    public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_UUID = Setting.simpleString(
+        INDEX_DOWNSAMPLE_SOURCE_UUID_KEY,
         Property.IndexScope,
         Property.PrivateIndex
     );
-    public static final Setting<String> INDEX_ROLLUP_SOURCE_NAME = Setting.simpleString(
-        INDEX_ROLLUP_SOURCE_NAME_KEY,
+    public static final Setting<String> INDEX_DOWNSAMPLE_SOURCE_NAME = Setting.simpleString(
+        INDEX_DOWNSAMPLE_SOURCE_NAME_KEY,
         Property.IndexScope,
         Property.PrivateIndex
+    );
+
+    public enum DownsampleTaskStatus {
+        UNKNOWN,
+        STARTED,
+        SUCCESS;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public static final Setting<DownsampleTaskStatus> INDEX_DOWNSAMPLE_STATUS = Setting.enumSetting(
+        DownsampleTaskStatus.class,
+        INDEX_DOWNSAMPLE_STATUS_KEY,
+        DownsampleTaskStatus.UNKNOWN,
+        Property.IndexScope,
+        Property.InternalIndex
     );
 
     // LIFECYCLE_NAME is here an as optimization, see LifecycleSettings.LIFECYCLE_NAME and
@@ -924,6 +1213,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public IndexLongFieldRange getTimestampRange() {
         return timestampRange;
+    }
+
+    /**
+     * @return the time range this index represents if this index is in time series mode.
+     *         Otherwise <code>null</code> is returned.
+     */
+    @Nullable
+    public IndexLongFieldRange getTimeSeriesTimestampRange() {
+        var bounds = indexMode != null ? indexMode.getTimestampBound(this) : null;
+        if (bounds != null) {
+            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(bounds.startTime(), bounds.endTime()));
+        } else {
+            return null;
+        }
     }
 
     @Override
@@ -1011,11 +1314,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return Builder.fromXContent(parser);
     }
 
+    public static IndexMetadata fromXContent(XContentParser parser, Map<String, MappingMetadata> mappingsByHash) throws IOException {
+        return Builder.fromXContent(parser, mappingsByHash);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Builder.toXContent(this, builder, params);
         return builder;
     }
+
+    private static final Version SETTING_DIFF_VERSION = Version.V_8_5_0;
 
     private static class IndexMetadataDiff implements Diff<IndexMetadata> {
 
@@ -1027,7 +1336,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final long aliasesVersion;
         private final long[] primaryTerms;
         private final State state;
+
+        // used for BwC when this instance was written by an older version node that does not diff settings yet
+        @Nullable
         private final Settings settings;
+        @Nullable
+        private final Diff<Settings> settingsDiff;
         private final Diff<ImmutableOpenMap<String, MappingMetadata>> mappings;
         private final Diff<ImmutableOpenMap<String, AliasMetadata>> aliases;
         private final Diff<ImmutableOpenMap<String, DiffableStringMap>> customData;
@@ -1045,6 +1359,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             routingNumShards = after.routingNumShards;
             state = after.state;
             settings = after.settings;
+            settingsDiff = after.settings.diff(before.settings);
             primaryTerms = after.primaryTerms;
             // TODO: find a nicer way to do BwC here and just work with Diff<MappingMetadata> here and in networking
             mappings = DiffableUtils.diff(
@@ -1090,7 +1405,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 aliasesVersion = 1;
             }
             state = State.fromId(in.readByte());
-            settings = Settings.readSettingsFromStream(in);
+            if (in.getVersion().onOrAfter(SETTING_DIFF_VERSION)) {
+                settings = null;
+                settingsDiff = Settings.readSettingsDiffFromStream(in);
+            } else {
+                settings = Settings.readSettingsFromStream(in);
+                settingsDiff = null;
+            }
             primaryTerms = in.readVLongArray();
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), ALIAS_METADATA_DIFF_VALUE_READER);
@@ -1124,7 +1445,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeVLong(aliasesVersion);
             }
             out.writeByte(state.id);
-            Settings.writeSettingsToStream(settings, out);
+            assert settings != null
+                : "settings should always be non-null since this instance is not expected to have been read from another node";
+            if (out.getVersion().onOrAfter(SETTING_DIFF_VERSION)) {
+                settingsDiff.writeTo(out);
+            } else {
+                settings.writeTo(out);
+            }
             out.writeVLongArray(primaryTerms);
             mappings.writeTo(out);
             aliases.writeTo(out);
@@ -1146,7 +1473,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.aliasesVersion(aliasesVersion);
             builder.setRoutingNumShards(routingNumShards);
             builder.state(state);
-            builder.settings(settings);
+            if (settingsDiff == null) {
+                builder.settings(settings);
+            } else {
+                builder.settings(settingsDiff.apply(part.settings));
+            }
             builder.primaryTerms(primaryTerms);
             builder.mapping = mappings.apply(
                 ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, part.mapping).build()
@@ -1234,7 +1565,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         out.writeInt(routingNumShards);
         out.writeByte(state.id());
-        writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         out.writeVLongArray(primaryTerms);
         // TODO: adjust serialization format to using an optional writable
         if (mapping == null) {
@@ -1492,10 +1823,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public long aliasesVersion() {
-            return aliasesVersion;
-        }
-
         public Builder aliasesVersion(final long aliasesVersion) {
             this.aliasesVersion = aliasesVersion;
             return this;
@@ -1549,10 +1876,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         public Builder timestampRange(IndexLongFieldRange timestampRange) {
             this.timestampRange = timestampRange;
             return this;
-        }
-
-        public IndexLongFieldRange getTimestampRange() {
-            return timestampRange;
         }
 
         public IndexMetadata build() {
@@ -1671,6 +1994,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
+            final String indexMode = settings.get(IndexSettings.MODE.getKey());
+            final boolean isTsdb = indexMode != null && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -1708,7 +2033,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 lifecycleExecutionState,
                 AutoExpandReplicas.SETTING.get(settings),
                 isSearchableSnapshot,
-                isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false)
+                isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false),
+                isTsdb ? IndexMode.TIME_SERIES : null,
+                isTsdb ? IndexSettings.TIME_SERIES_START_TIME.get(settings) : null,
+                isTsdb ? IndexSettings.TIME_SERIES_END_TIME.get(settings) : null,
+                SETTING_INDEX_VERSION_COMPATIBILITY.get(settings)
             );
         }
 
@@ -1738,7 +2067,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             builder.endObject();
 
-            if (context != Metadata.XContentContext.API) {
+            if (context == Metadata.XContentContext.GATEWAY && params.paramAsBoolean(DEDUPLICATED_MAPPINGS_PARAM, false)) {
+                MappingMetadata mmd = indexMetadata.mapping();
+                if (mmd != null) {
+                    builder.field(KEY_MAPPINGS_HASH, mmd.source().getSha256());
+                }
+            } else if (context != Metadata.XContentContext.API) {
                 builder.startArray(KEY_MAPPINGS);
                 MappingMetadata mmd = indexMetadata.mapping();
                 if (mmd != null) {
@@ -1819,6 +2153,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public static IndexMetadata fromXContent(XContentParser parser) throws IOException {
+            return fromXContent(parser, null);
+        }
+
+        public static IndexMetadata fromXContent(XContentParser parser, Map<String, MappingMetadata> mappingsByHash) throws IOException {
             if (parser.currentToken() == null) { // fresh parser? move to the first token
                 parser.nextToken();
             }
@@ -1934,6 +2272,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         }
                         case KEY_ROUTING_NUM_SHARDS -> builder.setRoutingNumShards(parser.intValue());
                         case KEY_SYSTEM -> builder.system(parser.booleanValue());
+                        case KEY_MAPPINGS_HASH -> {
+                            assert mappingsByHash != null : "no deduplicated mappings given";
+                            if (mappingsByHash.containsKey(parser.text()) == false) {
+                                throw new IllegalArgumentException("mapping with hash [" + parser.text() + "] not found");
+                            }
+                            builder.putMapping(mappingsByHash.get(parser.text()));
+                        }
                         default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else {
@@ -2259,7 +2604,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             );
         }
         int routingFactor = getRoutingFactor(sourceIndexMetadata.getNumberOfShards(), numTargetShards);
-        Set<ShardId> shards = new HashSet<>(routingFactor);
+        Set<ShardId> shards = Sets.newHashSetWithExpectedSize(routingFactor);
         for (int i = shardId * routingFactor; i < routingFactor * shardId + routingFactor; i++) {
             shards.add(new ShardId(sourceIndexMetadata.getIndex(), i));
         }

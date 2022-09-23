@@ -1,0 +1,5 @@
+pr: 88655
+summary: Make `bucket_correlation` aggregation generally available
+area: Machine Learning
+type: feature
+issues: []

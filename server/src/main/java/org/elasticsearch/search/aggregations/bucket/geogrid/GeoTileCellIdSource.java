@@ -7,11 +7,14 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
 /**
- * Class to help convert {@link MultiGeoPointValues} to GeoTile {@link CellValues}
+ * {@link CellIdSource} implementation for GeoTile aggregation
  */
 public class GeoTileCellIdSource extends CellIdSource {
 
@@ -20,8 +23,37 @@ public class GeoTileCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected CellValues unboundedCellValues(MultiGeoPointValues values) {
-        return new CellValues(values, precision()) {
+    protected NumericDocValues unboundedCellSingleValue(GeoPointValues values) {
+        return new CellSingleValue(values, precision()) {
+            @Override
+            protected boolean advance(org.elasticsearch.common.geo.GeoPoint target) {
+                value = GeoTileUtils.longEncode(target.getLon(), target.getLat(), precision);
+                return true;
+            }
+        };
+    }
+
+    @Override
+    protected NumericDocValues boundedCellSingleValue(GeoPointValues values, GeoBoundingBox boundingBox) {
+        final GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision(), boundingBox);
+        final long tiles = 1L << precision();
+        return new CellSingleValue(values, precision()) {
+            @Override
+            protected boolean advance(org.elasticsearch.common.geo.GeoPoint target) {
+                final int x = GeoTileUtils.getXTile(target.getLon(), tiles);
+                final int y = GeoTileUtils.getYTile(target.getLat(), tiles);
+                if (predicate.validTile(x, y, precision)) {
+                    value = GeoTileUtils.longEncodeTiles(precision, x, y);
+                    return true;
+                }
+                return false;
+            }
+        };
+    }
+
+    @Override
+    protected SortedNumericDocValues unboundedCellMultiValues(MultiGeoPointValues values) {
+        return new CellMultiValues(values, precision()) {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
                 values[valuesIdx] = GeoTileUtils.longEncode(target.getLon(), target.getLat(), precision);
@@ -31,10 +63,10 @@ public class GeoTileCellIdSource extends CellIdSource {
     }
 
     @Override
-    protected CellValues boundedCellValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
+    protected SortedNumericDocValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox) {
         final GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision(), boundingBox);
         final long tiles = 1L << precision();
-        return new CellValues(values, precision()) {
+        return new CellMultiValues(values, precision()) {
             @Override
             protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
                 final int x = GeoTileUtils.getXTile(target.getLon(), tiles);

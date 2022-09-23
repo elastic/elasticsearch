@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.process.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -40,6 +39,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Handle a stream of C++ log messages that arrive via a named pipe in JSON format.
@@ -347,18 +348,9 @@ public class CppLogMessageHandler implements Closeable {
             seenFatalError = true;
         } catch (IOException e) {
             if (jobId != null) {
-                LOGGER.warn(
-                    new ParameterizedMessage(
-                        "[{}] IO failure receiving C++ log message: {}",
-                        new Object[] { jobId, bytesRef.utf8ToString() }
-                    ),
-                    e
-                );
+                LOGGER.warn(() -> format("[%s] IO failure receiving C++ log message: %s", jobId, bytesRef.utf8ToString()), e);
             } else {
-                LOGGER.warn(
-                    new ParameterizedMessage("IO failure receiving C++ log message: {}", new Object[] { bytesRef.utf8ToString() }),
-                    e
-                );
+                LOGGER.warn(() -> format("IO failure receiving C++ log message: %s", bytesRef.utf8ToString()), e);
             }
         }
     }

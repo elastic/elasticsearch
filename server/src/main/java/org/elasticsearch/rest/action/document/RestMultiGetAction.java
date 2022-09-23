@@ -60,6 +60,10 @@ public class RestMultiGetAction extends BaseRestHandler {
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
         multiGetRequest.preference(request.param("preference"));
         multiGetRequest.realtime(request.paramAsBoolean("realtime", multiGetRequest.realtime()));
+        if (request.paramAsBoolean("force_synthetic_source", false)) {
+            multiGetRequest.setForceSyntheticSource(true);
+        }
+
         if (request.param("fields") != null) {
             throw new IllegalArgumentException(
                 "The parameter [fields] is no longer supported, "

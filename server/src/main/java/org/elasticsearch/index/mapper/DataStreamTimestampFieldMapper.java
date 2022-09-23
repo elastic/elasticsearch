@@ -217,8 +217,9 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         if (first == null) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
         }
-        TimestampBounds bounds = context.indexSettings().getTimestampBounds();
-        if (bounds != null) {
+        var indexMode = context.indexSettings().getMode();
+        if (indexMode.shouldValidateTimestamp()) {
+            TimestampBounds bounds = context.indexSettings().getTimestampBounds();
             validateTimestamp(bounds, first, context);
         }
     }

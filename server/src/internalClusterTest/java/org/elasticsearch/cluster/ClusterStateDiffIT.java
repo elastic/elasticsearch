@@ -371,7 +371,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         /**
          * Returns list of parts from metadata
          */
-        ImmutableOpenMap<String, T> parts(ClusterState clusterState);
+        Map<String, T> parts(ClusterState clusterState);
 
         /**
          * Puts the part back into metadata
@@ -401,7 +401,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
      */
     private <T> ClusterState randomClusterStateParts(ClusterState clusterState, String prefix, RandomClusterPart<T> randomPart) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        ImmutableOpenMap<String, T> parts = randomPart.parts(clusterState);
+        Map<String, T> parts = randomPart.parts(clusterState);
         int partCount = parts.size();
         if (partCount > 0) {
             List<String> randomParts = randomSubsetOf(
@@ -646,7 +646,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return randomParts(metadata, "custom", new RandomPart<Metadata.Custom>() {
 
             @Override
-            public ImmutableOpenMap<String, Metadata.Custom> parts(Metadata metadata) {
+            public Map<String, Metadata.Custom> parts(Metadata metadata) {
                 return metadata.customs();
             }
 
@@ -688,7 +688,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         return ClusterState.builder(randomClusterStateParts(clusterState, "custom", new RandomClusterPart<ClusterState.Custom>() {
 
             @Override
-            public ImmutableOpenMap<String, ClusterState.Custom> parts(ClusterState clusterState) {
+            public Map<String, ClusterState.Custom> parts(ClusterState clusterState) {
                 return clusterState.customs();
             }
 
@@ -706,7 +706,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             public ClusterState.Custom randomCreate(String name) {
                 return switch (randomIntBetween(0, 1)) {
                     case 0 -> SnapshotsInProgress.EMPTY.withAddedEntry(
-                        new SnapshotsInProgress.Entry(
+                        SnapshotsInProgress.Entry.snapshot(
                             new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                             randomBoolean(),
                             randomBoolean(),
@@ -716,7 +716,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                             Collections.emptyList(),
                             Math.abs(randomLong()),
                             randomIntBetween(0, 1000),
-                            ImmutableOpenMap.of(),
+                            Map.of(),
                             null,
                             SnapshotInfoTestUtils.randomUserMetadata(),
                             randomVersion(random())
@@ -727,6 +727,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                             UUIDs.randomBase64UUID(),
                             new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                             RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
+                            randomBoolean(),
                             emptyList(),
                             ImmutableOpenMap.of()
                         )

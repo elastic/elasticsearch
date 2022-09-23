@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -46,7 +45,7 @@ public class DispatchingRestToXContentListener<Response extends ToXContentObject
             public RestResponse buildResponse(final Response response, final XContentBuilder builder) throws Exception {
                 ensureOpen();
                 response.toXContent(builder, getParams());
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         }.onResponse(response)));
     }

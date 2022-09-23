@@ -14,6 +14,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.xpack.sql.cli.command.AllowPartialResultsCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ClearScreenCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliCommands;
@@ -131,6 +132,7 @@ public class Cli extends Command {
             new ClearScreenCliCommand(),
             new FetchSizeCliCommand(),
             new LenientCliCommand(),
+            new AllowPartialResultsCliCommand(),
             new FetchSeparatorCliCommand(),
             new ServerInfoCliCommand(),
             new ServerQueryCliCommand()

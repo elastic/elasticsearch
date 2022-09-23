@@ -7,7 +7,7 @@ apply plugin: 'elasticsearch.build'
 description = 'Code shared between jdbc and cli'
 
 dependencies {
-  api xpackProject('plugin:sql:sql-proto')
+  api project(':x-pack:plugin:sql:sql-proto')
   testImplementation project(":test:framework")
   testImplementation(testArtifact(project(xpackModule('core'))))
 }

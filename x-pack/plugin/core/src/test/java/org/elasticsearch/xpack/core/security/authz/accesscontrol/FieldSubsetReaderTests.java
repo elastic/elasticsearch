@@ -57,7 +57,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -1078,7 +1077,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "*inner1" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index" },
                 index -> fieldPermissions::grantsAccessTo,
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -1118,7 +1117,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object*" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index" },
                 index -> fieldPermissions::grantsAccessTo,
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -1157,7 +1156,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index" },
                 index -> fieldPermissions::grantsAccessTo,
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -1186,7 +1185,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "nested.inner2" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index" },
                 index -> fieldPermissions::grantsAccessTo,
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP

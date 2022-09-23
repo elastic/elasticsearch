@@ -9,6 +9,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -88,6 +89,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -170,6 +172,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
@@ -219,7 +222,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps();
+        // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
         LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
 
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
             Logger leakLogger = LogManager.getLogger(leakLoggerName);
@@ -989,6 +994,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return list;
     }
 
+    public static <T> Set<T> randomSet(int minSetSize, int maxSetSize, Supplier<T> valueConstructor) {
+        return new HashSet<>(randomList(minSetSize, maxSetSize, valueConstructor));
+    }
+
     private static final String[] TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m", "micros", "nanos" };
 
     public static String randomTimeValue(int lower, int upper, String... suffixes) {
@@ -1010,7 +1019,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
      */
-    public long randomMillisUpToYear9999() {
+    public static long randomMillisUpToYear9999() {
         return randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
     }
 
@@ -1218,8 +1227,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
-        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
-        return builder;
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
     /**
@@ -1258,6 +1266,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
         return tempList.subList(0, size);
+    }
+
+    public static <T> List<T> shuffledList(List<T> list) {
+        return randomSubsetOf(list.size(), list);
     }
 
     /**
@@ -1640,7 +1652,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings, AnalysisPlugin... analysisPlugins)
         throws IOException {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
+        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         return new TestAnalysis(
             analysisRegistry.build(indexSettings),

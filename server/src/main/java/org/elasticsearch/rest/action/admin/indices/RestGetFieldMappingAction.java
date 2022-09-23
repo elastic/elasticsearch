@@ -19,7 +19,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -96,7 +95,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                     status = NOT_FOUND;
                 }
                 response.toXContent(builder, request);
-                return new BytesRestResponse(status, builder);
+                return new RestResponse(status, builder);
             }
         });
     }

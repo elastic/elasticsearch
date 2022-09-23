@@ -138,8 +138,9 @@ Indices managed by {ilm-init} are prefixed with `restored-` when fully mounted.
 [[partially-mounted]]
 Partially mounted index::
 Uses a local cache containing only recently searched parts of the snapshotted
-index's data. This cache has a fixed size and is shared across nodes in the
-frozen tier. {ilm-init} uses this option in the `frozen` phase.
+index's data. This cache has a fixed size and is shared across shards of partially
+mounted indices allocated on the same data node. {ilm-init} uses this option in the
+`frozen` phase.
 +
 If a search requires data that is not in the cache, {es} fetches the missing
 data from the snapshot repository. Searches that require these fetches are
@@ -226,7 +227,7 @@ the periodic cleanup of the `.snapshot-blob-cache` index. Defaults to `100`.
 
 `searchable_snapshots.blob_cache.periodic_cleanup.pit_keep_alive`::
 (<<dynamic-cluster-setting,Dynamic>>)
-The value used for the <point-in-time-keep-alive,point-in-time keep alive>>
+The value used for the <<point-in-time-keep-alive,point-in-time keep alive>>
 requests executed during the periodic cleanup of the `.snapshot-blob-cache`
 index. Defaults to `10m`.
 

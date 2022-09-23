@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 
+import java.util.Set;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -44,7 +46,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         final TransportHasPrivilegesAction transportHasPrivilegesAction = new TransportHasPrivilegesAction(
             mock(TransportService.class),
-            mock(ActionFilters.class),
+            new ActionFilters(Set.of()),
             mock(AuthorizationService.class),
             mock(NativePrivilegeStore.class),
             context
@@ -60,13 +62,15 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .build();
         }
         request.indexPrivileges(indicesPrivileges);
+        request.clusterPrivileges(new String[0]);
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         request.username("user-1");
 
         final PlainActionFuture<HasPrivilegesResponse> listener = new PlainActionFuture<>();
-        transportHasPrivilegesAction.doExecute(mock(Task.class), request, listener);
+        transportHasPrivilegesAction.execute(mock(Task.class), request, listener);
 
         final IllegalArgumentException ile = expectThrows(IllegalArgumentException.class, () -> listener.actionGet());
         assertThat(ile, notNullValue());
-        assertThat(ile.getMessage(), containsString("users may only check the index privileges without any DLS role query"));
+        assertThat(ile.getMessage(), containsString("may only check index privileges without any DLS query"));
     }
 }

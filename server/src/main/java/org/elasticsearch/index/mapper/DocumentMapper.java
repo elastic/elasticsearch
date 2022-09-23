@@ -97,7 +97,7 @@ public class DocumentMapper {
          * Build an empty source loader to validate that the mapping is compatible
          * with the source loading strategy declared on the source field mapper.
          */
-        sourceMapper().newSourceLoader(mapping().getRoot());
+        sourceMapper().newSourceLoader(mapping());
 
         settings.getMode().validateMapping(mappingLookup);
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {

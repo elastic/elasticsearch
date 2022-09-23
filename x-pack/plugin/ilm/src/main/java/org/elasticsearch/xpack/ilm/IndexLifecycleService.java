@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -59,6 +58,7 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
 
@@ -208,9 +208,9 @@ public class IndexLifecycleService
                     } catch (Exception e) {
                         if (logger.isTraceEnabled()) {
                             logger.warn(
-                                new ParameterizedMessage(
+                                () -> format(
                                     "async action execution failed during master election trigger"
-                                        + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
+                                        + " for index [%s] with policy [%s] in step [%s], lifecycle state: [%s]",
                                     idxMeta.getIndex().getName(),
                                     policyName,
                                     stepKey,
@@ -220,9 +220,9 @@ public class IndexLifecycleService
                             );
                         } else {
                             logger.warn(
-                                new ParameterizedMessage(
+                                () -> format(
                                     "async action execution failed during master election trigger"
-                                        + " for index [{}] with policy [{}] in step [{}]",
+                                        + " for index [%s] with policy [%s] in step [%s]",
                                     idxMeta.getIndex().getName(),
                                     policyName,
                                     stepKey
@@ -308,8 +308,14 @@ public class IndexLifecycleService
 
         // if we're the master, then process deleted indices and trigger policies
         if (this.isMaster) {
-            for (Index index : event.indicesDeleted()) {
-                policyRegistry.delete(index);
+            // cleanup cache in policyRegistry on another thread since its not critical to have it run on the applier thread and computing
+            // the deleted indices becomes expensive for larger cluster states
+            if (event.state().metadata().indices() != event.previousState().metadata().indices()) {
+                clusterService.getClusterApplierService().threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
+                    for (Index index : event.indicesDeleted()) {
+                        policyRegistry.delete(index);
+                    }
+                });
             }
 
             final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
@@ -419,9 +425,9 @@ public class IndexLifecycleService
                 } catch (Exception e) {
                     if (logger.isTraceEnabled()) {
                         logger.warn(
-                            new ParameterizedMessage(
+                            () -> format(
                                 "async action execution failed during policy trigger"
-                                    + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
+                                    + " for index [%s] with policy [%s] in step [%s], lifecycle state: [%s]",
                                 idxMeta.getIndex().getName(),
                                 policyName,
                                 stepKey,
@@ -431,8 +437,8 @@ public class IndexLifecycleService
                         );
                     } else {
                         logger.warn(
-                            new ParameterizedMessage(
-                                "async action execution failed during policy trigger" + " for index [{}] with policy [{}] in step [{}]",
+                            () -> format(
+                                "async action execution failed during policy trigger" + " for index [%s] with policy [%s] in step [%s]",
                                 idxMeta.getIndex().getName(),
                                 policyName,
                                 stepKey

@@ -1,0 +1,5 @@
+pr: 89662
+summary: Centralize the concept of processors configuration
+area: Autoscaling
+type: enhancement
+issues: []

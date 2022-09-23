@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
@@ -51,7 +50,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
         switch (between(0, 1)) {
             case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -453,8 +452,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(index.getName(), indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
         final SingleNodeShutdownMetadata.Type type = randomFrom(
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -464,7 +462,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
                 Metadata.builder()
-                    .indices(indices.build())
+                    .indices(indices)
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
@@ -531,8 +529,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(index.getName(), indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
         final SingleNodeShutdownMetadata.Type type = randomFrom(
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -542,7 +539,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
                 Metadata.builder()
-                    .indices(indices.build())
+                    .indices(indices)
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
@@ -604,11 +601,10 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .numberOfShards(shards)
             .numberOfReplicas(replicas)
             .build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-            .fPut(index.getName(), indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
 
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().indices(indices.build()))
+            .metadata(Metadata.builder().indices(indices))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(

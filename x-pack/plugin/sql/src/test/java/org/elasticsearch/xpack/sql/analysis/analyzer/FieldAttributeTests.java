@@ -42,11 +42,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_VERSION_FIELD_TYPE;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
@@ -182,7 +184,7 @@ public class FieldAttributeTests extends ESTestCase {
     public void testStarExpansionExcludesObjectAndUnsupportedTypes() {
         LogicalPlan plan = plan("SELECT * FROM test");
         List<? extends NamedExpression> list = ((Project) plan).projections();
-        assertThat(list, hasSize(13));
+        assertThat(list, hasSize(14));
         List<String> names = Expressions.names(list);
         assertThat(names, not(hasItem("some")));
         assertThat(names, not(hasItem("some.dotted")));
@@ -345,6 +347,45 @@ public class FieldAttributeTests extends ESTestCase {
                 Attribute attribute = projections.get(0).toAttribute();
                 assertThat(attribute.dataType(), is(UNSIGNED_LONG));
                 assertThat(attribute.name(), is("unsigned_long"));
+            }
+        }
+    }
+
+    public void testVersionTypeVersionCompatibility() {
+        String query = "SELECT version_number FROM test";
+        String queryWithCastLiteral = "SELECT '1.2.3'::version AS version_number";
+        String queryWithAlias = "SELECT version_number AS version_number FROM test";
+        String queryWithCast = "SELECT CONCAT(version_number::string, '-SNAPSHOT')::version AS version_number FROM test";
+
+        Version preVersion = Version.fromId(INTRODUCING_VERSION_FIELD_TYPE.id - SqlVersion.MINOR_MULTIPLIER);
+        Version postVersion = Version.fromId(INTRODUCING_VERSION_FIELD_TYPE.id + SqlVersion.MINOR_MULTIPLIER);
+        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(SqlVersion.fromId(preVersion.id));
+
+        for (String sql : List.of(query, queryWithCastLiteral, queryWithAlias, queryWithCast)) {
+            analyzer = new Analyzer(
+                sqlConfig,
+                functionRegistry,
+                loadCompatibleIndexResolution("mapping-version.json", preVersion),
+                new Verifier(new Metrics())
+            );
+            VerificationException ex = expectThrows(VerificationException.class, () -> plan(sql));
+            assertThat(ex.getMessage(), containsString("Cannot use field [version_number]"));
+
+            for (Version v : List.of(INTRODUCING_VERSION_FIELD_TYPE, postVersion)) {
+                analyzer = new Analyzer(
+                    SqlTestUtils.randomConfiguration(SqlVersion.fromId(v.id)),
+                    functionRegistry,
+                    loadCompatibleIndexResolution("mapping-version.json", v),
+                    verifier
+                );
+                LogicalPlan plan = plan(sql);
+                assertThat(plan, instanceOf(Project.class));
+                Project p = (Project) plan;
+                List<? extends NamedExpression> projections = p.projections();
+                assertThat(projections, hasSize(1));
+                Attribute attribute = projections.get(0).toAttribute();
+                assertThat(attribute.dataType(), is(VERSION));
+                assertThat(attribute.name(), is("version_number"));
             }
         }
     }

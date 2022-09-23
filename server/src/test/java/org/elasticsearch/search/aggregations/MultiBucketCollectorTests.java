@@ -176,7 +176,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
                 expectedCounts.put(collector, expectedCount);
                 collectors.add(new TerminateAfterBucketCollector(collector, terminateAfter));
             }
-            searcher.search(new MatchAllDocsQuery(), MultiBucketCollector.wrap(true, collectors));
+            searcher.search(new MatchAllDocsQuery(), MultiBucketCollector.wrap(true, collectors).asCollector());
             for (Map.Entry<TotalHitCountBucketCollector, Integer> expectedCount : expectedCounts.entrySet()) {
                 assertEquals(expectedCount.getValue().intValue(), expectedCount.getKey().getTotalHits());
             }
@@ -213,7 +213,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
                         for (Map.Entry<TotalHitCountBucketCollector, Integer> expectedCount : expectedCounts.entrySet()) {
                             shouldNoop &= expectedCount.getValue().intValue() <= expectedCount.getKey().getTotalHits();
                         }
-                        LeafBucketCollector collector = wrapped.getLeafCollector(ctx);
+                        LeafBucketCollector collector = wrapped.getLeafCollector(new AggregationExecutionContext(ctx, null, null, null));
                         assertThat(collector.isNoop(), equalTo(shouldNoop));
                         if (false == collector.isNoop()) {
                             for (int docId = 0; docId < ctx.reader().numDocs(); docId++) {
@@ -252,7 +252,7 @@ public class MultiBucketCollectorTests extends ESTestCase {
         Collections.shuffle(collectors, random());
         BucketCollector collector = MultiBucketCollector.wrap(true, collectors);
 
-        LeafBucketCollector leafCollector = collector.getLeafCollector((LeafReaderContext) null);
+        LeafBucketCollector leafCollector = collector.getLeafCollector(null);
         leafCollector.setScorer(scorer);
         assertTrue(setScorerCalled1.get());
         assertTrue(setScorerCalled2.get());

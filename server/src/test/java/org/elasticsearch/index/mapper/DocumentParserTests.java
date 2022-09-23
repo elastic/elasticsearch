@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -732,6 +733,20 @@ public class DocumentParserTests extends MapperServiceTestCase {
         Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
         assertTrue(barMapper instanceof ObjectMapper);
         assertNotNull(((ObjectMapper) barMapper).getMapper("baz"));
+    }
+
+    public void testEmptyObjectGetsMapped() throws Exception {
+        MapperService mapperService = createMapperService();
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument doc = docMapper.parse(source(b -> {
+            b.startObject("foo");
+            b.endObject();
+        }));
+        Mapping mapping = doc.dynamicMappingsUpdate();
+        assertNotNull(mapping);
+        Mapper foo = mapping.getRoot().getMapper("foo");
+        assertThat(foo, instanceOf(ObjectMapper.class));
+        assertEquals(0, ((ObjectMapper) foo).mappers.size());
     }
 
     public void testDynamicGeoPointArrayWithTemplate() throws Exception {
@@ -1846,7 +1861,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
             {
               "metrics": {
                 "service": {
@@ -1857,17 +1872,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """)));
-        assertEquals(
-            "Object [metrics.service] has subobjects set to false hence it does not support inner object [time]",
-            err.getMessage()
-        );
+        assertEquals("Tried to add subobject [time] to object [metrics.service] which does not support subobjects", err.getMessage());
     }
 
     public void testSubobjectsFalseWithInnerDottedObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
             {
               "metrics": {
                 "service": {
@@ -1879,14 +1891,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             """)));
         assertEquals(
-            "Object [metrics.service] has subobjects set to false hence it does not support inner object [test.with.dots]",
+            "Tried to add subobject [test.with.dots] to object [metrics.service] which does not support subobjects",
             err.getMessage()
         );
     }
 
     public void testSubobjectsFalseRootWithInnerObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("subobjects", false)));
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
             {
               "metrics": {
                 "service": {
@@ -1895,7 +1907,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """)));
-        assertEquals("Object [_doc] has subobjects set to false hence it does not support inner object [metrics]", err.getMessage());
+        assertEquals("Tried to add subobject [metrics] to object [_doc] which does not support subobjects", err.getMessage());
     }
 
     public void testSubobjectsFalseRoot() throws Exception {
@@ -1904,8 +1916,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
             {
               "metrics.service.time" : 10,
               "metrics.service.time.max" : 500,
-              "metrics.service.time.min" : 1,
-              "metrics.object.inner.field" : 1,
               "metrics.service.test.with.dots" : "value"
             }
             """));
@@ -1916,9 +1926,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.time.max"));
         assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.test.with.dots"));
 
-        assertNotNull(doc.rootDoc().getFields("metrics.service.time"));
-        assertNotNull(doc.rootDoc().getFields("metrics.service.time.max"));
-        assertNotNull(doc.rootDoc().getFields("metrics.service.test.with.dots"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.time"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.time.max"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
     }
 
     public void testSubobjectsFalseStructuredPath() throws Exception {
@@ -1957,7 +1967,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNoSubobjects(doc);
     }
 
-    public void testSubobjectsFalseMixedPaths() throws Exception {
+    public void testSubobjectsFalseMixedSubobjectPaths() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
             mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
@@ -2026,10 +2036,93 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ObjectMapper innerObject = (ObjectMapper) inner;
         assertNotNull(innerObject.getMapper("field"));
 
-        assertNotNull(doc.rootDoc().getFields("metrics.service.time"));
-        assertNotNull(doc.rootDoc().getFields("metrics.service.time.max"));
-        assertNotNull(doc.rootDoc().getFields("metrics.service.time.min"));
-        assertNotNull(doc.rootDoc().getFields("metrics.service.test.with.dots"));
+        assertNotNull(doc.rootDoc().getField("metrics.object.inner.field"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.time"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.time.max"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.time.min"));
+        assertNotNull(doc.rootDoc().getField("metrics.service.test.with.dots"));
+    }
+
+    public void testSubobjectsFalseArrayOfObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> b.startObject("metrics").field("type", "object").field("subobjects", false).endObject())
+        );
+        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+            {
+              "metrics.service.time": [
+                {
+                  "max" : 1000
+                }
+              ]
+            }
+            """)));
+        assertEquals(
+            "Tried to add subobject [service.time] to object [metrics] which does not support subobjects",
+            err.getRootCause().getMessage()
+        );
+    }
+
+    public void testSubobjectsFalseParseGeoPoint() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics");
+            {
+                b.field("type", "object").field("subobjects", false);
+                b.startObject("properties");
+                {
+                    b.startObject("location");
+                    b.field("type", "geo_point");
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument parsedDocument = mapper.parse(source("""
+            {
+              "metrics": {
+                "location" : {
+                  "lat": 41.12,
+                  "lon": -71.34
+                }
+              }
+            }
+            """));
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.location"));
+        assertNull(parsedDocument.dynamicMappingsUpdate());
+    }
+
+    public void testSubobjectsFalseParentDynamicFalse() throws Exception {
+        // verify that we read the dynamic value properly from the parent mapper. DocumentParser#dynamicOrDefault splits the field
+        // name where dots are found, but it does that only for the parent prefix e.g. metrics.service and not for the leaf suffix time.max
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics");
+            {
+                b.field("dynamic", false);
+                b.startObject("properties");
+                {
+                    b.startObject("service");
+                    b.field("type", "object").field("subobjects", false);
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics": {
+                "service": {
+                  "time" : 10,
+                  "time.max" : 500
+                }
+              }
+            }
+            """));
+
+        assertNull(doc.rootDoc().getField("time"));
+        assertNull(doc.rootDoc().getField("time.max"));
+        assertNull(doc.dynamicMappingsUpdate());
     }
 
     public void testWriteToFieldAlias() throws Exception {
@@ -2257,6 +2350,61 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 )
             );
         }
+    }
+
+    public void testMergeSubfieldWhileBuildingMappers() throws Exception {
+        MapperService mapperService = createMapperService();
+        /*
+        We had a bug (https://github.com/elastic/elasticsearch/issues/88573) building an object mapper (ObjectMapper.Builder#buildMappers).
+        A sub-field that already exists is merged with the existing one. As a result, the leaf field would get the wrong field path
+        (missing the first portion of its path). The only way to trigger this scenario for dynamic mappings is to either allow duplicate
+        JSON keys or ingest the same field with dots collapsed as well as expanded within the same document. Note that the two fields with
+        same name need to be part  of the same mappings (hence the same document). If they are in two distinct mappings they are properly
+        merged as part of RootObjectMapper#merge.
+         */
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            {
+              "foo" : {
+                "bar" : {
+                  "baz" : 1
+                }
+              },
+              "foo.bar.baz" : 2
+            }
+            """));
+        Mapping mapping = doc.dynamicMappingsUpdate();
+        assertNotNull(mapping);
+        Mapper fooMapper = mapping.getRoot().getMapper("foo");
+        assertNotNull(fooMapper);
+        assertTrue(fooMapper instanceof ObjectMapper);
+        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
+        assertTrue(barMapper instanceof ObjectMapper);
+        Mapper baz = ((ObjectMapper) barMapper).getMapper("baz");
+        assertNotNull(baz);
+        assertEquals("foo.bar.baz", baz.name());
+        assertEquals("baz", baz.simpleName());
+        IndexableField[] fields = doc.rootDoc().getFields("foo.bar.baz");
+        assertEquals(4, fields.length);
+        long[] longs = Arrays.stream(fields).mapToLong(value -> value.numericValue().longValue()).toArray();
+        assertArrayEquals(new long[] { 1, 1, 2, 2 }, longs);
+
+        // merge without going through toXContent and reparsing, otherwise the potential leaf path issue gets fixed on its own
+        Mapping newMapping = MapperService.mergeMappings(mapperService.documentMapper(), mapping, MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper newDocMapper = new DocumentMapper(mapperService.documentParser(), newMapping, newMapping.toCompressedXContent());
+        ParsedDocument doc2 = newDocMapper.parse(source("""
+            {
+              "foo" : {
+                "bar" : {
+                  "baz" : 10
+                }
+              }
+            }
+            """));
+        assertNull(doc2.dynamicMappingsUpdate());
+        IndexableField[] fields2 = doc2.rootDoc().getFields("foo.bar.baz");
+        assertEquals(2, fields2.length);
+        long[] longs2 = Arrays.stream(fields2).mapToLong(value -> value.numericValue().longValue()).toArray();
+        assertArrayEquals(new long[] { 10, 10 }, longs2);
     }
 
     /**

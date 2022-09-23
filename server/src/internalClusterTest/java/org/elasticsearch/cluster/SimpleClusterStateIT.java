@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -38,6 +39,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -439,7 +441,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier
+            final Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer,
+            AllocationDeciders allocationDeciders
         ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();

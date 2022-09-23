@@ -190,8 +190,8 @@ public class MultiOrdinals extends Ordinals {
         }
 
         @Override
-        public long docValueCount() {
-            return currentEndOffset - currentOffset;
+        public int docValueCount() {
+            return Math.toIntExact(currentEndOffset - currentOffset);
         }
 
         @Override

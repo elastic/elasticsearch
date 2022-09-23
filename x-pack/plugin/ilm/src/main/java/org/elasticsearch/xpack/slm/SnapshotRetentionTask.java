@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.slm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -51,6 +50,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FIELD;
 
 /**
@@ -389,10 +389,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     } catch (IOException ex) {
                         // This shouldn't happen unless there's an issue with serializing the original exception
                         logger.error(
-                            new ParameterizedMessage(
-                                "failed to record snapshot deletion failure for snapshot lifecycle policy [{}]",
-                                policyId
-                            ),
+                            () -> format("failed to record snapshot deletion failure for snapshot lifecycle policy [%s]", policyId),
                             ex
                         );
                     } finally {
@@ -441,7 +438,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 listener.onResponse(acknowledgedResponse);
             }, e -> {
                 try {
-                    logger.warn(new ParameterizedMessage("[{}] failed to delete snapshot [{}] for retention", repo, snapshot), e);
+                    logger.warn(() -> format("[%s] failed to delete snapshot [%s] for retention", repo, snapshot), e);
                     slmStats.snapshotDeleteFailure(slmPolicy);
                 } finally {
                     listener.onFailure(e);

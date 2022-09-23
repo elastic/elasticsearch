@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch;
 
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xpack.ml.job.process.AbstractInitializableRunnable;
 import org.elasticsearch.xpack.ml.job.process.AbstractProcessWorkerExecutorService;
 
 import java.util.concurrent.PriorityBlockingQueue;
@@ -35,7 +35,7 @@ public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerE
      * A Runnable sorted first by RequestPriority then a tie breaker which in
      * most cases will be the insertion order
      */
-    public static record OrderedRunnable(RequestPriority priority, long tieBreaker, Runnable runnable)
+    public record OrderedRunnable(RequestPriority priority, long tieBreaker, Runnable runnable)
         implements
             Comparable<OrderedRunnable>,
             Runnable {
@@ -76,7 +76,8 @@ public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerE
      * @param priority Request priority
      * @param tieBreaker For sorting requests of equal priority
      */
-    public synchronized void executeWithPriority(AbstractRunnable command, RequestPriority priority, long tieBreaker) {
+    public synchronized void executeWithPriority(AbstractInitializableRunnable command, RequestPriority priority, long tieBreaker) {
+        command.init();
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(processName + " worker service has shutdown", true);
             command.onRejection(rejected);

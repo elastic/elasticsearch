@@ -485,6 +485,22 @@ Contains statistics about <<mapping,field mappings>> in selected nodes.
 .Properties of `mappings`
 [%collapsible%open]
 =====
+`total_field_count`::
+(integer)
+Total number of fields in all non-system indices.
+
+`total_deduplicated_field_count`::
+(integer)
+Total number of fields in all non-system indices, accounting for mapping deduplication.
+
+`total_deduplicated_mapping_size`::
+(<<byte-units, byte units>>)
+Total size of all mappings after deduplication and compression.
+
+`total_deduplicated_mapping_size_in_bytes`::
+(integer)
+Total size of all mappings, in bytes, after deduplication and compression.
+
 `field_types`::
 (array of objects)
 Contains statistics about <<mapping-types,field data types>> used in selected
@@ -504,6 +520,18 @@ Number of fields mapped to the field data type in selected nodes.
 `index_count`::
 (integer)
 Number of indices containing a mapping of the field data type in selected nodes.
+
+`indexed_vector_count`::
+(integer)
+For dense_vector field types, number of indexed vector types in selected nodes.
+
+`indexed_vector_dim_min`::
+(integer)
+For dense_vector field types, the minimum dimension of all indexed vector types in selected nodes.
+
+`indexed_vector_dim_max`::
+(integer)
+For dense_vector field types, the maximum dimension of all indexed vector types in selected nodes.
 
 `script_count`::
 (integer)
@@ -1351,6 +1379,10 @@ The API returns the following response:
          "file_sizes": {}
       },
       "mappings": {
+        "total_field_count": 0,
+        "total_deduplicated_field_count": 0,
+        "total_deduplicated_mapping_size": "0b",
+        "total_deduplicated_mapping_size_in_bytes": 0,
         "field_types": [],
         "runtime_field_types": []
       },

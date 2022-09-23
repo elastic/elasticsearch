@@ -129,7 +129,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         }
     }
 
-    private FieldCapabilitiesResponse createResponseWithFailures() {
+    public static FieldCapabilitiesResponse createResponseWithFailures() {
         String[] indices = randomArray(randomIntBetween(1, 5), String[]::new, () -> randomAlphaOfLength(5));
         List<FieldCapabilitiesFailure> failures = new ArrayList<>();
         for (String index : indices) {

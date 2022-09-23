@@ -164,8 +164,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.core.Strings.format;
@@ -218,7 +216,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
-    private volatile Map<String, IndexService> indices = emptyMap();
+    private volatile Map<String, IndexService> indices = Map.of();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
@@ -459,7 +457,24 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByShard(this, flags));
+        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags));
+    }
+
+    static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
+        // Currently only the Mappings flag is the only possible index-level flag.
+        if (flags.isSet(CommonStatsFlags.Flag.Mappings) == false) {
+            return Map.of();
+        }
+
+        final Map<Index, CommonStats> statsByIndex = Maps.newHashMapWithExpectedSize(indicesService.indices.size());
+        for (final IndexService indexService : indicesService) {
+            Index index = indexService.index();
+            CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+            commonStats.nodeMappings = indexService.getNodeMappingStats();
+            var existing = statsByIndex.putIfAbsent(index, commonStats);
+            assert existing == null;
+        }
+        return statsByIndex;
     }
 
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -514,7 +529,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 new ShardStats(
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
-                    new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats
@@ -860,10 +875,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
 
                 logger.debug("[{}] closing ... (reason [{}])", indexName, reason);
-                Map<String, IndexService> newIndices = new HashMap<>(indices);
-                indexService = newIndices.remove(index.getUUID());
+                indexService = indices.get(index.getUUID());
                 assert indexService != null : "IndexService is null for index: " + index;
-                indices = unmodifiableMap(newIndices);
+                indices = Maps.copyMapWithRemovedEntry(indices, index.getUUID());
                 listener = indexService.getIndexEventListener();
             }
 

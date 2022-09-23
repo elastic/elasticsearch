@@ -20,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
@@ -27,6 +28,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -412,6 +414,11 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            in.writeTo(out);
+        }
+
+        @Override
         protected BigArray getDelegate() {
             return in;
         }
@@ -530,11 +537,6 @@ public class MockBigArrays extends BigArrays {
         @Override
         public float set(long index, float value) {
             return in.set(index, value);
-        }
-
-        @Override
-        public float increment(long index, float inc) {
-            return in.increment(index, inc);
         }
 
         @Override

@@ -46,7 +46,112 @@ You can use the `search_after` parameter to retrieve the next page of hits
 using a set of <<sort-search-results,sort values>> from the previous page.
 
 Using `search_after` requires multiple search requests with the same `query` and
-`sort` values. If a <<near-real-time,refresh>> occurs between these requests,
+`sort` values. The first step is to run an initial request. The following
+example sorts the results by two fields (`date` and `tie_breaker_id`):
+
+
+////
+[source,console]
+--------------------------------------------------
+PUT twitter
+{
+  "mappings": {
+    "properties": {
+      "tie_breaker_id": {
+        "type": "keyword"
+      },
+      "date": {
+        "type": "date"
+      }
+    }
+  }
+}
+--------------------------------------------------
+////
+
+[source,console]
+--------------------------------------------------
+GET twitter/_search
+{
+    "query": {
+        "match": {
+            "title": "elasticsearch"
+        }
+    },
+    "sort": [
+        {"date": "asc"},
+        {"tie_breaker_id": "asc"}      <1>
+    ]
+}
+--------------------------------------------------
+//TEST[continued]
+
+<1> A copy of the `_id` field with `doc_values` enabled
+
+The search response includes an array of `sort` values for each hit:
+
+[source,console-result]
+----
+{
+  "took" : 17,
+  "timed_out" : false,
+  "_shards" : ...,
+  "hits" : {
+    "total" : ...,
+    "max_score" : null,
+    "hits" : [
+      ...
+      {
+        "_index" : "twitter",
+        "_id" : "654322",
+        "_score" : null,
+        "_source" : ...,
+        "sort" : [               
+          1463538855,
+          "654322"                           
+        ]
+      },
+      {
+        "_index" : "twitter",
+        "_id" : "654323",
+        "_score" : null,
+        "_source" : ...,
+        "sort" : [                                <1>
+          1463538857,
+          "654323"                        
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[skip: demo of where the sort values are]
+
+<1> Sort values for the last returned hit.
+
+To retrieve the next page of results, repeat the request, take the `sort` values from the
+last hit, and insert those into the `search_after` array:
+
+[source,console]
+--------------------------------------------------
+GET twitter/_search
+{
+    "query": {
+        "match": {
+            "title": "elasticsearch"
+        }
+    },
+    "search_after": [1463538857, "654323"],
+    "sort": [
+        {"date": "asc"},
+        {"tie_breaker_id": "asc"}
+    ]
+}
+--------------------------------------------------
+//TEST[continued]
+
+Repeat this process by updating the `search_after` array every time you retrieve a 
+new page of results. If a <<near-real-time,refresh>> occurs between these requests,
 the order of your results may change, causing inconsistent results across pages. To
 prevent this, you can create a <<point-in-time-api,point in time (PIT)>> to
 preserve the current index state over your searches.

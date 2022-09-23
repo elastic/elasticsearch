@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -23,7 +24,9 @@ import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +36,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,6 +45,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_DETAILS_XCONTENT_PARAM;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class GetSnapshotsResponseTests extends ESTestCase {
@@ -171,6 +176,21 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             // ElasticsearchException, whose xContent creation/parsing are not stable.
             .assertToXContentEquivalence(false)
             .test();
+    }
+
+    public void testToChunkedXContent() throws Exception {
+        final GetSnapshotsResponse response = createTestInstance();
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        final Iterator<ToXContent> serialization = response.toXContentChunked();
+        serialization.next().toXContent(builder, EMPTY_PARAMS);
+        for (int i = 0; i < response.getSnapshots().size(); i++) {
+            serialization.next().toXContent(builder, EMPTY_PARAMS);
+            assertTrue(serialization.hasNext());
+        }
+        serialization.next().toXContent(builder, EMPTY_PARAMS);
+        assertFalse(serialization.hasNext());
+        final BytesReference bytesReferenceFromChunked = BytesReference.bytes(builder);
+        assertEquals(bytesReferenceFromChunked, BytesReference.bytes(response.toXContent(JsonXContent.contentBuilder(), EMPTY_PARAMS)));
     }
 
 }

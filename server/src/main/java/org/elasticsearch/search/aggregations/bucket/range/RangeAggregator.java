@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.elasticsearch.Version;
@@ -15,12 +14,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -92,6 +94,16 @@ public abstract class RangeAggregator extends BucketsAggregator {
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
 
     static final DoubleUnaryOperator IDENTITY = DoubleUnaryOperator.identity();
+
+    /**
+     * Count of ranges with single values.
+     */
+    private int singletonRanges;
+
+    /**
+     * Count of ranges with more than a single value.
+     */
+    private int nonsingletonRanges;
 
     public static class Range implements Writeable, ToXContentObject {
         public static final ParseField KEY_FIELD = new ParseField("key");
@@ -565,6 +577,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
         super.collectDebugInfo(add);
         add.accept("ranges", ranges.length);
         add.accept("average_docs_per_range", averageDocsPerRange);
+        add.accept("singletons", singletonRanges);
+        add.accept("non-singletons", nonsingletonRanges);
     }
 
     public static class Unmapped<R extends RangeAggregator.Range> extends NonCollectingAggregator {
@@ -638,8 +652,22 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) this.valuesSource).doubleValues(ctx);
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) this.valuesSource).doubleValues(aggCtx.getLeafReaderContext());
+            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+
+            if (singleton != null) {
+                super.singletonRanges++;
+                return new LeafBucketCollectorBase(sub, values) {
+                    @Override
+                    public void collect(int doc, long bucket) throws IOException {
+                        if (singleton.advanceExact(doc)) {
+                            NumericRangeAggregator.this.collect(sub, doc, singleton.doubleValue(), bucket, 0);
+                        }
+                    }
+                };
+            }
+            super.nonsingletonRanges++;
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {

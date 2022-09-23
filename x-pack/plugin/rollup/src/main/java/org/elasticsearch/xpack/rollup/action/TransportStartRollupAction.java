@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
@@ -49,6 +50,7 @@ public class TransportStartRollupAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
+        Task actionTask,
         StartRollupJobAction.Request request,
         RollupJobTask jobTask,
         ActionListener<StartRollupJobAction.Response> listener

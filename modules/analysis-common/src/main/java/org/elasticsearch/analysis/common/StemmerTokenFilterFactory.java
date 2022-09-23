@@ -82,7 +82,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
     private String language;
 
     StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
         // check that we have a valid language by trying to create a TokenStream
         create(EMPTY_TOKEN_STREAM).close();

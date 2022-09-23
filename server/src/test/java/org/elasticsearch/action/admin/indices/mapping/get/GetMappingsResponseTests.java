@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -19,6 +18,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<GetMappingsResponse> {
 
@@ -59,11 +61,25 @@ public class GetMappingsResponseTests extends AbstractWireSerializingTestCase<Ge
 
     @Override
     protected GetMappingsResponse createTestInstance() {
-        ImmutableOpenMap.Builder<String, MappingMetadata> indexBuilder = ImmutableOpenMap.builder();
-        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex());
-        GetMappingsResponse resp = new GetMappingsResponse(indexBuilder.build());
+        GetMappingsResponse resp = new GetMappingsResponse(Map.of("index-" + randomAlphaOfLength(5), createMappingsForIndex()));
         logger.debug("--> created: {}", resp);
         return resp;
+    }
+
+    public void testChunkedXContentUsesChunkPerIndex() {
+        final int indexCount = randomIntBetween(1, 10);
+        final var response = new GetMappingsResponse(
+            IntStream.range(0, indexCount)
+                .mapToObj(i -> "index-" + i)
+                .collect(Collectors.toUnmodifiableMap(Function.identity(), k -> createMappingsForIndex()))
+        );
+        final var chunks = response.toXContentChunked();
+        int chunkCount = 0;
+        while (chunks.hasNext()) {
+            chunks.next();
+            chunkCount++;
+        }
+        assertEquals(2 + indexCount, chunkCount);
     }
 
     // Not meant to be exhaustive

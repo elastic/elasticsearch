@@ -8,7 +8,6 @@
 
 package org.elasticsearch.indices.cluster;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -122,8 +121,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     indicesClusterStateService.applyClusterState(event);
                 } catch (AssertionError error) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "failed to apply change on [{}].\n ***  Previous state ***\n{}\n ***  New state ***\n{}",
+                        () -> format(
+                            "failed to apply change on [%s].\n ***  Previous state ***\n%s\n ***  New state ***\n%s",
                             node,
                             event.previousState(),
                             event.state()

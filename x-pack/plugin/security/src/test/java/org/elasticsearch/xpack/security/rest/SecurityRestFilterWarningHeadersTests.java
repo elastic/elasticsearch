@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -120,7 +119,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
         when(channel.request()).thenReturn(request);
         when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
         filter.handleRequest(request, channel, null);
-        ArgumentCaptor<BytesRestResponse> response = ArgumentCaptor.forClass(BytesRestResponse.class);
+        ArgumentCaptor<RestResponse> response = ArgumentCaptor.forClass(RestResponse.class);
         verify(channel).sendResponse(response.capture());
         RestResponse restResponse = response.getValue();
         return restResponse.filterHeaders(headers.immutableMap());
@@ -146,7 +145,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
         when(channel.request()).thenReturn(request);
         when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
         filter.handleRequest(request, channel, null);
-        ArgumentCaptor<BytesRestResponse> response = ArgumentCaptor.forClass(BytesRestResponse.class);
+        ArgumentCaptor<RestResponse> response = ArgumentCaptor.forClass(RestResponse.class);
         verify(channel).sendResponse(response.capture());
         RestResponse restResponse = response.getValue();
         return restResponse.filterHeaders(headers.immutableMap());

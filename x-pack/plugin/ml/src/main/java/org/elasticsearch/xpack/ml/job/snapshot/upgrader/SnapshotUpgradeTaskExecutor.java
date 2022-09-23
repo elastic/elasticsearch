@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -171,7 +170,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 task.updatePersistentTaskState(
                     new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, -1, e.getMessage()),
                     ActionListener.wrap(r -> task.markAsFailed(e), failure -> {
-                        logger.warn(new ParameterizedMessage("[{}] [{}] failed to set task to failed", jobId, snapshotId), failure);
+                        logger.warn(() -> format("[%s] [%s] failed to set task to failed", jobId, snapshotId), failure);
                         task.markAsFailed(e);
                     })
                 );

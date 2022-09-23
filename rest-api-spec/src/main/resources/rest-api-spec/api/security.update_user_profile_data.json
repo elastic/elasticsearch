@@ -5,8 +5,7 @@
       "description":"Update application specific data for the user profile of the given unique ID."
     },
     "stability":"experimental",
-    "visibility":"feature_flag",
-    "feature_flag": "es.user_profile_feature_flag_enabled",
+    "visibility":"private",
     "headers":{
       "accept": [ "application/json"],
       "content_type": ["application/json"]

@@ -212,4 +212,31 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         );
         return new FieldCapabilitiesResponse(new String[] { "index1", "index2", "index3", "index4" }, responses, failureMap);
     }
+
+    public void testExpectedChunkSizes() {
+        {
+            final FieldCapabilitiesResponse instance = FieldCapabilitiesResponseTests.createResponseWithFailures();
+            final var iterator = instance.toXContentChunked();
+            int chunks = 0;
+            while (iterator.hasNext()) {
+                iterator.next();
+                chunks++;
+            }
+            if (instance.getFailures().isEmpty()) {
+                assertEquals(2, chunks);
+            } else {
+                assertEquals(3 + instance.get().size() + instance.getFailures().size(), chunks);
+            }
+        }
+        {
+            final FieldCapabilitiesResponse instance = createTestInstance();
+            final var iterator = instance.toXContentChunked();
+            int chunks = 0;
+            while (iterator.hasNext()) {
+                iterator.next();
+                chunks++;
+            }
+            assertEquals(2 + instance.get().size(), chunks);
+        }
+    }
 }

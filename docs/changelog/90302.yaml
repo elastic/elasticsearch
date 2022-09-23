@@ -2,4 +2,4 @@ pr: 90302
 summary: Fix another potential race in the file settings watcher
 area: Infra/Core
 type: bug
-issues: []
+issues: [89500]

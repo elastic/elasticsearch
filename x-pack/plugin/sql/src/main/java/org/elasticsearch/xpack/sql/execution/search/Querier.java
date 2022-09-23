@@ -39,6 +39,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractor;
@@ -590,7 +591,7 @@ public class Querier {
     static class SearchHitActionListener extends BaseActionListener {
         private final QueryContainer query;
         private final BitSet mask;
-        private final boolean multiValueFieldLeniency;
+        private final AbstractFieldHitExtractor.MultiValueSupport multiValueFieldLeniency;
         private final SearchSourceBuilder source;
 
         SearchHitActionListener(
@@ -604,7 +605,7 @@ public class Querier {
             super(listener, client, cfg, output);
             this.query = query;
             this.mask = query.columnMask(output);
-            this.multiValueFieldLeniency = cfg.multiValueFieldLeniency();
+            this.multiValueFieldLeniency = cfg.multiValueFieldLeniency() ? LENIENT : NONE;
             this.source = source;
         }
 
@@ -631,22 +632,11 @@ public class Querier {
 
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef f) {
-                return new FieldHitExtractor(
-                    f.name(),
-                    f.getDataType(),
-                    cfg.zoneId(),
-                    f.hitName(),
-                    multiValueFieldLeniency ? LENIENT : NONE
-                );
+                return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), multiValueFieldLeniency);
             }
 
             if (ref instanceof ScriptFieldRef f) {
-                FieldHitExtractor fieldHitExtractor = new FieldHitExtractor(
-                    f.name(),
-                    null,
-                    cfg.zoneId(),
-                    multiValueFieldLeniency ? LENIENT : NONE
-                );
+                FieldHitExtractor fieldHitExtractor = new FieldHitExtractor(f.name(), null, cfg.zoneId(), multiValueFieldLeniency);
                 return fieldHitExtractor;
             }
 

@@ -187,7 +187,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                         return unwrapFieldsMultiValue(list.get(0));
                     } else if (multiValueSupport == MultiValueSupport.FULL) {
                         List<Object> unwrappedValues = new ArrayList<>();
-                        for (Object value : ((List<?>) values)) {
+                        for (Object value : list) {
                             unwrappedValues.add(unwrapFieldsMultiValue(value));
                         }
                         values = unwrappedValues;
@@ -198,25 +198,27 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             }
         }
 
-        Object unwrapped;
-        if (values instanceof List<?>) {
-            List<Object> unwrappedValues = new ArrayList<>();
-            for (Object value : ((List<?>) values)) {
-                unwrappedValues.add(unwrapFieldsMultiValue(value));
-            }
-            unwrapped = unwrappedValues;
-        } else {
-            unwrapped = unwrapCustomValue(values);
-        }
-        if (unwrapped != null && isEmptyList(unwrapped) == false) {
+        Object unwrapped = unwrapCustomValue(values);
+        if (unwrapped != null && isListOfNulls(unwrapped) == false) {
             return unwrapped;
         }
 
         return values;
     }
 
-    private boolean isEmptyList(Object unwrapped) {
-        return unwrapped instanceof List && ((List) unwrapped).isEmpty();
+    private boolean isListOfNulls(Object unwrapped) {
+        if (unwrapped instanceof List<?> list) {
+            if (list.size() == 0) {
+                return false;
+            }
+            for (Object o : list) {
+                if (o != null) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     protected abstract Object unwrapCustomValue(Object values);

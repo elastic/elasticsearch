@@ -54,13 +54,13 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         DataType dataType = dataType();
 
         if (dataType == DATETIME) {
-            if (values instanceof String) {
+            if (values instanceof String str) {
                 // We ask @timestamp (or the defined alternative field) to be returned as `epoch_millis`
                 // when matching sequence to avoid parsing into ZonedDateTime objects for performance reasons.
-                return parseEpochMillisAsString(values.toString());
+                return parseEpochMillisAsString(str);
             }
-            if (values instanceof List) {
-                return ((List<?>) values).stream().map(x -> unwrapCustomValue(x)).collect(Collectors.toList());
+            if (values instanceof List<?> list) {
+                return list.stream().map(x -> unwrapCustomValue(x)).collect(Collectors.toList());
             }
         }
 

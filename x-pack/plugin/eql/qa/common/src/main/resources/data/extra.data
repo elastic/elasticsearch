@@ -65,7 +65,8 @@
   "process.pid": 123,
   "sequence": 10,
   "tags": "tag6",
-  "optional_tags": ["tag1", null, null]
+  "optional_tags": ["tag1", null, null],
+  "date_tags": "1970-01-01T00:00:00.000Z"
  },
  {
   "@timestamp": "1",
@@ -73,7 +74,8 @@
   "transID": 2,
   "sequence": 11,
   "tags": ["tag5", "tag6"],
-  "optional_tags": [null]
+  "optional_tags": [null],
+  "date_tags": "1970-01-05T00:00:00.000Z"
  },
  {
   "@timestamp": "2",
@@ -81,7 +83,8 @@
   "transID": 2,
   "process.pid": 123,
   "sequence": 12,
-  "tags_with_duplicates": ["tag1", "tag1", "tag2"]
+  "tags_with_duplicates": ["tag1", "tag1", "tag2"],
+  "date_tags": "1970-01-01T00:00:00.000Z"
  },
  {
   "@timestamp": "3",
@@ -150,7 +153,8 @@
   "process.pid": 123,
   "version": "1.2.4",
   "sequence": 20,
-  "tags_with_null": "tag2"
+  "tags_with_null": "tag2",
+  "date_tags": "1970-01-01T00:00:00.000Z"
  },
  {
   "@timestamp": "10",
@@ -159,7 +163,8 @@
   "process.entity_id": 512,
   "process.pid": 123,
   "version": "1.11.3",
-  "sequence": 21
+  "sequence": 21,
+  "date_tags": [ "1970-01-01T00:00:00.000Z", "1970-01-02T00:00:00.000Z" ]
  },
  {
   "@timestamp": "11",
@@ -169,7 +174,8 @@
   "process.pid": 123,
   "version": "bad",
   "sequence": 22,
-  "tags": []
+  "tags": [],
+  "date_tags": [ "1970-08-01T00:00:00.000Z", "1970-01-02T00:00:00.000Z" ]
  },
  {
   "@timestamp": "12",

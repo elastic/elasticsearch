@@ -32,6 +32,16 @@ expected_event_ids  = [1,2,3]
 join_keys = ["1234"]
 
 [[queries]]
+name = "byDate"
+query = '''
+  sequence by date_tags
+    [ process where true ]
+    [ process where true ]
+'''
+expected_event_ids  = [10, 12]
+join_keys = ["1970-01-01T00:00:00.000Z"]
+
+[[queries]]
 name = "optionalNoDocsFieldNullEquality"
 query = '''
   OPTIONAL where ?optional_field_mapping_only == null
@@ -349,6 +359,16 @@ query = '''
 expected_event_ids  = [16, 19, 16, 20]
 join_keys = ["tag1", "tag2"]
 
+[[queries]]
+name = "sequenceWithMultivalue_DateValues"
+query = '''
+  sequence by date_tags
+    [ file where true ]
+    [ file where true ]
+'''
+expected_event_ids  = [20, 21, 21, 22]
+join_keys = [ "1970-01-01T00:00:00.000Z", "1970-01-02T00:00:00.000Z" ]
+
 
 [[queries]]
 name = "sequenceWithOptionalMultivalue_simple"
@@ -402,3 +422,4 @@ query = '''
 '''
 expected_event_ids  = [1, 2]
 join_keys = [null, "tag1"]
+

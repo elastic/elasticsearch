@@ -13,9 +13,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.AdjacencyMatrix.Bucket;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.Avg;
@@ -24,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +47,12 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class AdjacencyMatrixIT extends ESIntegTestCase {
 
     static int numDocs, numSingleTag1Docs, numSingleTag2Docs, numTag1Docs, numTag2Docs, numMultiTagDocs;
+
+    // TODO: maybe add base class that overwrites nodePlugins(...) for all tests that will be added to this module.
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(AggregationsPlugin.class);
+    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {

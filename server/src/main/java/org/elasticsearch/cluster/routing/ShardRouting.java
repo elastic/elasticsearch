@@ -346,7 +346,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     public ShardRouting updateUnassigned(UnassignedInfo unassignedInfo, RecoverySource recoverySource) {
-        assert this.unassignedInfo != null : "can only update unassign info if they are already set";
+        assert this.unassignedInfo != null : "can only update unassigned info if it is already set";
         assert this.unassignedInfo.isDelayed() || (unassignedInfo.isDelayed() == false) : "cannot transition from non-delayed to delayed";
         return new ShardRouting(
             shardId,
@@ -356,7 +356,23 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             state,
             recoverySource,
             unassignedInfo,
-            null,
+            relocationFailureInfo,
+            allocationId,
+            expectedShardSize
+        );
+    }
+
+    public ShardRouting updateRelocationFailure(RelocationFailureInfo relocationFailureInfo) {
+        assert this.relocationFailureInfo != null : "can only update relocation failure info info if it is already set";
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            relocatingNodeId,
+            primary,
+            state,
+            recoverySource,
+            unassignedInfo,
+            relocationFailureInfo,
             allocationId,
             expectedShardSize
         );

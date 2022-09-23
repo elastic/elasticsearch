@@ -762,8 +762,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         NestedAggregationBuilder builder = new NestedAggregationBuilder("nestedAggName", nestedPath);
         builder.subAggregation(new CompositeAggregationBuilder("compositeAggName", Collections.singletonList(terms)));
         // Without after
-        // Sub-Docs
-        // Root docs
         testCase(new AggTestConfig<InternalSingleBucketAggregation>(builder, iw -> {
             // Sub-Docs
             List<Iterable<IndexableField>> documents = new ArrayList<>();
@@ -818,8 +816,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 createAfterKey("keyword", "Pens and Stuff")
             )
         );
-        // Sub-Docs
-        // Root docs
         testCase(new AggTestConfig<InternalSingleBucketAggregation>(builder, iw -> {
             // Sub-Docs
             List<Iterable<IndexableField>> documents = new ArrayList<>();

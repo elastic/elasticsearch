@@ -16,7 +16,6 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -26,7 +25,6 @@ import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
-import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
@@ -59,29 +57,21 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     private final ModuleLayer.Controller moduleController;
     private final Set<String> packageNames;
 
-    static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, List<Path> jarPaths) {
-        return getInstance(parent, moduleName, jarPaths, Set.of());
+    static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls) {
+        return getInstance(parent, moduleName, jarUrls, Set.of());
     }
 
     @SuppressForbidden(reason = "need access to the jar file")
     @SuppressWarnings("removal")
-    static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, List<Path> jarPaths, Set<String> moduleDenyList) {
-        ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(moduleName, jarPaths.toArray(new Path[0]), Set.of());
-        List<URL> jarURLs = new ArrayList<>();
-        try {
-            for (Path jarPath : jarPaths) {
-                URI toUri = jarPath.toUri();
-                URL toURL = toUri.toURL();
-                jarURLs.add(toURL);
-            }
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
-        }
+    static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls, Set<String> moduleDenyList) {
+        Path[] jarPaths = jarUrls.stream().map(UberModuleClassLoader::urlToPathUnchecked).toArray(Path[]::new);
+
+        ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(moduleName, jarPaths, Set.of());
         ModuleLayer mparent = ModuleLayer.boot();
-        Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of(moduleName));
+        Configuration cf = mparent.configuration().resolveAndBind(finder, ModuleFinder.of(), Set.of(moduleName));
 
         Set<String> packageNames = new HashSet<>();
-        for (URL url : jarURLs) {
+        for (URL url : jarUrls) {
             try (JarFile jarFile = new JarFile(new File(url.toURI()))) {
                 Set<String> jarPackages = ModuleSupport.scan(jarFile)
                     .classFiles()
@@ -100,7 +90,7 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         PrivilegedAction<UberModuleClassLoader> pa = () -> new UberModuleClassLoader(
             parent,
             moduleName,
-            jarURLs.toArray(new URL[0]),
+            jarUrls.toArray(new URL[0]),
             cf,
             mparent,
             moduleDenyList,
@@ -142,6 +132,10 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
             .forEach(m -> moduleController.addReads(module, m));
 
         this.packageNames = packageNames;
+    }
+
+    public ModuleLayer getLayer() {
+        return moduleController.layer();
     }
 
     /**
@@ -264,6 +258,15 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     private String packageName(String cn) {
         int pos = cn.lastIndexOf('.');
         return (pos < 0) ? "" : cn.substring(0, pos);
+    }
+
+    @SuppressForbidden(reason = "plugin infrastructure provides URLs but module layer uses Paths")
+    static Path urlToPathUnchecked(URL url) {
+        try {
+            return Path.of(url.toURI());
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     @Override

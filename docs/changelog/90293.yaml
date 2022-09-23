@@ -1,5 +1,5 @@
 pr: 90293
 summary: Don't re-parse mappings in `verifyIndexMetadata`
-area: "Cluster Coordination, Infra/Settings, Mapping"
+area: "Cluster Coordination"
 type: enhancement
 issues: []

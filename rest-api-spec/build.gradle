@@ -35,6 +35,7 @@ artifacts {
 
 testClusters.configureEach {
   module ':modules:mapper-extras'
+  module ':modules:aggregations'
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 

@@ -495,7 +495,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     e.addValidationError(
                         "Source index is a downsampled index. Downsampling interval ["
                             + targetIndexInterval
-                            + "] must be greater than the the source index interval ["
+                            + "] must be greater than the source index interval ["
                             + sourceIndexInterval
                             + "]"
                     );

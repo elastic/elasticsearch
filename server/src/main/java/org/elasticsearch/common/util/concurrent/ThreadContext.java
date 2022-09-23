@@ -593,6 +593,13 @@ public final class ThreadContext implements Writeable {
         return threadLocal.get().isSystemContext;
     }
 
+    public void removeAuthorizationHeader() {
+        threadLocal.get().requestHeaders.entrySet()
+            .removeIf(
+                entry -> entry.getKey().equalsIgnoreCase("authorization") || entry.getKey().equalsIgnoreCase("es-secondary-authorization")
+            );
+    }
+
     @FunctionalInterface
     public interface StoredContext extends AutoCloseable, Releasable {
         default void restore() {

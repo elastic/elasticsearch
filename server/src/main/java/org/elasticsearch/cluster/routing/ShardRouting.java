@@ -496,7 +496,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             state,
             recoverySource,
             unassignedInfo,
-            null,
+            relocationFailureInfo,
             AllocationId.finishRelocation(allocationId),
             expectedShardSize
         );
@@ -517,7 +517,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             ShardRoutingState.INITIALIZING,
             recoverySource,
             unassignedInfo,
-            null,
+            relocationFailureInfo,
             AllocationId.newInitializing(),
             expectedShardSize
         );
@@ -568,7 +568,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             state,
             recoverySource,
             unassignedInfo,
-            null,
+            relocationFailureInfo,
             allocationId,
             expectedShardSize
         );
@@ -592,7 +592,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             state,
             PeerRecoverySource.INSTANCE,
             unassignedInfo,
-            null,
+            relocationFailureInfo,
             allocationId,
             expectedShardSize
         );

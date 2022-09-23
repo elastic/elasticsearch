@@ -12,6 +12,8 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class BytesArrayTests extends AbstractBytesReferenceTestCase {
 
     @Override
@@ -54,5 +56,18 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
         int length = randomInt(PAGE_SIZE * randomIntBetween(2, 5));
         BytesArray pbr = (BytesArray) newBytesReferenceWithOffsetOfZero(length);
         assertEquals(0, pbr.arrayOffset());
+    }
+
+    public void testGetIntLE() {
+        BytesReference ref = new BytesArray(new byte[] { 0x00, 0x12, 0x10, 0x12, 0x00, 0x01 }, 1, 5);
+        assertThat(ref.getIntLE(0), equalTo(0x00121012));
+        assertThat(ref.getIntLE(1), equalTo(0x01001210));
+        Exception e = expectThrows(ArrayIndexOutOfBoundsException.class, () -> ref.getIntLE(2));
+        assertThat(e.getMessage(), equalTo("Index 3 out of bounds for length 3"));
+        /*
+         * Wait. 3!? The array has length 6. Well, the var handle stuff
+         * for arrays just subtracts three - because that's one more than
+         * the number of bytes in an int. Get it? I'm not sure I do either....
+         */
     }
 }

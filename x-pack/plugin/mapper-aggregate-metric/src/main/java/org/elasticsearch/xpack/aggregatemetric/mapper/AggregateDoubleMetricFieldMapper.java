@@ -307,6 +307,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             this.metricFields = metricFields;
         }
 
+        public Map<Metric, NumberFieldMapper.NumberFieldType> getMetricFields() {
+            return Collections.unmodifiableMap(metricFields);
+        }
+
         public void addMetricField(Metric m, NumberFieldMapper.NumberFieldType subfield) {
             if (metricFields == null) {
                 metricFields = new EnumMap<>(AggregateDoubleMetricFieldMapper.Metric.class);
@@ -382,6 +386,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             QueryRewriteContext context
         ) throws IOException {
             return delegateFieldType().isFieldWithinQuery(reader, from, to, includeLower, includeUpper, timeZone, dateMathParser, context);
+        }
+
+        @Override
+        public boolean isAggregatable() {
+            return true;
         }
 
         @Override

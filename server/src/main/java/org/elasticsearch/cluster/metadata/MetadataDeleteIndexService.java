@@ -10,12 +10,10 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -26,7 +24,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -48,34 +45,40 @@ public class MetadataDeleteIndexService {
     private final Settings settings;
     private final ClusterService clusterService;
 
-    private final AllocationService allocationService;
+    // package private for tests
+    final ClusterStateTaskExecutor<DeleteIndexClusterStateUpdateRequest> executor;
 
     @Inject
     public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         this.settings = settings;
         this.clusterService = clusterService;
-        this.allocationService = allocationService;
+        executor = batchExecutionContext -> {
+            ClusterState state = batchExecutionContext.initialState();
+            for (ClusterStateTaskExecutor.TaskContext<DeleteIndexClusterStateUpdateRequest> taskContext : batchExecutionContext
+                .taskContexts()) {
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    state = deleteIndices(state, Sets.newHashSet(taskContext.getTask().indices()));
+                    taskContext.success(taskContext.getTask());
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
+            }
+            if (state == batchExecutionContext.initialState()) {
+                return state;
+            }
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                return allocationService.reroute(state, "deleted indices");
+            }
+        };
     }
 
-    public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
+    private static final ClusterStateTaskConfig URGENT_CONFIG = ClusterStateTaskConfig.build(Priority.URGENT);
+
+    public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
-
-        submitUnbatchedTask(
-            "delete-index " + Arrays.toString(request.indices()),
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
-                @Override
-                public ClusterState execute(final ClusterState currentState) {
-                    return deleteIndices(currentState, Sets.newHashSet(request.indices()));
-                }
-            }
-        );
-    }
-
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
+        clusterService.submitStateUpdateTask("delete-index " + Arrays.toString(request.indices()), request, URGENT_CONFIG, executor);
     }
 
     /**
@@ -154,14 +157,11 @@ public class MetadataDeleteIndexService {
             customs = builder.build();
         }
 
-        return allocationService.reroute(
-            ClusterState.builder(currentState)
-                .routingTable(routingTableBuilder.build())
-                .metadata(newMetadata)
-                .blocks(blocks)
-                .customs(customs)
-                .build(),
-            "deleted indices [" + indices + "]"
-        );
+        return ClusterState.builder(currentState)
+            .routingTable(routingTableBuilder.build())
+            .metadata(newMetadata)
+            .blocks(blocks)
+            .customs(customs)
+            .build();
     }
 }

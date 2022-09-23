@@ -41,13 +41,16 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     public static final String HELP_URL = "https://ela.st/fix-ilm";
     public static final Diagnosis ILM_NOT_RUNNING = new Diagnosis(
         new Diagnosis.Definition(
-            "ilm-not-running",
+            NAME,
+            "ilm_disabled",
             "Index Lifecycle Management is stopped",
             "Start Index Lifecycle Management using [POST /_ilm/start].",
             HELP_URL
         ),
         null
     );
+
+    public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";
 
     private final ClusterService clusterService;
 
@@ -74,6 +77,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         } else if (ilmMetadata.getOperationMode() != OperationMode.RUNNING) {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
+                    NAME,
+                    AUTOMATION_DISABLED_IMPACT_ID,
                     3,
                     "Automatic index lifecycle and data retention management is disabled. The performance and stability of the cluster "
                         + "could be impacted.",

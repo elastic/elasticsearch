@@ -9,19 +9,19 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesXContentResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 
-public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements ToXContentFragment {
+public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
     public NodesStatsResponse(StreamInput in) throws IOException {
         super(in);
@@ -42,30 +42,21 @@ public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements 
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("nodes");
-        for (NodeStats nodeStats : getNodes()) {
-            builder.startObject(nodeStats.getNode().getId());
-            builder.field("timestamp", nodeStats.getTimestamp());
-            nodeStats.toXContent(builder, params);
-
-            builder.endObject();
-        }
-        builder.endObject();
-
-        return builder;
+    protected Iterator<? extends ToXContent> xContentChunks() {
+        return Iterators.concat(
+            Iterators.single((b, p) -> b.startObject("nodes")),
+            getNodes().stream().map(nodeStats -> (ToXContent) (b, p) -> {
+                b.startObject(nodeStats.getNode().getId());
+                b.field("timestamp", nodeStats.getTimestamp());
+                nodeStats.toXContent(b, p);
+                return b.endObject();
+            }).iterator(),
+            Iterators.single((b, p) -> b.endObject())
+        );
     }
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this, true, true);
     }
 }

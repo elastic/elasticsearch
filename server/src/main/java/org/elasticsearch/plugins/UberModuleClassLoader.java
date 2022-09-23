@@ -10,13 +10,13 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.core.SuppressForbidden;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
+import java.lang.module.ModuleReference;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -27,14 +27,11 @@ import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.util.Enumeration;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
 /**
@@ -87,7 +84,6 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         return getInstance(parent, moduleName, jarUrls, Set.of());
     }
 
-    @SuppressForbidden(reason = "need access to the jar file")
     @SuppressWarnings("removal")
     static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls, Set<String> moduleDenyList) {
         Path[] jarPaths = jarUrls.stream().map(UberModuleClassLoader::urlToPathUnchecked).toArray(Path[]::new);
@@ -104,24 +100,10 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
 
         ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(moduleName, jarPaths, requires, uses);
         ModuleLayer mparent = ModuleLayer.boot();
+        // TODO: check that denied modules are not brought as transitive dependencies (or switch to allow-list?)
         Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of(moduleName));
 
-        Set<String> packageNames = new HashSet<>();
-        for (URL url : jarUrls) {
-            try (JarFile jarFile = new JarFile(new File(url.toURI()))) {
-                Set<String> jarPackages = ModuleSupport.scan(jarFile)
-                    .classFiles()
-                    .stream()
-                    .map(e -> ModuleSupport.toPackageName(e, "/"))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .collect(Collectors.toSet());
-
-                packageNames.addAll(jarPackages);
-            } catch (IOException | URISyntaxException e) {
-                throw new IllegalArgumentException(e);
-            }
-        }
+        Set<String> packageNames = finder.find(moduleName).map(ModuleReference::descriptor).map(ModuleDescriptor::packages).orElseThrow();
 
         PrivilegedAction<UberModuleClassLoader> pa = () -> new UberModuleClassLoader(
             parent,

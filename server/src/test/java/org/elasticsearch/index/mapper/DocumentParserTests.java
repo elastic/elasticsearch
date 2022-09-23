@@ -2423,6 +2423,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
         })));
         assertThat(mpe.getCause().getMessage(), containsString("Limit of mapping depth [20] has been exceeded due to object field"));
+
+        // check that multiple-dotted field name underneath an object mapper with subobjects=false does not trigger this
+        DocumentMapper docMapper2 = createMapperService(topMapping(b -> { b.field("subobjects", false); })).documentMapper();
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < depth; i++) {
+            sb.append("obj.");
+        }
+        sb.append("foo");
+        docMapper2.parse(source(b -> { b.field(sb.toString(), 10); }));
     }
 
     /**

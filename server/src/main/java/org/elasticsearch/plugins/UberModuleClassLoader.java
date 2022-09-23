@@ -17,7 +17,6 @@ import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
-import java.lang.module.ResolvedModule;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -68,41 +67,30 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls, Set<String> moduleDenyList) {
         Path[] jarPaths = jarUrls.stream().map(UberModuleClassLoader::urlToPathUnchecked).toArray(Path[]::new);
 
-        // TODO: can we cache this JDK/module stuff, since it will be the same for every plugin?
-
-        // the boot layer may contain application modules...
+        // TODO: can we fetch platform module information once, rather than for every plugin?
         ModuleLayer mparent = ModuleLayer.boot();
-        // Every module requires java.base by default, but we can add all other modules
-        // that are not in the deny list so that plugins can use, for example, java.management
-        Set<String> requires = mparent.configuration()
-            .modules()
+        Set<ModuleDescriptor> platformModules = mparent.modules()
             .stream()
-            // only get jdk modules (which are loaded from jrt )
-            .filter(rm -> rm.reference().location().isPresent() && rm.reference().location().get().getScheme().equals("jrt"))
-            // only get modules that have unqualified exports
-            .filter(rm -> rm.reference().descriptor().exports().stream().anyMatch(e -> e.isQualified() == false))
-            .map(ResolvedModule::name)
-            .filter(name -> moduleDenyList.contains(name) == false)
+            .map(Module::getDescriptor)
+            .filter(UberModuleClassLoader::isJavaPlatformModule)
+            .filter(UberModuleClassLoader::hasUnqualifiedExport)
+            .filter(md -> moduleDenyList.contains(md.name()) == false)
             .collect(Collectors.toSet());
-        // find all
-        Set<String> exportedPackages = requires.stream()
-            .map(mparent::findModule)
-            .flatMap(Optional::stream)
-            .flatMap(m -> m.getDescriptor().exports().stream())
+
+        Set<String> requires = platformModules.stream().map(ModuleDescriptor::name).collect(Collectors.toSet());
+        // find all unqualified exports
+        Set<String> platformUnqualifiedExports = platformModules.stream()
+            .flatMap(md -> md.exports().stream())
             .filter(e -> e.isQualified() == false)
             .map(ModuleDescriptor.Exports::source)
             .collect(Collectors.toSet());
         // We also need to gather the service names in the public Java API and mark our
         // synthetic plugin as using them, since we don't know which services our jars
         // might try to load
-        Set<String> uses = mparent.modules()
-            .stream()
-            .map(Module::getDescriptor)
-            .filter(d -> requires.contains(d.name()))
-            .map(ModuleDescriptor::provides)
-            .flatMap(Set::stream)
+        Set<String> uses = platformModules.stream()
+            .flatMap(md -> md.provides().stream())
             .map(ModuleDescriptor.Provides::service)
-            .filter(serviceName -> exportedPackages.contains(packageName(serviceName)))
+            .filter(serviceName -> platformUnqualifiedExports.contains(packageName(serviceName)))
             .collect(Collectors.toSet());
 
         ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(moduleName, jarPaths, requires, uses);
@@ -309,4 +297,27 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         };
         AccessController.doPrivileged(pa);
     }
+
+    /**
+     * If a module has at least one unqualified export, then it has a public API
+     * that can be used by other modules. If all of its exports are qualified, only
+     * modules specified in its descriptor can read from it, and there's no
+     * use in requiring it for a synthetic module.
+     * @param md A module descriptor.
+     * @return true if the module as at least one unqualified export, false otherwise
+     */
+    private static boolean hasUnqualifiedExport(ModuleDescriptor md) {
+        return md.exports().stream().anyMatch(e -> e.isQualified() == false);
+    }
+
+    /**
+     * We assume that if a module name starts with "java." or "jdk.", it is a Java
+     * platform module. We also assume that there are no Java platform modules that
+     * start with other prefixes. This assumption is true as of Java 17, where "java."
+     * is for Java SE APIs and "jdk." is for JDK-specific modules.
+     */
+    private static boolean isJavaPlatformModule(ModuleDescriptor md) {
+        return md.name().startsWith("java.") || md.name().startsWith("jdk.");
+    }
+
 }

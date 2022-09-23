@@ -50,7 +50,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
 public class FileSettingsService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
-    private static final String SETTINGS_FILE_NAME = "settings.json";
+    public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
 
     private final ClusterService clusterService;

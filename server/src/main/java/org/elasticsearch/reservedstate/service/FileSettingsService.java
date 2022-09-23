@@ -345,6 +345,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         logger.debug("stopping watcher ...");
         if (watching()) {
             try {
+                // make sure the watcher thread hits the processing latch correctly
                 cleanupWatchKeys();
                 fileUpdateState = null;
                 watchService.close();
@@ -354,6 +355,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 if (watcherThreadLatch != null) {
                     watcherThreadLatch.await();
                 }
+                // the watcher thread might have snuck in behind us and re-created the settings watch again
+                cleanupWatchKeys();
             } catch (IOException e) {
                 logger.warn("encountered exception while closing watch service", e);
             } catch (InterruptedException interruptedException) {

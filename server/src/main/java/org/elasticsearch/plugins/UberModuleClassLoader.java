@@ -29,9 +29,11 @@ import java.security.SecureClassLoader;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
@@ -58,6 +60,29 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     private final ModuleLayer.Controller moduleController;
     private final Set<String> packageNames;
 
+    private static final Map<String, Set<String>> platformModulesToServices;
+
+    static {
+        platformModulesToServices = ModuleLayer.boot()
+            .modules()
+            .stream()
+            .map(Module::getDescriptor)
+            .filter(ModuleSupport::isJavaPlatformModule)
+            .filter(ModuleSupport::hasAtLeastOneUnqualifiedExport)
+            .collect(Collectors.toMap(ModuleDescriptor::name, md -> {
+                Set<String> unqualifiedExports = md.exports()
+                    .stream()
+                    .filter(Predicate.not(ModuleDescriptor.Exports::isQualified))
+                    .map(ModuleDescriptor.Exports::source)
+                    .collect(Collectors.toSet());
+                return md.provides()
+                    .stream()
+                    .map(ModuleDescriptor.Provides::service)
+                    .filter(name -> unqualifiedExports.contains(packageName(name)))
+                    .collect(Collectors.toSet());
+            }));
+    }
+
     static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls) {
         return getInstance(parent, moduleName, jarUrls, Set.of());
     }
@@ -67,33 +92,18 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls, Set<String> moduleDenyList) {
         Path[] jarPaths = jarUrls.stream().map(UberModuleClassLoader::urlToPathUnchecked).toArray(Path[]::new);
 
-        // TODO: can we fetch platform module information once, rather than for every plugin?
-        ModuleLayer mparent = ModuleLayer.boot();
-        Set<ModuleDescriptor> platformModules = mparent.modules()
+        Set<String> requires = platformModulesToServices.keySet()
             .stream()
-            .map(Module::getDescriptor)
-            .filter(UberModuleClassLoader::isJavaPlatformModule)
-            .filter(UberModuleClassLoader::hasUnqualifiedExport)
-            .filter(md -> moduleDenyList.contains(md.name()) == false)
+            .filter(Predicate.not(moduleDenyList::contains))
             .collect(Collectors.toSet());
-
-        Set<String> requires = platformModules.stream().map(ModuleDescriptor::name).collect(Collectors.toSet());
-        // find all unqualified exports
-        Set<String> platformUnqualifiedExports = platformModules.stream()
-            .flatMap(md -> md.exports().stream())
-            .filter(e -> e.isQualified() == false)
-            .map(ModuleDescriptor.Exports::source)
-            .collect(Collectors.toSet());
-        // We also need to gather the service names in the public Java API and mark our
-        // synthetic plugin as using them, since we don't know which services our jars
-        // might try to load
-        Set<String> uses = platformModules.stream()
-            .flatMap(md -> md.provides().stream())
-            .map(ModuleDescriptor.Provides::service)
-            .filter(serviceName -> platformUnqualifiedExports.contains(packageName(serviceName)))
+        Set<String> uses = platformModulesToServices.entrySet()
+            .stream()
+            .filter(Predicate.not(entry -> moduleDenyList.contains(entry.getKey())))
+            .flatMap(entry -> entry.getValue().stream())
             .collect(Collectors.toSet());
 
         ModuleFinder finder = ModuleSupport.ofSyntheticPluginModule(moduleName, jarPaths, requires, uses);
+        ModuleLayer mparent = ModuleLayer.boot();
         Configuration cf = mparent.configuration().resolve(finder, ModuleFinder.of(), Set.of(moduleName));
 
         Set<String> packageNames = new HashSet<>();
@@ -296,28 +306,6 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
             return null;
         };
         AccessController.doPrivileged(pa);
-    }
-
-    /**
-     * If a module has at least one unqualified export, then it has a public API
-     * that can be used by other modules. If all of its exports are qualified, only
-     * modules specified in its descriptor can read from it, and there's no
-     * use in requiring it for a synthetic module.
-     * @param md A module descriptor.
-     * @return true if the module as at least one unqualified export, false otherwise
-     */
-    private static boolean hasUnqualifiedExport(ModuleDescriptor md) {
-        return md.exports().stream().anyMatch(e -> e.isQualified() == false);
-    }
-
-    /**
-     * We assume that if a module name starts with "java." or "jdk.", it is a Java
-     * platform module. We also assume that there are no Java platform modules that
-     * start with other prefixes. This assumption is true as of Java 17, where "java."
-     * is for Java SE APIs and "jdk." is for JDK-specific modules.
-     */
-    private static boolean isJavaPlatformModule(ModuleDescriptor md) {
-        return md.name().startsWith("java.") || md.name().startsWith("jdk.");
     }
 
 }

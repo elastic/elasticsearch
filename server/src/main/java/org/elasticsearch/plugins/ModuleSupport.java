@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
@@ -220,6 +221,28 @@ public class ModuleSupport {
         return true;
     }
 
+    /**
+     * If a module has at least one unqualified export, then it has a public API
+     * that can be used by other modules. If all of its exports are qualified, only
+     * modules specified in its descriptor can read from it, and there's no
+     * use in requiring it for a synthetic module.
+     * @param md A module descriptor.
+     * @return true if the module as at least one unqualified export, false otherwise
+     */
+    static boolean hasAtLeastOneUnqualifiedExport(ModuleDescriptor md) {
+        return md.exports().stream().anyMatch(Predicate.not(ModuleDescriptor.Exports::isQualified));
+    }
+
+    /**
+     * We assume that if a module name starts with "java." or "jdk.", it is a Java
+     * platform module. We also assume that there are no Java platform modules that
+     * start with other prefixes. This assumption is true as of Java 17, where "java."
+     * is for Java SE APIs and "jdk." is for JDK-specific modules.
+     */
+    static boolean isJavaPlatformModule(ModuleDescriptor md) {
+        return md.name().startsWith("java.") || md.name().startsWith("jdk.");
+    }
+
     @SuppressForbidden(reason = "need access to the jar file")
     private static List<String> getProvidersFromServiceFile(JarFile jf, String sf) throws IOException {
         try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf)), StandardCharsets.UTF_8))) {
@@ -246,5 +269,4 @@ public class ModuleSupport {
             .orElseThrow(() -> new IllegalStateException("found a module descriptor but failed to load a module from " + path))
             .descriptor();
     }
-
 }

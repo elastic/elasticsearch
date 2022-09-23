@@ -123,7 +123,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         Metadata metadata = clusterState.metadata();
         switch (clusterStateHealth.getStatus()) {
             case GREEN, YELLOW -> {
-                Result result = new Result(IsSafe.YES, "");
+                Result result = new Result(IsSafe.YES, "cluster status is not RED");
                 List<NodeResult> nodes = prevalidationRequest.getConcreteNodes()
                     .stream()
                     .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
@@ -155,7 +155,14 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     result = new Result(IsSafe.UNKNOWN, "cluster health is RED");
                     nodes = prevalidationRequest.getConcreteNodes()
                         .stream()
-                        .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.UNKNOWN, "")))
+                        .map(
+                            dn -> new NodeResult(
+                                dn.getName(),
+                                dn.getId(),
+                                dn.getExternalId(),
+                                new Result(IsSafe.UNKNOWN, "node may contain a copy of a red index shard")
+                            )
+                        )
                         .toList();
                 }
                 listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodes)));

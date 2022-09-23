@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class PrevalidateNodeRemovalResponse extends ActionResponse implements ToXContentObject {
     private final NodesRemovalPrevalidation prevalidation;
@@ -39,9 +40,20 @@ public class PrevalidateNodeRemovalResponse extends ActionResponse implements To
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         prevalidation.toXContent(builder, params);
-        return builder.endObject();
+        return builder;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof PrevalidateNodeRemovalResponse == false) return false;
+        PrevalidateNodeRemovalResponse other = (PrevalidateNodeRemovalResponse) o;
+        return Objects.equals(prevalidation, other.prevalidation);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(prevalidation);
+    }
 }

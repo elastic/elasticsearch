@@ -65,7 +65,7 @@ The API returns the following response:
 {
   "result": {
     "is_safe": "UNKNOWN",
-    "reason": ""
+    "reason": "cluster health is RED"
   },
   "nodes": [
     {
@@ -83,7 +83,7 @@ The API returns the following response:
       "external_id" : "node2-externalId",
       "result" : {
         "is_safe": "UNKNOWN",
-        "reason": "no response from the node"
+        "reason": "node may contain a copy of a red index shard"
       }
     }
   ]

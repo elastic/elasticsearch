@@ -16,6 +16,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,10 +35,14 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSetting;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -116,8 +121,24 @@ public final class EngineConfig {
     public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting(
         "index.optimize_auto_generated_id",
         true,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                validateVersionDependentDeprecatedSetting(INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey(), settings);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(IndexMetadata.SETTING_INDEX_VERSION_CREATED);
+                return settings.iterator();
+            }
+        },
         Property.IndexScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.DeprecatedAndRemovedInCurrentMajor
     );
 
     private final TranslogConfig translogConfig;

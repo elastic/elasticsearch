@@ -139,7 +139,12 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Indicates an index-level setting that is privately managed. Such a setting can not even be set on index creation.
          */
-        PrivateIndex
+        PrivateIndex,
+
+        /**
+         * Indicates that this index-level setting was deprecated and removed in the current major
+         */
+        DeprecatedAndRemovedInCurrentMajor
     }
 
     private final Key key;
@@ -409,11 +414,17 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> if this setting is deprecated, otherwise <code>false</code>
      */
     private boolean isDeprecated() {
-        return properties.contains(Property.Deprecated) || properties.contains(Property.DeprecatedWarning);
+        return properties.contains(Property.Deprecated)
+            || properties.contains(Property.DeprecatedWarning)
+            || properties.contains(Property.DeprecatedAndRemovedInCurrentMajor);
     }
 
     private boolean isDeprecatedWarningOnly() {
         return properties.contains(Property.DeprecatedWarning);
+    }
+
+    private boolean isDeprecatedAndRemoved() {
+        return properties.contains(Property.DeprecatedAndRemovedInCurrentMajor);
     }
 
     /**
@@ -599,6 +610,13 @@ public class Setting<T> implements ToXContentObject {
             String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
+            } else if (this.isDeprecatedAndRemoved()) {
+                Settings.DeprecationLoggerHolder.deprecationLogger.critical(
+                    DeprecationCategory.SETTINGS,
+                    key,
+                    "[{}] setting was deprecated in the previous Elasticsearch release and is removed in this release.",
+                    key
+                );
             } else {
                 Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
             }

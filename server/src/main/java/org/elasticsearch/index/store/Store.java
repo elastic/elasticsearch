@@ -38,6 +38,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -97,6 +98,7 @@ import java.util.zip.Checksum;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
+import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSetting;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 
@@ -130,8 +132,23 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public static final Setting<Boolean> FORCE_RAM_TERM_DICT = Setting.boolSetting(
         "index.force_memory_term_dictionary",
         false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                validateVersionDependentDeprecatedSetting(FORCE_RAM_TERM_DICT.getKey(), settings);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(IndexMetadata.SETTING_INDEX_VERSION_CREATED);
+                return settings.iterator();
+            }
+        },
         Property.IndexScope,
-        Property.Deprecated
+        Property.DeprecatedAndRemovedInCurrentMajor
     );
 
     static final String CODEC = "store";

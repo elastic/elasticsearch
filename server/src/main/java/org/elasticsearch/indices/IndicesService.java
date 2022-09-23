@@ -699,8 +699,8 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexingOperationListener... indexingOperationListeners
     ) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, settings, indexScopedSettings);
-            // we ignore unregistered settings altogether because we might be dealing with legacy settings
-        indexScopedSettings.validateSettings(indexMetadata);
+        // we ignore private settings since they are not registered settings
+        indexScopedSettings.validate(indexMetadata.getSettings(), true, true, true);
         logger.debug(
             "creating Index [{}], shards [{}]/[{}] - reason [{}]",
             indexMetadata.getIndex(),

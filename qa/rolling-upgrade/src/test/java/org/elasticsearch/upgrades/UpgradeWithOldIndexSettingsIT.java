@@ -67,7 +67,9 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
                     Request indexSettingsRequest = new Request("GET", "/" + INDEX_NAME + "/_settings");
                     Map<String, Object> response = entityAsMap(client().performRequest(indexSettingsRequest));
 
-                    var slowLog = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("settings.index.indexing.slowlog", response))).get(0);
+                    var slowLog = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("settings.index.indexing.slowlog", response))).get(
+                        0
+                    );
 
                     // Make sure our non-system index is still non-system
                     assertThat(slowLog.get("level"), is("INFO"));

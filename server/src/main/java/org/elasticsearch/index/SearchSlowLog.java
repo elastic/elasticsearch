@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
@@ -25,9 +26,13 @@ import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSetting;
 
 public final class SearchSlowLog implements SearchOperationListener {
 
@@ -111,9 +116,24 @@ public final class SearchSlowLog implements SearchOperationListener {
         INDEX_SEARCH_SLOWLOG_PREFIX + ".level",
         SlowLogLevel.TRACE.name(),
         SlowLogLevel::parse,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(SlowLogLevel value) {}
+
+            @Override
+            public void validate(SlowLogLevel value, Map<Setting<?>, Object> settings) {
+                validateVersionDependentDeprecatedSetting(INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), settings);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(IndexMetadata.SETTING_INDEX_VERSION_CREATED);
+                return settings.iterator();
+            }
+        },
         Property.Dynamic,
         Property.IndexScope,
-        Property.Deprecated
+        Property.DeprecatedAndRemovedInCurrentMajor
     );
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));

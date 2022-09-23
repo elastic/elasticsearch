@@ -213,6 +213,10 @@ public class IndexMetadataVerifier {
         final Settings settings = indexMetadata.getSettings();
         final Settings newSettings;
 
+        if (indexMetadata.getCreationVersion().major < Version.CURRENT.major) {
+            return indexMetadata;
+        }
+
         if (indexMetadata.isSystem()) {
             newSettings = indexScopedSettings.deleteUnknownOrInvalidSettings(
                 settings,

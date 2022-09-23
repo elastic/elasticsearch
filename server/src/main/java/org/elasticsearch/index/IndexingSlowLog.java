@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.StringBuilders;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
@@ -28,9 +29,13 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSetting;
 
 public final class IndexingSlowLog implements IndexingOperationListener {
     public static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
@@ -78,9 +83,24 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         INDEX_INDEXING_SLOWLOG_PREFIX + ".level",
         SlowLogLevel.TRACE.name(),
         SlowLogLevel::parse,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(SlowLogLevel value) {}
+
+            @Override
+            public void validate(SlowLogLevel value, Map<Setting<?>, Object> settings) {
+                validateVersionDependentDeprecatedSetting(INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), settings);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(IndexMetadata.SETTING_INDEX_VERSION_CREATED);
+                return settings.iterator();
+            }
+        },
         Property.Dynamic,
         Property.IndexScope,
-        Property.Deprecated
+        Property.DeprecatedAndRemovedInCurrentMajor
     );
 
     private final Logger indexLogger;

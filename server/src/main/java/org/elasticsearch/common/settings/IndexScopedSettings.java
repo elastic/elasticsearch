@@ -40,23 +40,12 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
  */
 public final class IndexScopedSettings extends AbstractScopedSettings {
-
-    public static final Set<Setting<?>> LEGACY_INDEX_SETTINGS = Set.of(
-        EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
-        IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
-        IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
-        IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
-        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
-        SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
-        Store.FORCE_RAM_TERM_DICT
-    );
 
     public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Set.of(
         MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
@@ -192,14 +181,17 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.MODE,
         IndexMetadata.INDEX_ROUTING_PATH,
         IndexSettings.TIME_SERIES_START_TIME,
-        IndexSettings.TIME_SERIES_END_TIME
+        IndexSettings.TIME_SERIES_END_TIME,
+
+        // Legacy index settings we must keep around for BWC from 7.x
+        EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_NAME,
+        IndexMetadata.INDEX_ROLLUP_SOURCE_UUID,
+        IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
+        Store.FORCE_RAM_TERM_DICT
     );
-
-    private static Set<String> LEGACY_INDEX_SETTING_KEYS = LEGACY_INDEX_SETTINGS.stream().map(s -> s.getKey()).collect(Collectors.toSet());
-
-    static {
-        BUILT_IN_INDEX_SETTINGS.addAll(LEGACY_INDEX_SETTINGS);
-    }
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 
@@ -243,31 +235,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 return IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
         }
     }
-    
-    /**
-     * Validates that all registered settings are valid, but not necessarily registered
-     *
-     * <p>
-     * This is used for validation of index settings on legacy indices, e.g. with major one
-     * behind our current major. When settings are missing registration we simply ignore them,
-     * otherwise we won't be able to perform rolling upgrades. This method is not to be used on
-     * the current major.
-     *
-     * @param indexMetadata the index metadata
-     * @see Setting#getSettingsDependencies(String)
-     */
-    public void validateSettings(final IndexMetadata indexMetadata) {
-        assert indexMetadata.getCreationVersion().major < Version.CURRENT.major;
-        Settings settings = indexMetadata.getSettings();
 
-        if (indexMetadata.getCreationVersion().major == Version.CURRENT.major) {
-            for (var setting : settings.keySet()) {
-                if (LEGACY_INDEX_SETTING_KEYS.contains(setting)) {
-
-                }
-            }
+    public static void validateVersionDependentDeprecatedSetting(String key, Map<Setting<?>, Object> settings) {
+        assert settings.size() > 0;
+        Version indexVersion = (Version) settings.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED);
+        if (indexVersion == Version.V_EMPTY || indexVersion.major == Version.CURRENT.major) {
+            throw new IllegalArgumentException("unknown setting [" + key + "]");
         }
-
-        validate(settings, true, true, true, false);
     }
 }

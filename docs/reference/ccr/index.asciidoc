@@ -308,6 +308,7 @@ and use {ccr}:
 * <<ccr-upgrading>>
 
 include::getting-started.asciidoc[]
+include::disaster-recovery.asciidoc[]
 include::managing.asciidoc[]
 include::auto-follow.asciidoc[]
 include::upgrading.asciidoc[]

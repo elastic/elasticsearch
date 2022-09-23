@@ -221,40 +221,69 @@ GET _cat/shards?v=true
 // TEST[setup:my_index]
 
 [discrete]
-[[fields-heap-recommendation]]
+[[field-count-recommendation]]
 ==== The heap of data nodes should suffice for the fields of indices, plus overheads
 
-You can use the <<cluster-nodes-stats,Nodes stats API>>'s `mappings` indices
-statistic, to get the number of field mappings of indices and an estimation of
-their heap overhead per node.
+Each mapped field of an index held by a data node has heap overhead. The heap of
+a data node should suffice for its fields' heap overhead, plus other overheads.
+You can use the <<cluster-nodes-stats,Nodes stats API>> to get two relevant metrics:
+
+* The number of field mappings of indices and an estimation of their heap overhead
+per node.
+
+* The maximum amount of available heap memory per node.
 
 [source,console]
 ----
-GET _nodes/stats/indices?human&filter_path=nodes.*.indices.mappings.total_estimated_overhead*
+GET _nodes/stats?human&filter_path=nodes.*.name,nodes.*.indices.mappings.total_estimated_overhead*,nodes.*.jvm.mem.heap_max*
 ----
-// TEST[setup:my_index]
+// TEST[setup:node]
 
-Additionally, you must also allow enough heap for {es}'s
-baseline usage as well as your workload such as indexing, searches and
+For each node, this will show you information like in this example output:
+
+[source,console-result]
+----
+{
+  "nodes": {
+    "USpTGYaBSIKbgSUJR2Z9lg": {
+      "name": "node-0",
+      "indices": {
+        "mappings": {
+          "total_estimated_overhead": "1gb",
+          "total_estimated_overhead_in_bytes": 1073741824
+        }
+      },
+      "jvm": {
+        "mem": {
+          "heap_max": "4gb",
+          "heap_max_in_bytes": 4294967296
+        }
+      }
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"USpTGYaBSIKbgSUJR2Z9lg"/\$node_name/]
+// TESTRESPONSE[s/"name": "node-0"/"name": $body.$_path/]
+// TESTRESPONSE[s/"total_estimated_overhead": "1gb"/"total_estimated_overhead": $body.$_path/]
+// TESTRESPONSE[s/"total_estimated_overhead_in_bytes": 1073741824/"total_estimated_overhead_in_bytes": $body.$_path/]
+// TESTRESPONSE[s/"heap_max": "4gb"/"heap_max": $body.$_path/]
+// TESTRESPONSE[s/"heap_max_in_bytes": 4294967296/"heap_max_in_bytes": $body.$_path/]
+
+Apart from the field mappings, you must additionally allow enough heap for
+{es}'s baseline usage as well as your workload such as indexing, searches and
 aggregations. 0.5GB of extra heap will suffice for many reasonable workloads,
 and you may need even less if your workload is very light while heavy workloads
-may require more. You can use the <<cluster-nodes-stats,Nodes stats API>>'s
-`jvm` statistic, to check the maximum amount of available heap memory per node.
+may require more.
 
-[source,console]
-----
-GET _nodes/stats/jvm?human&filter_path=nodes.*.jvm.mem.heap_max*
-----
-// TEST[setup:my_index]
+In the example above, the estimated field mappings overhead is 1GB. Therefore,
+the data node would need an additional 0.5GB of heap for its workload and other
+overheads. Its 4GB heap max size is thus sufficient for the total required
+heap of 1.5GB.
 
-Ensure that the reported max heap memory for each node is 0.5GB more than the
-node's field mappings' estimated heap overhead. If this is not the case, you
-can <<set-jvm-heap-size,set the JVM heap size>> appropriately.
-
-For example, if a data node reports that the estimated heap overhead for the
-field mappings is 4GB, an additional 0.5GB of heap would need to be considered
-for its workload and other overheads, and therefore this data node will need
-a heap size of at least 4.5GB.
+If the heap max size for a data node is not sufficient, consider
+<<avoid-unnecessary-fields,avoiding unnecessary fields>>,
+or scaling up the cluster, or redistributing index shards.
 
 Note that this rule defines the absolute maximum number of indices that a data
 node can manage, but does not guarantee the performance of searches or indexing

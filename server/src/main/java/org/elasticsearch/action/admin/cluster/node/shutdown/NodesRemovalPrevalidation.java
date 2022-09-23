@@ -68,6 +68,11 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
         return Objects.hash(result, nodes);
     }
 
+    @Override
+    public String toString() {
+        return "NodesRemovalPrevalidation{" + "result=" + result + ", nodes=" + nodes + '}';
+    }
+
     public record Result(IsSafe isSafe, String reason) implements ToXContentObject, Writeable {
         public static Result readFrom(final StreamInput in) throws IOException {
             return new Result(IsSafe.readFrom(in), in.readString());

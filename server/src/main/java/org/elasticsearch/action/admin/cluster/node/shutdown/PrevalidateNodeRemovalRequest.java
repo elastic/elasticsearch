@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.List;
 
 public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<PrevalidateNodeRemovalRequest> {
+
     private final String[] nodeIds; // Maybe named just nodes?
     private DiscoveryNode[] concreteNodes;
 

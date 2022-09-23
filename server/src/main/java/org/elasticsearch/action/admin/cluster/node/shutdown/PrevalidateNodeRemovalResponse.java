@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class PrevalidateNodeRemovalResponse extends ActionResponse implements ToXContentObject {
+
     private final NodesRemovalPrevalidation prevalidation;
 
     public PrevalidateNodeRemovalResponse(final NodesRemovalPrevalidation prevalidation) {

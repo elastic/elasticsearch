@@ -593,11 +593,27 @@ public final class ThreadContext implements Writeable {
         return threadLocal.get().isSystemContext;
     }
 
-    public void removeAuthorizationHeader() {
-        threadLocal.get().requestHeaders.entrySet()
+    /**
+     * Remove unwanted and unneeded headers from the thread context. Updates by creating a new underlying {@link ThreadContextStruct}
+     */
+    public void sanitizeHeaders() {
+        final ThreadContextStruct originalContext = threadLocal.get();
+        final Map<String, String> newRequestHeaders = new HashMap<>(originalContext.requestHeaders);
+
+        newRequestHeaders.entrySet()
             .removeIf(
                 entry -> entry.getKey().equalsIgnoreCase("authorization") || entry.getKey().equalsIgnoreCase("es-secondary-authorization")
             );
+
+        final ThreadContextStruct newContext = new ThreadContextStruct(
+            newRequestHeaders,
+            originalContext.responseHeaders,
+            originalContext.transientHeaders,
+            originalContext.isSystemContext,
+            originalContext.warningHeadersSize
+        );
+        threadLocal.set(newContext);
+        // intentionally not storing prior context to avoid restoring unwanted headers
     }
 
     @FunctionalInterface

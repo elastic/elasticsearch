@@ -701,7 +701,7 @@ public class ThreadContextTests extends ESTestCase {
         }
     }
 
-    public void testRemoveAuthorizationHeader() {
+    public void testSanitizeHeaders() {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String authorizationHeader = randomCase("authorization");
         final String authorizationHeader2 = randomCase("es-secondary-authorization");
@@ -721,7 +721,7 @@ public class ThreadContextTests extends ESTestCase {
             )
         );
 
-        threadContext.removeAuthorizationHeader();
+        threadContext.sanitizeHeaders();
 
         foundKeys = threadContext.getHeaders().keySet();
         assertThat(foundKeys, not(hasItem(authorizationHeader)));

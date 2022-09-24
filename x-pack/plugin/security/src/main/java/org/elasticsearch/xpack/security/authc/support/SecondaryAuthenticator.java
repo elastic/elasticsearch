@@ -111,6 +111,7 @@ public class SecondaryAuthenticator {
                 listener.onFailure(new ElasticsearchSecurityException("Failed to authenticate secondary user", e));
             })
         );
+
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             logger.trace(
                 "found secondary authentication credentials, placing them in the internal [{}] header for authentication",
@@ -118,6 +119,9 @@ public class SecondaryAuthenticator {
             );
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
             authenticate.accept(authenticationListener);
+        } finally {
+            // ensure the restored thread context is sanitized (even if the restored context is not used in practice)
+            threadContext.sanitizeHeaders();
         }
     }
 

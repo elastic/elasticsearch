@@ -109,7 +109,7 @@ public class SecurityRestFilter implements RestHandler {
                     }
                     RemoteHostHeader.process(request, threadContext);
                     try {
-                        threadContext.removeAuthorizationHeader();
+                        threadContext.sanitizeHeaders();
                         restHandler.handleRequest(request, channel, client);
                     } catch (Exception e) {
                         handleException(ActionType.RequestHandling, request, channel, e, threadContext);
@@ -117,7 +117,7 @@ public class SecurityRestFilter implements RestHandler {
                 }, e -> handleException(ActionType.SecondaryAuthentication, request, channel, e, threadContext)));
             }, e -> handleException(ActionType.Authentication, request, channel, e, threadContext)));
         } else {
-            threadContext.removeAuthorizationHeader();
+            threadContext.sanitizeHeaders();
             restHandler.handleRequest(request, channel, client);
         }
 
@@ -125,7 +125,7 @@ public class SecurityRestFilter implements RestHandler {
 
     protected static void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e, ThreadContext tc) {
         logger.debug(() -> format("%s failed for REST request [%s]", actionType, request.uri()), e);
-        tc.removeAuthorizationHeader();
+        tc.sanitizeHeaders();
         final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
             channel.sendResponse(new RestResponse(channel, restStatus, e) {

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
@@ -49,6 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -294,6 +296,84 @@ public class SecurityRestFilterTests extends ESTestCase {
             .map();
         assertEquals(1, map.size());
         assertEquals("bar", map.get("foo"));
+    }
+
+    public void testSanitizeHeaders() throws Exception {
+        enum SuccessOrFail {
+            SUCCESS,
+            FAIL
+        }
+        for (SuccessOrFail mode : SuccessOrFail.values()) {
+            threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, randomAlphaOfLengthBetween(1, 10));
+            RestRequest request = mock(RestRequest.class);
+            when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+            Authentication authentication = AuthenticationTestHelper.builder().build();
+            doAnswer((i) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
+                if (SuccessOrFail.FAIL.equals(mode)) {
+
+                    callback.onFailure(new RuntimeException());
+                } else {
+                    callback.onResponse(authentication);
+                }
+                return Void.TYPE;
+            }).when(authcService).authenticate(eq(request), anyActionListener());
+            Set<String> foundKeys = threadContext.getHeaders().keySet();
+            assertThat(foundKeys, hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER));
+
+            filter.handleRequest(request, channel, null);
+
+            foundKeys = threadContext.getHeaders().keySet();
+            assertThat(foundKeys, not(hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER)));
+        }
+
+    }
+
+    public void testSanitizeHeadersWithSecondaryAuth() throws Exception {
+        enum SuccessOrFail {
+            SUCCESS,
+            FAIL
+        }
+        for (SuccessOrFail mode : SuccessOrFail.values()) {
+            threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, randomAlphaOfLengthBetween(1, 10));
+            threadContext.putHeader(SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME, randomAlphaOfLengthBetween(1, 10));
+            RestRequest request = mock(RestRequest.class);
+            when(channel.request()).thenReturn(request);
+            when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+            Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
+            doAnswer(i -> {
+                final Object[] arguments = i.getArguments();
+                @SuppressWarnings("unchecked")
+                ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
+                callback.onResponse(primaryAuthentication);
+                return null;
+            }).when(authcService).authenticate(eq(request), anyActionListener());
+
+            Authentication secondaryAuthentication = AuthenticationTestHelper.builder().build();
+            doAnswer(i -> {
+                final Object[] arguments = i.getArguments();
+                @SuppressWarnings("unchecked")
+                ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
+                if (SuccessOrFail.FAIL.equals(mode)) {
+                    callback.onFailure(new RuntimeException());
+                } else {
+                    callback.onResponse(secondaryAuthentication);
+                }
+                return null;
+            }).when(authcService).authenticate(eq(request), eq(false), anyActionListener());
+
+            Set<String> foundKeys = threadContext.getHeaders().keySet();
+            assertThat(foundKeys, hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER));
+            assertThat(foundKeys, hasItem(SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME));
+
+            filter.handleRequest(request, channel, null);
+
+            foundKeys = threadContext.getHeaders().keySet();
+            assertThat(foundKeys, not(hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER)));
+            assertThat(foundKeys, not(hasItem(SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME)));
+
+        }
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}

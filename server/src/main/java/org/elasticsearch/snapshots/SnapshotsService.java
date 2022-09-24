@@ -3233,32 +3233,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 newState = initialState;
             }
             final var snapshots = new ArrayList<ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask>>();
-            final var deletes = new ArrayList<ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask>>();
+            final List<ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask>> successes = new ArrayList<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask()instanceof ConsistentSnapshotClusterStateUpdateTask task) {
                     if (task.type() == TaskType.SNAPSHOT) {
                         snapshots.add(taskContext);
                     } else if (task.type() == TaskType.DELETE) {
-                        deletes.add(taskContext);
+                        newState = applyOperation(newState, successes, taskContext);
                     }
                 }
             }
-            final List<ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask>> successes = new ArrayList<>();
-            for (ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask> taskContext : deletes) {
-                try (var ignored = taskContext.captureResponseHeaders()) {
-                    newState = ((ConsistentSnapshotClusterStateUpdateTask) taskContext.getTask()).execute(newState);
-                    successes.add(taskContext);
-                } catch (Exception e) {
-                    taskContext.onFailure(e);
-                }
-            }
             for (ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask> taskContext : snapshots) {
-                try (var ignored = taskContext.captureResponseHeaders()) {
-                    newState = ((ConsistentSnapshotClusterStateUpdateTask) taskContext.getTask()).execute(newState);
-                    successes.add(taskContext);
-                } catch (Exception e) {
-                    taskContext.onFailure(e);
-                }
+                newState = applyOperation(newState, successes, taskContext);
             }
             final var result = new SnapshotUpdateResult(
                 initialState.metadata(),
@@ -3272,6 +3258,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             for (var success : successes) {
                 success.success(() -> ((ConsistentSnapshotClusterStateUpdateTask) success.getTask()).clusterStateProcessed(finalNewState));
+            }
+            return newState;
+        }
+
+        private static ClusterState applyOperation(
+            ClusterState currentState,
+            List<ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask>> successes,
+            ClusterStateTaskExecutor.TaskContext<SnapshotClusterStateUpdateTask> taskContext
+        ) {
+            ClusterState newState = currentState;
+            try (var ignored = taskContext.captureResponseHeaders()) {
+                newState = ((ConsistentSnapshotClusterStateUpdateTask) taskContext.getTask()).execute(currentState);
+                successes.add(taskContext);
+            } catch (Exception e) {
+                taskContext.onFailure(e);
             }
             return newState;
         }

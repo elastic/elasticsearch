@@ -133,8 +133,6 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             @Override
             public DocValuesScriptFieldFactory run() {
                 DocValuesScriptFieldFactory docFactory = null;
-                IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SEARCH);
-
                 DocValuesScriptFieldFactory fieldFactory = null;
 
                 if (fieldFactoryCache.isEmpty() == false) {
@@ -152,6 +150,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
                 }
 
                 if (docFactory == null) {
+                    IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SEARCH);
                     docFactory = indexFieldData.load(reader).getScriptFieldFactory(fieldName);
                 }
 

@@ -353,7 +353,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             "metricbeat-ent-search-" + randomAlphaOfLengthBetween(1, 20),
             "enterprise-search-" + randomAlphaOfLengthBetween(1, 20),
             "logs-app_search.analytics-default",
-            "logs-elastic_analytics.events-" + randomAlphaOfLengthBetween(1, 20) + "-" + randomAlphaOfLengthBetween(1, 20),
+            "logs-elastic_analytics.events-" + randomAlphaOfLengthBetween(1, 20),
             "logs-enterprise_search.api-default",
             "logs-enterprise_search.audit-default",
             "logs-app_search.search_relevance_suggestions-default",

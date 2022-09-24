@@ -49,7 +49,8 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     public static final String HELP_URL = "https://ela.st/fix-slm";
     public static final Diagnosis SLM_NOT_RUNNING = new Diagnosis(
         new Diagnosis.Definition(
-            "slm-not-running",
+            NAME,
+            "slm_disabled",
             "Snapshot Lifecycle Management is stopped",
             "Start Snapshot Lifecycle Management using [POST /_slm/start].",
             HELP_URL
@@ -65,12 +66,16 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     // Visible for testing
     static Diagnosis.Definition checkRecentlyFailedSnapshots(String causeText, String actionText) {
         return new Diagnosis.Definition(
+            NAME,
             DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID,
             causeText,
             actionText,
             DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL
         );
     }
+
+    public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";
+    public static final String STALE_SNAPSHOTS_IMPACT_ID = "stale_snapshots";
 
     private final ClusterService clusterService;
     private volatile long failedSnapshotWarnThreshold;
@@ -105,6 +110,8 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
+                    NAME,
+                    AUTOMATION_DISABLED_IMPACT_ID,
                     3,
                     "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
                     List.of(ImpactArea.BACKUP)
@@ -127,6 +134,8 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             if (unhealthyPolicies.size() > 0) {
                 List<HealthIndicatorImpact> impacts = Collections.singletonList(
                     new HealthIndicatorImpact(
+                        NAME,
+                        STALE_SNAPSHOTS_IMPACT_ID,
                         2,
                         "Some automated snapshots have not had a successful execution recently. Indices restored from affected "
                             + "snapshots may not contain recent changes.",

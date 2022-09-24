@@ -147,6 +147,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         @Override
+        public boolean isAggregatable() {
+            return false;   // TODO why do we allow you to store doc values then?
+        }
+
+        @Override
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return GeometryFormatterFactory.getFormatter(format, Function.identity());
         }

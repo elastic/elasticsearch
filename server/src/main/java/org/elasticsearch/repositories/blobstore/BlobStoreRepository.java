@@ -32,6 +32,7 @@ import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -44,6 +45,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -2139,76 +2141,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Step 1: Set repository generation state to the next possible pending generation
         final StepListener<Long> setPendingStep = new StepListener<>();
         final String setPendingGenerationSource = "set pending repository generation [" + metadata.name() + "][" + expectedGen + "]";
-        submitUnbatchedTask(setPendingGenerationSource, new ClusterStateUpdateTask() {
-
-            private long newGen;
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                final RepositoryMetadata meta = getRepoMetadata(currentState);
-                final String repoName = metadata.name();
-                final long genInState = meta.generation();
-                final boolean uninitializedMeta = meta.generation() == RepositoryData.UNKNOWN_REPO_GEN || bestEffortConsistency;
-                if (uninitializedMeta == false && meta.pendingGeneration() != genInState) {
-                    logger.info(
-                        "Trying to write new repository data over unfinished write, repo [{}] is at "
-                            + "safe generation [{}] and pending generation [{}]",
-                        meta.name(),
-                        genInState,
-                        meta.pendingGeneration()
-                    );
-                }
-                assert expectedGen == RepositoryData.EMPTY_REPO_GEN || uninitializedMeta || expectedGen == meta.generation()
-                    : "Expected non-empty generation [" + expectedGen + "] does not match generation tracked in [" + meta + "]";
-                // If we run into the empty repo generation for the expected gen, the repo is assumed to have been cleared of
-                // all contents by an external process so we reset the safe generation to the empty generation.
-                final long safeGeneration = expectedGen == RepositoryData.EMPTY_REPO_GEN
-                    ? RepositoryData.EMPTY_REPO_GEN
-                    : (uninitializedMeta ? expectedGen : genInState);
-                // Regardless of whether or not the safe generation has been reset, the pending generation always increments so that
-                // even if a repository has been manually cleared of all contents we will never reuse the same repository generation.
-                // This is motivated by the consistency behavior the S3 based blob repository implementation has to support which does
-                // not offer any consistency guarantees when it comes to overwriting the same blob name with different content.
-                final long nextPendingGen = metadata.pendingGeneration() + 1;
-                newGen = uninitializedMeta ? Math.max(expectedGen + 1, nextPendingGen) : nextPendingGen;
-                assert newGen > latestKnownRepoGen.get()
-                    : "Attempted new generation ["
-                        + newGen
-                        + "] must be larger than latest known generation ["
-                        + latestKnownRepoGen.get()
-                        + "]";
-                return ClusterState.builder(currentState)
-                    .metadata(
-                        Metadata.builder(currentState.getMetadata())
-                            .putCustom(
-                                RepositoriesMetadata.TYPE,
-                                currentState.metadata()
-                                    .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
-                                    .withUpdatedGeneration(repoName, safeGeneration, newGen)
-                            )
-                            .build()
-                    )
-                    .build();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(
-                    new RepositoryException(
-                        metadata.name(),
-                        "Failed to execute cluster state update [" + setPendingGenerationSource + "]",
-                        e
-                    )
-                );
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                logger.trace("[{}] successfully set pending repository generation to [{}]", metadata.name(), newGen);
-                setPendingStep.onResponse(newGen);
-            }
-        });
-
+        clusterService.submitStateUpdateTask(
+            setPendingGenerationSource,
+            new SetPendingGenerationTask(expectedGen, listener, setPendingGenerationSource, setPendingStep),
+            ClusterStateTaskConfig.build(Priority.NORMAL),
+            SnapshotsService.SHARD_STATE_EXECUTOR
+        );
         final StepListener<RepositoryData> filterRepositoryDataStep = new StepListener<>();
 
         // Step 2: Write new index-N blob to repository and update index.latest
@@ -2282,71 +2220,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             // Step 3: Update CS to reflect new repository generation.
             final String setSafeGenerationSource = "set safe repository generation [" + metadata.name() + "][" + newGen + "]";
-            submitUnbatchedTask(setSafeGenerationSource, new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    final RepositoryMetadata meta = getRepoMetadata(currentState);
-                    if (meta.generation() != expectedGen) {
-                        throw new IllegalStateException(
-                            "Tried to update repo generation to [" + newGen + "] but saw unexpected generation in state [" + meta + "]"
-                        );
-                    }
-                    if (meta.pendingGeneration() != newGen) {
-                        throw new IllegalStateException(
-                            "Tried to update from unexpected pending repo generation ["
-                                + meta.pendingGeneration()
-                                + "] after write to generation ["
-                                + newGen
-                                + "]"
-                        );
-                    }
-                    final RepositoriesMetadata currentMetadata = currentState.metadata().custom(RepositoriesMetadata.TYPE);
-                    final RepositoriesMetadata withGenerations = currentMetadata.withUpdatedGeneration(metadata.name(), newGen, newGen);
-                    final RepositoriesMetadata withUuid = meta.uuid().equals(newRepositoryData.getUuid())
-                        ? withGenerations
-                        : withGenerations.withUuid(metadata.name(), newRepositoryData.getUuid());
-                    final ClusterState newClusterState = stateFilter.apply(
-                        ClusterState.builder(currentState)
-                            .metadata(Metadata.builder(currentState.getMetadata()).putCustom(RepositoriesMetadata.TYPE, withUuid))
-                            .build()
-                    );
-                    return updateRepositoryGenerationsIfNecessary(newClusterState, expectedGen, newGen);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(
-                        new RepositoryException(
-                            metadata.name(),
-                            "Failed to execute cluster state update [" + setSafeGenerationSource + "]",
-                            e
-                        )
-                    );
-                }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
-                    cacheRepositoryData(newRepositoryData, version);
-                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
-                        // Delete all now outdated index files up to 1000 blobs back from the new generation.
-                        // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
-                        // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
-                        // two index-N blobs around.
-                        try {
-                            deleteFromContainer(
-                                blobContainer(),
-                                LongStream.range(Math.max(Math.max(expectedGen - 1, 0), newGen - 1000), newGen)
-                                    .mapToObj(gen -> INDEX_FILE_PREFIX + gen)
-                                    .iterator()
-                            );
-                        } catch (IOException e) {
-                            logger.warn(() -> "Failed to clean up old index blobs from before [" + newGen + "]", e);
-                        }
-                        return newRepositoryData;
-                    }));
-                }
-            });
+            clusterService.submitStateUpdateTask(
+                setSafeGenerationSource,
+                new SetSafeGenerationTask(expectedGen, newGen, newRepositoryData, stateFilter, listener, setSafeGenerationSource, version),
+                ClusterStateTaskConfig.build(Priority.NORMAL),
+                SnapshotsService.SHARD_STATE_EXECUTOR
+            );
         }, listener::onFailure);
     }
 
@@ -3480,4 +3359,180 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardGeneration newGeneration,
         Collection<String> blobsToDelete
     ) {}
+
+    public abstract static class RepoGenerationUpdateTask extends SnapshotsService.SnapshotClusterStateUpdateTask {
+        public abstract ClusterState execute(ClusterState currentState);
+
+        public abstract void done();
+    }
+
+    private final class SetPendingGenerationTask extends RepoGenerationUpdateTask {
+
+        private final long expectedGen;
+        private final ActionListener<RepositoryData> listener;
+        private final String setPendingGenerationSource;
+        private final StepListener<Long> setPendingStep;
+        private long newGen;
+
+        SetPendingGenerationTask(
+            long expectedGen,
+            ActionListener<RepositoryData> listener,
+            String setPendingGenerationSource,
+            StepListener<Long> setPendingStep
+        ) {
+            this.expectedGen = expectedGen;
+            this.listener = listener;
+            this.setPendingGenerationSource = setPendingGenerationSource;
+            this.setPendingStep = setPendingStep;
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState) {
+            final RepositoryMetadata meta = getRepoMetadata(currentState);
+            final String repoName = metadata.name();
+            final long genInState = meta.generation();
+            final boolean uninitializedMeta = meta.generation() == RepositoryData.UNKNOWN_REPO_GEN || bestEffortConsistency;
+            if (uninitializedMeta == false && meta.pendingGeneration() != genInState) {
+                logger.info(
+                    "Trying to write new repository data over unfinished write, repo [{}] is at "
+                        + "safe generation [{}] and pending generation [{}]",
+                    meta.name(),
+                    genInState,
+                    meta.pendingGeneration()
+                );
+            }
+            assert expectedGen == RepositoryData.EMPTY_REPO_GEN || uninitializedMeta || expectedGen == meta.generation()
+                : "Expected non-empty generation [" + expectedGen + "] does not match generation tracked in [" + meta + "]";
+            // If we run into the empty repo generation for the expected gen, the repo is assumed to have been cleared of
+            // all contents by an external process so we reset the safe generation to the empty generation.
+            final long safeGeneration = expectedGen == RepositoryData.EMPTY_REPO_GEN
+                ? RepositoryData.EMPTY_REPO_GEN
+                : (uninitializedMeta ? expectedGen : genInState);
+            // Regardless of whether or not the safe generation has been reset, the pending generation always increments so that
+            // even if a repository has been manually cleared of all contents we will never reuse the same repository generation.
+            // This is motivated by the consistency behavior the S3 based blob repository implementation has to support which does
+            // not offer any consistency guarantees when it comes to overwriting the same blob name with different content.
+            final long nextPendingGen = metadata.pendingGeneration() + 1;
+            newGen = uninitializedMeta ? Math.max(expectedGen + 1, nextPendingGen) : nextPendingGen;
+            assert newGen > latestKnownRepoGen.get()
+                : "Attempted new generation ["
+                    + newGen
+                    + "] must be larger than latest known generation ["
+                    + latestKnownRepoGen.get()
+                    + "]";
+            return ClusterState.builder(currentState)
+                .metadata(
+                    Metadata.builder(currentState.getMetadata())
+                        .putCustom(
+                            RepositoriesMetadata.TYPE,
+                            currentState.metadata()
+                                .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
+                                .withUpdatedGeneration(repoName, safeGeneration, newGen)
+                        )
+                        .build()
+                )
+                .build();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(
+                new RepositoryException(metadata.name(), "Failed to execute cluster state update [" + setPendingGenerationSource + "]", e)
+            );
+        }
+
+        @Override
+        public void done() {
+            logger.trace("[{}] successfully set pending repository generation to [{}]", metadata.name(), newGen);
+            setPendingStep.onResponse(newGen);
+        }
+    }
+
+    private final class SetSafeGenerationTask extends RepoGenerationUpdateTask {
+        private final long expectedGen;
+        private final long newGen;
+        private final RepositoryData newRepositoryData;
+        private final Function<ClusterState, ClusterState> stateFilter;
+        private final ActionListener<RepositoryData> listener;
+        private final String setSafeGenerationSource;
+        private final Version version;
+
+        SetSafeGenerationTask(
+            long expectedGen,
+            long newGen,
+            RepositoryData newRepositoryData,
+            Function<ClusterState, ClusterState> stateFilter,
+            ActionListener<RepositoryData> listener,
+            String setSafeGenerationSource,
+            Version version
+        ) {
+            this.expectedGen = expectedGen;
+            this.newGen = newGen;
+            this.newRepositoryData = newRepositoryData;
+            this.stateFilter = stateFilter;
+            this.listener = listener;
+            this.setSafeGenerationSource = setSafeGenerationSource;
+            this.version = version;
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState) {
+            final RepositoryMetadata meta = getRepoMetadata(currentState);
+            if (meta.generation() != expectedGen) {
+                throw new IllegalStateException(
+                    "Tried to update repo generation to [" + newGen + "] but saw unexpected generation in state [" + meta + "]"
+                );
+            }
+            if (meta.pendingGeneration() != newGen) {
+                throw new IllegalStateException(
+                    "Tried to update from unexpected pending repo generation ["
+                        + meta.pendingGeneration()
+                        + "] after write to generation ["
+                        + newGen
+                        + "]"
+                );
+            }
+            final RepositoriesMetadata currentMetadata = currentState.metadata().custom(RepositoriesMetadata.TYPE);
+            final RepositoriesMetadata withGenerations = currentMetadata.withUpdatedGeneration(metadata.name(), newGen, newGen);
+            final RepositoriesMetadata withUuid = meta.uuid().equals(newRepositoryData.getUuid())
+                ? withGenerations
+                : withGenerations.withUuid(metadata.name(), newRepositoryData.getUuid());
+            final ClusterState newClusterState = stateFilter.apply(
+                ClusterState.builder(currentState)
+                    .metadata(Metadata.builder(currentState.getMetadata()).putCustom(RepositoriesMetadata.TYPE, withUuid))
+                    .build()
+            );
+            return updateRepositoryGenerationsIfNecessary(newClusterState, expectedGen, newGen);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(
+                new RepositoryException(metadata.name(), "Failed to execute cluster state update [" + setSafeGenerationSource + "]", e)
+            );
+        }
+
+        @Override
+        public void done() {
+            logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
+            cacheRepositoryData(newRepositoryData, version);
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
+                // Delete all now outdated index files up to 1000 blobs back from the new generation.
+                // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
+                // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
+                // two index-N blobs around.
+                try {
+                    deleteFromContainer(
+                        blobContainer(),
+                        LongStream.range(Math.max(Math.max(expectedGen - 1, 0), newGen - 1000), newGen)
+                            .mapToObj(gen -> INDEX_FILE_PREFIX + gen)
+                            .iterator()
+                    );
+                } catch (IOException e) {
+                    logger.warn(() -> "Failed to clean up old index blobs from before [" + newGen + "]", e);
+                }
+                return newRepositoryData;
+            }));
+        }
+    }
 }

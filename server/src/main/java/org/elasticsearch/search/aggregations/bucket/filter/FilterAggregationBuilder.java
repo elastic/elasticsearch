@@ -156,7 +156,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
 
     public static class FilterAggregatorFactory extends AggregatorFactory {
 
-        private final QueryBuilder filter;
+        private final QueryToFilterAdapter filter;
 
         public FilterAggregatorFactory(
             QueryBuilder filter,
@@ -167,13 +167,12 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
             Map<String, Object> metadata
         ) throws IOException {
             super(name, context, parent, subFactoriesBuilder, metadata);
-            this.filter = filter;
+            this.filter = QueryToFilterAdapter.build(context.searcher(), "1", context.buildQuery(filter));;
         }
 
         @Override
         protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
             throws IOException {
-            var filter = QueryToFilterAdapter.build(context.searcher(), "1", context.buildQuery(this.filter));
             final var innerAggregator = FiltersAggregator.build(
                 name,
                 factories,
@@ -185,7 +184,6 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
                 cardinality,
                 metadata
             );
-
             return new FilterAggregator(name, parent, factories, innerAggregator);
         }
     }

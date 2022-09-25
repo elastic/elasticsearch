@@ -602,7 +602,9 @@ public final class ThreadContext implements Writeable {
 
         newRequestHeaders.entrySet()
             .removeIf(
-                entry -> entry.getKey().equalsIgnoreCase("authorization") || entry.getKey().equalsIgnoreCase("es-secondary-authorization")
+                entry -> entry.getKey().equalsIgnoreCase("authorization")
+                    || entry.getKey().equalsIgnoreCase("es-secondary-authorization")
+                    || entry.getKey().equalsIgnoreCase("ES-Client-Authentication")
             );
 
         final ThreadContextStruct newContext = new ThreadContextStruct(

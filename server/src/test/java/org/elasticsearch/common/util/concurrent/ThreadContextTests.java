@@ -705,8 +705,10 @@ public class ThreadContextTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String authorizationHeader = randomCase("authorization");
         final String authorizationHeader2 = randomCase("es-secondary-authorization");
+        final String authorizationHeader3 = randomCase("ES-Client-Authentication");
         threadContext.putHeader(authorizationHeader, randomAsciiLettersOfLengthBetween(1, 10));
         threadContext.putHeader(authorizationHeader2, randomAsciiLettersOfLengthBetween(1, 10));
+        threadContext.putHeader(authorizationHeader3, randomAsciiLettersOfLengthBetween(1, 10));
         Set<Tuple<String, String>> additionalHeaders = IntStream.range(0, randomInt(10))
             .mapToObj(i -> new Tuple<>(randomAsciiLettersOfLengthBetween(1, 10), randomAsciiLettersOfLengthBetween(1, 10)))
             .collect(Collectors.toSet());
@@ -714,10 +716,12 @@ public class ThreadContextTests extends ESTestCase {
         Set<String> foundKeys = threadContext.getHeaders().keySet();
         assertThat(foundKeys, hasItem(authorizationHeader));
         assertThat(foundKeys, hasItem(authorizationHeader2));
+        assertThat(foundKeys, hasItem(authorizationHeader3));
         assertThat(
             foundKeys,
             containsInAnyOrder(
-                Stream.concat(additionalHeaders.stream().map(Tuple::v1), Stream.of(authorizationHeader, authorizationHeader2)).toArray()
+                Stream.concat(additionalHeaders.stream().map(Tuple::v1),
+                    Stream.of(authorizationHeader, authorizationHeader2, authorizationHeader3)).toArray()
             )
         );
 
@@ -726,6 +730,7 @@ public class ThreadContextTests extends ESTestCase {
         foundKeys = threadContext.getHeaders().keySet();
         assertThat(foundKeys, not(hasItem(authorizationHeader)));
         assertThat(foundKeys, not(hasItem(authorizationHeader2)));
+        assertThat(foundKeys, not(hasItem(authorizationHeader3)));
         assertThat(foundKeys.size(), equalTo(additionalHeaders.size()));
         assertThat(foundKeys, containsInAnyOrder(additionalHeaders.stream().map(Tuple::v1).toArray()));
     }

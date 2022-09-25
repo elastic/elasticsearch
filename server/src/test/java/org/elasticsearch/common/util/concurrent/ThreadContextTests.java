@@ -720,8 +720,10 @@ public class ThreadContextTests extends ESTestCase {
         assertThat(
             foundKeys,
             containsInAnyOrder(
-                Stream.concat(additionalHeaders.stream().map(Tuple::v1),
-                    Stream.of(authorizationHeader, authorizationHeader2, authorizationHeader3)).toArray()
+                Stream.concat(
+                    additionalHeaders.stream().map(Tuple::v1),
+                    Stream.of(authorizationHeader, authorizationHeader2, authorizationHeader3)
+                ).toArray()
             )
         );
 

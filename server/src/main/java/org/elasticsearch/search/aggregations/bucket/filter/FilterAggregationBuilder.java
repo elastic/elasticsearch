@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -192,11 +193,13 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     static class FilterAggregator extends AdaptingAggregator implements SingleBucketAggregator {
 
         private final String name;
+        private final FiltersAggregator innerAggregator;
 
-        FilterAggregator(String name, Aggregator parent, AggregatorFactories subAggregators, Aggregator innerAggregator)
+        FilterAggregator(String name, Aggregator parent, AggregatorFactories subAggregators, FiltersAggregator innerAggregator)
             throws IOException {
             super(parent, subAggregators, aggregatorFactories -> innerAggregator);
             this.name = name;
+            this.innerAggregator = innerAggregator;
         }
 
         @Override
@@ -209,6 +212,18 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
         @Override
         public Aggregator resolveSortPath(AggregationPath.PathElement next, Iterator<AggregationPath.PathElement> path) {
             return resolveSortPathOnValidAgg(next, path);
+        }
+
+        @Override
+        public BucketComparator bucketComparator(String key, SortOrder order) {
+            if (key == null || "doc_count".equals(key)) {
+                return (lhs, rhs) -> order.reverseMul() * Long.compare(
+                    innerAggregator.bucketDocCount(lhs),
+                    innerAggregator.bucketDocCount(rhs)
+                );
+            } else {
+                return super.bucketComparator(key, order);
+            }
         }
 
     }

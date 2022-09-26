@@ -55,6 +55,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -127,6 +128,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         RestStatus.TOO_MANY_REQUESTS,
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
+
+    private static final Version VERSION_WITH_IN_SYNC_ALLOCATION_IDS_AS_ARRAY = Version.V_8_5_0;
 
     // TODO: refactor this method after adding more downsampling metadata
     public boolean isDownsampledIndex() {
@@ -532,7 +535,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final ImmutableOpenMap<String, DiffableStringMap> customData;
 
-    private final Map<Integer, Set<String>> inSyncAllocationIds;
+    private final List<Set<String>> inSyncAllocationIds;
 
     private final transient int totalNumberOfShards;
 
@@ -594,7 +597,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final MappingMetadata mapping,
         final ImmutableOpenMap<String, AliasMetadata> aliases,
         final ImmutableOpenMap<String, DiffableStringMap> customData,
-        final Map<Integer, Set<String>> inSyncAllocationIds,
+        final List<Set<String>> inSyncAllocationIds,
         final DiscoveryNodeFilters requireFilters,
         final DiscoveryNodeFilters initialRecoveryFilters,
         final DiscoveryNodeFilters includeFilters,
@@ -734,6 +737,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (inSyncSet.equals(inSyncAllocationIds.get(shardId))) {
             return this;
         }
+        List<Set<String>> copiedInSyncAllocationIds = new ArrayList<>(this.inSyncAllocationIds);
+        copiedInSyncAllocationIds.set(shardId, Set.copyOf(inSyncSet));
         return new IndexMetadata(
             this.index,
             this.version,
@@ -748,7 +753,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.mapping,
             this.aliases,
             this.customData,
-            Maps.copyMapWithAddedOrReplacedEntry(this.inSyncAllocationIds, shardId, Set.copyOf(inSyncSet)),
+            copiedInSyncAllocationIds,
             this.requireFilters,
             this.initialRecoveryFilters,
             this.includeFilters,
@@ -1178,7 +1183,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return this.customData.get(key);
     }
 
-    public Map<Integer, Set<String>> getInSyncAllocationIds() {
+    public List<Set<String>> getInSyncAllocationIds() {
         return inSyncAllocationIds;
     }
 
@@ -1374,8 +1379,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             aliases = DiffableUtils.diff(before.aliases, after.aliases, DiffableUtils.getStringKeySerializer());
             customData = DiffableUtils.diff(before.customData, after.customData, DiffableUtils.getStringKeySerializer());
             inSyncAllocationIds = DiffableUtils.diff(
-                before.inSyncAllocationIds,
-                after.inSyncAllocationIds,
+                Maps.fromList(before.inSyncAllocationIds),
+                Maps.fromList(after.inSyncAllocationIds),
                 DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance()
             );
@@ -1484,7 +1489,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             ).get(MapperService.SINGLE_MAPPING_NAME);
             builder.aliases.putAllFromMap(aliases.apply(part.aliases));
             builder.customMetadata.putAllFromMap(customData.apply(part.customData));
-            builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
+            builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(Maps.fromList(part.inSyncAllocationIds)));
             builder.rolloverInfos.putAllFromMap(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.timestampRange(timestampRange);
@@ -1535,11 +1540,20 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             DiffableStringMap custom = DiffableStringMap.readFrom(in);
             builder.putCustom(key, custom);
         }
-        int inSyncAllocationIdsSize = in.readVInt();
-        for (int i = 0; i < inSyncAllocationIdsSize; i++) {
-            int key = in.readVInt();
-            Set<String> allocationIds = DiffableUtils.StringSetValueSerializer.getInstance().read(in, key);
-            builder.putInSyncAllocationIds(key, allocationIds);
+        if (in.getVersion().onOrAfter(VERSION_WITH_IN_SYNC_ALLOCATION_IDS_AS_ARRAY)) {
+            List<Set<String>> list = in.readList(i -> {
+                return DiffableUtils.StringSetValueSerializer.getInstance().read(in, null);
+            });
+            for (int i = 0; i < list.size(); i++) {
+                builder.putInSyncAllocationIds(i, list.get(i));
+            }
+        } else {
+            int inSyncAllocationIdsSize = in.readVInt();
+            for (int i = 0; i < inSyncAllocationIdsSize; i++) {
+                int key = in.readVInt();
+                Set<String> allocationIds = DiffableUtils.StringSetValueSerializer.getInstance().read(in, key);
+                builder.putInSyncAllocationIds(key, allocationIds);
+            }
         }
         int rolloverAliasesSize = in.readVInt();
         for (int i = 0; i < rolloverAliasesSize; i++) {
@@ -1580,11 +1594,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         out.writeCollection(aliases.values());
         out.writeMap(customData, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(
-            inSyncAllocationIds,
-            StreamOutput::writeVInt,
-            (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
-        );
+        if (out.getVersion().onOrAfter(VERSION_WITH_IN_SYNC_ALLOCATION_IDS_AS_ARRAY)) {
+            out.writeCollection(inSyncAllocationIds, (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o));
+        } else {
+            out.writeMap(
+                Maps.fromList(inSyncAllocationIds),
+                StreamOutput::writeVInt,
+                (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
+            );
+        }
         out.writeCollection(rolloverInfos.values());
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
@@ -1659,7 +1677,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.aliases = ImmutableOpenMap.builder(indexMetadata.aliases);
             this.customMetadata = ImmutableOpenMap.builder(indexMetadata.customData);
             this.routingNumShards = indexMetadata.routingNumShards;
-            this.inSyncAllocationIds = new HashMap<>(indexMetadata.inSyncAllocationIds);
+            this.inSyncAllocationIds = Maps.fromList(indexMetadata.inSyncAllocationIds);
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.timestampRange = indexMetadata.timestampRange;
@@ -1908,11 +1926,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
-            @SuppressWarnings({ "unchecked", "rawtypes" })
-            Map.Entry<Integer, Set<String>> denseInSyncAllocationIds[] = new Map.Entry[numberOfShards];
+            List<Set<String>> denseInSyncAllocationIds = new ArrayList<>(numberOfShards);
             for (int i = 0; i < numberOfShards; i++) {
                 Set<String> allocIds = inSyncAllocationIds.getOrDefault(i, Set.of());
-                denseInSyncAllocationIds[i] = Map.entry(i, allocIds);
+                denseInSyncAllocationIds.add(allocIds);
             }
             var requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters requireFilters;
@@ -2010,7 +2027,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping,
                 aliases.build(),
                 newCustomMetadata,
-                Map.ofEntries(denseInSyncAllocationIds),
+                denseInSyncAllocationIds,
                 requireFilters,
                 initialRecoveryFilters,
                 includeFilters,
@@ -2129,9 +2146,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             builder.startObject(KEY_IN_SYNC_ALLOCATIONS);
-            for (Map.Entry<Integer, Set<String>> cursor : indexMetadata.inSyncAllocationIds.entrySet()) {
-                builder.startArray(String.valueOf(cursor.getKey()));
-                for (String allocationId : cursor.getValue()) {
+            for (int shard = 0; shard < indexMetadata.inSyncAllocationIds.size(); shard++) {
+                builder.startArray(String.valueOf(shard));
+                for (String allocationId : indexMetadata.inSyncAllocationIds.get(shard)) {
                     builder.value(allocationId);
                 }
                 builder.endArray();

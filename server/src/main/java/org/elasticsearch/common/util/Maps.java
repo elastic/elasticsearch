@@ -22,6 +22,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class Maps {
 
@@ -337,5 +338,18 @@ public class Maps {
         public int hashCode() {
             return Objects.hashCode(key) ^ Objects.hashCode(value);
         }
+    }
+
+    /**
+     * Converts the supplied list to a hash map where each key is the list's index.
+     *
+     * @param list the list to convert
+     * @param <V> the value type
+     * @return a new {@link HashMap}
+     */
+    public static <V> Map<Integer, V> fromList(List<V> list) {
+        return IntStream.range(0, list.size())
+            .mapToObj(index -> Map.entry(Integer.valueOf(index), list.get(index)))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }

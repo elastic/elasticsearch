@@ -254,7 +254,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             );
 
             var relocationFailureInfo = clusterState.getRoutingTable().index("idx").shard(0).shard(0).relocationFailureInfo();
-            assertThat(relocationFailureInfo.getFailedRelocations(), equalTo(i + 1));
+            assertThat(relocationFailureInfo.failedRelocations(), equalTo(i + 1));
         }
 
         // shard could not be relocated when retries are exhausted

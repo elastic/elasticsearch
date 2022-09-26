@@ -27,6 +27,6 @@ public class RelocationFailureInfoTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected RelocationFailureInfo mutateInstance(RelocationFailureInfo instance) throws IOException {
-        return new RelocationFailureInfo(instance.getFailedRelocations() + 1);
+        return new RelocationFailureInfo(instance.failedRelocations() + 1);
     }
 }

@@ -50,7 +50,7 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
         }
 
         final var relocationFailureInfo = shardRouting.relocationFailureInfo();
-        final int numFailedRelocations = relocationFailureInfo == null ? 0 : relocationFailureInfo.getFailedRelocations();
+        final int numFailedRelocations = relocationFailureInfo == null ? 0 : relocationFailureInfo.failedRelocations();
         if (numFailedRelocations > 0) {
             final var decision = numFailedRelocations >= maxRetries ? Decision.NO : Decision.YES;
             return allocation.debugDecision() ? debugDecision(decision, relocationFailureInfo, numFailedRelocations, maxRetries) : decision;

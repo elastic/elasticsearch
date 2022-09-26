@@ -15,26 +15,18 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Holds additional information as to why the shard failed to relocate.
  */
-public class RelocationFailureInfo implements ToXContentFragment, Writeable {
+public record RelocationFailureInfo(int failedRelocations) implements ToXContentFragment, Writeable {
 
-    private final int failedRelocations;
-
-    public RelocationFailureInfo(int failedRelocations) {
+    public RelocationFailureInfo {
         assert failedRelocations > 0 : "Expect positive failures count, got: " + failedRelocations;
-        this.failedRelocations = failedRelocations;
     }
 
     public RelocationFailureInfo(StreamInput in) throws IOException {
-        this.failedRelocations = in.readVInt();
-    }
-
-    public int getFailedRelocations() {
-        return failedRelocations;
+        this(in.readVInt());
     }
 
     @Override
@@ -59,22 +51,5 @@ public class RelocationFailureInfo implements ToXContentFragment, Writeable {
             sb.append("failed_attempts[").append(failedRelocations).append("]");
         }
         return sb.toString();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        RelocationFailureInfo that = (RelocationFailureInfo) o;
-        return failedRelocations == that.failedRelocations;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(failedRelocations);
     }
 }

@@ -167,7 +167,8 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
             Map<String, Object> metadata
         ) throws IOException {
             super(name, context, parent, subFactoriesBuilder, metadata);
-            this.filter = QueryToFilterAdapter.build(context.searcher(), "1", context.buildQuery(filter));;
+            this.filter = QueryToFilterAdapter.build(context.searcher(), "1", context.buildQuery(filter));
+            ;
         }
 
         @Override

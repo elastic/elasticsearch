@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms;
 import org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.rate.InternalRate;
+import org.elasticsearch.xpack.analytics.rate.InternalResetTrackingRate;
 import org.elasticsearch.xpack.analytics.rate.RateAggregationBuilder;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
@@ -123,7 +124,10 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 RateAggregationBuilder.NAME,
                 RateAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER)
-            ).addResultReader(InternalRate::new).setAggregatorRegistrar(RateAggregationBuilder::registerAggregators),
+            )
+                .addResultReader(InternalRate::new)
+                .addResultReader(InternalResetTrackingRate.NAME, InternalResetTrackingRate::new)
+                .setAggregatorRegistrar(RateAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 MultiTermsAggregationBuilder.NAME,
                 MultiTermsAggregationBuilder::new,

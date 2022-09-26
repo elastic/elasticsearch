@@ -22,6 +22,8 @@ import java.util.Map;
 
 public class InternalResetTrackingRate extends InternalNumericMetricsAggregation.SingleValue implements Rate {
 
+    public static final String NAME = "rate_with_resets";
+
     private final double startValue;
     private final double endValue;
     private final long startTime;
@@ -47,7 +49,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
     }
 
     public InternalResetTrackingRate(StreamInput in) throws IOException {
-        super(in);
+        super(in, false);
         this.startValue = in.readDouble();
         this.endValue = in.readDouble();
         this.startTime = in.readLong();
@@ -57,7 +59,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
 
     @Override
     public String getWriteableName() {
-        return "rate_with_resets";
+        return NAME;
     }
 
     @Override
@@ -74,11 +76,12 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         // TODO do we need to handle 0-length input lists?
         List<InternalResetTrackingRate> toReduce
             = aggregations.stream().map(r -> (InternalResetTrackingRate) r).sorted(Comparator.comparingLong(o -> o.startTime)).toList();
-        double resetComp = 0;
+        double resetComp = toReduce.get(0).resetCompensation;
         double startValue = toReduce.get(0).startValue;
         double endValue = toReduce.get(0).endValue;
         final int endIndex = toReduce.size() - 1;
-        for (InternalResetTrackingRate rate : toReduce) {
+        for (int i = 1; i < endIndex + 1; i++) {
+            InternalResetTrackingRate rate = toReduce.get(i);
             resetComp += rate.resetCompensation;
             if (endValue > rate.startValue) {
                 resetComp += endValue;

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.analytics.rate;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -30,7 +31,12 @@ import java.util.Objects;
 public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleValue {
 
     protected final ValuesSource.Numeric valuesSource;
-    protected DoubleArray values;
+
+    protected DoubleArray startValues;
+    protected DoubleArray endValues;
+    protected LongArray startTimes;
+    protected LongArray endTimes;
+    protected DoubleArray resetCompensations;
 
     long currentBucket = -1;
     long currentEndTime = -1;
@@ -51,20 +57,25 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
     ) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
-        this.values = bigArrays().newDoubleArray(1, true);
+        this.startValues = bigArrays().newDoubleArray(1, true);
+        this.endValues = bigArrays().newDoubleArray(1, true);
+        this.startTimes = bigArrays().newLongArray(1, true);
+        this.endTimes = bigArrays().newLongArray(1, true);
+        this.resetCompensations = bigArrays().newDoubleArray(1, true);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalRate(name, 0.0, 1.0, DocValueFormat.RAW, metadata());
+        return new InternalResetTrackingRate(name, DocValueFormat.RAW, metadata(), 0, 0, 0, 0, 0);
     }
 
     private void calculateLastBucket() {
         if (currentBucket != -1) {
-            long timespan = currentEndTime - currentStartTime;
-            double increase = currentEndValue - currentStartValue + resetCompensation;
-            double rate = timespan == 0 ? Double.NaN : increase / timespan;
-            values.set(currentBucket, rate);
+            startValues.set(currentBucket, currentStartValue);
+            endValues.set(currentBucket, currentEndValue);
+            startTimes.set(currentBucket, currentStartTime);
+            endTimes.set(currentBucket, currentEndTime);
+            resetCompensations.set(currentBucket, resetCompensation);
             currentBucket = -1;
         }
     }
@@ -88,7 +99,11 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
                 double latestValue = leafValues.nextValue();   // assume singleton values
 
                 if (bucket != currentBucket) {
-                    values = bigArrays().grow(values, bucket + 1);
+                    startValues = bigArrays().grow(startValues, bucket + 1);
+                    endValues = bigArrays().grow(endValues, bucket + 1);
+                    startTimes = bigArrays().grow(startTimes, bucket + 1);
+                    endTimes = bigArrays().grow(endTimes, bucket + 1);
+                    resetCompensations = bigArrays().grow(resetCompensations, bucket + 1);
                     if (currentTsid != aggCtx.getTsidOrd()) {
                         // if we're on a new tsid then we need to calculate the last bucket
                         calculateLastBucket();
@@ -113,18 +128,26 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrd) throws IOException {
+    public InternalResetTrackingRate buildAggregation(long owningBucketOrd) {
         calculateLastBucket();
-        return new InternalRate(name, values.get(owningBucketOrd), 1, DocValueFormat.RAW, metadata());
+        return new InternalResetTrackingRate(
+            name,
+            DocValueFormat.RAW,
+            metadata(),
+            startValues.get(owningBucketOrd),
+            endValues.get(owningBucketOrd),
+            startTimes.get(owningBucketOrd),
+            endTimes.get(owningBucketOrd),
+            resetCompensations.get(owningBucketOrd));
     }
 
     @Override
     protected void doClose() {
-        Releasables.close(values);
+        Releasables.close(startValues, endValues, startTimes, endTimes, resetCompensations);
     }
 
     @Override
     public double metric(long owningBucketOrd) {
-        return values.get(owningBucketOrd);
+        return buildAggregation(owningBucketOrd).getValue();
     }
 }

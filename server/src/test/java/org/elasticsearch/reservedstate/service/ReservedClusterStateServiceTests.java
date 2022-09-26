@@ -153,7 +153,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
                 List.of(),
                 Collections.emptyMap(),
                 Collections.emptySet(),
-                (clusterState, errorState) -> {},
+                errorState -> {},
                 new ActionListener<>() {
                     @Override
                     public void onResponse(ActionResponse.Empty empty) {}
@@ -343,7 +343,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             List.of(),
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
             orderedHandlers,
-            (clusterState, errorState) -> { assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())); },
+            errorState -> assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())),
             new ActionListener<>() {
                 @Override
                 public void onResponse(ActionResponse.Empty empty) {}
@@ -486,15 +486,14 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         final var controller = spy(new ReservedClusterStateService(clusterService, List.of()));
 
-        assertNull(controller.checkAndReportError("test", List.of(), null, null));
-        verify(controller, times(0)).saveErrorState(any(), any());
+        assertNull(controller.checkAndReportError("test", List.of(), null));
+        verify(controller, times(0)).updateErrorState(any());
 
-        var state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         var version = new ReservedStateVersion(2L, Version.CURRENT);
-        var error = controller.checkAndReportError("test", List.of("test error"), state, version);
+        var error = controller.checkAndReportError("test", List.of("test error"), version);
         assertThat(error, allOf(notNullValue(), instanceOf(IllegalStateException.class)));
         assertEquals("Error processing state change request for test, errors: test error", error.getMessage());
-        verify(controller, times(1)).saveErrorState(any(), any());
+        verify(controller, times(1)).updateErrorState(any());
     }
 
     public void testTrialRunExtractsNonStateActions() {

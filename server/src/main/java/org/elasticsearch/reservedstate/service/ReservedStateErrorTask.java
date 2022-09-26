@@ -8,6 +8,8 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,6 +18,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Cluster state update task that sets the error state of the reserved cluster state metadata.
  * <p>
@@ -23,6 +27,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
  * the {@link ReservedStateChunk}.
  */
 public class ReservedStateErrorTask implements ClusterStateTaskListener {
+    private static final Logger logger = LogManager.getLogger(ReservedStateErrorTask.class);
 
     private final ErrorState errorState;
     private final ActionListener<ActionResponse.Empty> listener;
@@ -39,6 +44,23 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
 
     ActionListener<ActionResponse.Empty> listener() {
         return listener;
+    }
+
+    boolean shouldUpdate(ClusterState currentState) {
+        // check for noop here
+        ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
+
+        boolean shouldUpdate = ReservedClusterStateService.isNewError(existingMetadata, errorState.version());
+        if (shouldUpdate == false) {
+            logger.info(
+                () -> format(
+                    "Not updating error state because version [%s] is less or equal to the last state error version [%s]",
+                    errorState.version(),
+                    existingMetadata.errorMetadata().version()
+                )
+            );
+        }
+        return shouldUpdate;
     }
 
     ClusterState execute(ClusterState currentState) {

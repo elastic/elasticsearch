@@ -110,7 +110,7 @@ public class ReservedClusterStateService {
             stateChunk = stateChunkParser.apply(parser, null);
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
-            saveErrorState(clusterService.state(), errorState);
+            updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
             errorListener.accept(
@@ -145,7 +145,7 @@ public class ReservedClusterStateService {
                 ReservedStateErrorMetadata.ErrorKind.PARSING
             );
 
-            saveErrorState(clusterService.state(), errorState);
+            updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
             errorListener.accept(
@@ -167,7 +167,8 @@ public class ReservedClusterStateService {
         // We trial run all handler validations to ensure that we can process all of the cluster state error free. During
         // the trial run we collect 'consumers' (functions) for any non cluster state transforms that need to run.
         var trialRunResult = trialRun(namespace, state, reservedStateChunk, orderedHandlers);
-        var error = checkAndReportError(namespace, trialRunResult.errors, state, reservedStateVersion);
+        // this is not using the modified trial state above, but that doesn't matter, we're just setting errors here
+        var error = checkAndReportError(namespace, trialRunResult.errors, reservedStateVersion);
 
         if (error != null) {
             errorListener.accept(error);
@@ -192,7 +193,7 @@ public class ReservedClusterStateService {
                         nonStateTransformResults,
                         handlers,
                         orderedHandlers,
-                        (clusterState, errorState) -> saveErrorState(clusterState, errorState),
+                        ReservedClusterStateService.this::updateErrorState,
                         new ActionListener<>() {
                             @Override
                             public void onResponse(ActionResponse.Empty empty) {
@@ -220,7 +221,7 @@ public class ReservedClusterStateService {
             @Override
             public void onFailure(Exception e) {
                 // If we encounter an error while runnin the non-state transforms, we avoid saving any cluster state.
-                errorListener.accept(checkAndReportError(namespace, List.of(e.getMessage()), state, reservedStateVersion));
+                errorListener.accept(checkAndReportError(namespace, List.of(e.getMessage()), reservedStateVersion));
             }
         });
     }
@@ -229,7 +230,6 @@ public class ReservedClusterStateService {
     Exception checkAndReportError(
         String namespace,
         List<String> errors,
-        ClusterState currentState,
         ReservedStateVersion reservedStateVersion
     ) {
         // Any errors should be discovered through validation performed in the transform calls
@@ -243,7 +243,7 @@ public class ReservedClusterStateService {
                 ReservedStateErrorMetadata.ErrorKind.VALIDATION
             );
 
-            saveErrorState(currentState, errorState);
+            updateErrorState(errorState);
 
             return new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState);
         }
@@ -260,21 +260,7 @@ public class ReservedClusterStateService {
     }
 
     // package private for testing
-    void saveErrorState(ClusterState clusterState, ErrorState errorState) {
-        ReservedStateMetadata existingMetadata = clusterState.metadata().reservedStateMetadata().get(errorState.namespace());
-
-        if (isNewError(existingMetadata, errorState.version()) == false) {
-            logger.info(
-                () -> format(
-                    "Not updating error state because version [%s] is less or equal to the last state error version [%s]",
-                    errorState.version(),
-                    existingMetadata.errorMetadata().version()
-                )
-            );
-
-            return;
-        }
-
+    void updateErrorState(ErrorState errorState) {
         submitErrorUpdateTask(errorState);
     }
 

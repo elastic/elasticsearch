@@ -7,7 +7,7 @@ infrequently accessed and read-only data in a very cost-effective fashion. The
 reduce your storage and operating costs.
 
 {search-snaps-cap} eliminate the need for <<scalability,replica shards>>
-after rollover from hot, potentially halving the local storage needed to search 
+after rolling over from the hot tier, potentially halving the local storage needed to search 
 your data. {search-snaps-cap} rely on the same snapshot mechanism you already
 use for backups and have minimal impact on your snapshot repository storage
 costs.

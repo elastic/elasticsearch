@@ -389,7 +389,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 blobContainer.writeBlob("write_large_blob", stream, data.length, false);
             }
         } else {
-            blobContainer.writeBlob("write_large_blob", false, randomBoolean(), out -> out.write(data));
+            blobContainer.writeMetadataBlob("write_large_blob", false, randomBoolean(), out -> out.write(data));
         }
 
         assertThat(countInits.get(), equalTo(0));

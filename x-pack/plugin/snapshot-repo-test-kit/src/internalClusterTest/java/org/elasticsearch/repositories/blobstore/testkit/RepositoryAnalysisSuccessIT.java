@@ -329,7 +329,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void writeBlob(
+        public void writeMetadataBlob(
             String blobName,
             boolean failIfAlreadyExists,
             boolean atomic,

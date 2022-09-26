@@ -443,6 +443,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 case REGEXP_INTERVAL:
                 case REGEXP_EMPTY:
                 case REGEXP_AUTOMATON:
+                case REGEXP_PRE_CLASS:
                     result = new MatchAllDocsQuery();
                     break;
             }

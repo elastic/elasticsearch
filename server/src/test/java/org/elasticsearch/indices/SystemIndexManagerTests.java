@@ -383,7 +383,10 @@ public class SystemIndexManagerTests extends ESTestCase {
                 IndexRoutingTable.builder(index)
                     .addIndexShard(
                         IndexShardRoutingTable.builder(new ShardId(index, 0))
-                            .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted())
+                            .addShard(
+                                shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
+                                    .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+                            )
                     )
                     .build()
             )

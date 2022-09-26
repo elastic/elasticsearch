@@ -125,6 +125,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class CompositeAggregatorTests extends AggregatorTestCase {
     private static MappedFieldType[] FIELD_TYPES;
     private List<ObjectMapper> objectMappers;
+    private Sort indexSort;
 
     @Override
     @Before
@@ -3295,8 +3296,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         assert create.size() == verify.size() : "create and verify should be the same size";
         Map<String, MappedFieldType> types = Arrays.stream(FIELD_TYPES)
             .collect(Collectors.toMap(MappedFieldType::name, Function.identity()));
-        Sort indexSort = useIndexSort ? buildIndexSort(sources, types) : null;
-        IndexSettings indexSettings = createIndexSettings(indexSort);
+        indexSort = useIndexSort ? buildIndexSort(sources, types) : null;
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = newIndexWriterConfig(random(), new MockAnalyzer(random()));
             if (indexSort != null) {
@@ -3335,17 +3335,18 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
                 for (int i = 0; i < create.size(); i++) {
-                    verify.get(i).accept(searchAndReduce(indexSettings, indexSearcher, query, create.get(i).get(), FIELD_TYPES));
+                    verify.get(i).accept(searchAndReduce(new AggTestConfig(indexSearcher, query, create.get(i).get(), FIELD_TYPES)));
                 }
             }
         }
     }
 
-    private static IndexSettings createIndexSettings(Sort sort) {
+    @Override
+    protected IndexSettings createIndexSettings() {
         Settings.Builder builder = Settings.builder();
-        if (sort != null) {
-            String[] fields = Arrays.stream(sort.getSort()).map(SortField::getField).toArray(String[]::new);
-            String[] orders = Arrays.stream(sort.getSort()).map((o) -> o.getReverse() ? "desc" : "asc").toArray(String[]::new);
+        if (indexSort != null) {
+            String[] fields = Arrays.stream(indexSort.getSort()).map(SortField::getField).toArray(String[]::new);
+            String[] orders = Arrays.stream(indexSort.getSort()).map((o) -> o.getReverse() ? "desc" : "asc").toArray(String[]::new);
             builder.putList("index.sort.field", fields);
             builder.putList("index.sort.order", orders);
         }

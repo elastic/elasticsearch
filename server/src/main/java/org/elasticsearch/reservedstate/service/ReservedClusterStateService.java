@@ -14,10 +14,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.NonStateTransformResult;
@@ -58,8 +58,8 @@ public class ReservedClusterStateService {
 
     final Map<String, ReservedClusterStateHandler<?>> handlers;
     final ClusterService clusterService;
-    private final ReservedStateUpdateTaskExecutor updateStateTaskExecutor;
-    private final ReservedStateErrorTaskExecutor errorStateTaskExecutor;
+    private final MasterServiceTaskQueue<ReservedStateUpdateTask> updateTaskQueue;
+    private final MasterServiceTaskQueue<ReservedStateErrorTask> errorTaskQueue;
 
     @SuppressWarnings("unchecked")
     private final ConstructingObjectParser<ReservedStateChunk, Void> stateChunkParser = new ConstructingObjectParser<>(
@@ -82,8 +82,12 @@ public class ReservedClusterStateService {
      */
     public ReservedClusterStateService(ClusterService clusterService, List<ReservedClusterStateHandler<?>> handlerList) {
         this.clusterService = clusterService;
-        this.updateStateTaskExecutor = new ReservedStateUpdateTaskExecutor(clusterService.getRerouteService());
-        this.errorStateTaskExecutor = new ReservedStateErrorTaskExecutor();
+        this.updateTaskQueue = clusterService.getTaskQueue(
+            "reserved state update",
+            Priority.URGENT,
+            new ReservedStateUpdateTaskExecutor(clusterService.getRerouteService())
+        );
+        this.errorTaskQueue = clusterService.getTaskQueue("reserved state error", Priority.URGENT, new ReservedStateErrorTaskExecutor());
         this.handlers = handlerList.stream().collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity()));
         stateChunkParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, name) -> {
             if (handlers.containsKey(name) == false) {
@@ -184,7 +188,7 @@ public class ReservedClusterStateService {
                 // Once all of the non-state transformation results complete, we can proceed to
                 // do the final save of the cluster state. The non-state transformation reserved keys are applied
                 // to the reserved state after all other key handlers.
-                clusterService.submitStateUpdateTask(
+                updateTaskQueue.submitTask(
                     "reserved cluster state [" + namespace + "]",
                     new ReservedStateUpdateTask(
                         namespace,
@@ -212,8 +216,7 @@ public class ReservedClusterStateService {
                             }
                         }
                     ),
-                    ClusterStateTaskConfig.build(Priority.URGENT),
-                    updateStateTaskExecutor
+                    null
                 );
             }
 
@@ -279,7 +282,7 @@ public class ReservedClusterStateService {
     }
 
     private void submitErrorUpdateTask(ErrorState errorState) {
-        clusterService.submitStateUpdateTask(
+        errorTaskQueue.submitTask(
             "reserved cluster state update error for [ " + errorState.namespace() + "]",
             new ReservedStateErrorTask(errorState, new ActionListener<>() {
                 @Override
@@ -292,8 +295,7 @@ public class ReservedClusterStateService {
                     logger.error("Failed to apply reserved error cluster state", e);
                 }
             }),
-            ClusterStateTaskConfig.build(Priority.URGENT),
-            errorStateTaskExecutor
+            null
         );
     }
 

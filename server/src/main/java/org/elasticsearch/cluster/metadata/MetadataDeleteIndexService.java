@@ -12,13 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -43,16 +43,14 @@ public class MetadataDeleteIndexService {
     private static final Logger logger = LogManager.getLogger(MetadataDeleteIndexService.class);
 
     private final Settings settings;
-    private final ClusterService clusterService;
 
     // package private for tests
-    final ClusterStateTaskExecutor<DeleteIndexClusterStateUpdateRequest> executor;
+    final MasterServiceTaskQueue<DeleteIndexClusterStateUpdateRequest> taskQueue;
 
     @Inject
     public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         this.settings = settings;
-        this.clusterService = clusterService;
-        executor = batchExecutionContext -> {
+        taskQueue = clusterService.getTaskQueue("delete-index", Priority.URGENT, batchExecutionContext -> {
             ClusterState state = batchExecutionContext.initialState();
             for (ClusterStateTaskExecutor.TaskContext<DeleteIndexClusterStateUpdateRequest> taskContext : batchExecutionContext
                 .taskContexts()) {
@@ -69,16 +67,14 @@ public class MetadataDeleteIndexService {
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 return allocationService.reroute(state, "deleted indices");
             }
-        };
+        });
     }
-
-    private static final ClusterStateTaskConfig URGENT_CONFIG = ClusterStateTaskConfig.build(Priority.URGENT);
 
     public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
-        clusterService.submitStateUpdateTask("delete-index " + Arrays.toString(request.indices()), request, URGENT_CONFIG, executor);
+        taskQueue.submitTask("delete-index " + Arrays.toString(request.indices()), request, request.masterNodeTimeout());
     }
 
     /**

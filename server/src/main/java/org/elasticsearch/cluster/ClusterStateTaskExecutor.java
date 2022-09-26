@@ -202,4 +202,32 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
             return dropHeadersContextSupplier.get();
         }
     }
+
+    abstract class DefaultBatchExecutor<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor<T> {
+
+        public abstract ClusterState executeTask(TaskContext<T> taskContext, ClusterState curState);
+
+        public ClusterState finalizeBatchExecution(ClusterState initState, ClusterState curState) {
+            return curState;
+        }
+
+        public void taskSucceeded(TaskContext<T> taskContext) {
+            taskContext.success(() -> {});
+        }
+
+        @Override
+        public ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception {
+            var initState = batchExecutionContext.initialState();
+            var curState = initState;
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    curState = executeTask(taskContext, curState);
+                    taskSucceeded(taskContext);
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
+            }
+            return finalizeBatchExecution(initState, curState);
+        }
+    }
 }

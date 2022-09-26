@@ -175,18 +175,11 @@ public class HealthMetadataService {
 
         abstract ClusterState execute(ClusterState currentState);
 
-        static class Executor implements ClusterStateTaskExecutor<UpsertHealthMetadataTask> {
+        static class Executor extends ClusterStateTaskExecutor.DefaultBatchExecutor<UpsertHealthMetadataTask> {
 
             @Override
-            public ClusterState execute(BatchExecutionContext<UpsertHealthMetadataTask> batchExecutionContext) throws Exception {
-                ClusterState updatedState = batchExecutionContext.initialState();
-                for (TaskContext<UpsertHealthMetadataTask> taskContext : batchExecutionContext.taskContexts()) {
-                    try (var ignored = taskContext.captureResponseHeaders()) {
-                        updatedState = taskContext.getTask().execute(updatedState);
-                    }
-                    taskContext.success(() -> {});
-                }
-                return updatedState;
+            public ClusterState executeTask(TaskContext<UpsertHealthMetadataTask> taskContext, ClusterState curState) {
+                return taskContext.getTask().execute(curState);
             }
         }
     }

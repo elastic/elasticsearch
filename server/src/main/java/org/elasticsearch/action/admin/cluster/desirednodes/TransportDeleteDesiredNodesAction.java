@@ -79,13 +79,20 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
         }
     }
 
-    private static class DeleteDesiredNodesExecutor implements ClusterStateTaskExecutor<DeleteDesiredNodesTask> {
+    private static class DeleteDesiredNodesExecutor extends ClusterStateTaskExecutor.DefaultBatchExecutor<DeleteDesiredNodesTask> {
         @Override
-        public ClusterState execute(BatchExecutionContext<DeleteDesiredNodesTask> batchExecutionContext) throws Exception {
-            for (final var taskContext : batchExecutionContext.taskContexts()) {
-                taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
-            }
-            return batchExecutionContext.initialState().copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
+        public ClusterState executeTask(TaskContext<DeleteDesiredNodesTask> taskContext, ClusterState curState) {
+            return curState;
+        }
+
+        @Override
+        public void taskSucceeded(TaskContext<DeleteDesiredNodesTask> taskContext) {
+            taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
+        }
+
+        @Override
+        public ClusterState finalizeBatchExecution(ClusterState initState, ClusterState curState) {
+            return initState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
         }
     }
 }

@@ -389,6 +389,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isAggregatable() {
+            return true;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return (cache, breakerService) -> new IndexAggregateDoubleMetricFieldData(
                 name(),

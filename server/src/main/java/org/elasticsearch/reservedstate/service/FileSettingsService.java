@@ -50,7 +50,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
 public class FileSettingsService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
-    private static final String SETTINGS_FILE_NAME = "settings.json";
+    public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
 
     private final ClusterService clusterService;
@@ -341,6 +341,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         logger.debug("stopping watcher ...");
         if (watching()) {
             try {
+                // make sure the watcher thread hits the processing latch correctly
                 cleanupWatchKeys();
                 fileUpdateState = null;
                 watchService.close();
@@ -350,6 +351,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 if (watcherThreadLatch != null) {
                     watcherThreadLatch.await();
                 }
+                // the watcher thread might have snuck in behind us and re-created the settings watch again
+                cleanupWatchKeys();
             } catch (IOException e) {
                 logger.warn("encountered exception while closing watch service", e);
             } catch (InterruptedException interruptedException) {

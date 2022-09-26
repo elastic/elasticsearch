@@ -87,9 +87,6 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public abstract RegularFileProperty getOutputFile();
 
     @Input
-    public abstract Property<String> getTemplateFileName();
-
-    @Input
     public abstract Property<Boolean> getIsStable();
 
     @TaskAction
@@ -106,9 +103,7 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         props.put("version", getPluginVersion().get());
         props.put("elasticsearchVersion", getElasticsearchVersion().get());
         props.put("javaVersion", getJavaVersion().get());
-        if (classname.isEmpty() == false) {
-            props.put("classname", classname);
-        }
+        props.put("classname", classname);
         props.put("extendedPlugins", String.join(",", getExtendedPlugins().get()));
         props.put("hasNativeController", getHasNativeController().get());
         props.put("requiresKeystore", getRequiresKeystore().get());
@@ -118,9 +113,8 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         SimpleTemplateEngine engine = new SimpleTemplateEngine();
         Path outputFile = getOutputFile().get().getAsFile().toPath();
         Files.createDirectories(outputFile.getParent());
-        String name = "/" + getTemplateFileName().get();
         try (
-            var inputStream = GeneratePluginPropertiesTask.class.getResourceAsStream(name);
+            var inputStream = GeneratePluginPropertiesTask.class.getResourceAsStream("/" + PROPERTIES_FILENAME);
             var reader = new BufferedReader(new InputStreamReader(inputStream));
             var writer = Files.newBufferedWriter(outputFile, StandardCharsets.UTF_8)
         ) {

@@ -127,7 +127,7 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         props.size() == 9
     }
 
-    def "can build  stable plugin properties"() {
+    def "can build stable plugin properties"() {
         given:
         buildFile << """plugins {
                 id 'elasticsearch.stable_esplugin'
@@ -147,6 +147,8 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":pluginProperties").outcome == TaskOutcome.SUCCESS
+        props.get("classname") == null
+
         props.get("name") == "myplugin"
         props.get("version") == "1.2.3"
         props.get("description") == "test plugin"
@@ -155,8 +157,7 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         props.get("elasticsearch.version") == VersionProperties.elasticsearchVersion.toString()
         props.get("extended.plugins") == ""
         props.get("has.native.controller") == "false"
-        props.get("stable") == "true"
-        props.size() == 9
+        props.size() == 8
     }
 
     def "module name is inferred by plugin properties"() {

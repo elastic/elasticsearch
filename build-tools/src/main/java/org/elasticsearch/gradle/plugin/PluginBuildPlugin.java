@@ -43,8 +43,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
         project.getTasks().withType(GeneratePluginPropertiesTask.class).named("pluginProperties").configure(task -> {
             task.getIsStable().set(false);
 
-            task.getTemplateFileName().set(GeneratePluginPropertiesTask.PROPERTIES_FILENAME);
-
             task.getClassname().set(providerFactory.provider(extension::getClassname));
 
             Provider<RegularFile> file = project.getLayout()

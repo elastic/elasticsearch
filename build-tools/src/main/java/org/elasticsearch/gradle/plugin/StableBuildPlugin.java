@@ -24,7 +24,6 @@ public class StableBuildPlugin implements Plugin<Project> {
 
         project.getTasks().withType(GeneratePluginPropertiesTask.class).named("pluginProperties").configure(task -> {
             task.getIsStable().set(true);
-            task.getTemplateFileName().set("stable-" + GeneratePluginPropertiesTask.PROPERTIES_FILENAME);
 
             Provider<RegularFile> file = project.getLayout()
                 .getBuildDirectory()

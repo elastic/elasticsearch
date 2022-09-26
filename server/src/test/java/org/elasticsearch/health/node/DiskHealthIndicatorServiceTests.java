@@ -131,6 +131,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
      * This method tests that we get the expected behavior when there are all role nodes with indices that report RED status and there are
      * no blocks in the cluster state. We expect 3 impacts and 1 diagnosis.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90305")
     public void testNoBlockedIndicesAndRedAllRoleNodes() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         Map<String, Set<String>> indexNameToNodeIdsMap = new HashMap<>();

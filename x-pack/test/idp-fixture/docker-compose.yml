@@ -162,7 +162,7 @@ services:
       - ./idp/shib-jetty-base/start.d/ssl.ini:/opt/shib-jetty-base/start.d/ssl.ini
 
   oidc-provider:
-    image: "c2id/c2id-server:9.5"
+    image: "c2id/c2id-server-demo:12.16.1"
     depends_on:
       - http-proxy
     ports:

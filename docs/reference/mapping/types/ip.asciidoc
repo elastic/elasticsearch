@@ -151,7 +151,6 @@ GET my-index-000001/_search
 }
 --------------------------------------------------
 
-ifeval::["{release-state}"=="unreleased"]
 [[ip-synthetic-source]]
 ==== Synthetic source
 `ip` fields support <<synthetic-source,synthetic `_source`>> in their default
@@ -192,5 +191,3 @@ Will become:
 NOTE: IPv4 addresses are sorted as though they were IPv6 addresses prefixed by
       `::ffff:0:0:0/96` as specified by
       https://datatracker.ietf.org/doc/html/rfc6144[rfc6144].
-
-endif::[]

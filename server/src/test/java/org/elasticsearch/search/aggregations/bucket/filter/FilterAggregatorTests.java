@@ -12,7 +12,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -52,7 +51,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
         QueryBuilder filter = QueryBuilders.termQuery("field", randomAlphaOfLength(5));
         FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
-        InternalFilter response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+        InternalFilter response = searchAndReduce(new AggTestConfig(indexSearcher, builder, fieldType));
         assertEquals(response.getDocCount(), 0);
         assertFalse(AggregationInspectionHelper.hasValue(response));
         indexReader.close();
@@ -87,7 +86,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
             QueryBuilder filter = QueryBuilders.termQuery("field", Integer.toString(value));
             FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
 
-            final InternalFilter response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+            final InternalFilter response = searchAndReduce(new AggTestConfig(indexSearcher, builder, fieldType));
             assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
             if (expectedBucketCount[value] > 0) {
                 assertTrue(AggregationInspectionHelper.hasValue(response));
@@ -111,7 +110,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
                 FilterAggregator agg = createAggregator(builder, indexSearcher, fieldType);
                 agg.preCollection();
                 LeafBucketCollector collector = agg.getLeafCollector(
-                    new AggregationExecutionContext(indexReader.leaves().get(0), null, null)
+                    new AggregationExecutionContext(indexReader.leaves().get(0), null, null, null)
                 );
                 collector.collect(0, 0);
                 collector.collect(0, 0);

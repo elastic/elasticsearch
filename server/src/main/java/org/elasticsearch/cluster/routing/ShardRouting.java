@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -21,7 +22,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -35,6 +35,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * Used if shard size is not available
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
+    private static final Version EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION = Version.V_8_5_0;
 
     private final ShardId shardId;
     private final String currentNodeId;
@@ -44,7 +45,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     private final RecoverySource recoverySource;
     private final UnassignedInfo unassignedInfo;
     private final AllocationId allocationId;
-    private final transient List<ShardRouting> asList;
     private final long expectedShardSize;
     @Nullable
     private final ShardRouting targetRelocatingShard;
@@ -74,10 +74,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         this.allocationId = allocationId;
         this.expectedShardSize = expectedShardSize;
         this.targetRelocatingShard = initializeTargetRelocatingShard();
-        this.asList = Collections.singletonList(this);
-        assert expectedShardSize == UNAVAILABLE_EXPECTED_SHARD_SIZE
-            || state == ShardRoutingState.INITIALIZING
-            || state == ShardRoutingState.RELOCATING : expectedShardSize + " state: " + state;
         assert expectedShardSize >= 0 || state != ShardRoutingState.INITIALIZING || state != ShardRoutingState.RELOCATING
             : expectedShardSize + " state: " + state;
         assert (state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) == false : "unassigned shard must be created with meta";
@@ -271,7 +267,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * A shard iterator with just this shard in it.
      */
     public ShardIterator shardsIt() {
-        return new PlainShardIterator(shardId, asList);
+        return new PlainShardIterator(shardId, List.of(this));
     }
 
     public ShardRouting(ShardId shardId, StreamInput in) throws IOException {
@@ -288,13 +284,14 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         unassignedInfo = in.readOptionalWriteable(UnassignedInfo::new);
         allocationId = in.readOptionalWriteable(AllocationId::new);
         final long shardSize;
-        if (state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING) {
+        if (state == ShardRoutingState.RELOCATING
+            || state == ShardRoutingState.INITIALIZING
+            || (state == ShardRoutingState.STARTED && in.getVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
             shardSize = in.readLong();
         } else {
             shardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
         }
         expectedShardSize = shardSize;
-        asList = Collections.singletonList(this);
         targetRelocatingShard = initializeTargetRelocatingShard();
     }
 
@@ -318,7 +315,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         }
         out.writeOptionalWriteable(unassignedInfo);
         out.writeOptionalWriteable(allocationId);
-        if (state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING) {
+        if (state == ShardRoutingState.RELOCATING
+            || state == ShardRoutingState.INITIALIZING
+            || (state == ShardRoutingState.STARTED && out.getVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
             out.writeLong(expectedShardSize);
         }
     }
@@ -489,13 +488,14 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * <code>INITIALIZING</code> or <code>RELOCATING</code>. Any relocation will be
      * canceled.
      */
-    public ShardRouting moveToStarted() {
+    public ShardRouting moveToStarted(long expectedShardSize) {
         assert state == ShardRoutingState.INITIALIZING : "expected an initializing shard " + this;
         AllocationId allocationId = this.allocationId;
         if (allocationId.getRelocationId() != null) {
             // relocation target
             allocationId = AllocationId.finishRelocation(allocationId);
         }
+
         return new ShardRouting(
             shardId,
             currentNodeId,
@@ -505,7 +505,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             null,
             null,
             allocationId,
-            UNAVAILABLE_EXPECTED_SHARD_SIZE
+            expectedShardSize
         );
     }
 
@@ -675,7 +675,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     /** returns true if the current routing is identical to the other routing in all but meta fields, i.e., unassigned info */
     public boolean equalsIgnoringMetadata(ShardRouting other) {
         return primary == other.primary
-            && Objects.equals(shardId, other.shardId)
+            && shardId.equals(other.shardId)
             && Objects.equals(currentNodeId, other.currentNodeId)
             && Objects.equals(relocatingNodeId, other.relocatingNodeId)
             && Objects.equals(allocationId, other.allocationId)
@@ -763,7 +763,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             .field("relocating_node", relocatingNodeId())
             .field("shard", id())
             .field("index", getIndexName());
-        if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
+        if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE && state != ShardRoutingState.STARTED) {
             builder.field("expected_shard_size_in_bytes", expectedShardSize);
         }
         if (recoverySource != null) {

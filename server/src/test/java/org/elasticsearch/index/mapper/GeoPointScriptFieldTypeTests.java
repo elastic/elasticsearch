@@ -74,7 +74,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
                     @Override
                     public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        MultiGeoPointValues dv = ifd.load(context).getGeoPointValues();
+                        MultiGeoPointValues dv = ifd.load(context).getPointValues();
                         return new LeafCollector() {
                             @Override
                             public void setScorer(Scorable scorer) {}
@@ -101,6 +101,26 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
         GeoPointScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
         Exception e = expectThrows(IllegalArgumentException.class, () -> ifd.sortField(null, MultiValueMode.MIN, null, false));
         assertThat(e.getMessage(), equalTo("can't sort on geo_point field without using specific sorting feature, like geo_distance"));
+    }
+
+    public void testFetch() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("""
+                {"foo": {"lat": 45.0, "lon" : 45.0}}"""))));
+            try (DirectoryReader reader = iw.getReader()) {
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
+                searchContext.lookup().source().setSegmentAndDocument(reader.leaves().get(0), 0);
+                ValueFetcher fetcher = simpleMappedFieldType().valueFetcher(searchContext, randomBoolean() ? null : "geojson");
+                fetcher.setNextReader(reader.leaves().get(0));
+                assertThat(
+                    fetcher.fetchValues(searchContext.lookup().source(), null),
+                    equalTo(List.of(Map.of("type", "Point", "coordinates", List.of(45.0, 45.0))))
+                );
+                fetcher = simpleMappedFieldType().valueFetcher(searchContext, "wkt");
+                fetcher.setNextReader(reader.leaves().get(0));
+                assertThat(fetcher.fetchValues(searchContext.lookup().source(), null), equalTo(List.of("POINT (45.0 45.0)")));
+            }
+        }
     }
 
     @Override
@@ -215,7 +235,7 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             case "fromLatLon" -> (fieldName, params, lookup) -> (ctx) -> new GeoPointFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    Map<?, ?> foo = (Map<?, ?>) lookup.source().get("foo");
+                    Map<?, ?> foo = (Map<?, ?>) lookup.source().source().get("foo");
                     emit(((Number) foo.get("lat")).doubleValue(), ((Number) foo.get("lon")).doubleValue());
                 }
             };

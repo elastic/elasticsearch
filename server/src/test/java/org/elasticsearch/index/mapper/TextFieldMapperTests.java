@@ -528,16 +528,23 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testFielddata() throws IOException {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
+        assertFalse(disabledMapper.fieldType("field").isAggregatable());
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            () -> disabledMapper.fieldType("field")
+                .fielddataBuilder(new FieldDataContext("index", null, null, MappedFieldType.FielddataOperation.SEARCH))
         );
-        assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Fielddata is disabled on [field] in [index]. "
+                    + "Text fields are not optimised for operations that require per-document field data"
+            )
+        );
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
         enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test")); // no exception
-                                                                                                     // this time
-
+        assertTrue(enabledMapper.fieldType("field").isAggregatable());
         e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "text").field("index", false).field("fielddata", true)))
@@ -1097,11 +1104,25 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        SyntheticSourceSupport supportDelegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport();
+        boolean storeTextField = randomBoolean();
+        boolean storedKeywordField = storeTextField || randomBoolean();
+        String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
+        KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
+            storedKeywordField,
+            nullValue,
+            false == storeTextField
+        );
         return new SyntheticSourceSupport() {
             @Override
-            public SyntheticSourceExample example(int maxValues) throws IOException {
-                SyntheticSourceExample delegate = supportDelegate.example(maxValues);
+            public SyntheticSourceExample example(int maxValues) {
+                SyntheticSourceExample delegate = keywordSupport.example(maxValues);
+                if (storeTextField) {
+                    return new SyntheticSourceExample(
+                        delegate.inputValue(),
+                        delegate.result(),
+                        b -> b.field("type", "text").field("store", true)
+                    );
+                }
                 return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
                     b.field("type", "text");
                     b.startObject("fields");
@@ -1117,8 +1138,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
                 Matcher<String> err = equalTo(
-                    "field [field] of type [text] doesn't support synthetic source "
-                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
+                    "field [field] of type [text] doesn't support synthetic source unless it is stored or"
+                        + " has a sub-field of type [keyword] with doc values or stored and without a normalizer"
                 );
                 return List.of(
                     new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),
@@ -1128,17 +1149,6 @@ public class TextFieldMapperTests extends MapperTestCase {
                         {
                             b.startObject("l");
                             b.field("type", "long");
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }),
-                    new SyntheticSourceInvalidExample(err, b -> {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("kwd");
-                            b.field("type", "keyword");
-                            b.field("ignore_above", 10);
                             b.endObject();
                         }
                         b.endObject();

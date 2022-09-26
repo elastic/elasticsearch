@@ -16,6 +16,8 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -26,6 +28,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.io.IOException;
@@ -63,6 +66,10 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
 public class PluginsService implements ReportingService<PluginsAndModules> {
 
+    public StablePluginsRegistry getStablePluginRegistry() {
+        return stablePluginsRegistry;
+    }
+
     /**
      * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
      * @param descriptor Metadata about the plugin, usually loaded from plugin properties
@@ -89,6 +96,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PluginsService.class);
 
     private final Settings settings;
     private final Path configPath;
@@ -98,6 +106,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
+    private final StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
         "plugin.mandatory",
@@ -148,8 +157,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         Map<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles);
-        this.info = new PluginsAndModules(getRuntimeInfos(pluginsList, loadedPlugins), modulesList);
+
+        var inspector = PluginIntrospector.getInstance();
+        this.info = new PluginsAndModules(getRuntimeInfos(inspector, pluginsList, loadedPlugins), modulesList);
         this.plugins = List.copyOf(loadedPlugins.values());
+
+        checkDeprecations(inspector, pluginsList, loadedPlugins);
 
         checkMandatoryPlugins(
             pluginsList.stream().map(PluginDescriptor::getName).collect(Collectors.toSet()),
@@ -190,8 +203,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private static List<PluginRuntimeInfo> getRuntimeInfos(List<PluginDescriptor> pluginDescriptors, Map<String, LoadedPlugin> plugins) {
-        var plugInspector = PluginIntrospector.getInstance();
+    private static List<PluginRuntimeInfo> getRuntimeInfos(
+        PluginIntrospector inspector,
+        List<PluginDescriptor> pluginDescriptors,
+        Map<String, LoadedPlugin> plugins
+    ) {
         var officialPlugins = getOfficialPlugins();
         List<PluginRuntimeInfo> runtimeInfos = new ArrayList<>();
         for (PluginDescriptor descriptor : pluginDescriptors) {
@@ -201,7 +217,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             boolean isOfficial = officialPlugins.contains(descriptor.getName());
             PluginApiInfo apiInfo = null;
             if (isOfficial == false) {
-                apiInfo = new PluginApiInfo(plugInspector.interfaces(pluginClazz), plugInspector.overriddenMethods(pluginClazz));
+                apiInfo = new PluginApiInfo(inspector.interfaces(pluginClazz), inspector.overriddenMethods(pluginClazz));
             }
             runtimeInfos.add(new PluginRuntimeInfo(descriptor, isOfficial, apiInfo));
         }
@@ -447,6 +463,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
+            if (bundle.pluginDescriptor().isStable()) {
+                stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
+            }
 
             Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
             if (pluginClassLoader != pluginClass.getClassLoader()) {
@@ -496,6 +515,42 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         } else {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
             return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));
+        }
+    }
+
+    private static void checkDeprecations(
+        PluginIntrospector inspector,
+        List<PluginDescriptor> pluginDescriptors,
+        Map<String, LoadedPlugin> plugins
+    ) {
+        for (PluginDescriptor descriptor : pluginDescriptors) {
+            LoadedPlugin plugin = plugins.get(descriptor.getName());
+            Class<?> pluginClazz = plugin.instance.getClass();
+            for (String deprecatedInterface : inspector.deprecatedInterfaces(pluginClazz)) {
+                deprecationLogger.warn(
+                    DeprecationCategory.PLUGINS,
+                    pluginClazz.getName() + deprecatedInterface,
+                    "Plugin class {} from plugin {} implements deprecated plugin interface {}. "
+                        + "This plugin interface will be removed in a future release.",
+                    pluginClazz.getName(),
+                    descriptor.getName(),
+                    deprecatedInterface
+                );
+            }
+            for (var deprecatedMethodInInterface : inspector.deprecatedMethods(pluginClazz).entrySet()) {
+                String methodName = deprecatedMethodInInterface.getKey();
+                String interfaceName = deprecatedMethodInInterface.getValue();
+                deprecationLogger.warn(
+                    DeprecationCategory.PLUGINS,
+                    pluginClazz.getName() + methodName + interfaceName,
+                    "Plugin class {} from plugin {} implements deprecated method {} from plugin interface {}. "
+                        + "This method will be removed in a future release.",
+                    pluginClazz.getName(),
+                    descriptor.getName(),
+                    methodName,
+                    interfaceName
+                );
+            }
         }
     }
 

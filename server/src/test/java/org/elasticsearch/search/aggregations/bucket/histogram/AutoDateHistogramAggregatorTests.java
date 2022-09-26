@@ -942,12 +942,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 final InternalAutoDateHistogram histogram = searchAndReduce(
-                    indexSearcher,
-                    query,
-                    aggregationBuilder,
-                    fieldType,
-                    instantFieldType,
-                    numericFieldType
+                    new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldType, instantFieldType, numericFieldType)
                 );
                 verify.accept(histogram);
             }

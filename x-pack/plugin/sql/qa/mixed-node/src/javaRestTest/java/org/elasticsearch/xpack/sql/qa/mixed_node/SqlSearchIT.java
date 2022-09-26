@@ -188,7 +188,11 @@ public class SqlSearchIT extends ESRestTestCase {
             builder.append("\"boolean_field\":" + fieldValues.computeIfAbsent("boolean_field", v -> randomBoolean()) + ",");
             builder.append("\"ip_field\":\"" + fieldValues.computeIfAbsent("ip_field", v -> "123.123.123.123") + "\",");
             if (bwcVersion.onOrAfter(VERSION_FIELD_QL_INTRODUCTION)) {
-                columns.add(columnInfo("version_field", "2.11.4"));
+                builder.append(
+                    "\"version_field\":\""
+                        + fieldValues.computeIfAbsent("version_field", v -> randomInt() + "." + randomInt() + "." + randomInt())
+                        + "\","
+                );
             }
             builder.append("\"text_field\": \"" + fieldValues.computeIfAbsent("text_field", v -> randomAlphaOfLength(5)) + "\",");
             builder.append("\"keyword_field\": \"" + fieldValues.computeIfAbsent("keyword_field", v -> randomAlphaOfLength(5)) + "\",");

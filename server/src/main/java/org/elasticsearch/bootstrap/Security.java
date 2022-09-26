@@ -46,6 +46,8 @@ import java.util.function.Consumer;
 import static java.lang.invoke.MethodType.methodType;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.OPERATOR_DIRECTORY;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.SETTINGS_FILE_NAME;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -216,7 +218,7 @@ final class Security {
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
-        addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink", false);
+        addDirectoryPath(policy, "path.conf", environment.configFile(), "read,readlink", false);
         // read-write dirs
         addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
         addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);
@@ -253,6 +255,8 @@ final class Security {
             // we just need permission to remove the file if its elsewhere.
             addSingleFilePath(policy, pidFile, "delete");
         }
+        // we need to touch the operator/settings.json file when restoring from snapshots, on some OSs it needs file write permission
+        addSingleFilePath(policy, environment.configFile().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME), "read,readlink,write");
     }
 
     /**

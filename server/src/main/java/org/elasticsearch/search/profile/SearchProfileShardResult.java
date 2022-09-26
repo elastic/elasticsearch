@@ -46,8 +46,8 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(fetchPhase);
     }
 
-    public ProfileResult getDfsPhase() {
-        return queryPhase.getDfsProfileResult();
+    public SearchProfileDfsPhaseResult getSearchProfileDfsPhaseResult() {
+        return queryPhase.getSearchProfileDfsPhaseResult();
     }
 
     public SearchProfileQueryPhaseResult getQueryPhase() {
@@ -68,11 +68,9 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (getDfsPhase() != null) {
-            builder.startObject("dfs");
-            builder.field("query"); // add query to allow expansion of profiling dfs stats later
-            getDfsPhase().toXContent(builder, params);
-            builder.endObject();
+        if (getSearchProfileDfsPhaseResult() != null) {
+            builder.field("dfs");
+            getSearchProfileDfsPhaseResult().toXContent(builder, params);
         }
         builder.startArray("searches");
         for (QueryProfileShardResult result : queryPhase.getQueryProfileResults()) {

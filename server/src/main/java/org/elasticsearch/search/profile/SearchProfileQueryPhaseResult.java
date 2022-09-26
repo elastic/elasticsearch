@@ -26,7 +26,7 @@ import java.util.Objects;
  */
 public class SearchProfileQueryPhaseResult implements Writeable {
 
-    private ProfileResult dfsProfileResult;
+    private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     private final List<QueryProfileShardResult> queryProfileResults;
 
@@ -36,14 +36,14 @@ public class SearchProfileQueryPhaseResult implements Writeable {
         List<QueryProfileShardResult> queryProfileResults,
         AggregationProfileShardResult aggProfileShardResult
     ) {
-        this.dfsProfileResult = null;
+        this.searchProfileDfsPhaseResult = null;
         this.aggProfileShardResult = aggProfileShardResult;
         this.queryProfileResults = Collections.unmodifiableList(queryProfileResults);
     }
 
     public SearchProfileQueryPhaseResult(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-            dfsProfileResult = in.readOptionalWriteable(ProfileResult::new);
+            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         }
         int profileSize = in.readVInt();
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>(profileSize);
@@ -58,7 +58,7 @@ public class SearchProfileQueryPhaseResult implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
-            out.writeOptionalWriteable(dfsProfileResult);
+            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         }
         out.writeVInt(queryProfileResults.size());
         for (QueryProfileShardResult queryShardResult : queryProfileResults) {
@@ -67,12 +67,12 @@ public class SearchProfileQueryPhaseResult implements Writeable {
         aggProfileShardResult.writeTo(out);
     }
 
-    public void setDfsProfileResult(ProfileResult dfsProfileResult) {
-        this.dfsProfileResult = dfsProfileResult;
+    public void setSearchProfileDfsPhaseResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
+        this.searchProfileDfsPhaseResult = searchProfileDfsPhaseResult;
     }
 
-    public ProfileResult getDfsProfileResult() {
-        return dfsProfileResult;
+    public SearchProfileDfsPhaseResult getSearchProfileDfsPhaseResult() {
+        return searchProfileDfsPhaseResult;
     }
 
     public List<QueryProfileShardResult> getQueryProfileResults() {
@@ -88,13 +88,13 @@ public class SearchProfileQueryPhaseResult implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchProfileQueryPhaseResult that = (SearchProfileQueryPhaseResult) o;
-        return Objects.equals(dfsProfileResult, that.dfsProfileResult)
+        return Objects.equals(searchProfileDfsPhaseResult, that.searchProfileDfsPhaseResult)
             && Objects.equals(queryProfileResults, that.queryProfileResults)
             && Objects.equals(aggProfileShardResult, that.aggProfileShardResult);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dfsProfileResult, queryProfileResults, aggProfileShardResult);
+        return Objects.hash(searchProfileDfsPhaseResult, queryProfileResults, aggProfileShardResult);
     }
 }

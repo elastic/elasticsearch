@@ -19,7 +19,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,7 +34,7 @@ public class DfsSearchResult extends SearchPhaseResult {
     private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
     private DfsKnnResults knnResults;
     private int maxDoc;
-    private ProfileResult profileResult;
+    private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     public DfsSearchResult(StreamInput in) throws IOException {
         super(in);
@@ -59,7 +59,7 @@ public class DfsSearchResult extends SearchPhaseResult {
             knnResults = in.readOptionalWriteable(DfsKnnResults::new);
         }
         if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-            profileResult = in.readOptionalWriteable(ProfileResult::new);
+            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         }
     }
 
@@ -94,8 +94,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
-    public DfsSearchResult profileResult(ProfileResult profileResult) {
-        this.profileResult = profileResult;
+    public DfsSearchResult profileResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
+        this.searchProfileDfsPhaseResult = searchProfileDfsPhaseResult;
         return this;
     }
 
@@ -115,8 +115,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         return knnResults;
     }
 
-    public ProfileResult profileResult() {
-        return profileResult;
+    public SearchProfileDfsPhaseResult searchProfileDfsPhaseResult() {
+        return searchProfileDfsPhaseResult;
     }
 
     @Override
@@ -136,7 +136,7 @@ public class DfsSearchResult extends SearchPhaseResult {
             out.writeOptionalWriteable(knnResults);
         }
         if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
-            out.writeOptionalWriteable(profileResult);
+            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         }
     }
 

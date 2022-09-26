@@ -10,18 +10,16 @@ package org.elasticsearch.search.dfs;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.profile.Timer;
+import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
@@ -106,102 +104,6 @@ public class DfsPhase {
             return;
         }
 
-        if (context.getProfilers() == null) {
-            executeKnnVectorQueryWithoutProfiling(context);
-        } else {
-            executeKnnVectorQueryWithProfiling(context);
-        }
-    }
-
-    private void executeKnnVectorQueryWithoutProfiling(SearchContext context) throws IOException {
-        KnnSearchBuilder knnSearch = context.request().source().knnSearch();
-        Query query = buildKnnVectorQuery(context);
-
-        TopDocs topDocs = context.searcher().search(query, knnSearch.k());
-
-        DfsKnnResults knnResults = new DfsKnnResults(topDocs.scoreDocs);
-        context.dfsResult().knnResults(knnResults);
-    }
-
-    private void executeKnnVectorQueryWithProfiling(SearchContext context) throws IOException {
-        long knnStartTime = System.nanoTime();
-
-        KnnSearchBuilder knnSearch = context.request().source().knnSearch();
-
-        Timer rewriteTimer = new Timer();
-        Timer createWeightTimer = new Timer();
-
-        // we add an IndexSearcher wrapper for two reasons --
-        // 1. we want to time the relevant method calls used for a knn vector query
-        // 2. we do not want to interfere with the QueryProfiler attached to the ContextIndexSearcher
-        IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {
-            @Override
-            public Query rewrite(Query original) throws IOException {
-                if (context.isCancelled()) {
-                    throw new TaskCancelledException("cancelled");
-                }
-
-                rewriteTimer.start();
-
-                try {
-                    return super.rewrite(original);
-                } finally {
-                    rewriteTimer.stop();
-                }
-            }
-
-            @Override
-            public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
-                if (context.isCancelled()) {
-                    throw new TaskCancelledException("cancelled");
-                }
-
-                createWeightTimer.start();
-
-                try {
-                    return super.createWeight(query, scoreMode, boost);
-                } finally {
-                    createWeightTimer.stop();
-                }
-            }
-        };
-
-        Query query = buildKnnVectorQuery(context);
-        TopScoreDocCollector tsdc = TopScoreDocCollector.create(knnSearch.k(), Integer.MAX_VALUE);
-        InternalProfileCollector ipc = new InternalProfileCollector(tsdc, "KnnVectorQuery", List.of());
-
-        try {
-            searcher.search(query, ipc);
-            DfsKnnResults knnResults = new DfsKnnResults(tsdc.topDocs().scoreDocs);
-            context.dfsResult().knnResults(knnResults);
-        } finally {
-            long knnTotalTime = System.nanoTime() - knnStartTime;
-            context.dfsResult()
-                .profileResult(
-                    new ProfileResult(
-                        "KnnVectorQuery",
-                        query.toString(),
-                        Map.of(
-                            "create_weight_count",
-                            createWeightTimer.getCount(),
-                            "create_weight",
-                            createWeightTimer.getApproximateTiming(),
-                            "rewrite_count",
-                            rewriteTimer.getCount(),
-                            "rewrite",
-                            rewriteTimer.getApproximateTiming(),
-                            "collector",
-                            ipc.getTime()
-                        ),
-                        Map.of(),
-                        knnTotalTime,
-                        null
-                    )
-                );
-        }
-    }
-
-    private Query buildKnnVectorQuery(SearchContext context) {
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         KnnSearchBuilder knnSearch = context.request().source().knnSearch();
         KnnVectorQueryBuilder knnVectorQueryBuilder = knnSearch.toQueryBuilder();
@@ -210,6 +112,26 @@ public class DfsPhase {
             knnVectorQueryBuilder.addFilterQuery(context.request().getAliasFilter().getQueryBuilder());
         }
 
-        return searchExecutionContext.toQuery(knnVectorQueryBuilder).query();
+        Query query = searchExecutionContext.toQuery(knnVectorQueryBuilder).query();
+        TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(knnSearch.k(), Integer.MAX_VALUE);
+        Collector collector = topScoreDocCollector;
+
+        if (context.getProfilers() != null) {
+            InternalProfileCollector ipc = new InternalProfileCollector(
+                topScoreDocCollector,
+                CollectorResult.REASON_SEARCH_TOP_HITS,
+                List.of()
+            );
+            context.getProfilers().getCurrentQueryProfiler().setCollector(ipc);
+            collector = ipc;
+        }
+
+        context.searcher().search(query, collector);
+        DfsKnnResults knnResults = new DfsKnnResults(topScoreDocCollector.topDocs().scoreDocs);
+        context.dfsResult().knnResults(knnResults);
+
+        if (context.getProfilers() != null) {
+            context.dfsResult().profileResult(context.getProfilers().buildDfsPhaseResults());
+        }
     }
 }

@@ -129,7 +129,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        ProfileResult dfsResult = null;
+        SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = null;
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
         ProfileResult fetchResult = null;
@@ -156,10 +156,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("dfs".equals(currentFieldName)) {
-                    parser.nextToken(); // skip start object
-                    parser.nextToken(); // skip "query" field
-                    dfsResult = ProfileResult.fromXContent(parser);
-                    parser.nextToken(); // skip closing object
+                    searchProfileDfsPhaseResult = SearchProfileDfsPhaseResult.fromXContent(parser);
                 } else if ("fetch".equals(currentFieldName)) {
                     fetchResult = ProfileResult.fromXContent(parser);
                 } else {
@@ -173,7 +170,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult),
             fetchResult
         );
-        result.getQueryPhase().setDfsProfileResult(dfsResult);
+        result.getQueryPhase().setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
         searchProfileResults.put(id, result);
     }
 }

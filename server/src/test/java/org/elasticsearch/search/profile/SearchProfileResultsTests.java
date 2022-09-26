@@ -26,7 +26,6 @@ public class SearchProfileResultsTests extends AbstractSerializingTestCase<Searc
         Map<String, SearchProfileShardResult> shards = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             SearchProfileQueryPhaseResult searchResult = SearchProfileQueryPhaseResultTests.createTestItem();
-            searchResult.setDfsProfileResult(randomBoolean() ? null : ProfileResultTests.createTestItem(1));
             ProfileResult fetchResult = randomBoolean() ? null : ProfileResultTests.createTestItem(2);
             shards.put(randomAlphaOfLengthBetween(5, 10), new SearchProfileShardResult(searchResult, fetchResult));
         }

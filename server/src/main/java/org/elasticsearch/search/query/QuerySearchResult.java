@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -230,11 +230,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return aggregations;
     }
 
-    public void setDfsProfileResult(ProfileResult dfsProfileResult) {
+    public void setSearchProfileDfsPhaseResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
         if (profileShardResults == null) {
             return;
         }
-        profileShardResults.setDfsProfileResult(dfsProfileResult);
+        profileShardResults.setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
     }
 
     /**

@@ -382,6 +382,27 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testExtendedBoundsWithOffset() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+        testCase(
+            new HistogramAggregationBuilder("test").field("field")
+                .interval(1000L * 60L * 60L * 24L)
+                .offset(1000L * 60L * 60L * 5L)
+                .extendedBounds(new DoubleBounds(null, 1639457999999D)),
+            new MatchAllDocsQuery(),
+            iw -> {
+                Document d = new Document();
+                d.add(new SortedNumericDocValuesField("field", 1639447293418L));
+                iw.addDocument(d);
+            },
+            result -> {
+                InternalHistogram hist = (InternalHistogram) result;
+                assertEquals(1, hist.getBuckets().size());
+            },
+            fieldType
+        );
+    }
+
     public void testHardBounds() throws Exception {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (double value : new double[] { 3.2, -5, -4.5, 4.3 }) {

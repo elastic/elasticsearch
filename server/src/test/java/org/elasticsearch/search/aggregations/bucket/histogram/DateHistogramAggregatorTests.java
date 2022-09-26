@@ -821,6 +821,27 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
+    public void testExtendedBoundsWithOffsetPartTwo() throws IOException {
+        DateFieldMapper.DateFieldType dateFieldType = aggregableDateFieldType(false, true);
+        testCase(
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                .calendarInterval(DateHistogramInterval.DAY)
+                .offset("18000000ms")
+                .extendedBounds(new LongBounds(null, 1639457999999L - (5 * 60 * 60 * 1000))),
+            new MatchAllDocsQuery(),
+            iw -> {
+                Document d = new Document();
+                d.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, 1639447293418L));
+                iw.addDocument(d);
+            },
+            result -> {
+                InternalDateHistogram dateHisto = (InternalDateHistogram) result;
+                assertEquals(1, dateHisto.getBuckets().size());
+            },
+            dateFieldType
+        );
+    }
+
     public void testExtendedBoundsWithOffset() throws IOException {
         DateFieldMapper.DateFieldType dateFieldType = aggregableDateFieldType(false, true);
         testCase(

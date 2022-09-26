@@ -44,6 +44,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     private final String relocatingNodeId;
     private final boolean primary;
     private final ShardRoutingState state;
+    @Nullable
     private final RecoverySource recoverySource;
     @Nullable
     private final UnassignedInfo unassignedInfo;

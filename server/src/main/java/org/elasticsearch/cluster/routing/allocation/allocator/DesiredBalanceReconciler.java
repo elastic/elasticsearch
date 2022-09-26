@@ -221,9 +221,7 @@ public class DesiredBalanceReconciler {
                         allocationOrdering.sort(assignmentNodeIds),
                         // TODO consider ignored nodes here too?
                         () -> (shard.primary()
-                            ? allocationOrdering.sort(
-                                allocation.routingNodes().stream().map(RoutingNode::nodeId).collect(Collectors.toSet())
-                            )
+                            ? allocationOrdering.sort(allocation.routingNodes().stream().map(RoutingNode::nodeId).toList())
                             : List.<String>of()).iterator()
                     )) {
                         for (final var desiredNodeId : nodeIdIterator) {

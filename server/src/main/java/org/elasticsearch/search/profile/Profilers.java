@@ -67,6 +67,19 @@ public final class Profilers {
     }
 
     /**
+     * Build the results for the dfs phase.
+     */
+    public SearchProfileDfsPhaseResult buildDfsPhaseResults() {
+        QueryProfiler queryProfiler = getCurrentQueryProfiler();
+        QueryProfileShardResult queryProfileShardResult = new QueryProfileShardResult(
+            queryProfiler.getTree(),
+            queryProfiler.getRewriteTime(),
+            queryProfiler.getCollector()
+        );
+        return new SearchProfileDfsPhaseResult(queryProfileShardResult);
+    }
+
+    /**
      * Build the results for the query phase.
      */
     public SearchProfileQueryPhaseResult buildQueryPhaseResults() {

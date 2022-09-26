@@ -142,9 +142,9 @@ public class Setting<T> implements ToXContentObject {
         PrivateIndex,
 
         /**
-         * Indicates that this index-level setting was deprecated and removed in the current major
+         * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0) and is forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
-        DeprecatedAndRemovedInCurrentMajor
+        IndexSettingDeprecatedInV7AndRemovedInV8
     }
 
     private final Key key;

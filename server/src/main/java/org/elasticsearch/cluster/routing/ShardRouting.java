@@ -88,7 +88,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             : "replica shards always recover from primary";
         assert (currentNodeId == null) == (state == ShardRoutingState.UNASSIGNED)
             : "unassigned shard must not be assigned to a node " + this;
-        assert relocatingNodeId == null || (state != ShardRoutingState.STARTED && state != ShardRoutingState.UNASSIGNED)
+        assert relocatingNodeId == null || state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING
             : state + " shard must not have relocating node " + this;
     }
 

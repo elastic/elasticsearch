@@ -128,7 +128,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
-    private static final Version VERSION_WITH_IN_SYNC_ALLOCATION_IDS_AS_ARRAY = Version.V_8_5_0;
+    private static final Version VERSION_WITH_IN_SYNC_ALLOCATION_IDS_AS_ARRAY = Version.V_8_6_0;
 
     // TODO: refactor this method after adding more downsampling metadata
     public boolean isDownsampledIndex() {

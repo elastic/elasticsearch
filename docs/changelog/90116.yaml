@@ -7,9 +7,9 @@ issues:
 highlight:
   title: Release time series data stream (TSDS) functionality
   body: |-
-    Elasticsearch offers support for time series (TSDB) indices. A TSDB index is an
-    index that contains metrics data time series and is typically used as part of
-    a data stream. Elasticsearch routes the incoming documents into a TSDB index so
+    Elasticsearch offers support for time series data stream (TSDS) indices. A TSDS index is
+     an index that contains time series metrics data as part of a data stream. Elasticsearch 
+     routes the incoming documents into a TSDS index so
     that all the documents for a particular time series are on the same shard, and
     then sorts the shard by time series and timestamp. This structure
     has a few advantages:

@@ -1020,7 +1020,7 @@ public class MasterService extends AbstractLifecycleComponent {
         final List<ClusterStateTaskExecutor.TaskContext<T>> taskContexts = castTaskContexts(executionResults);
         try {
             return executor.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(previousClusterState, taskContexts, () -> null
-                /* TODO headers! */));
+            /* TODO headers! */));
         } catch (Exception e) {
             logger.trace(
                 () -> new ParameterizedMessage(

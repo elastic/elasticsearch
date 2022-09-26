@@ -197,15 +197,14 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
 
     private static CheckedRunnable<Exception> blockMasterService(MasterService masterService) {
         final var executionBarrier = new CyclicBarrier(2);
-        masterService.getTaskQueue("block", Priority.URGENT,             batchExecutionContext -> {
-                executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
-                executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
-                for (final var taskContext : batchExecutionContext.taskContexts()) {
-                    taskContext.success(() -> {});
-                }
-                return batchExecutionContext.initialState();
+        masterService.getTaskQueue("block", Priority.URGENT, batchExecutionContext -> {
+            executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
+            executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                taskContext.success(() -> {});
             }
-        ).submitTask("block", new ExpectSuccessTask(), null);
+            return batchExecutionContext.initialState();
+        }).submitTask("block", new ExpectSuccessTask(), null);
         return () -> executionBarrier.await(10, TimeUnit.SECONDS);
     }
 

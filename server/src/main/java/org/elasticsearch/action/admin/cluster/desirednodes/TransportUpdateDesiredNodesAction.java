@@ -67,8 +67,11 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             ThreadPool.Names.SAME
         );
         this.settingsValidator = settingsValidator;
-        this.taskQueue = clusterService.getTaskQueue("delete-desired-nodes", Priority.URGENT,
-            new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService));
+        this.taskQueue = clusterService.getTaskQueue(
+            "delete-desired-nodes",
+            Priority.URGENT,
+            new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService)
+        );
     }
 
     @Override

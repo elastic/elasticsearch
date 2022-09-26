@@ -188,13 +188,14 @@ public class MetadataIndexStateService {
                                     new WaitForClosedBlocksApplied(
                                         blockedIndices,
                                         task.request,
-                                        task.listener().delegateFailure(
-                                            (delegate2, verifyResults) -> closesQueue.submitTask(
-                                                "close-indices",
-                                                new CloseIndicesTask(task.request, blockedIndices, verifyResults, delegate2),
-                                                null
+                                        task.listener()
+                                            .delegateFailure(
+                                                (delegate2, verifyResults) -> closesQueue.submitTask(
+                                                    "close-indices",
+                                                    new CloseIndicesTask(task.request, blockedIndices, verifyResults, delegate2),
+                                                    null
+                                                )
                                             )
-                                        )
                                     )
                                 );
                         }
@@ -500,17 +501,21 @@ public class MetadataIndexStateService {
                                     new WaitForBlocksApplied(
                                         blockedIndices,
                                         task.request,
-                                        task.listener().delegateFailure(
-                                            (delegate2, verifyResults) -> finalizeBlocksQueue.submitTask(
-                                                "finalize-index-block-["
-                                                    + task.request.getBlock().name
-                                                    + "]-["
-                                                    + blockedIndices.keySet().stream().map(Index::getName).collect(Collectors.joining(", "))
-                                                    + "]",
-                                                new FinalizeBlocksTask(task.request, blockedIndices, verifyResults, delegate2),
-                                                null
+                                        task.listener()
+                                            .delegateFailure(
+                                                (delegate2, verifyResults) -> finalizeBlocksQueue.submitTask(
+                                                    "finalize-index-block-["
+                                                        + task.request.getBlock().name
+                                                        + "]-["
+                                                        + blockedIndices.keySet()
+                                                            .stream()
+                                                            .map(Index::getName)
+                                                            .collect(Collectors.joining(", "))
+                                                        + "]",
+                                                    new FinalizeBlocksTask(task.request, blockedIndices, verifyResults, delegate2),
+                                                    null
+                                                )
                                             )
-                                        )
                                     )
                                 );
                         }

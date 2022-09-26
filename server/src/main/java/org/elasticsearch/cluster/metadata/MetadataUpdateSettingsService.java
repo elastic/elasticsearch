@@ -295,9 +295,11 @@ public class MetadataUpdateSettingsService {
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
-        taskQueue.submitTask("update-settings " + Arrays.toString(request.indices()),
-            new UpdateSettingsTask(request, listener)
-            , request.masterNodeTimeout());
+        taskQueue.submitTask(
+            "update-settings " + Arrays.toString(request.indices()),
+            new UpdateSettingsTask(request, listener),
+            request.masterNodeTimeout()
+        );
     }
 
     public static void updateIndexSettings(

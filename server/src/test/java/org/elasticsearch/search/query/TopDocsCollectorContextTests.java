@@ -28,8 +28,7 @@ import java.io.IOException;
 public class TopDocsCollectorContextTests extends ESTestCase {
 
     public void testShortcutTotalHitCountTextField() throws IOException {
-        try (Directory dir = newDirectory();
-             RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             doc.add(new TextField("text", "value", Field.Store.NO));
             iw.addDocument(doc);
@@ -47,8 +46,7 @@ public class TopDocsCollectorContextTests extends ESTestCase {
     }
 
     public void testShortcutTotalHitCountStringField() throws IOException {
-        try (Directory dir = newDirectory();
-             RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             doc.add(new StringField("string", "value", Field.Store.NO));
             doc.add(new SortedDocValuesField("string", new BytesRef("value")));
@@ -68,8 +66,7 @@ public class TopDocsCollectorContextTests extends ESTestCase {
     }
 
     public void testShortcutTotalHitCountNumericField() throws IOException {
-        try (Directory dir = newDirectory();
-             RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             doc.add(new IntPoint("int", 10));
             doc.add(new NumericDocValuesField("int", 10));

@@ -410,7 +410,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
                 if (fieldInfo != null) {
                     if (fieldInfo.getDocValuesType() == DocValuesType.NONE) {
-                        //no shortcut possible: it's a text field, empty values are counted as no value.
+                        // no shortcut possible: it's a text field, empty values are counted as no value.
                         return -1;
                     }
                     if (fieldInfo.getPointIndexDimensionCount() > 0) {

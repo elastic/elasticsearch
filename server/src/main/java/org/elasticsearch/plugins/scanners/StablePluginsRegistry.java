@@ -10,6 +10,8 @@ package org.elasticsearch.plugins.scanners;
 
 import org.elasticsearch.plugins.PluginBundle;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,28 +31,31 @@ public class StablePluginsRegistry {
         {"nori" -> {nori, org.elasticserach.plugin.analysis.new_nori.NoriReadingFormFilterFactory, classloaderInstance}
      */
     private final Map<String /*Extensible */, NameToPluginInfo> namedComponents;
-    private final NamedComponentReader namedComponentsScanner;
+    private final NamedComponentReader namedComponentReader;
 
     public StablePluginsRegistry() {
         this(new NamedComponentReader(), new HashMap<>());
     }
 
     // for testing
-    StablePluginsRegistry(NamedComponentReader namedComponentReader, HashMap<String /*Extensible */, NameToPluginInfo> namedComponents) {
-        this.namedComponentsScanner = namedComponentReader;
+    public StablePluginsRegistry(NamedComponentReader namedComponentReader, Map<String /*Extensible */, NameToPluginInfo> namedComponents) {
+        this.namedComponentReader = namedComponentReader;
         this.namedComponents = namedComponents;
     }
 
     public void scanBundleForStablePlugins(PluginBundle bundle, ClassLoader pluginClassLoader) {
-        Map<String, NameToPluginInfo> namedComponentsFromPlugin = namedComponentsScanner.findNamedComponents(bundle, pluginClassLoader);
+        Map<String, NameToPluginInfo> namedComponentsFromPlugin = namedComponentReader.findNamedComponents(bundle, pluginClassLoader);
         for (Map.Entry<String, NameToPluginInfo> entry : namedComponentsFromPlugin.entrySet()) {
             namedComponents.compute(entry.getKey(), (k, v) -> v != null ? v.put(entry.getValue()) : entry.getValue());
         }
     }
 
-    // TODO this will be removed. getPluginForName or similar will be created
-    public Map<String, NameToPluginInfo> getNamedComponents() {
-        return namedComponents;
+    public Collection<PluginInfo> getPluginInfosForExtensible(String extensibleClassName) {
+        NameToPluginInfo nameToPluginInfo = namedComponents.get(extensibleClassName);
+        if (nameToPluginInfo != null) {
+            return nameToPluginInfo.nameToPluginInfoMap().values();
+        }
+        return Collections.emptyList();
     }
 
 }

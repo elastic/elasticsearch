@@ -179,12 +179,12 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
     }
 
     @Override
-    protected Optional<String> reservedStateHandlerName() {
+    public Optional<String> reservedStateHandlerName() {
         return Optional.of(ReservedSnapshotAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(PutSnapshotLifecycleAction.Request request) {
+    public Set<String> modifiedKeys(PutSnapshotLifecycleAction.Request request) {
         return Set.of(request.getLifecycleId());
     }
 }

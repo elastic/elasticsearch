@@ -58,7 +58,7 @@ the `fields` parameter on the `_search` API to
 runs only against the top hits just like script fields do.
 
 You can use <<script-fields,script fields>> to access values in `_source` and
-return calculated values based on a script valuation. Runtime fields have these
+return calculated values based on a script valuation. Runtime fields have the
 same capabilities, but provide greater flexibility because you can query and
 aggregate on runtime fields in a search request. Script fields can only fetch
 values.

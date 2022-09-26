@@ -77,7 +77,7 @@ import static org.elasticsearch.cluster.metadata.Metadata.DEDUPLICATED_MAPPINGS_
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
-import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSetting;
+import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSettingV7;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
@@ -496,7 +496,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public void validate(String value, Map<Setting<?>, Object> settings) {
-                validateVersionDependentDeprecatedSetting(INDEX_ROLLUP_SOURCE_UUID.getKey(), settings);
+                validateVersionDependentDeprecatedSettingV7(INDEX_ROLLUP_SOURCE_UUID.getKey(), settings);
             }
 
             @Override
@@ -507,7 +507,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         },
         Property.IndexScope,
         Property.PrivateIndex,
-        Property.DeprecatedAndRemovedInCurrentMajor
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     /**
@@ -523,7 +523,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public void validate(String value, Map<Setting<?>, Object> settings) {
-                validateVersionDependentDeprecatedSetting(INDEX_ROLLUP_SOURCE_NAME.getKey(), settings);
+                validateVersionDependentDeprecatedSettingV7(INDEX_ROLLUP_SOURCE_NAME.getKey(), settings);
             }
 
             @Override
@@ -534,7 +534,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         },
         Property.IndexScope,
         Property.PrivateIndex,
-        Property.DeprecatedAndRemovedInCurrentMajor
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";

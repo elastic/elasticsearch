@@ -98,7 +98,7 @@ import java.util.zip.Checksum;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
-import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSetting;
+import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSettingV7;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 
@@ -138,7 +138,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
             @Override
             public void validate(Boolean value, Map<Setting<?>, Object> settings) {
-                validateVersionDependentDeprecatedSetting(FORCE_RAM_TERM_DICT.getKey(), settings);
+                validateVersionDependentDeprecatedSettingV7(FORCE_RAM_TERM_DICT.getKey(), settings);
             }
 
             @Override
@@ -148,7 +148,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
         },
         Property.IndexScope,
-        Property.DeprecatedAndRemovedInCurrentMajor
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     static final String CODEC = "store";

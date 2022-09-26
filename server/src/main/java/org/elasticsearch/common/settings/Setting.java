@@ -142,7 +142,8 @@ public class Setting<T> implements ToXContentObject {
         PrivateIndex,
 
         /**
-         * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0) and is forbidden in indices created from {@link Version#V_8_0_0} onwards.
+         * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
+         * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
         IndexSettingDeprecatedInV7AndRemovedInV8
     }
@@ -416,7 +417,7 @@ public class Setting<T> implements ToXContentObject {
     private boolean isDeprecated() {
         return properties.contains(Property.Deprecated)
             || properties.contains(Property.DeprecatedWarning)
-            || properties.contains(Property.DeprecatedAndRemovedInCurrentMajor);
+            || properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8);
     }
 
     private boolean isDeprecatedWarningOnly() {
@@ -424,7 +425,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     private boolean isDeprecatedAndRemoved() {
-        return properties.contains(Property.DeprecatedAndRemovedInCurrentMajor);
+        return properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8);
     }
 
     /**

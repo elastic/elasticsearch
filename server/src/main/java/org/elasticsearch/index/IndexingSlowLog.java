@@ -35,7 +35,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSetting;
+import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSettingV7;
 
 public final class IndexingSlowLog implements IndexingOperationListener {
     public static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
@@ -89,7 +89,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
             @Override
             public void validate(SlowLogLevel value, Map<Setting<?>, Object> settings) {
-                validateVersionDependentDeprecatedSetting(INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), settings);
+                validateVersionDependentDeprecatedSettingV7(INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), settings);
             }
 
             @Override
@@ -100,7 +100,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         },
         Property.Dynamic,
         Property.IndexScope,
-        Property.DeprecatedAndRemovedInCurrentMajor
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     private final Logger indexLogger;

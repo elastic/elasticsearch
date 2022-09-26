@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSetting;
+import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSettingV7;
 
 public final class SearchSlowLog implements SearchOperationListener {
 
@@ -122,7 +122,7 @@ public final class SearchSlowLog implements SearchOperationListener {
 
             @Override
             public void validate(SlowLogLevel value, Map<Setting<?>, Object> settings) {
-                validateVersionDependentDeprecatedSetting(INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), settings);
+                validateVersionDependentDeprecatedSettingV7(INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), settings);
             }
 
             @Override
@@ -133,7 +133,7 @@ public final class SearchSlowLog implements SearchOperationListener {
         },
         Property.Dynamic,
         Property.IndexScope,
-        Property.DeprecatedAndRemovedInCurrentMajor
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));

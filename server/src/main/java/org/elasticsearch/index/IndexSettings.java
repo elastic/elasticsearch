@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSetting;
+import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSettingV7;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -566,7 +566,7 @@ public final class IndexSettings {
 
             @Override
             public void validate(Integer value, Map<Setting<?>, Object> settings) {
-                validateVersionDependentDeprecatedSetting(MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), settings);
+                validateVersionDependentDeprecatedSettingV7(MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), settings);
             }
 
             @Override
@@ -577,7 +577,7 @@ public final class IndexSettings {
         },
         Property.Dynamic,
         Property.IndexScope,
-        Property.DeprecatedAndRemovedInCurrentMajor
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     private final Index index;

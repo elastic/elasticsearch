@@ -42,7 +42,7 @@ import java.util.Objects;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSetting;
+import static org.elasticsearch.common.settings.IndexScopedSettings.validateVersionDependentDeprecatedSettingV7;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -127,7 +127,7 @@ public final class EngineConfig {
 
             @Override
             public void validate(Boolean value, Map<Setting<?>, Object> settings) {
-                validateVersionDependentDeprecatedSetting(INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey(), settings);
+                validateVersionDependentDeprecatedSettingV7(INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey(), settings);
             }
 
             @Override
@@ -138,7 +138,7 @@ public final class EngineConfig {
         },
         Property.IndexScope,
         Property.Dynamic,
-        Property.DeprecatedAndRemovedInCurrentMajor
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     private final TranslogConfig translogConfig;

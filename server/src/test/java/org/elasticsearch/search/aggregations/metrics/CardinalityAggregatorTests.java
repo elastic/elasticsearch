@@ -14,14 +14,9 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -47,7 +42,6 @@ import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -410,40 +404,20 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-        final Directory directory = newDirectory();
-        final RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        final int numDocs = 10;
-        for (int i = 0; i < numDocs; i++) {
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
-        }
-        indexWriter.close();
-
-        final Directory unmappedDirectory = newDirectory();
-        final RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        final IndexReader indexReader = DirectoryReader.open(directory);
-        final IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        final MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        final IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
-
         final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         final AggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("cardinality").field("number");
 
-        final CardinalityAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-        aggregator.postCollection();
-
-        final InternalCardinality cardinality = (InternalCardinality) aggregator.buildAggregation(0L);
-
-        assertEquals(10.0, cardinality.getValue(), 0);
-        assertEquals("cardinality", cardinality.getName());
-        assertTrue(AggregationInspectionHelper.hasValue(cardinality));
-
-        multiReader.close();
-        directory.close();
-        unmappedDirectory.close();
+        multiIndexTestCase(aggregationBuilder, new MatchAllDocsQuery(), List.of((unmappedIndexWriter) -> {}, (indexWriter) -> {
+            final int numDocs = 10;
+            for (int i = 0; i < numDocs; i++) {
+                indexWriter.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
+            }
+        }), (internalAggregation) -> {
+            InternalCardinality cardinality = (InternalCardinality) internalAggregation;
+            assertEquals(10.0, cardinality.getValue(), 0);
+            assertEquals("cardinality", cardinality.getName());
+            assertTrue(AggregationInspectionHelper.hasValue(cardinality));
+        }, fieldType);
     }
 
     public void testSingleValuedNumericValueScript() throws IOException {
@@ -616,47 +590,6 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 assertEquals(5, cardinality.getValue());
             }
         }, mappedFieldTypes);
-    }
-
-    public void testCacheAggregation() throws IOException {
-        final Directory directory = newDirectory();
-        final RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        final int numDocs = 10;
-        for (int i = 0; i < numDocs; i++) {
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
-        }
-        indexWriter.close();
-
-        final Directory unmappedDirectory = newDirectory();
-        final RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        final IndexReader indexReader = DirectoryReader.open(directory);
-        final IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        final MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        final IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
-
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("cardinality").field("number");
-
-        final AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
-        final CardinalityAggregator aggregator = createAggregator(aggregationBuilder, context);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-        aggregator.postCollection();
-
-        final InternalCardinality cardinality = (InternalCardinality) aggregator.buildAggregation(0L);
-
-        assertEquals(10.0, cardinality.getValue(), 0);
-        assertEquals("cardinality", cardinality.getName());
-        assertTrue(AggregationInspectionHelper.hasValue(cardinality));
-
-        // Test that an aggregation not using a script does get cached
-        assertTrue(context.isCacheable());
-
-        multiReader.close();
-        directory.close();
-        unmappedDirectory.close();
     }
 
     private void testAggregation(

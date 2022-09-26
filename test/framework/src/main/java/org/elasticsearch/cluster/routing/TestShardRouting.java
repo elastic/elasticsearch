@@ -22,7 +22,7 @@ import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 /**
  * A helper that allows to create shard routing instances within tests, while not requiring to expose
@@ -239,7 +239,7 @@ public class TestShardRouting {
     private static RelocationFailureInfo buildRelocationFailureInfo(ShardRoutingState state) {
         return switch (state) {
             case UNASSIGNED, INITIALIZING, STARTED -> null;
-            case RELOCATING -> randomBoolean() ? new RelocationFailureInfo(randomInt(0)) : null;
+            case RELOCATING -> randomBoolean() ? new RelocationFailureInfo(randomIntBetween(1, 10)) : null;
         };
     }
 

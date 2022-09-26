@@ -55,7 +55,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;

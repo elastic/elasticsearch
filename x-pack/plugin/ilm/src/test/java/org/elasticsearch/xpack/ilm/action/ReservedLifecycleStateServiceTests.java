@@ -283,7 +283,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             task.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(context), () -> null));
 
             return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(), any(), any());
+        }).when(clusterService).getTaskQueue(anyString(), any(), any()); // TODO more mocking needed here
     }
 
     public void testOperatorControllerFromJSONContent() throws IOException {

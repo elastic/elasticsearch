@@ -199,7 +199,8 @@ public class LicenseServiceTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             final ArgumentCaptor<Runnable> listenerCaptor = ArgumentCaptor.forClass(Runnable.class);
             doNothing().when(taskContext).success(listenerCaptor.capture());
-            verify(clusterService).submitStateUpdateTask(any(), taskCaptor.capture(), any(), taskExecutorCaptor.capture());
+            // TODO moar mocks needed here
+            // verify(clusterService).submitStateUpdateTask(any(), taskCaptor.capture(), any(), taskExecutorCaptor.capture());
             when(taskContext.getTask()).thenReturn(taskCaptor.getValue());
 
             int maxNodes = randomValueOtherThan(

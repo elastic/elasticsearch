@@ -227,11 +227,7 @@ public class ReservedClusterStateService {
     }
 
     // package private for testing
-    Exception checkAndReportError(
-        String namespace,
-        List<String> errors,
-        ReservedStateVersion reservedStateVersion
-    ) {
+    Exception checkAndReportError(String namespace, List<String> errors, ReservedStateVersion reservedStateVersion) {
         // Any errors should be discovered through validation performed in the transform calls
         if (errors.isEmpty() == false) {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);

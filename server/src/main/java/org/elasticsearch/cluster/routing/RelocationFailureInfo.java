@@ -22,7 +22,7 @@ import java.io.IOException;
 public record RelocationFailureInfo(int failedRelocations) implements ToXContentFragment, Writeable {
 
     public RelocationFailureInfo {
-        assert failedRelocations > 0 : "Expect positive failures count, got: " + failedRelocations;
+        assert failedRelocations >= 0 : "Expect non-negative failures count, got: " + failedRelocations;
     }
 
     public RelocationFailureInfo(StreamInput in) throws IOException {

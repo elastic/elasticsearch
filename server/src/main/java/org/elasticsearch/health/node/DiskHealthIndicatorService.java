@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -28,6 +28,7 @@ import org.elasticsearch.health.ImpactArea;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -35,6 +36,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
 
 public class DiskHealthIndicatorService implements HealthIndicatorService {
     public static final String NAME = "disk";
@@ -89,7 +92,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
         boolean clusterHasBlockedIndex = indicesWithBlock.isEmpty() == false;
-        HealthIndicatorDetails details = getDetails(explain, diskHealthInfoMap, clusterState);
+        HealthIndicatorDetails details = getDetails(explain, diskHealthInfoMap, indicesWithBlock);
         final HealthStatus healthStatusFromNodes = HealthStatus.merge(
             diskHealthInfoMap.values().stream().map(DiskHealthInfo::healthStatus)
         );
@@ -123,24 +126,19 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             Set<String> yellowNonDataNonMasterNodes = getNodesWithNonDataNonMasterRoles(nodesReportingYellow, clusterState);
 
             String symptom = getSymptom(
-                clusterHasBlockedIndex,
                 indicesWithBlock,
-                nodesWithBlockedIndices,
+                redDataNodes,
+                yellowDataNodes,
                 nodesReportingRed,
                 nodesReportingYellow,
                 clusterState
             );
             List<HealthIndicatorImpact> impacts = getImpacts(
                 indicesWithBlock,
-                indicesOnRedNodes,
-                indicesOnYellowNodes,
-                nodesWithBlockedIndices,
-                redDataNodes,
-                yellowDataNodes,
-                redMasterNodes,
-                yellowMasterNodes,
-                redNonDataNonMasterNodes,
-                yellowNonDataNonMasterNodes
+                Sets.union(indicesOnYellowNodes, indicesOnRedNodes),
+                nodesReportingRed,
+                nodesReportingYellow,
+                clusterState
             );
             List<Diagnosis> diagnosisList = getDiagnoses(
                 indicesWithBlock,
@@ -160,36 +158,66 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     }
 
     private String getSymptom(
-        boolean clusterHasBlockedIndex,
         Set<String> blockedIndices,
-        Set<String> nodesWithBlockedIndices,
+        Set<String> redDataNodes,
+        Set<String> yellowDataNodes,
         Set<String> nodesReportingRed,
         Set<String> nodesReportingYellow,
         ClusterState clusterState
     ) {
-        Set<String> allUnhealthyNodes = (Stream.concat(
-            Stream.concat(nodesWithBlockedIndices.stream(), nodesReportingRed.stream()),
-            nodesReportingYellow.stream()
-        )).collect(Collectors.toSet());
-        Set<String> allRolesOnUnhealthyNodes = getRolesOnNodes(allUnhealthyNodes, clusterState).stream()
-            .map(DiscoveryNodeRole::roleName)
-            .collect(Collectors.toSet());
-        final String symptom;
-        if (clusterHasBlockedIndex && allUnhealthyNodes.isEmpty()) {
-            // In this case the disk issue has been resolved but the index block has not been automatically removed yet:
+        Set<String> unhealthyDataNodes = Sets.union(redDataNodes, yellowDataNodes);
+        Set<String> allUnhealthyNodes = Sets.union(nodesReportingRed, nodesReportingYellow);
+
+        String symptom;
+        if (blockedIndices.isEmpty() == false) {
             symptom = String.format(
                 Locale.ROOT,
-                "%d %s blocked and cannot be updated but 0 nodes are currently out of space.",
+                "%d %s not allowed to be updated because ",
                 blockedIndices.size(),
                 blockedIndices.size() == 1 ? "index is" : "indices are"
             );
+            if (unhealthyDataNodes.isEmpty()) {
+                // In this case the disk issue has been resolved but the index block has not been removed yet or the
+                // cluster is still moving shards away from data nodes that are over the high watermark.
+                symptom +=
+                    ("the cluster was running out of disk space. The cluster is recovering and ingest capabilities should be restored "
+                        + "within a few minutes.");
+            } else {
+                symptom += String.format(
+                    Locale.ROOT,
+                    "%d %s out of disk or running low on disk space.",
+                    unhealthyDataNodes.size(),
+                    unhealthyDataNodes.size() == 1 ? "node is" : "nodes are"
+                );
+            }
+            if (unhealthyDataNodes.size() < allUnhealthyNodes.size()) {
+                Set<String> unhealthyNonDataNodes = Sets.difference(allUnhealthyNodes, unhealthyDataNodes);
+                String roles = getRolesOnNodes(unhealthyNonDataNodes, clusterState).stream()
+                    .map(DiscoveryNodeRole::roleName)
+                    .distinct()
+                    .sorted()
+                    .collect(Collectors.joining(", "));
+                symptom += String.format(
+                    Locale.ROOT,
+                    " Furthermore %d node%s with roles: [%s] %s out of disk or running low on disk space.",
+                    unhealthyNonDataNodes.size(),
+                    unhealthyNonDataNodes.size() == 1 ? "" : "s",
+                    roles,
+                    unhealthyNonDataNodes.size() == 1 ? "is" : "are"
+                );
+            }
         } else {
+            String roles = getRolesOnNodes(allUnhealthyNodes, clusterState).stream()
+                .map(DiscoveryNodeRole::roleName)
+                .distinct()
+                .sorted()
+                .collect(Collectors.joining(", "));
             symptom = String.format(
                 Locale.ROOT,
                 "%d node%s with roles: [%s] %s out of disk or running low on disk space.",
                 allUnhealthyNodes.size(),
                 allUnhealthyNodes.size() == 1 ? "" : "s",
-                allRolesOnUnhealthyNodes.stream().sorted().collect(Collectors.joining(", ")),
+                roles,
                 allUnhealthyNodes.size() == 1 ? "is" : "are"
             );
         }
@@ -198,42 +226,44 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     private List<HealthIndicatorImpact> getImpacts(
         Set<String> indicesWithBlock,
-        Set<String> indicesOnRedNodes,
-        Set<String> indicesOnYellowNodes,
-        Set<String> nodesWithBlockedIndices,
-        Set<String> redDataNodes,
-        Set<String> yellowDataNodes,
-        Set<String> redMasterNodes,
-        Set<String> yellowMasterNodes,
-        Set<String> redNonDataNonMasterNodes,
-        Set<String> yellowNonDataNonMasterNodes
+        Set<String> indicesOnUnhealthyNodes,
+        Set<String> nodesReportingRed,
+        Set<String> nodesReportingYellow,
+        ClusterState clusterState
     ) {
         List<HealthIndicatorImpact> impacts = new ArrayList<>();
-        if (indicesWithBlock.isEmpty() == false
-            || indicesOnRedNodes.isEmpty() == false
-            || nodesWithBlockedIndices.isEmpty() == false
-            || redDataNodes.isEmpty() == false) {
+        if (indicesWithBlock.isEmpty() == false) {
             impacts.add(
                 new HealthIndicatorImpact(
                     NAME,
                     IMPACT_INGEST_UNAVAILABLE_ID,
                     1,
-                    "Cannot insert or update documents in the affected indices.",
+                    String.format(
+                        Locale.ROOT,
+                        "Cannot insert or update documents in the affected indices [%s].",
+                        getTruncatedIndices(indicesWithBlock, clusterState.getMetadata())
+                    ),
                     List.of(ImpactArea.INGEST)
                 )
             );
-        } else if (indicesOnYellowNodes.isEmpty() == false || yellowDataNodes.isEmpty() == false) {
+        } else if (indicesOnUnhealthyNodes.isEmpty() == false) {
             impacts.add(
                 new HealthIndicatorImpact(
                     NAME,
                     IMPACT_INGEST_AT_RISK_ID,
                     1,
-                    "At risk of not being able to insert or update documents in the affected indices.",
+                    String.format(
+                        Locale.ROOT,
+                        "The cluster is at risk of not being able to insert or update documents in the affected indices [%s].",
+                        getTruncatedIndices(indicesOnUnhealthyNodes, clusterState.metadata())
+                    ),
                     List.of(ImpactArea.INGEST)
                 )
             );
         }
-        if (redMasterNodes.isEmpty() == false || yellowMasterNodes.isEmpty() == false) {
+        Set<String> unhealthyNodes = Stream.concat(nodesReportingRed.stream(), nodesReportingYellow.stream()).collect(Collectors.toSet());
+        Set<DiscoveryNodeRole> unhealthyRoles = getRolesOnNodes(unhealthyNodes, clusterState);
+        if (unhealthyRoles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
             impacts.add(
                 new HealthIndicatorImpact(
                     NAME,
@@ -244,13 +274,19 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 )
             );
         }
-        if (redNonDataNonMasterNodes.isEmpty() == false || yellowNonDataNonMasterNodes.isEmpty() == false) {
+        String unhealthyNonMasterNonDataRoles = unhealthyRoles.stream()
+            .filter(role -> role.canContainData() == false && role.equals(DiscoveryNodeRole.MASTER_ROLE) == false)
+            .map(DiscoveryNodeRole::roleName)
+            .distinct()
+            .sorted()
+            .collect(Collectors.joining(", "));
+        if (unhealthyNonMasterNonDataRoles.isBlank() == false) {
             impacts.add(
                 new HealthIndicatorImpact(
                     NAME,
                     IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID,
                     2,
-                    "Some cluster functionality might be unavailable.",
+                    String.format(Locale.ROOT, "The [%s] functionality might be impaired.", unhealthyNonMasterNonDataRoles),
                     List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                 )
             );
@@ -376,7 +412,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .values()
             .stream()
             .filter(node -> nodeIds.contains(node.getId()))
-            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.MASTER_ROLE))
+            .filter(node -> node.canContainData() == false && node.isMasterNode())
             .map(DiscoveryNode::getId)
             .collect(Collectors.toSet());
     }
@@ -388,11 +424,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .values()
             .stream()
             .filter(node -> nodeIds.contains(node.getId()))
-            .filter(
-                node -> node.getRoles()
-                    .stream()
-                    .anyMatch(role -> (role.equals(DiscoveryNodeRole.MASTER_ROLE) || role.canContainData()) == false)
-            )
+            .filter(node -> node.canContainData() == false && node.isMasterNode() == false)
             .map(DiscoveryNode::getId)
             .collect(Collectors.toSet());
     }
@@ -419,7 +451,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     /**
      * This method logs if any nodes in the cluster state do not have health info results reported. This is logged at debug level and is
-     * not ordinarly important, but could be useful in tracking down problems where nodes have stopped reporting health node information.
+     * not ordinary important, but could be useful in tracking down problems where nodes have stopped reporting health node information.
      * @param diskHealthInfoMap A map of nodeId to DiskHealthInfo
      */
     private void logMissingHealthInfoData(Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
@@ -430,49 +462,31 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             if (nodeIdsInHealthInfo.containsAll(nodeIdsInClusterState) == false) {
                 String nodesWithMissingData = nodesInClusterState.stream()
                     .filter(node -> nodeIdsInHealthInfo.contains(node.getId()) == false)
-                    .map(node -> String.format(Locale.ROOT, "{%s / %s}", node.getId(), node.getName()))
+                    .map(HealthIndicatorDisplayValues::getNodeName)
                     .collect(Collectors.joining(", "));
-                logger.debug("The following nodes are in the cluster state but not reporting health data: [{}}]", nodesWithMissingData);
+                logger.debug("The following nodes are in the cluster state but not reporting health data: [{}]", nodesWithMissingData);
             }
         }
     }
 
-    private HealthIndicatorDetails getDetails(boolean explain, Map<String, DiskHealthInfo> diskHealthInfoMap, ClusterState clusterState) {
+    private HealthIndicatorDetails getDetails(boolean explain, Map<String, DiskHealthInfo> diskHealthInfoMap, Set<String> blockedIndices) {
         if (explain == false) {
             return HealthIndicatorDetails.EMPTY;
         }
-        return (builder, params) -> {
+        Map<HealthStatus, Integer> healthNodesCount = new HashMap<>();
+        for (HealthStatus healthStatus : HealthStatus.values()) {
+            healthNodesCount.put(healthStatus, 0);
+        }
+        for (DiskHealthInfo diskHealthInfo : diskHealthInfoMap.values()) {
+            healthNodesCount.computeIfPresent(diskHealthInfo.healthStatus(), (key, oldCount) -> oldCount + 1);
+        }
+        return ((builder, params) -> {
             builder.startObject();
-            builder.array("nodes", arrayXContentBuilder -> {
-                for (Map.Entry<String, DiskHealthInfo> entry : diskHealthInfoMap.entrySet()) {
-                    builder.startObject();
-                    String nodeId = entry.getKey();
-                    builder.field("node_id", nodeId);
-                    String nodeName = getNameForNodeId(nodeId, clusterState);
-                    if (nodeName != null) {
-                        builder.field("name", nodeName);
-                    }
-                    builder.field("status", entry.getValue().healthStatus());
-                    DiskHealthInfo.Cause cause = entry.getValue().cause();
-                    if (cause != null) {
-                        builder.field("cause", entry.getValue().cause());
-                    }
-                    builder.endObject();
-                }
-            });
+            builder.field("blocked_indices", blockedIndices.size());
+            for (HealthStatus healthStatus : HealthStatus.values()) {
+                builder.field(healthStatus.name().toLowerCase(Locale.ROOT) + "_nodes", healthNodesCount.get(healthStatus));
+            }
             return builder.endObject();
-        };
-    }
-
-    /**
-     * Returns the name of the node with the given nodeId, as seen in the cluster state at this moment. The name of a node is optional,
-     * so if the node does not have a name (or the node with the given nodeId is no longer in the cluster state), null is returned.
-     * @param nodeId The id of the node whose name is to be returned
-     * @return The current name of the node, or null if the node is not in the cluster state or does not have a name
-     */
-    @Nullable
-    private String getNameForNodeId(String nodeId, ClusterState clusterState) {
-        DiscoveryNode node = clusterState.nodes().get(nodeId);
-        return node == null ? null : node.getName();
+        });
     }
 }

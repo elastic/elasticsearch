@@ -495,7 +495,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("no such index [missing-index]"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90197")
     public void testCannotRollupWhileOtherRollupInProgress() throws Exception {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
@@ -524,6 +523,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             }
         };
         client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config), rollupListener);
+        assertBusy(() -> {
+            try {
+                assertEquals(client().admin().indices().prepareGetIndex().addIndices(rollupIndex).get().getIndices().length, 1);
+            } catch (IndexNotFoundException e) {
+                fail("rollup index has not been created");
+            }
+        });
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)

@@ -1904,7 +1904,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89867")
     public void testSingleNodeDiscoveryStabilisesEvenWhenDisrupted() {
         try (
             Cluster cluster = new Cluster(
@@ -1929,7 +1928,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             final ClusterNode clusterNode = cluster.getAnyNode();
 
-            final long clusterStateUpdateDelay = 7 * delayVariabilityMillis; // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            final long clusterStateUpdateDelay = CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS * delayVariabilityMillis;
 
             // cf. DEFAULT_STABILISATION_TIME, but stabilisation is quicker when there's a single node - there's no meaningful fault
             // detection and ongoing publications do not time out

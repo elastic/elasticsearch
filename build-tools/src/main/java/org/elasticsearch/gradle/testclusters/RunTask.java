@@ -33,8 +33,11 @@ import java.util.stream.Collectors;
 
 public class RunTask extends DefaultTestClustersTask {
 
-    private static final Logger logger = Logging.getLogger(RunTask.class);
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";
+    private static final Logger logger = Logging.getLogger(RunTask.class);
+    private static final String tlsCertificateAuthority = "public-ca.pem";
+    private static final String httpsCertificate = "private-cert1.p12";
+    private static final String transportCertificate = "private-cert2.p12";
 
     private Boolean debug = false;
 
@@ -49,12 +52,6 @@ public class RunTask extends DefaultTestClustersTask {
     private final Path tlsBasePath = Path.of(
         new File(getProject().getProjectDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
     );
-
-    private final String tlsCertificateAuthority = "public-ca.pem";
-
-    private final String httpsCertificate = "private-cert1.p12";
-
-    private final String transportCertificate = "private-cert2.p12";
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
@@ -250,11 +247,7 @@ public class RunTask extends DefaultTestClustersTask {
      */
     private Set<String> findConfiguredSettingsByPrefix(String prefix, ElasticsearchNode node) {
         Set<String> preConfigured = new HashSet<>();
-        node.getSettingKeys().forEach(key -> {
-            if (key.startsWith(prefix)) {
-                preConfigured.add(prefix);
-            }
-        });
+        node.getSettingKeys().stream().filter(key -> key.startsWith(prefix)).forEach(k -> preConfigured.add(prefix));
         return preConfigured;
     }
 }

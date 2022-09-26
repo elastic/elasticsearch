@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.health.Diagnosis;
@@ -24,14 +24,17 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
+import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -91,344 +94,16 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             .filter(entry -> entry.getValue().contains(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
-        boolean clusterHasBlockedIndex = blockedIndices.isEmpty() == false;
         HealthIndicatorDetails details = getDetails(explain, diskHealthInfoMap, blockedIndices);
-        final HealthStatus healthStatusFromNodes = HealthStatus.merge(
-            diskHealthInfoMap.values().stream().map(DiskHealthInfo::healthStatus)
+
+        DiskHealthAnalyzer diskHealthAnalyzer = new DiskHealthAnalyzer(diskHealthInfoMap, blockedIndices, clusterState);
+        return createIndicator(
+            diskHealthAnalyzer.getHealthStatus(),
+            diskHealthAnalyzer.getSymptom(),
+            details,
+            diskHealthAnalyzer.getImpacts(),
+            diskHealthAnalyzer.getDiagnoses()
         );
-        final HealthStatus healthStatus = clusterHasBlockedIndex ? HealthStatus.RED : healthStatusFromNodes;
-
-        if (HealthStatus.GREEN.equals(healthStatus)) {
-            return createIndicator(healthStatus, "The cluster has enough available disk space.", details, List.of(), List.of());
-        }
-        /*
-         * In this case the status is either RED or YELLOW. So we collect information about red and yellow indices (including indices
-         *  with blocks placed on them), and red and yellow nodes (including those with a blocked index). We then use that
-         * information to get the symptom, impacts, and diagnoses for the result.
-         */
-        Set<String> nodesWithBlockedIndices = getNodeIdsForIndices(blockedIndices, clusterState);
-        Set<String> nodesReportingRed = getNodeIdsReportingStatus(diskHealthInfoMap, HealthStatus.RED);
-        Set<String> indicesOnRedNodes = getIndicesForNodes(nodesReportingRed, clusterState);
-        Set<String> nodesReportingYellow = getNodeIdsReportingStatus(diskHealthInfoMap, HealthStatus.YELLOW);
-        Set<String> indicesOnYellowNodes = getIndicesForNodes(nodesReportingYellow, clusterState);
-        Set<String> redDataNodes = getNodesWithDataRole(nodesReportingRed, clusterState);
-        Set<String> yellowDataNodes = getNodesWithDataRole(nodesReportingYellow, clusterState);
-        Set<String> redMasterNodes = getNodesWithMasterRole(nodesReportingRed, clusterState);
-        Set<String> yellowMasterNodes = getNodesWithMasterRole(nodesReportingYellow, clusterState);
-        Set<String> redNonDataNonMasterNodes = getNodesWithNonDataNonMasterRoles(nodesReportingRed, clusterState);
-        Set<String> yellowNonDataNonMasterNodes = getNodesWithNonDataNonMasterRoles(nodesReportingYellow, clusterState);
-
-        String symptom = getSymptom(blockedIndices, redDataNodes, yellowDataNodes, nodesReportingRed, nodesReportingYellow, clusterState);
-        List<HealthIndicatorImpact> impacts = getImpacts(
-            blockedIndices,
-            Sets.union(indicesOnYellowNodes, indicesOnRedNodes),
-            nodesReportingRed,
-            nodesReportingYellow,
-            clusterState
-        );
-        List<Diagnosis> diagnosisList = getDiagnoses(
-            blockedIndices,
-            indicesOnRedNodes,
-            indicesOnYellowNodes,
-            nodesWithBlockedIndices,
-            redDataNodes,
-            yellowDataNodes,
-            redMasterNodes,
-            yellowMasterNodes,
-            redNonDataNonMasterNodes,
-            yellowNonDataNonMasterNodes
-        );
-        return createIndicator(healthStatus, symptom, details, impacts, diagnosisList);
-    }
-
-    private String getSymptom(
-        Set<String> blockedIndices,
-        Set<String> redDataNodes,
-        Set<String> yellowDataNodes,
-        Set<String> nodesReportingRed,
-        Set<String> nodesReportingYellow,
-        ClusterState clusterState
-    ) {
-        Set<String> unhealthyDataNodes = Sets.union(redDataNodes, yellowDataNodes);
-        Set<String> allUnhealthyNodes = Sets.union(nodesReportingRed, nodesReportingYellow);
-
-        String symptom;
-        if (blockedIndices.isEmpty() == false) {
-            symptom = String.format(
-                Locale.ROOT,
-                "%d %s not allowed to be updated because ",
-                blockedIndices.size(),
-                blockedIndices.size() == 1 ? "index is" : "indices are"
-            );
-            if (unhealthyDataNodes.isEmpty()) {
-                // In this case the disk issue has been resolved but the index block has not been removed yet or the
-                // cluster is still moving shards away from data nodes that are over the high watermark.
-                symptom +=
-                    ("the cluster was running out of disk space. The cluster is recovering and ingest capabilities should be restored "
-                        + "within a few minutes.");
-            } else {
-                symptom += String.format(
-                    Locale.ROOT,
-                    "%d %s out of disk or running low on disk space.",
-                    unhealthyDataNodes.size(),
-                    unhealthyDataNodes.size() == 1 ? "node is" : "nodes are"
-                );
-            }
-            if (unhealthyDataNodes.size() < allUnhealthyNodes.size()) {
-                Set<String> unhealthyNonDataNodes = Sets.difference(allUnhealthyNodes, unhealthyDataNodes);
-                String roles = getSortedUniqueValuesString(
-                    getRolesOnNodes(unhealthyNonDataNodes, clusterState),
-                    DiscoveryNodeRole::roleName
-                );
-                symptom += String.format(
-                    Locale.ROOT,
-                    " Furthermore %d node%s with roles: [%s] %s out of disk or running low on disk space.",
-                    unhealthyNonDataNodes.size(),
-                    unhealthyNonDataNodes.size() == 1 ? "" : "s",
-                    roles,
-                    unhealthyNonDataNodes.size() == 1 ? "is" : "are"
-                );
-            }
-        } else {
-            String roles = getSortedUniqueValuesString(
-                getRolesOnNodes(allUnhealthyNodes, clusterState),
-                DiscoveryNodeRole::roleName
-            );
-            symptom = String.format(
-                Locale.ROOT,
-                "%d node%s with roles: [%s] %s out of disk or running low on disk space.",
-                allUnhealthyNodes.size(),
-                allUnhealthyNodes.size() == 1 ? "" : "s",
-                roles,
-                allUnhealthyNodes.size() == 1 ? "is" : "are"
-            );
-        }
-        return symptom;
-    }
-
-    private List<HealthIndicatorImpact> getImpacts(
-        Set<String> indicesWithBlock,
-        Set<String> indicesOnUnhealthyNodes,
-        Set<String> nodesReportingRed,
-        Set<String> nodesReportingYellow,
-        ClusterState clusterState
-    ) {
-        List<HealthIndicatorImpact> impacts = new ArrayList<>();
-        if (indicesWithBlock.isEmpty() == false) {
-            impacts.add(
-                new HealthIndicatorImpact(
-                    NAME,
-                    IMPACT_INGEST_UNAVAILABLE_ID,
-                    1,
-                    String.format(
-                        Locale.ROOT,
-                        "Cannot insert or update documents in the affected indices [%s].",
-                        getTruncatedIndices(indicesWithBlock, clusterState.getMetadata())
-                    ),
-                    List.of(ImpactArea.INGEST)
-                )
-            );
-        } else if (indicesOnUnhealthyNodes.isEmpty() == false) {
-            impacts.add(
-                new HealthIndicatorImpact(
-                    NAME,
-                    IMPACT_INGEST_AT_RISK_ID,
-                    1,
-                    String.format(
-                        Locale.ROOT,
-                        "The cluster is at risk of not being able to insert or update documents in the affected indices [%s].",
-                        getTruncatedIndices(indicesOnUnhealthyNodes, clusterState.metadata())
-                    ),
-                    List.of(ImpactArea.INGEST)
-                )
-            );
-        }
-        Set<String> unhealthyNodes = Stream.concat(nodesReportingRed.stream(), nodesReportingYellow.stream()).collect(Collectors.toSet());
-        Set<DiscoveryNodeRole> unhealthyRoles = getRolesOnNodes(unhealthyNodes, clusterState);
-        if (unhealthyRoles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
-            impacts.add(
-                new HealthIndicatorImpact(
-                    NAME,
-                    IMPACT_CLUSTER_STABILITY_AT_RISK_ID,
-                    2,
-                    "Cluster stability might be impaired.",
-                    List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
-                )
-            );
-        }
-        String unhealthyNonMasterNonDataRoles = unhealthyRoles.stream()
-            .filter(role -> role.canContainData() == false && role.equals(DiscoveryNodeRole.MASTER_ROLE) == false)
-            .map(DiscoveryNodeRole::roleName)
-            .distinct()
-            .sorted()
-            .collect(Collectors.joining(", "));
-        if (unhealthyNonMasterNonDataRoles.isBlank() == false) {
-            impacts.add(
-                new HealthIndicatorImpact(
-                    NAME,
-                    IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID,
-                    2,
-                    String.format(Locale.ROOT, "The [%s] functionality might be impaired.", unhealthyNonMasterNonDataRoles),
-                    List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
-                )
-            );
-        }
-        return impacts;
-    }
-
-    private List<Diagnosis> getDiagnoses(
-        Set<String> indicesWithBlock,
-        Set<String> indicesOnRedNodes,
-        Set<String> indicesOnYellowNodes,
-        Set<String> nodesWithBlockedIndices,
-        Set<String> redDataNodes,
-        Set<String> yellowDataNodes,
-        Set<String> redMasterNodes,
-        Set<String> yellowMasterNodes,
-        Set<String> redNonDataNonMasterNodes,
-        Set<String> yellowNonDataNonMasterNodes
-    ) {
-        List<Diagnosis> diagnosisList = new ArrayList<>();
-        if (indicesWithBlock.isEmpty() == false
-            || nodesWithBlockedIndices.isEmpty() == false
-            || indicesOnRedNodes.isEmpty() == false
-            || redDataNodes.isEmpty() == false
-            || indicesOnYellowNodes.isEmpty() == false
-            || yellowDataNodes.isEmpty() == false) {
-            Set<String> impactedIndices = Stream.concat(
-                Stream.concat(indicesWithBlock.stream(), indicesOnRedNodes.stream()),
-                indicesOnYellowNodes.stream()
-            ).collect(Collectors.toSet());
-            Set<String> unhealthyNodes = Stream.concat(
-                Stream.concat(nodesWithBlockedIndices.stream(), redDataNodes.stream()),
-                yellowDataNodes.stream()
-            ).collect(Collectors.toSet());
-            diagnosisList.add(
-                new Diagnosis(
-                    new Diagnosis.Definition(
-                        NAME,
-                        "add_disk_capacity_data_nodes",
-                        String.format(
-                            Locale.ROOT,
-                            "%d %s reside%s on nodes that have run out of space and writing has been blocked by the system.",
-                            impactedIndices.size(),
-                            impactedIndices.size() == 1 ? "index" : "indices",
-                            impactedIndices.size() == 1 ? "s" : ""
-                        ),
-                        "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
-                            + "this. If you have already taken action please wait for the rebalancing to complete.",
-                        "https://ela.st/fix-data-disk"
-                    ),
-                    unhealthyNodes.stream().sorted().toList()
-                )
-            );
-        }
-        if (redMasterNodes.isEmpty() == false || yellowMasterNodes.isEmpty() == false) {
-            diagnosisList.add(
-                new Diagnosis(
-                    new Diagnosis.Definition(
-                        NAME,
-                        "add_disk_capacity_master_nodes",
-                        "Disk is almost full.",
-                        "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
-                        "https://ela.st/fix-master-disk"
-                    ),
-                    Stream.concat(redMasterNodes.stream(), yellowMasterNodes.stream()).sorted().toList()
-                )
-            );
-        }
-        if (redNonDataNonMasterNodes.isEmpty() == false || yellowNonDataNonMasterNodes.isEmpty() == false) {
-            diagnosisList.add(
-                new Diagnosis(
-                    new Diagnosis.Definition(
-                        NAME,
-                        "add_disk_capacity",
-                        "Disk is almost full.",
-                        "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
-                        "https://ela.st/fix-disk-space"
-                    ),
-                    Stream.concat(redNonDataNonMasterNodes.stream(), yellowNonDataNonMasterNodes.stream()).sorted().toList()
-                )
-            );
-        }
-        return diagnosisList;
-    }
-
-    // Non-private for unit testing
-    static Set<String> getNodeIdsReportingStatus(Map<String, DiskHealthInfo> diskHealthInfoMap, HealthStatus status) {
-        return diskHealthInfoMap.entrySet()
-            .stream()
-            .filter(entry -> status.equals(entry.getValue().healthStatus()))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
-    }
-
-    // Non-private for unit testing
-    static Set<DiscoveryNodeRole> getRolesOnNodes(Set<String> nodeIds, ClusterState clusterState) {
-        return clusterState.nodes()
-            .getNodes()
-            .values()
-            .stream()
-            .filter(node -> nodeIds.contains(node.getId()))
-            .map(DiscoveryNode::getRoles)
-            .flatMap(Collection::stream)
-            .collect(Collectors.toSet());
-    }
-
-    // Non-private for unit testing
-    static Set<String> getNodesWithDataRole(Set<String> nodeIds, ClusterState clusterState) {
-        return clusterState.nodes()
-            .getNodes()
-            .values()
-            .stream()
-            .filter(node -> nodeIds.contains(node.getId()))
-            .filter(node -> node.getRoles().stream().anyMatch(DiscoveryNodeRole::canContainData))
-            .map(DiscoveryNode::getId)
-            .collect(Collectors.toSet());
-    }
-
-    // Non-private for unit testing
-    static Set<String> getNodesWithMasterRole(Set<String> nodeIds, ClusterState clusterState) {
-        return clusterState.nodes()
-            .getNodes()
-            .values()
-            .stream()
-            .filter(node -> nodeIds.contains(node.getId()))
-            .filter(node -> node.canContainData() == false && node.isMasterNode())
-            .map(DiscoveryNode::getId)
-            .collect(Collectors.toSet());
-    }
-
-    // Non-private for unit testing
-    static Set<String> getNodesWithNonDataNonMasterRoles(Set<String> nodeIds, ClusterState clusterState) {
-        return clusterState.nodes()
-            .getNodes()
-            .values()
-            .stream()
-            .filter(node -> nodeIds.contains(node.getId()))
-            .filter(node -> node.canContainData() == false && node.isMasterNode() == false)
-            .map(DiscoveryNode::getId)
-            .collect(Collectors.toSet());
-    }
-
-    // Non-private for unit testing
-    static Set<String> getIndicesForNodes(Set<String> nodes, ClusterState clusterState) {
-        return clusterState.routingTable()
-            .allShards()
-            .stream()
-            .filter(routing -> nodes.contains(routing.currentNodeId()))
-            .map(routing -> routing.index().getName())
-            .collect(Collectors.toSet());
-    }
-
-    // Non-private for unit testing
-    static Set<String> getNodeIdsForIndices(Set<String> indices, ClusterState clusterState) {
-        return clusterState.routingTable()
-            .allShards()
-            .stream()
-            .filter(routing -> indices.contains(routing.index().getName()))
-            .map(ShardRouting::currentNodeId)
-            .collect(Collectors.toSet());
     }
 
     /**
@@ -468,5 +143,261 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             }
             return builder.endObject();
         });
+    }
+
+    static class DiskHealthAnalyzer {
+
+        private final ClusterState clusterState;
+        private final Set<String> blockedIndices;
+        private final Set<DiscoveryNode> dataNodes = new HashSet<>();
+        // In this context a dedicated master node, is a master node that cannot contain data.
+        private final Set<DiscoveryNode> dedicatedMasterNodes = new HashSet<>();
+        // In this context "other" nodes are nodes that cannot contain data and are not masters.
+        private final Set<DiscoveryNode> otherNodes = new HashSet<>();
+        private final Set<DiscoveryNodeRole> impactedRoles = new HashSet<>();
+        private final Set<String> indicesAtRisk;
+        private final HealthStatus healthStatus;
+
+        DiskHealthAnalyzer(Map<String, DiskHealthInfo> diskHealthByNode, Set<String> blockedIndices, ClusterState clusterState) {
+            this.clusterState = clusterState;
+            this.blockedIndices = blockedIndices;
+            HealthStatus mostSevereNodeHealthStatus = HealthStatus.GREEN;
+            for (String nodeId : diskHealthByNode.keySet()) {
+                DiscoveryNode node = clusterState.getNodes().get(nodeId);
+                HealthStatus healthStatus = diskHealthByNode.get(nodeId).healthStatus();
+                // TODO #90213 update this only after we check that this health status indicates a problem.
+                if (mostSevereNodeHealthStatus.value() < healthStatus.value()) {
+                    mostSevereNodeHealthStatus = healthStatus;
+                }
+                if (node == null || healthStatus.indicatesHealthProblem() == false) {
+                    continue;
+                }
+                impactedRoles.addAll(node.getRoles());
+                if (node.canContainData()) {
+                    dataNodes.add(node);
+                } else if (node.isMasterNode()) {
+                    dedicatedMasterNodes.add(node);
+                } else {
+                    otherNodes.add(node);
+                }
+            }
+            indicesAtRisk = getIndicesForNodes(dataNodes, clusterState);
+            healthStatus = blockedIndices.isEmpty() == false ? HealthStatus.RED : mostSevereNodeHealthStatus;
+        }
+
+        public HealthStatus getHealthStatus() {
+            return healthStatus;
+        }
+
+        String getSymptom() {
+            if (healthStatus == HealthStatus.GREEN) {
+                return "The cluster has enough available disk space.";
+            }
+            String symptom;
+            if (blockedIndices.isEmpty() == false) {
+                symptom = String.format(
+                    Locale.ROOT,
+                    "%d %s not allowed to be updated because ",
+                    blockedIndices.size(),
+                    blockedIndices.size() == 1 ? "index is" : "indices are"
+                );
+                if (hasUnhealthyDataNodes()) {
+                    symptom += String.format(
+                        Locale.ROOT,
+                        "%d %s out of disk or running low on disk space.",
+                        dataNodes.size(),
+                        dataNodes.size() == 1 ? "node is" : "nodes are"
+                    );
+                } else {
+                    // In this case the disk issue has been resolved but the index block has not been removed yet or the
+                    // cluster is still moving shards away from data nodes that are over the high watermark.
+                    symptom +=
+                        ("the cluster was running out of disk space. The cluster is recovering and ingest capabilities should be restored "
+                            + "within a few minutes.");
+                }
+                if (hasUnhealthyMasterNodes() || hasUnhealthyOtherNodes()) {
+                    String roles = Stream.concat(dedicatedMasterNodes.stream(), otherNodes.stream())
+                        .flatMap(node -> node.getRoles().stream())
+                        .map(DiscoveryNodeRole::roleName)
+                        .distinct()
+                        .sorted()
+                        .collect(Collectors.joining(", "));
+
+                    int unhealthyNodesCount = dedicatedMasterNodes.size() + otherNodes.size();
+                    symptom += String.format(
+                        Locale.ROOT,
+                        " Furthermore %d node%s with roles: [%s] %s out of disk or running low on disk space.",
+                        unhealthyNodesCount,
+                        unhealthyNodesCount == 1 ? "" : "s",
+                        roles,
+                        unhealthyNodesCount == 1 ? "is" : "are"
+                    );
+                }
+            } else {
+                String roles = getSortedUniqueValuesString(impactedRoles, DiscoveryNodeRole::roleName);
+                int unhealthyNodesCount = dedicatedMasterNodes.size() + otherNodes.size() + dataNodes.size();
+                symptom = String.format(
+                    Locale.ROOT,
+                    "%d node%s with roles: [%s] %s out of disk or running low on disk space.",
+                    unhealthyNodesCount,
+                    unhealthyNodesCount == 1 ? "" : "s",
+                    roles,
+                    unhealthyNodesCount == 1 ? "is" : "are"
+                );
+            }
+            return symptom;
+        }
+
+        List<HealthIndicatorImpact> getImpacts() {
+            if (healthStatus == HealthStatus.GREEN) {
+                return List.of();
+            }
+            List<HealthIndicatorImpact> impacts = new ArrayList<>();
+            if (hasBlockedIndices()) {
+                impacts.add(
+                    new HealthIndicatorImpact(
+                        NAME,
+                        IMPACT_INGEST_UNAVAILABLE_ID,
+                        1,
+                        String.format(
+                            Locale.ROOT,
+                            "Cannot insert or update documents in the affected indices [%s].",
+                            getTruncatedIndices(blockedIndices, clusterState.getMetadata())
+                        ),
+                        List.of(ImpactArea.INGEST)
+                    )
+                );
+            } else {
+                if (indicesAtRisk.isEmpty() == false) {
+                    impacts.add(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            IMPACT_INGEST_AT_RISK_ID,
+                            1,
+                            String.format(
+                                Locale.ROOT,
+                                "The cluster is at risk of not being able to insert or update documents in the affected indices [%s].",
+                                getTruncatedIndices(indicesAtRisk, clusterState.metadata())
+                            ),
+                            List.of(ImpactArea.INGEST)
+                        )
+                    );
+                }
+            }
+            if (impactedRoles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
+                impacts.add(
+                    new HealthIndicatorImpact(
+                        NAME,
+                        IMPACT_CLUSTER_STABILITY_AT_RISK_ID,
+                        2,
+                        "Cluster stability might be impaired.",
+                        List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+                    )
+                );
+            }
+            String impactedOtherRoles = getSortedUniqueValuesString(
+                impactedRoles,
+                role -> role.canContainData() == false && role.equals(DiscoveryNodeRole.MASTER_ROLE) == false,
+                DiscoveryNodeRole::roleName
+            );
+            if (impactedOtherRoles.isBlank() == false) {
+                impacts.add(
+                    new HealthIndicatorImpact(
+                        NAME,
+                        IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID,
+                        2,
+                        String.format(Locale.ROOT, "The [%s] functionality might be impaired.", impactedOtherRoles),
+                        List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+                    )
+                );
+            }
+            return impacts;
+        }
+
+        private List<Diagnosis> getDiagnoses() {
+            if (healthStatus == HealthStatus.GREEN) {
+                return List.of();
+            }
+            List<Diagnosis> diagnosisList = new ArrayList<>();
+            if (hasBlockedIndices() || hasUnhealthyDataNodes()) {
+                Set<String> impactedIndices = Sets.union(blockedIndices, indicesAtRisk);
+                diagnosisList.add(
+                    new Diagnosis(
+                        new Diagnosis.Definition(
+                            NAME,
+                            "add_disk_capacity_data_nodes",
+                            String.format(
+                                Locale.ROOT,
+                                "%d %s reside%s on nodes that have run or are likely to run out of space, this can temporarily "
+                                    + "disable writing on this indices.",
+                                impactedIndices.size(),
+                                impactedIndices.size() == 1 ? "index" : "indices",
+                                impactedIndices.size() == 1 ? "s" : ""
+                            ),
+                            "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
+                                + "this. If you have already taken action please wait for the rebalancing to complete.",
+                            "https://ela.st/fix-data-disk"
+                        ),
+                        dataNodes.stream().map(DiscoveryNode::getId).sorted().toList()
+                    )
+                );
+            }
+            if (hasUnhealthyMasterNodes()) {
+                diagnosisList.add(
+                    new Diagnosis(
+                        new Diagnosis.Definition(
+                            NAME,
+                            "add_disk_capacity_master_nodes",
+                            "Disk is almost full.",
+                            "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
+                            "https://ela.st/fix-master-disk"
+                        ),
+                        dedicatedMasterNodes.stream().map(DiscoveryNode::getId).sorted().toList()
+                    )
+                );
+            }
+            if (hasUnhealthyOtherNodes()) {
+                diagnosisList.add(
+                    new Diagnosis(
+                        new Diagnosis.Definition(
+                            NAME,
+                            "add_disk_capacity",
+                            "Disk is almost full.",
+                            "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
+                            "https://ela.st/fix-disk-space"
+                        ),
+                        otherNodes.stream().map(DiscoveryNode::getId).sorted().toList()
+                    )
+                );
+            }
+            return diagnosisList;
+        }
+
+        private boolean hasUnhealthyDataNodes() {
+            return dataNodes.isEmpty() == false;
+        }
+
+        private boolean hasUnhealthyMasterNodes() {
+            return dedicatedMasterNodes.isEmpty() == false;
+        }
+
+        private boolean hasUnhealthyOtherNodes() {
+            return otherNodes.isEmpty() == false;
+        }
+
+        private boolean hasBlockedIndices() {
+            return blockedIndices.isEmpty() == false;
+        }
+
+        // Non-private for unit testing
+        static Set<String> getIndicesForNodes(Set<DiscoveryNode> nodes, ClusterState clusterState) {
+            RoutingNodes routingNodes = clusterState.getRoutingNodes();
+            return nodes.stream()
+                .map(node -> routingNodes.node(node.getId()))
+                .filter(Objects::nonNull)
+                .flatMap(routingNode -> Arrays.stream(routingNode.copyIndices()))
+                .map(Index::getName)
+                .collect(Collectors.toSet());
+        }
     }
 }

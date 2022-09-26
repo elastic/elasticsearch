@@ -20,6 +20,7 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
@@ -39,12 +40,13 @@ import javax.inject.Inject;
 
 public abstract class GeneratePluginPropertiesTask extends DefaultTask {
 
-    private static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";
+    public static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";
+    public static final String STABLE_PROPERTIES_FILENAME = "stable-plugin-descriptor.properties";
 
     @Inject
     public GeneratePluginPropertiesTask(ProjectLayout projectLayout) {
-        setDescription("Generate " + PROPERTIES_FILENAME);
-        getOutputFile().convention(projectLayout.getBuildDirectory().file("generated-descriptor/" + PROPERTIES_FILENAME));
+        // TODO I cannot tell if this is stable or not..
+        setDescription("Generate " + PROPERTIES_FILENAME + " or " + STABLE_PROPERTIES_FILENAME);
     }
 
     @Input
@@ -63,6 +65,7 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public abstract Property<String> getJavaVersion();
 
     @Input
+    @Optional
     public abstract Property<String> getClassname();
 
     @Input
@@ -83,10 +86,17 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
+    @Input
+    public abstract Property<String> getTemplateFileName();
+
+    @Input
+    public abstract Property<Boolean> getIsStable();
+
     @TaskAction
     public void generatePropertiesFile() throws IOException {
         String classname = getClassname().getOrElse("");
-        if (classname.isEmpty()) {
+        boolean stablePlugin = getIsStable().getOrElse(false);
+        if (stablePlugin == false && classname.isEmpty()) {
             throw new InvalidUserDataException("classname is a required setting for esplugin");
         }
 
@@ -96,7 +106,9 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         props.put("version", getPluginVersion().get());
         props.put("elasticsearchVersion", getElasticsearchVersion().get());
         props.put("javaVersion", getJavaVersion().get());
-        props.put("classname", classname);
+        if (classname.isEmpty() == false) {
+            props.put("classname", classname);
+        }
         props.put("extendedPlugins", String.join(",", getExtendedPlugins().get()));
         props.put("hasNativeController", getHasNativeController().get());
         props.put("requiresKeystore", getRequiresKeystore().get());
@@ -106,8 +118,9 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         SimpleTemplateEngine engine = new SimpleTemplateEngine();
         Path outputFile = getOutputFile().get().getAsFile().toPath();
         Files.createDirectories(outputFile.getParent());
+        String name = "/" + getTemplateFileName().get();
         try (
-            var inputStream = GeneratePluginPropertiesTask.class.getResourceAsStream("/" + PROPERTIES_FILENAME);
+            var inputStream = GeneratePluginPropertiesTask.class.getResourceAsStream(name);
             var reader = new BufferedReader(new InputStreamReader(inputStream));
             var writer = Files.newBufferedWriter(outputFile, StandardCharsets.UTF_8)
         ) {
@@ -129,4 +142,5 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         }
         return visitor.module.name;
     }
+
 }

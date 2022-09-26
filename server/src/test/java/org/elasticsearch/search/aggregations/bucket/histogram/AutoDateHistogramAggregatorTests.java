@@ -435,7 +435,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         testCase(new AggTestConfig<InternalAutoDateHistogram>(aggregation, iw -> {}, histogram -> {
             assertEquals(0, histogram.getBuckets().size());
             assertFalse(AggregationInspectionHelper.hasValue(histogram));
-        }, new MappedFieldType[] { fieldType }).withQuery(DEFAULT_QUERY));
+        }, fieldType));
     }
 
     public void testIntervalYear() throws IOException {

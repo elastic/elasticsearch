@@ -91,7 +91,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 },
                 a -> {},
                 new BooleanFieldMapper.BooleanFieldType(fieldName)
-            ).withQuery(new MatchAllDocsQuery())
+            )
         );
         assertWarnings("Running DateHistogram aggregations on [boolean] fields is deprecated");
     }

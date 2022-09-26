@@ -1,0 +1,15 @@
+explainFrom
+explain [ from foo ];
+
+plan:keyword | type:keyword
+"Project[[?*]]
+\_UnresolvedRelation[foo]" | PARSED
+;
+
+explainCompositeQuery
+explain [ row a = 1 | where a > 0 ];
+
+plan:keyword | type:keyword
+"Filter[?a > 0[INTEGER]]
+ \_Row[[1[INTEGER] AS a]]" | PARSED
+;

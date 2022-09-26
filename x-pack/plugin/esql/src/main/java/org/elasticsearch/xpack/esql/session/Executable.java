@@ -10,5 +10,5 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.action.ActionListener;
 
 public interface Executable {
-    void execute(ActionListener<Result> listener);
+    void execute(EsqlSession session, ActionListener<Result> listener);
 }

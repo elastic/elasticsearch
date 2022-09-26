@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -121,6 +122,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {
         return ctx.sourceIdentifier().stream().map(this::visitSourceIdentifier).collect(Collectors.joining(","));
+    }
+
+    @Override
+    public Object visitExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) {
+        return new Explain(source(ctx), typedParsing(this, ctx.subqueryExpression().query(), LogicalPlan.class));
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

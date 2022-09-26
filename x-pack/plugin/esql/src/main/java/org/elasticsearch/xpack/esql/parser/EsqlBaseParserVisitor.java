@@ -270,4 +270,16 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitComparisonOperator(EsqlBaseParser.ComparisonOperatorContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#explainCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitExplainCommand(EsqlBaseParser.ExplainCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#subqueryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSubqueryExpression(EsqlBaseParser.SubqueryExpressionContext ctx);
 }

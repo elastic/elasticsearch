@@ -231,7 +231,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         false,
                         true,
                         indexCreatedVersion
-                    );
+                    ).allowMultipleValues(false);
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);

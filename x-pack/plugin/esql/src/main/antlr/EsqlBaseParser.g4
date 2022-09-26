@@ -20,8 +20,9 @@ query
     ;
 
 sourceCommand
-    : rowCommand
+    : explainCommand
     | fromCommand
+    | rowCommand
     ;
 
 processingCommand
@@ -139,4 +140,12 @@ string
 
 comparisonOperator
     : EQ | NEQ | LT | LTE | GT | GTE
+    ;
+
+explainCommand
+    : EXPLAIN subqueryExpression
+    ;
+
+subqueryExpression
+    : OPENING_BRACKET query CLOSING_BRACKET
     ;

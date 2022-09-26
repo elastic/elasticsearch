@@ -17,7 +17,7 @@ public class EsqlSession {
     public void execute(String query, ActionListener<Result> listener) {
         try {
             Executable plan = (Executable) parse(query);
-            plan.execute(listener);
+            plan.execute(this, listener);
         } catch (ParsingException pe) {
             listener.onFailure(pe);
         }

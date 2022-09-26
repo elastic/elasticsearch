@@ -491,6 +491,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitComparisonOperator(EsqlBaseParser.ComparisonOperatorContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterSubqueryExpression(EsqlBaseParser.SubqueryExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitSubqueryExpression(EsqlBaseParser.SubqueryExpressionContext ctx) { }
 
   /**
    * {@inheritDoc}

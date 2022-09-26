@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -276,6 +277,28 @@ public class StatementParserTests extends ESTestCase {
         assertThat(orderBy.children().get(0), instanceOf(Filter.class));
         assertThat(orderBy.children().get(0).children().size(), equalTo(1));
         assertThat(orderBy.children().get(0).children().get(0), instanceOf(Project.class));
+    }
+
+    public void testSubquery() {
+        assertEquals(new Explain(EMPTY, PROCESSING_CMD_INPUT), statement("explain [ row a = 1 ]"));
+    }
+
+    public void testSubqueryWithPipe() {
+        assertEquals(
+            new Limit(EMPTY, integer(10), new Explain(EMPTY, PROCESSING_CMD_INPUT)),
+            statement("explain [ row a = 1 ] | limit 10")
+        );
+    }
+
+    public void testNestedSubqueries() {
+        assertEquals(
+            new Limit(
+                EMPTY,
+                integer(10),
+                new Explain(EMPTY, new Limit(EMPTY, integer(5), new Explain(EMPTY, new Limit(EMPTY, integer(1), PROCESSING_CMD_INPUT))))
+            ),
+            statement("explain [ explain [ row a = 1 | limit 1 ] | limit 5 ] | limit 10")
+        );
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {

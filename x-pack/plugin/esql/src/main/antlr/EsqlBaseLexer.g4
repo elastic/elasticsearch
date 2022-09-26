@@ -1,6 +1,7 @@
 lexer grammar EsqlBaseLexer;
 
 EVAL : 'eval' -> pushMode(EXPRESSION);
+EXPLAIN : 'explain' -> pushMode(EXPRESSION);
 FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
 ROW : 'row' -> pushMode(EXPRESSION);
 STATS : 'stats' -> pushMode(EXPRESSION);
@@ -75,6 +76,8 @@ FALSE : 'false';
 FIRST : 'first';
 LAST : 'last';
 LP : '(';
+OPENING_BRACKET : '[' -> pushMode(DEFAULT_MODE);
+CLOSING_BRACKET : ']' -> popMode, popMode; // pop twice, once to clear mode of current cmd and once to exit DEFAULT_MODE
 NOT : 'not';
 NULL : 'null';
 NULLS : 'nulls';
@@ -120,6 +123,7 @@ EXPR_WS
 mode SOURCE_IDENTIFIERS;
 
 SRC_PIPE : '|' -> type(PIPE), popMode;
+SRC_CLOSING_BRACKET : ']' -> popMode, popMode, type(CLOSING_BRACKET);
 SRC_COMMA : ',' -> type(COMMA);
 
 SRC_UNQUOTED_IDENTIFIER

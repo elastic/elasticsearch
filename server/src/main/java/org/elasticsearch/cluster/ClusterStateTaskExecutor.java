@@ -207,7 +207,15 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
 
         public abstract ClusterState executeTask(TaskContext<T> taskContext, ClusterState curState);
 
-        public ClusterState finalizeBatchExecution(ClusterState initState, ClusterState curState) {
+        public ClusterState beforeBatchExecution(BatchExecutionContext<T> batchExecutionContext) {
+            return batchExecutionContext.initialState();
+        }
+
+        public ClusterState afterBatchExecution(
+            BatchExecutionContext<T> batchExecutionContext,
+            ClusterState initState,
+            ClusterState curState
+        ) {
             return curState;
         }
 
@@ -215,19 +223,23 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
             taskContext.success(() -> {});
         }
 
+        public void taskFailed(TaskContext<T> taskContext, Exception e) {
+            taskContext.onFailure(e);
+        }
+
         @Override
         public ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception {
-            var initState = batchExecutionContext.initialState();
+            var initState = beforeBatchExecution(batchExecutionContext);
             var curState = initState;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try (var ignored = taskContext.captureResponseHeaders()) {
                     curState = executeTask(taskContext, curState);
                     taskSucceeded(taskContext);
                 } catch (Exception e) {
-                    taskContext.onFailure(e);
+                    taskFailed(taskContext, e);
                 }
             }
-            return finalizeBatchExecution(initState, curState);
+            return afterBatchExecution(batchExecutionContext, initState, curState);
         }
     }
 }

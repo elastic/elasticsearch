@@ -32,4 +32,4 @@ highlight:
     stream and include both downsampled indices and raw data indices, without the
     user needing to be aware of that. Downsampling of downsampled indices, to more
     coarse time resolution, is also supported.
-notable: true
+  notable: true

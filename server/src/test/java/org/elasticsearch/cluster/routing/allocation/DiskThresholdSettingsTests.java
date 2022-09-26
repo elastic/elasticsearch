@@ -565,39 +565,4 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         doTestDescriptions(false);
     }
 
-    public void testGetFreeBytes() {
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-
-        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, clusterSettings);
-        ByteSizeValue total = ByteSizeValue.ofBytes(100);
-
-        ByteSizeValue freeBytesThresholdLow = ByteSizeValue.parseBytesSizeValue("15b", "test");
-        assertEquals(freeBytesThresholdLow, diskThresholdSettings.getFreeBytesThresholdLow(total));
-        ByteSizeValue freeBytesThresholdHigh = ByteSizeValue.parseBytesSizeValue("10b", "test");
-        assertEquals(freeBytesThresholdHigh, diskThresholdSettings.getFreeBytesThresholdHigh(total));
-        ByteSizeValue freeBytesThresholdFloodStage = ByteSizeValue.parseBytesSizeValue("5b", "test");
-        assertEquals(freeBytesThresholdFloodStage, diskThresholdSettings.getFreeBytesThresholdFloodStage(total));
-        ByteSizeValue freeBytesThresholdFrozenFloodStage = ByteSizeValue.parseBytesSizeValue("5b", "test");
-        assertEquals(freeBytesThresholdFrozenFloodStage, diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(total));
-
-        diskThresholdSettings = new DiskThresholdSettings(
-            Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "20b")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "15b")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "10b")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.getKey(), "1b")
-                .build(),
-            clusterSettings
-        );
-
-        freeBytesThresholdLow = ByteSizeValue.parseBytesSizeValue("20b", "test");
-        assertEquals(freeBytesThresholdLow, diskThresholdSettings.getFreeBytesThresholdLow(total));
-        freeBytesThresholdHigh = ByteSizeValue.parseBytesSizeValue("15b", "test");
-        assertEquals(freeBytesThresholdHigh, diskThresholdSettings.getFreeBytesThresholdHigh(total));
-        freeBytesThresholdFloodStage = ByteSizeValue.parseBytesSizeValue("10b", "test");
-        assertEquals(freeBytesThresholdFloodStage, diskThresholdSettings.getFreeBytesThresholdFloodStage(total));
-        freeBytesThresholdFrozenFloodStage = ByteSizeValue.parseBytesSizeValue("1b", "test");
-        assertEquals(freeBytesThresholdFrozenFloodStage, diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(total));
-    }
-
 }

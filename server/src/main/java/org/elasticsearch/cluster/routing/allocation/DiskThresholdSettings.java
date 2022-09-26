@@ -276,33 +276,6 @@ public class DiskThresholdSettings {
         }
     }
 
-    public ByteSizeValue getFreeBytesThresholdLow(ByteSizeValue total) {
-        // low watermark can be absolute bytes or percentage, so we should handle the both cases.
-        if (freeBytesThresholdLow.equals(ByteSizeValue.ZERO)) {
-            return ByteSizeValue.ofBytes((long) Math.ceil(total.getBytes() * getFreeDiskThresholdLow() * 0.01));
-        } else {
-            return getFreeBytesThresholdLow();
-        }
-    }
-
-    public ByteSizeValue getFreeBytesThresholdHigh(ByteSizeValue total) {
-        // high watermark can be absolute bytes or percentage, so we should handle the both cases.
-        if (freeBytesThresholdHigh.equals(ByteSizeValue.ZERO)) {
-            return ByteSizeValue.ofBytes((long) Math.ceil(total.getBytes() * getFreeDiskThresholdHigh() * 0.01));
-        } else {
-            return getFreeBytesThresholdHigh();
-        }
-    }
-
-    public ByteSizeValue getFreeBytesThresholdFloodStage(ByteSizeValue total) {
-        // flood stage watermark can be absolute bytes or percentage, so we should handle the both cases.
-        if (freeBytesThresholdFloodStage.equals(ByteSizeValue.ZERO)) {
-            return ByteSizeValue.ofBytes((long) Math.ceil(total.getBytes() * getFreeDiskThresholdFloodStage() * 0.01));
-        } else {
-            return getFreeBytesThresholdFloodStage();
-        }
-    }
-
     public boolean isEnabled() {
         return enabled;
     }

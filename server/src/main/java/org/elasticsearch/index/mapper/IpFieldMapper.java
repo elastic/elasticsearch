@@ -13,6 +13,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -343,7 +344,11 @@ public class IpFieldMapper extends FieldMapper {
             return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (lower, upper) -> {
                 Query query = InetAddressPoint.newRangeQuery(name(), lower, upper);
                 if (isIndexed()) {
-                    return query;
+                    if (hasDocValues()) {
+                        return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query));
+                    } else {
+                        return query;
+                    }
                 } else {
                     return convertToDocValuesQuery(query);
                 }

@@ -1,5 +1,5 @@
 pr: 90331
 summary: Sanitize thread context headers
 area: Security
-type: security
+type: tech debt
 issues: []

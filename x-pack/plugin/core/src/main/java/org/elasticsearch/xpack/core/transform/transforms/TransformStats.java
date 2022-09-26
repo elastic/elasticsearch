@@ -38,6 +38,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class TransformStats implements Writeable, ToXContentObject {
 
     public static final String NAME = "data_frame_transform_stats";
+    public static final ParseField HEALTH_FIELD = new ParseField("health");
     public static final ParseField STATE_FIELD = new ParseField("state");
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final ParseField NODE_FIELD = new ParseField("node");
@@ -51,6 +52,7 @@ public class TransformStats implements Writeable, ToXContentObject {
     private NodeAttributes node;
     private final TransformIndexerStats indexerStats;
     private final TransformCheckpointingInfo checkpointingInfo;
+    private final TransformHealth health;
 
     public static final ConstructingObjectParser<TransformStats, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -61,7 +63,8 @@ public class TransformStats implements Writeable, ToXContentObject {
             (String) a[2],
             (NodeAttributes) a[3],
             (TransformIndexerStats) a[4],
-            (TransformCheckpointingInfo) a[5]
+            (TransformCheckpointingInfo) a[5],
+            (TransformHealth) a[6]
         )
     );
 
@@ -72,6 +75,7 @@ public class TransformStats implements Writeable, ToXContentObject {
         PARSER.declareField(optionalConstructorArg(), NodeAttributes.PARSER::apply, NODE_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareObject(constructorArg(), (p, c) -> TransformIndexerStats.fromXContent(p), TransformField.STATS_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> TransformCheckpointingInfo.fromXContent(p), CHECKPOINTING_INFO_FIELD);
+        PARSER.declareObject(optionalConstructorArg(),  (p, c) -> TransformHealth.fromXContent(p), HEALTH_FIELD);
     }
 
     public static TransformStats fromXContent(XContentParser parser) throws IOException {
@@ -83,7 +87,7 @@ public class TransformStats implements Writeable, ToXContentObject {
     }
 
     public static TransformStats stoppedStats(String id, TransformIndexerStats indexerTransformStats) {
-        return new TransformStats(id, State.STOPPED, null, null, indexerTransformStats, TransformCheckpointingInfo.EMPTY);
+        return new TransformStats(id, State.STOPPED, null, null, indexerTransformStats, TransformCheckpointingInfo.EMPTY, TransformHealth.EMPTY);
     }
 
     public TransformStats(
@@ -92,7 +96,8 @@ public class TransformStats implements Writeable, ToXContentObject {
         @Nullable String reason,
         @Nullable NodeAttributes node,
         TransformIndexerStats stats,
-        TransformCheckpointingInfo checkpointingInfo
+        TransformCheckpointingInfo checkpointingInfo,
+        TransformHealth health
     ) {
         this.id = Objects.requireNonNull(id);
         this.state = Objects.requireNonNull(state);
@@ -100,32 +105,25 @@ public class TransformStats implements Writeable, ToXContentObject {
         this.node = node;
         this.indexerStats = Objects.requireNonNull(stats);
         this.checkpointingInfo = Objects.requireNonNull(checkpointingInfo);
+        this.health = Objects.requireNonNull(health);
     }
 
     public TransformStats(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            this.id = in.readString();
-            this.state = in.readEnum(State.class);
-            this.reason = in.readOptionalString();
-            if (in.readBoolean()) {
-                this.node = new NodeAttributes(in);
-            } else {
-                this.node = null;
-            }
-            this.indexerStats = new TransformIndexerStats(in);
-            this.checkpointingInfo = new TransformCheckpointingInfo(in);
-
+        this.id = in.readString();
+        this.state = in.readEnum(State.class);
+        this.reason = in.readOptionalString();
+        if (in.readBoolean()) {
+            this.node = new NodeAttributes(in);
         } else {
-            // Prior to version 7.4 TransformStats didn't exist, and we have
-            // to do the best we can of reading from a TransformStoredDoc object
-            // (which is called DataFrameTransformStateAndStats in 7.2/7.3)
-            this.id = in.readString();
-            TransformState transformState = new TransformState(in);
-            this.state = State.fromComponents(transformState.getTaskState(), transformState.getIndexerState());
-            this.reason = transformState.getReason();
-            this.node = transformState.getNode();
-            this.indexerStats = new TransformIndexerStats(in);
-            this.checkpointingInfo = new TransformCheckpointingInfo(in);
+            this.node = null;
+        }
+        this.indexerStats = new TransformIndexerStats(in);
+        this.checkpointingInfo = new TransformCheckpointingInfo(in);
+
+        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            this.health = new TransformHealth(in);
+        } else {
+            this.health = TransformHealth.UNKNOWN;
         }
     }
 
@@ -142,52 +140,32 @@ public class TransformStats implements Writeable, ToXContentObject {
         }
         builder.field(TransformField.STATS_FIELD.getPreferredName(), indexerStats, params);
         builder.field(CHECKPOINTING_INFO_FIELD.getPreferredName(), checkpointingInfo, params);
+        builder.field(HEALTH_FIELD.getPreferredName(), health);
         builder.endObject();
         return builder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeString(id);
-            // 7.13 introduced the waiting state, in older version report the state as started
-            if (out.getVersion().before(Version.V_7_13_0) && state.equals(State.WAITING)) {
-                out.writeEnum(State.STARTED);
-            } else {
-                out.writeEnum(state);
-            }
-            out.writeOptionalString(reason);
-            if (node != null) {
-                out.writeBoolean(true);
-                node.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
-            indexerStats.writeTo(out);
-            checkpointingInfo.writeTo(out);
+        out.writeString(id);
+        out.writeEnum(state);
+        out.writeOptionalString(reason);
+        if (node != null) {
+            out.writeBoolean(true);
+            node.writeTo(out);
         } else {
-            // Prior to version 7.4 TransformStats didn't exist, and we have
-            // to do the best we can of writing to a TransformStoredDoc object
-            // (which is called DataFrameTransformStateAndStats in 7.2/7.3)
-            out.writeString(id);
-            Tuple<TransformTaskState, IndexerState> stateComponents = state.toComponents();
-            new TransformState(
-                stateComponents.v1(),
-                stateComponents.v2(),
-                checkpointingInfo.getNext().getPosition(),
-                checkpointingInfo.getLast().getCheckpoint(),
-                reason,
-                checkpointingInfo.getNext().getCheckpointProgress(),
-                node
-            ).writeTo(out);
-            indexerStats.writeTo(out);
-            checkpointingInfo.writeTo(out);
+            out.writeBoolean(false);
+        }
+        indexerStats.writeTo(out);
+        checkpointingInfo.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            health.writeTo(out);
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, state, reason, node, indexerStats, checkpointingInfo);
+        return Objects.hash(id, state, reason, node, indexerStats, checkpointingInfo, health);
     }
 
     @Override
@@ -207,7 +185,8 @@ public class TransformStats implements Writeable, ToXContentObject {
             && Objects.equals(this.reason, that.reason)
             && Objects.equals(this.node, that.node)
             && Objects.equals(this.indexerStats, that.indexerStats)
-            && Objects.equals(this.checkpointingInfo, that.checkpointingInfo);
+            && Objects.equals(this.checkpointingInfo, that.checkpointingInfo)
+            && Objects.equals(this.health, that.health);
     }
 
     public String getId() {

@@ -10,6 +10,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHealth;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStatsTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -52,11 +53,21 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
 
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+            equalTo(
+                new TransformStats(
+                    transformId,
+                    TransformStats.State.STOPPED,
+                    reason,
+                    null,
+                    stats,
+                    TransformCheckpointingInfo.EMPTY,
+                    TransformHealth.UNKNOWN
+                )
+            )
         );
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, info))
+            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, info, TransformHealth.UNKNOWN))
         );
 
         reason = "foo";
@@ -65,11 +76,21 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
 
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+            equalTo(
+                new TransformStats(
+                    transformId,
+                    TransformStats.State.STOPPED,
+                    reason,
+                    null,
+                    stats,
+                    TransformCheckpointingInfo.EMPTY,
+                    TransformHealth.UNKNOWN
+                )
+            )
         );
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, info))
+            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, reason, null, stats, info, TransformHealth.UNKNOWN))
         );
     }
 
@@ -89,11 +110,21 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
 
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+            equalTo(
+                new TransformStats(
+                    transformId,
+                    TransformStats.State.FAILED,
+                    reason,
+                    null,
+                    stats,
+                    TransformCheckpointingInfo.EMPTY,
+                    TransformHealth.UNKNOWN
+                )
+            )
         );
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, info))
+            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, info, TransformHealth.UNKNOWN))
         );
 
         reason = "the task is failed";
@@ -102,11 +133,21 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
 
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+            equalTo(
+                new TransformStats(
+                    transformId,
+                    TransformStats.State.FAILED,
+                    reason,
+                    null,
+                    stats,
+                    TransformCheckpointingInfo.EMPTY,
+                    TransformHealth.UNKNOWN
+                )
+            )
         );
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, info))
+            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, info, TransformHealth.UNKNOWN))
         );
     }
 
@@ -142,7 +183,8 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     "transform is set to stop at the next checkpoint",
                     null,
                     stats,
-                    TransformCheckpointingInfo.EMPTY
+                    TransformCheckpointingInfo.EMPTY,
+                    TransformHealth.UNKNOWN
                 )
             )
         );
@@ -155,7 +197,8 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     "transform is set to stop at the next checkpoint",
                     null,
                     stats,
-                    info
+                    info,
+                    TransformHealth.UNKNOWN
                 )
             )
         );
@@ -166,11 +209,21 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
 
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPING, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+            equalTo(
+                new TransformStats(
+                    transformId,
+                    TransformStats.State.STOPPING,
+                    reason,
+                    null,
+                    stats,
+                    TransformCheckpointingInfo.EMPTY,
+                    TransformHealth.UNKNOWN
+                )
+            )
         );
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.STOPPING, reason, null, stats, info))
+            equalTo(new TransformStats(transformId, TransformStats.State.STOPPING, reason, null, stats, info, TransformHealth.UNKNOWN))
         );
 
         // Stop at next checkpoint is false.
@@ -179,11 +232,21 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
 
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, null),
-            equalTo(new TransformStats(transformId, TransformStats.State.INDEXING, reason, null, stats, TransformCheckpointingInfo.EMPTY))
+            equalTo(
+                new TransformStats(
+                    transformId,
+                    TransformStats.State.INDEXING,
+                    reason,
+                    null,
+                    stats,
+                    TransformCheckpointingInfo.EMPTY,
+                    TransformHealth.UNKNOWN
+                )
+            )
         );
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(new TransformStats(transformId, TransformStats.State.INDEXING, reason, null, stats, info))
+            equalTo(new TransformStats(transformId, TransformStats.State.INDEXING, reason, null, stats, info, TransformHealth.UNKNOWN))
         );
     }
 

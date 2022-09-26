@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Req
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformHealth;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
@@ -238,7 +239,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             reason,
             null,
             task.getStats(),
-            checkpointingInfo == null ? TransformCheckpointingInfo.EMPTY : checkpointingInfo
+            checkpointingInfo == null ? TransformCheckpointingInfo.EMPTY : checkpointingInfo,
+            TransformHealth.UNKNOWN
         );
     }
 
@@ -341,7 +343,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             assignment.getExplanation(),
                             null,
                             stat.getTransformStats(),
-                            checkpointingInfo
+                            checkpointingInfo,
+                            TransformHealth.UNKNOWN
                         )
                     );
                 } else {
@@ -352,7 +355,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             null,
                             null,
                             stat.getTransformStats(),
-                            checkpointingInfo
+                            checkpointingInfo,
+                            TransformHealth.UNKNOWN
                         )
                     );
                 }

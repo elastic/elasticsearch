@@ -209,7 +209,7 @@ public record ReservedStateMetadata(
          */
         public Builder(String namespace) {
             this.namespace = namespace;
-            this.version = 0L;
+            this.version = -1L;
             this.handlers = new HashMap<>();
             this.errorMetadata = null;
         }

@@ -14,8 +14,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.function.Predicate;
-
 /**
  * This {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider} prevents shards that
  * are currently been snapshotted to be moved to other nodes.
@@ -65,7 +63,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
         final ShardId shardId = shardRouting.shardId();
         return snapshotsInProgress.asStream()
-            .filter(Predicate.not(SnapshotsInProgress.Entry::isClone))
+            .filter(entry -> entry.hasShardsInInitState() && entry.isClone() == false)
             .map(entry -> entry.shards().get(shardId))
             .filter(
                 shardSnapshotStatus -> shardSnapshotStatus != null

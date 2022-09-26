@@ -1301,7 +1301,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             }
 
             for (ShardRouting original : shardsWithRelocationFailures) {
-                ShardRouting updated = original.updateRelocationFailure(new RelocationFailureInfo(0));
+                ShardRouting updated = original.updateRelocationFailure(null);// nothing else to copy
                 routingNode.update(original, updated);
                 assignedShardsRemove(original);
                 assignedShardsAdd(updated);

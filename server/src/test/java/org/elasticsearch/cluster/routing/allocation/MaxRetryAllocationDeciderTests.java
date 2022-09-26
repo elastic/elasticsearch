@@ -276,7 +276,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
     private ClusterState applyShardFailure(ClusterState clusterState, ShardRouting shardRouting, String message) {
         return strategy.applyFailedShards(
             clusterState,
-            List.of(new FailedShard(shardRouting, message, new UnsupportedOperationException(), randomBoolean())),
+            List.of(new FailedShard(shardRouting, message, new RuntimeException("test"), randomBoolean())),
             List.of()
         );
     }

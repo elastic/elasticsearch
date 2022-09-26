@@ -22,11 +22,11 @@ public class RelocationFailureInfoTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected RelocationFailureInfo createTestInstance() {
-        return new RelocationFailureInfo(randomInt());
+        return new RelocationFailureInfo(randomIntBetween(1, 10));
     }
 
     @Override
     protected RelocationFailureInfo mutateInstance(RelocationFailureInfo instance) throws IOException {
-        return createTestInstance();
+        return new RelocationFailureInfo(instance.getFailedRelocations() + 1);
     }
 }

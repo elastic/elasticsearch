@@ -1295,7 +1295,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         for (RoutingNode routingNode : this) {
             var shardsWithRelocationFailures = new ArrayList<ShardRouting>();
             for (ShardRouting shardRouting : routingNode) {
-                if (shardRouting.relocationFailureInfo() != null) {
+                if (shardRouting.relocationFailureInfo() != null && shardRouting.relocationFailureInfo().getFailedRelocations() > 0) {
                     shardsWithRelocationFailures.add(shardRouting);
                 }
             }

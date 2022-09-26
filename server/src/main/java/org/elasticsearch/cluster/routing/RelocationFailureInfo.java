@@ -25,6 +25,7 @@ public class RelocationFailureInfo implements ToXContentFragment, Writeable {
     private final int failedRelocations;
 
     public RelocationFailureInfo(int failedRelocations) {
+        assert failedRelocations > 0 : "Expect positive failures count, got: " + failedRelocations;
         this.failedRelocations = failedRelocations;
     }
 

@@ -42,6 +42,15 @@ import java.util.stream.Stream;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getSortedUniqueValuesString;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
 
+/**
+ * This indicator reports the cluster is disk health aka if the cluster has enough available space to function.
+ * Indicator will report YELLOW status when:
+ * - a data node's disk usage is above the high watermark and it's not relocating any of its shards.
+ * - a non data node's disk usage is above the high watermark.
+ * Indicator will report RED status when:
+ * - an index has the INDEX_READ_ONLY_ALLOW_DELETE_BLOCK which indicates that an index has been blocked because a node was out of space.
+ * - any node's disk usage is above the flood stage watermark.
+ */
 public class DiskHealthIndicatorService implements HealthIndicatorService {
     public static final String NAME = "disk";
 
@@ -83,10 +92,6 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         ClusterState clusterState = clusterService.state();
         logNodesMissingHealthInfo(diskHealthInfoMap, clusterState);
 
-        /*
-         * If there are any index blocks in the cluster state, that makes the overall status automatically red, regardless of the statuses
-         * returned by the nodes. If there is no cluster block, we just use the merged statuses of the nodes.
-         */
         Set<String> blockedIndices = clusterState.blocks()
             .indices()
             .entrySet()
@@ -145,44 +150,48 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         });
     }
 
+    /**
+     * The disk health analyzer takes into consideration the blocked indices and the health status of the all the nodes and calculates
+     * the different aspects of the disk indicator such as the overall status, the symptom, the impacts and the diagnoses.
+     */
     static class DiskHealthAnalyzer {
 
         private final ClusterState clusterState;
         private final Set<String> blockedIndices;
         private final Set<DiscoveryNode> dataNodes = new HashSet<>();
-        // In this context a dedicated master node, is a master node that cannot contain data.
-        private final Set<DiscoveryNode> dedicatedMasterNodes = new HashSet<>();
+        // In this context a master node, is a master node that cannot contain data.
+        private final Set<DiscoveryNode> masterNodes = new HashSet<>();
         // In this context "other" nodes are nodes that cannot contain data and are not masters.
         private final Set<DiscoveryNode> otherNodes = new HashSet<>();
-        private final Set<DiscoveryNodeRole> impactedRoles = new HashSet<>();
+        private final Set<DiscoveryNodeRole> affectedRoles = new HashSet<>();
         private final Set<String> indicesAtRisk;
         private final HealthStatus healthStatus;
 
         DiskHealthAnalyzer(Map<String, DiskHealthInfo> diskHealthByNode, Set<String> blockedIndices, ClusterState clusterState) {
             this.clusterState = clusterState;
             this.blockedIndices = blockedIndices;
-            HealthStatus mostSevereNodeHealthStatus = HealthStatus.GREEN;
+            HealthStatus mostSevereNodeStatus = HealthStatus.GREEN;
             for (String nodeId : diskHealthByNode.keySet()) {
                 DiscoveryNode node = clusterState.getNodes().get(nodeId);
                 HealthStatus healthStatus = diskHealthByNode.get(nodeId).healthStatus();
                 // TODO #90213 update this only after we check that this health status indicates a problem.
-                if (mostSevereNodeHealthStatus.value() < healthStatus.value()) {
-                    mostSevereNodeHealthStatus = healthStatus;
+                if (mostSevereNodeStatus.value() < healthStatus.value()) {
+                    mostSevereNodeStatus = healthStatus;
                 }
                 if (node == null || healthStatus.indicatesHealthProblem() == false) {
                     continue;
                 }
-                impactedRoles.addAll(node.getRoles());
+                affectedRoles.addAll(node.getRoles());
                 if (node.canContainData()) {
                     dataNodes.add(node);
                 } else if (node.isMasterNode()) {
-                    dedicatedMasterNodes.add(node);
+                    masterNodes.add(node);
                 } else {
                     otherNodes.add(node);
                 }
             }
             indicesAtRisk = getIndicesForNodes(dataNodes, clusterState);
-            healthStatus = blockedIndices.isEmpty() == false ? HealthStatus.RED : mostSevereNodeHealthStatus;
+            healthStatus = blockedIndices.isEmpty() == false ? HealthStatus.RED : mostSevereNodeStatus;
         }
 
         public HealthStatus getHealthStatus() {
@@ -194,7 +203,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 return "The cluster has enough available disk space.";
             }
             String symptom;
-            if (blockedIndices.isEmpty() == false) {
+            if (hasBlockedIndices()) {
                 symptom = String.format(
                     Locale.ROOT,
                     "%d %s not allowed to be updated because ",
@@ -216,14 +225,14 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                             + "within a few minutes.");
                 }
                 if (hasUnhealthyMasterNodes() || hasUnhealthyOtherNodes()) {
-                    String roles = Stream.concat(dedicatedMasterNodes.stream(), otherNodes.stream())
+                    String roles = Stream.concat(masterNodes.stream(), otherNodes.stream())
                         .flatMap(node -> node.getRoles().stream())
                         .map(DiscoveryNodeRole::roleName)
                         .distinct()
                         .sorted()
                         .collect(Collectors.joining(", "));
 
-                    int unhealthyNodesCount = dedicatedMasterNodes.size() + otherNodes.size();
+                    int unhealthyNodesCount = masterNodes.size() + otherNodes.size();
                     symptom += String.format(
                         Locale.ROOT,
                         " Furthermore %d node%s with roles: [%s] %s out of disk or running low on disk space.",
@@ -234,8 +243,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     );
                 }
             } else {
-                String roles = getSortedUniqueValuesString(impactedRoles, DiscoveryNodeRole::roleName);
-                int unhealthyNodesCount = dedicatedMasterNodes.size() + otherNodes.size() + dataNodes.size();
+                String roles = getSortedUniqueValuesString(affectedRoles, DiscoveryNodeRole::roleName);
+                int unhealthyNodesCount = masterNodes.size() + otherNodes.size() + dataNodes.size();
                 symptom = String.format(
                     Locale.ROOT,
                     "%d node%s with roles: [%s] %s out of disk or running low on disk space.",
@@ -284,7 +293,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     );
                 }
             }
-            if (impactedRoles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
+            if (affectedRoles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
                 impacts.add(
                     new HealthIndicatorImpact(
                         NAME,
@@ -296,7 +305,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 );
             }
             String impactedOtherRoles = getSortedUniqueValuesString(
-                impactedRoles,
+                affectedRoles,
                 role -> role.canContainData() == false && role.equals(DiscoveryNodeRole.MASTER_ROLE) == false,
                 DiscoveryNodeRole::roleName
             );
@@ -352,7 +361,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                             "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
                             "https://ela.st/fix-master-disk"
                         ),
-                        dedicatedMasterNodes.stream().map(DiscoveryNode::getId).sorted().toList()
+                        masterNodes.stream().map(DiscoveryNode::getId).sorted().toList()
                     )
                 );
             }
@@ -378,7 +387,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         }
 
         private boolean hasUnhealthyMasterNodes() {
-            return dedicatedMasterNodes.isEmpty() == false;
+            return masterNodes.isEmpty() == false;
         }
 
         private boolean hasUnhealthyOtherNodes() {

@@ -239,7 +239,9 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
 
         if (groupMap.size() <= groupOffset) {
             TotalHits totalHits = new TotalHits(totalHitCount, TotalHits.Relation.EQUAL_TO);
-            return new TopFieldGroups(groupField, totalHits, new ScoreDoc[0], topSort.getSort(), new Object[0]);
+            return new TopFieldGroups(groupField, totalHits,
+                new ScoreDoc[0], topSort.getSort(), new ScoreDoc[0], collapseSort.getSort(),
+                new Object[0]);
         }
 
         if (orderedGroups == null) {
@@ -257,8 +259,10 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
 
         int size = Math.max(0, orderedGroups.size() - groupOffset);
         final FieldDoc[] topDocs = new FieldDoc[size];
+        final FieldDoc[] collapseDocs = new FieldDoc[size];
         Object[] groupValues = new Object[size];
-        final int sortFieldCount = topComparators.length;
+        final int topSortFieldCount = topComparators.length;
+        final int collapseSortFieldCount = collapseComparators.length;
         int upto = 0;
         int pos = 0;
         for (SearchGroup<T> group : orderedGroups) {
@@ -266,18 +270,26 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
                 continue;
             }
             float score = Float.NaN;
-            final Object[] sortValues = new Object[sortFieldCount];
-            for (int sortFieldIDX = 0; sortFieldIDX < sortFieldCount; sortFieldIDX++) {
-                sortValues[sortFieldIDX] = topComparators[sortFieldIDX].value(group.slot);
+            final Object[] topSortValues = new Object[topSortFieldCount];
+            final Object[] collapseSortValues = new Object[collapseSortFieldCount];
+
+            for (int sortFieldIDX = 0; sortFieldIDX < topSortFieldCount; sortFieldIDX++) {
+                topSortValues[sortFieldIDX] = topComparators[sortFieldIDX].value(group.slot);
                 if (sortFieldIDX == scorePos) {
-                    score = (float) sortValues[sortFieldIDX];
+                    score = (float) topSortValues[sortFieldIDX];
                 }
             }
-            topDocs[pos] = new FieldDoc(group.doc, score, sortValues);
+            for (int sortFieldIDX = 0; sortFieldIDX < collapseSortFieldCount; sortFieldIDX++) {
+                collapseSortValues[sortFieldIDX] = collapseComparators[sortFieldIDX].value(group.slot);
+            }
+
+            topDocs[pos] = new FieldDoc(group.doc, score, topSortValues);
+            collapseDocs[pos] = new FieldDoc(group.doc, Float.NaN, collapseSortValues);
+
             groupValues[pos++] = group.groupValue;
         }
         TotalHits totalHits = new TotalHits(totalHitCount, TotalHits.Relation.EQUAL_TO);
-        return new TopFieldGroups(groupField, totalHits, topDocs, topSort.getSort(), groupValues);
+        return new TopFieldGroups(groupField, totalHits, topDocs, topSort.getSort(), collapseDocs, collapseSort.getSort(), groupValues);
     }
 
     @Override

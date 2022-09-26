@@ -219,9 +219,10 @@ public final class SearchPhaseController {
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
         } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
-            final Sort sort = new Sort(firstTopDocs.fields);
+            final Sort topSort = new Sort(firstTopDocs.fields);
+            final Sort collapseSort = new Sort(firstTopDocs.collapseSortFields);
             final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
-            mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
+            mergedTopDocs = TopFieldGroups.merge(topSort, collapseSort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
             checkSameSortTypes(results, firstTopDocs.fields);
             final Sort sort = new Sort(firstTopDocs.fields);

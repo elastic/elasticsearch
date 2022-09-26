@@ -219,7 +219,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             subSearcher.search(weight, c);
             shardHits[shardIDX] = c.getTopGroups(0);
         }
-        TopFieldGroups mergedFieldDocs = TopFieldGroups.merge(sort, 0, expectedNumGroups, shardHits, true);
+        TopFieldGroups mergedFieldDocs = TopFieldGroups.merge(sort, null, 0, expectedNumGroups, shardHits, true);
         assertTopDocsEquals(query, mergedFieldDocs, collapseTopFieldDocs);
         w.close();
         reader.close();

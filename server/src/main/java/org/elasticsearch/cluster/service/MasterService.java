@@ -1044,6 +1044,11 @@ public class MasterService extends AbstractLifecycleComponent {
             return wrapInTaskContext(clusterStateAckListener, this::restoreResponseHeaders);
         }
 
+        ContextPreservingAckListener wrapInTaskContext(Object o, Runnable r) {
+            assert false; // TODO
+            return null;
+        }
+
         @Override
         public String toString() {
             return "ExecutionResult[" + task + "]";

@@ -14,11 +14,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -45,7 +45,7 @@ public class HealthMetadataService {
     private final ClusterService clusterService;
     private final ClusterStateListener clusterStateListener;
     private final Settings settings;
-    private final ClusterStateTaskExecutor<UpsertHealthMetadataTask> executor = new UpsertHealthMetadataTask.Executor();
+    private final MasterServiceTaskQueue<UpsertHealthMetadataTask> taskQueue;
     private volatile boolean enabled;
 
     // Signifies that a node has been elected as master, but it was not able yet to publish its health metadata for
@@ -60,6 +60,7 @@ public class HealthMetadataService {
         this.settings = settings;
         this.clusterStateListener = this::updateOnClusterStateChange;
         this.enabled = ENABLED_SETTING.get(settings);
+        this.taskQueue = clusterService.getTaskQueue("health metadata service", Priority.NORMAL, new UpsertHealthMetadataTask.Executor());
     }
 
     public static HealthMetadataService create(ClusterService clusterService, Settings settings) {
@@ -144,16 +145,13 @@ public class HealthMetadataService {
             ClusterState clusterState = clusterService.state();
             if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
                 var task = new UpdateHealthMetadata(setting, value);
-                var config = ClusterStateTaskConfig.build(Priority.NORMAL);
-                clusterService.submitStateUpdateTask("health-metadata-update", task, config, executor);
+                taskQueue.submitTask("health-metadata-update", task, null);
             }
         }
     }
 
     private void resetHealthMetadata(String source) {
-        var task = new InsertHealthMetadata(settings);
-        var config = ClusterStateTaskConfig.build(Priority.NORMAL);
-        clusterService.submitStateUpdateTask(source, task, config, executor);
+        taskQueue.submitTask(source, new InsertHealthMetadata(settings), null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {

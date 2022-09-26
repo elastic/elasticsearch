@@ -45,12 +45,13 @@ public class MetadataDeleteIndexService {
     private final Settings settings;
 
     // package private for tests
-    final MasterServiceTaskQueue<DeleteIndexClusterStateUpdateRequest> taskQueue;
+    final ClusterStateTaskExecutor<DeleteIndexClusterStateUpdateRequest> executor;
+    private final MasterServiceTaskQueue<DeleteIndexClusterStateUpdateRequest> taskQueue;
 
     @Inject
     public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         this.settings = settings;
-        taskQueue = clusterService.getTaskQueue("delete-index", Priority.URGENT, batchExecutionContext -> {
+        executor = batchExecutionContext -> {
             ClusterState state = batchExecutionContext.initialState();
             for (ClusterStateTaskExecutor.TaskContext<DeleteIndexClusterStateUpdateRequest> taskContext : batchExecutionContext
                 .taskContexts()) {
@@ -67,7 +68,8 @@ public class MetadataDeleteIndexService {
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 return allocationService.reroute(state, "deleted indices");
             }
-        });
+        };
+        taskQueue = clusterService.getTaskQueue("delete-index", Priority.URGENT, executor);
     }
 
     public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request) {

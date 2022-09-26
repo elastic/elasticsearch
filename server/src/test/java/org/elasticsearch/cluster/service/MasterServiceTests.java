@@ -215,25 +215,20 @@ public class MasterServiceTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
 
         try (MasterService masterService = createMasterService(true, taskManager)) {
-            masterService.submitStateUpdateTask(
-                "testCreatesChildTaskForPublishingClusterState",
-                new ExpectSuccessTask(),
-                ClusterStateTaskConfig.build(Priority.NORMAL),
-                new ClusterStateTaskExecutor<>() {
-                    @Override
-                    public ClusterState execute(BatchExecutionContext<ExpectSuccessTask> batchExecutionContext) {
-                        for (final var taskContext : batchExecutionContext.taskContexts()) {
-                            taskContext.success(() -> {});
-                        }
-                        return ClusterState.builder(batchExecutionContext.initialState()).build();
+            masterService.getTaskQueue("test", Priority.NORMAL, new ClusterStateTaskExecutor<>() {
+                @Override
+                public ClusterState execute(BatchExecutionContext<ClusterStateTaskListener> batchExecutionContext) {
+                    for (final var taskContext : batchExecutionContext.taskContexts()) {
+                        taskContext.success(() -> {});
                     }
-
-                    @Override
-                    public void clusterStatePublished(ClusterState newClusterState) {
-                        latch.countDown();
-                    }
+                    return ClusterState.builder(batchExecutionContext.initialState()).build();
                 }
-            );
+
+                @Override
+                public void clusterStatePublished(ClusterState newClusterState) {
+                    latch.countDown();
+                }
+            }).submitTask("testCreatesChildTaskForPublishingClusterState", new ExpectSuccessTask(), null);
 
             assertTrue(latch.await(10, TimeUnit.SECONDS));
         }
@@ -1495,37 +1490,32 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 }
 
-                masterService.submitStateUpdateTask(
-                    "node-ack-fail-test",
-                    new Task(),
-                    ClusterStateTaskConfig.build(Priority.NORMAL),
-                    batchExecutionContext -> {
-                        for (final var taskContext : batchExecutionContext.taskContexts()) {
-                            final var responseHeaderValue = randomAlphaOfLength(10);
-                            try (var ignored = taskContext.captureResponseHeaders()) {
-                                threadPool.getThreadContext().addResponseHeader(responseHeaderName, responseHeaderValue);
-                            }
-                            taskContext.success(new LatchAckListener(latch) {
-                                @Override
-                                public void onAllNodesAcked() {
-                                    fail();
-                                }
-
-                                @Override
-                                public void onAckFailure(Exception e) {
-                                    assertThat(
-                                        threadPool.getThreadContext().getResponseHeaders().get(responseHeaderName),
-                                        equalTo(List.of(responseHeaderValue))
-                                    );
-                                    assertThat(e, instanceOf(ElasticsearchException.class));
-                                    assertThat(e.getMessage(), equalTo("simulated"));
-                                    latch.countDown();
-                                }
-                            });
+                masterService.<Task>getTaskQueue("node-ack-fail-test", Priority.NORMAL, batchExecutionContext -> {
+                    for (final var taskContext : batchExecutionContext.taskContexts()) {
+                        final var responseHeaderValue = randomAlphaOfLength(10);
+                        try (var ignored = taskContext.captureResponseHeaders()) {
+                            threadPool.getThreadContext().addResponseHeader(responseHeaderName, responseHeaderValue);
                         }
-                        return ClusterState.builder(batchExecutionContext.initialState()).build();
+                        taskContext.success(new LatchAckListener(latch) {
+                            @Override
+                            public void onAllNodesAcked() {
+                                fail();
+                            }
+
+                            @Override
+                            public void onAckFailure(Exception e) {
+                                assertThat(
+                                    threadPool.getThreadContext().getResponseHeaders().get(responseHeaderName),
+                                    equalTo(List.of(responseHeaderValue))
+                                );
+                                assertThat(e, instanceOf(ElasticsearchException.class));
+                                assertThat(e.getMessage(), equalTo("simulated"));
+                                latch.countDown();
+                            }
+                        });
                     }
-                );
+                    return ClusterState.builder(batchExecutionContext.initialState()).build();
+                }).submitTask("node-ack-fail-test", new Task(), null);
 
                 assertTrue(latch.await(10, TimeUnit.SECONDS));
             }
@@ -1814,14 +1804,10 @@ public class MasterServiceTests extends ESTestCase {
             barrier.await(10, TimeUnit.SECONDS);
 
             final var smallBatchExecutor = new Executor();
+            final var smallBatchQueue = masterService.getTaskQueue("small-batch", Priority.NORMAL, smallBatchExecutor);
             for (int source = 0; source < 2; source++) {
                 for (int task = 0; task < 2; task++) {
-                    masterService.submitStateUpdateTask(
-                        "source-" + source,
-                        new Task("task-" + task),
-                        ClusterStateTaskConfig.build(Priority.NORMAL),
-                        smallBatchExecutor
-                    );
+                    smallBatchQueue.submitTask("source-" + source, new Task("task-" + task), null);
                 }
                 mockAppender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(
@@ -1834,14 +1820,10 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             final var manySourceExecutor = new Executor();
+            final var manySourceQueue = masterService.getTaskQueue("many-source", Priority.NORMAL, manySourceExecutor);
             for (int source = 0; source < 1024; source++) {
                 for (int task = 0; task < 2; task++) {
-                    masterService.submitStateUpdateTask(
-                        "source-" + source,
-                        new Task("task-" + task),
-                        ClusterStateTaskConfig.build(Priority.NORMAL),
-                        manySourceExecutor
-                    );
+                    manySourceQueue.submitTask("source-" + source, new Task("task-" + task), null);
                 }
             }
             mockAppender.addExpectation(
@@ -1859,13 +1841,13 @@ public class MasterServiceTests extends ESTestCase {
             );
 
             final var manyTasksPerSourceExecutor = new Executor();
+            final var manyTasksPerSourceQueue = masterService.getTaskQueue(
+                "many-tasks-per-source",
+                Priority.NORMAL,
+                manyTasksPerSourceExecutor
+            );
             for (int task = 0; task < 2048; task++) {
-                masterService.submitStateUpdateTask(
-                    "unique-source",
-                    new Task("task-" + task),
-                    ClusterStateTaskConfig.build(Priority.NORMAL),
-                    manyTasksPerSourceExecutor
-                );
+                manyTasksPerSourceQueue.submitTask("unique-source", new Task("task-" + task), null);
             }
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(

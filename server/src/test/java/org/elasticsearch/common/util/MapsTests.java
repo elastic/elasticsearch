@@ -218,13 +218,7 @@ public class MapsTests extends ESTestCase {
 
     public void testFromList() {
         List<String> list = Arrays.asList("Zero", "One", "Two");
-        Map<Integer, String> expectedMap = Maps.ofEntries(
-            List.of(
-                entry(0, "Zero"),
-                entry(1, "One"),
-                entry(2, "Two")
-            )
-        );
+        Map<Integer, String> expectedMap = Maps.ofEntries(List.of(entry(0, "Zero"), entry(1, "One"), entry(2, "Two")));
         Map<Integer, String> producedMap = Maps.fromList(list);
         assertThat(producedMap, equalTo(expectedMap));
     }

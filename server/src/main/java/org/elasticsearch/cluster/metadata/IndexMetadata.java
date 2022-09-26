@@ -1540,9 +1540,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.putCustom(key, custom);
         }
         if (in.getVersion().onOrAfter(VERSION_WITH_IN_SYNC_ALLOCATION_IDS_AS_ARRAY)) {
-            List<Set<String>> list = in.readList(i -> {
-                return DiffableUtils.StringSetValueSerializer.getInstance().read(in, null);
-            });
+            List<Set<String>> list = in.readList(i -> { return DiffableUtils.StringSetValueSerializer.getInstance().read(in, null); });
             for (int i = 0; i < list.size(); i++) {
                 builder.putInSyncAllocationIds(i, list.get(i));
             }

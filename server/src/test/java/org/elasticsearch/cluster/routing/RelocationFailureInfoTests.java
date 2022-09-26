@@ -17,7 +17,7 @@ public class RelocationFailureInfoTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected Writeable.Reader<RelocationFailureInfo> instanceReader() {
-        return RelocationFailureInfo::new;
+        return RelocationFailureInfo::readFrom;
     }
 
     @Override

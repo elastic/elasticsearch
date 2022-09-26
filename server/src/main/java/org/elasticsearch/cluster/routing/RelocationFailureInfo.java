@@ -27,8 +27,9 @@ public record RelocationFailureInfo(int failedRelocations) implements ToXContent
         assert failedRelocations >= 0 : "Expect non-negative failures count, got: " + failedRelocations;
     }
 
-    public RelocationFailureInfo(StreamInput in) throws IOException {
-        this(in.readVInt());
+    public static RelocationFailureInfo readFrom(StreamInput in) throws IOException {
+        int failures = in.readVInt();
+        return failures == 0 ? NO_FAILURES : new RelocationFailureInfo(failures);
     }
 
     @Override
@@ -43,19 +44,13 @@ public record RelocationFailureInfo(int failedRelocations) implements ToXContent
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("relocation_failure_info");
-        if (failedRelocations > 0) {
-            builder.field("failed_attempts", failedRelocations);
-        }
+        builder.field("failed_attempts", failedRelocations);
         builder.endObject();
         return builder;
     }
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        if (failedRelocations > 0) {
-            sb.append("failed_attempts[").append(failedRelocations).append("]");
-        }
-        return sb.toString();
+        return "failed_attempts[" + failedRelocations + "]";
     }
 }

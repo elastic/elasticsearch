@@ -469,12 +469,14 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         }
 
         // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
-        if (bounds != null && lastBucket != null && bounds.getMax() != null && bounds.getMax() + offset - 1 > lastBucket.key) {
+        if (bounds != null && lastBucket != null && bounds.getMax() != null) {
             long key = nextKey(lastBucket.key).longValue();
-            long max = bounds.getMax() + offset;
-            while (key <= max) {
-                onBucket.accept(key);
-                key = nextKey(key).longValue();
+            if (key <= bounds.getMax() + offset) {
+                long max = bounds.getMax() + offset;
+                while (key <= max) {
+                    onBucket.accept(key);
+                    key = nextKey(key).longValue();
+                }
             }
         }
     }

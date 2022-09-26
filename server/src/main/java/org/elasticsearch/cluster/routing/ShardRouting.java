@@ -795,7 +795,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         if (unassignedInfo != null) {
             sb.append(", ").append(unassignedInfo);
         }
-        if (relocationFailureInfo != null) {
+        if (relocationFailureInfo != RelocationFailureInfo.NO_FAILURES) {
             sb.append(", ").append(relocationFailureInfo);
         }
         if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
@@ -826,7 +826,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         if (unassignedInfo != null) {
             unassignedInfo.toXContent(builder, params);
         }
-        if (relocationFailureInfo != null) {
+        if (relocationFailureInfo != RelocationFailureInfo.NO_FAILURES) {
             relocationFailureInfo.toXContent(builder, params);
         }
         return builder.endObject();

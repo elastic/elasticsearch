@@ -48,7 +48,7 @@ public class ShardRoutingHelper {
             ShardRoutingState.INITIALIZING,
             recoverySource,
             new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
-            null,
+            RelocationFailureInfo.NO_FAILURES,
             copy.allocationId(),
             copy.getExpectedShardSize()
         );

@@ -230,7 +230,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         }
       }
 
-      onlyIf { Architecture.current() == architecture }
+      onlyIf { isArchitectureSupported(architecture) }
     }
 
   if (base == DockerBase.IRON_BANK) {

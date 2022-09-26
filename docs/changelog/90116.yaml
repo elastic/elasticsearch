@@ -5,7 +5,7 @@ type: feature
 issues:
   - 74660
 highlight:
-  title: Release time-series (TSDB) functionality
+  title: Release time series data stream (TSDS) functionality
   body: |-
     Elasticsearch offers support for time series (TSDB) indices. A TSDB index is an
     index that contains metrics data time series and is typically used as part of

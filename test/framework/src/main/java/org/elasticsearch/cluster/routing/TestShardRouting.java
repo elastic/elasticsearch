@@ -238,8 +238,8 @@ public class TestShardRouting {
 
     private static RelocationFailureInfo buildRelocationFailureInfo(ShardRoutingState state) {
         return switch (state) {
-            case UNASSIGNED, INITIALIZING, STARTED -> null;
-            case RELOCATING -> randomBoolean() ? new RelocationFailureInfo(randomIntBetween(1, 10)) : null;
+            case UNASSIGNED, INITIALIZING, STARTED -> RelocationFailureInfo.NO_FAILURES;
+            case RELOCATING -> randomBoolean() ? RelocationFailureInfo.NO_FAILURES : new RelocationFailureInfo(randomIntBetween(1, 10));
         };
     }
 

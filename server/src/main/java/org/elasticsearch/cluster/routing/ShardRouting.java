@@ -36,14 +36,16 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
     private static final Version EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION = Version.V_8_5_0;
-    private static final Version RELOCATION_FAILURE_INFO_VERSION = Version.V_8_5_0;
+    private static final Version RELOCATION_FAILURE_INFO_VERSION = Version.V_8_6_0;
 
     private final ShardId shardId;
     private final String currentNodeId;
+    @Nullable
     private final String relocatingNodeId;
     private final boolean primary;
     private final ShardRoutingState state;
     private final RecoverySource recoverySource;
+    @Nullable
     private final UnassignedInfo unassignedInfo;
     private final RelocationFailureInfo relocationFailureInfo;
     private final AllocationId allocationId;
@@ -79,6 +81,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         this.expectedShardSize = expectedShardSize;
         this.targetRelocatingShard = initializeTargetRelocatingShard();
         assert (state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) == false : "unassigned shard must be created with meta";
+        assert relocationFailureInfo != null : "relocation failure info must be always set";
         assert (state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.INITIALIZING) == (recoverySource != null)
             : "recovery source only available on unassigned or initializing shard but was " + state;
         assert recoverySource == null || recoverySource == PeerRecoverySource.INSTANCE || primary
@@ -98,7 +101,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                 ShardRoutingState.INITIALIZING,
                 PeerRecoverySource.INSTANCE,
                 unassignedInfo,
-                null,
+                RelocationFailureInfo.NO_FAILURES,
                 AllocationId.newTargetRelocation(allocationId),
                 expectedShardSize
             );
@@ -124,7 +127,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             ShardRoutingState.UNASSIGNED,
             recoverySource,
             unassignedInfo,
-            null,
+            RelocationFailureInfo.NO_FAILURES,
             null,
             UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
@@ -292,9 +295,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         }
         unassignedInfo = in.readOptionalWriteable(UnassignedInfo::new);
         if (in.getVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
-            relocationFailureInfo = in.readOptionalWriteable(RelocationFailureInfo::new);
+            relocationFailureInfo = new RelocationFailureInfo(in);
         } else {
-            relocationFailureInfo = null;
+            relocationFailureInfo = RelocationFailureInfo.NO_FAILURES;
         }
         allocationId = in.readOptionalWriteable(AllocationId::new);
         if (state == ShardRoutingState.RELOCATING
@@ -327,7 +330,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         }
         out.writeOptionalWriteable(unassignedInfo);
         if (out.getVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION)) {
-            out.writeOptionalWriteable(relocationFailureInfo);
+            relocationFailureInfo.writeTo(out);
         }
         out.writeOptionalWriteable(allocationId);
         if (state == ShardRoutingState.RELOCATING
@@ -399,7 +402,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             ShardRoutingState.UNASSIGNED,
             recoverySource,
             unassignedInfo,
-            null,
+            RelocationFailureInfo.NO_FAILURES,
             null,
             UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
@@ -427,7 +430,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             ShardRoutingState.INITIALIZING,
             recoverySource,
             unassignedInfo,
-            null,
+            RelocationFailureInfo.NO_FAILURES,
             allocationId,
             expectedShardSize
         );
@@ -470,7 +473,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             ShardRoutingState.STARTED,
             recoverySource,
             null,
-            new RelocationFailureInfo(relocationFailureInfo != null ? relocationFailureInfo.failedRelocations() + 1 : 1),
+            relocationFailureInfo.incFailedRelocations(),
             AllocationId.cancelRelocation(allocationId),
             UNAVAILABLE_EXPECTED_SHARD_SIZE
         );
@@ -542,7 +545,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             ShardRoutingState.STARTED,
             null,
             null,
-            null,
+            RelocationFailureInfo.NO_FAILURES,
             allocationId,
             expectedShardSize
         );

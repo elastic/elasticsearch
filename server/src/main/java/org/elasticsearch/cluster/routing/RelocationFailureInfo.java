@@ -21,6 +21,8 @@ import java.io.IOException;
  */
 public record RelocationFailureInfo(int failedRelocations) implements ToXContentFragment, Writeable {
 
+    public static final RelocationFailureInfo NO_FAILURES = new RelocationFailureInfo(0);
+
     public RelocationFailureInfo {
         assert failedRelocations >= 0 : "Expect non-negative failures count, got: " + failedRelocations;
     }
@@ -32,6 +34,10 @@ public record RelocationFailureInfo(int failedRelocations) implements ToXContent
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(failedRelocations);
+    }
+
+    public RelocationFailureInfo incFailedRelocations() {
+        return new RelocationFailureInfo(failedRelocations + 1);
     }
 
     @Override

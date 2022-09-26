@@ -714,13 +714,6 @@ tag::node-id[]
 returned information.
 end::node-id[]
 
-tag::node-id-query-parm[]
-`node_id`::
-(Optional, string)
-Comma-separated list of node IDs or names
-used to limit returned information.
-end::node-id-query-parm[]
-
 tag::offsets[]
 `<offsets>`::
 (Optional, Boolean) If `true`, the response includes term offsets.

@@ -492,3 +492,82 @@ setup:
                 field: range
                 calendar_interval: year
   - match: { hits.total.value: 0 }
+
+---
+"Date histogram on two indices with same field but different date type":
+  - do:
+      indices.create:
+        index: date_field_type_date
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date_field:
+                type: date
+
+  - do:
+      indices.create:
+        index: date_field_type_date_nanos
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date_field:
+                type: date_nanos
+
+  - do:
+      index:
+        index: date_field_type_date
+        refresh: true
+        id: "1"
+        body:
+          date_field: "2017-10-20T03:08:45"
+
+  - do:
+      index:
+        index: date_field_type_date_nanos
+        refresh: true
+        id: "2"
+        body:
+          date_field: "2017-10-20T04:10:15"
+
+  - do:
+      search:
+        index: date_field_type_date,date_field_type_date_nanos
+        body:
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: date_field
+                calendar_interval: hour
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+  - length: { hits.hits: 2 }
+  - length: { aggregations.date_histogram.buckets: 2 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2017-10-20T03:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1508468400000 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram.buckets.1.key_as_string: "2017-10-20T04:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.1.key: 1508472000000 }
+  - match: { aggregations.date_histogram.buckets.1.doc_count: 1 }
+
+  - do:
+      search:
+        index: date_field_type_date,date_field_type_date_nanos
+        body:
+          aggs:
+            date_histogram:
+              date_histogram:
+                field: date_field
+                calendar_interval: day
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+  - length: { hits.hits: 2 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2017-10-20T00:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1508457600000 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 2 }

@@ -1,0 +1,8 @@
+pr: 90347
+summary: Fix NPE in transform scheduling
+area: Transform
+type: bug
+issues:
+ - 88203
+ - 90301
+ - 90255

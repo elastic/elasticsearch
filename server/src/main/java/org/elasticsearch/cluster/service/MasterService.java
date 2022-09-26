@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -146,6 +146,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private static ClusterStateTaskExecutor<ClusterStateUpdateTask> getUnbatchedExecutor() {
         return new ClusterStateTaskExecutor<>() {
             @Override
+            @SuppressForbidden(reason = "consuming published cluster state for legacy reasons")
             public ClusterState execute(BatchExecutionContext<ClusterStateUpdateTask> batchExecutionContext) throws Exception {
                 final var currentState = batchExecutionContext.initialState();
                 final var taskContexts = batchExecutionContext.taskContexts();
@@ -619,7 +620,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     }
                 } catch (Exception e2) {
                     e2.addSuppressed(e);
-                    logger.error(new ParameterizedMessage("unexpected exception failing task [{}]", source), e2);
+                    logger.error(() -> format("unexpected exception failing task [%s]", source), e2);
                     assert false : e2;
                 }
             }
@@ -1361,7 +1362,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 nextItem.onRejection(e);
             } catch (Exception e2) {
                 e2.addSuppressed(e);
-                logger.error(new ParameterizedMessage("exception failing item on rejection [{}]", nextItem), e2);
+                logger.error(() -> format("exception failing item on rejection [%s]", nextItem), e2);
                 assert false : e2;
             } finally {
                 currentlyExecutingBatch = null;
@@ -1570,7 +1571,7 @@ public class MasterService extends AbstractLifecycleComponent {
                         task.onFailure(e);
                     } catch (Exception e2) {
                         e2.addSuppressed(e);
-                        logger.error(new ParameterizedMessage("exception failing task [{}] on rejection", task), e2);
+                        logger.error(() -> format("exception failing task [%s] on rejection", task), e2);
                         assert false : e2;
                     }
                 }

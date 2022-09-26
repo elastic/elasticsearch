@@ -236,10 +236,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         }
     }
 
-    public static void validateVersionDependentDeprecatedSetting(String key, Map<Setting<?>, Object> settings) {
+    public static void validateVersionDependentDeprecatedSettingV7(String key, Map<Setting<?>, Object> settings) {
         assert settings.size() > 0;
-        Version indexVersion = (Version) settings.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED);
-        if (indexVersion == Version.V_EMPTY || indexVersion.major == Version.CURRENT.major) {
+        Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+        if (indexVersion.major != Version.V_7_0_0.major) {
             throw new IllegalArgumentException("unknown setting [" + key + "]");
         }
     }

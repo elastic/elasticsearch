@@ -13,13 +13,12 @@ import joptsimple.OptionSet;
 import org.elasticsearch.Build;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.junit.Before;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -28,13 +27,11 @@ import static org.hamcrest.Matchers.is;
 public class EnvironmentAwareCommandTests extends CommandTestCase {
 
     private Build.Type buildType;
-    private Map<String, String> mockEnvVars;
     private Consumer<Environment> callback;
 
     @Before
     public void resetHooks() {
         buildType = Build.Type.TAR;
-        mockEnvVars = new HashMap<>();
         callback = null;
     }
 
@@ -42,20 +39,10 @@ public class EnvironmentAwareCommandTests extends CommandTestCase {
     protected Command newCommand() {
         return new EnvironmentAwareCommand("test command") {
             @Override
-            protected void execute(Terminal terminal, OptionSet options, Environment env) {
+            public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) {
                 if (callback != null) {
                     callback.accept(env);
                 }
-            }
-
-            @Override
-            protected Map<String, String> captureSystemProperties() {
-                return mockSystemProperties(createTempDir());
-            }
-
-            @Override
-            protected Map<String, String> captureEnvironmentVariables() {
-                return mockEnvVars;
             }
 
             @Override
@@ -67,8 +54,8 @@ public class EnvironmentAwareCommandTests extends CommandTestCase {
 
     // Check that for non-Docker, environment variables are not translated into settings
     public void testNonDockerEnvVarSettingsIgnored() throws Exception {
-        mockEnvVars.put("ES_SETTING_FOO_BAR", "baz");
-        mockEnvVars.put("some.setting", "1");
+        envVars.put("ES_SETTING_FOO_BAR", "baz");
+        envVars.put("some.setting", "1");
         callback = env -> {
             Settings settings = env.settings();
             assertThat(settings.hasValue("foo.bar"), is(false));
@@ -80,17 +67,17 @@ public class EnvironmentAwareCommandTests extends CommandTestCase {
     // Check that for Docker, environment variables that do not match the criteria for translation to settings are ignored.
     public void testDockerEnvVarSettingsIgnored() throws Exception {
         // No ES_SETTING_ prefix
-        mockEnvVars.put("XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
+        envVars.put("XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
         // Incomplete prefix
-        mockEnvVars.put("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
+        envVars.put("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false");
         // Not underscore-separated
-        mockEnvVars.put("ES.SETTING.XPACK.SECURITY.FIPS_MODE.ENABLED", "false");
+        envVars.put("ES.SETTING.XPACK.SECURITY.FIPS_MODE.ENABLED", "false");
         // Not uppercase
-        mockEnvVars.put("es_setting_xpack_security_fips__mode_enabled", "false");
+        envVars.put("es_setting_xpack_security_fips__mode_enabled", "false");
         // single word is not translated, it must contain a dot
-        mockEnvVars.put("singleword", "value");
+        envVars.put("singleword", "value");
         // any uppercase letters cause the var to be ignored
-        mockEnvVars.put("setting.Ignored", "value");
+        envVars.put("setting.Ignored", "value");
         callback = env -> {
             Settings settings = env.settings();
             assertThat(settings.hasValue("xpack.security.fips_mode.enabled"), is(false));
@@ -105,17 +92,17 @@ public class EnvironmentAwareCommandTests extends CommandTestCase {
     public void testDockerEnvVarSettingsTranslated() throws Exception {
         buildType = Build.Type.DOCKER;
         // normal setting with a dot
-        mockEnvVars.put("ES_SETTING_SIMPLE_SETTING", "value");
+        envVars.put("ES_SETTING_SIMPLE_SETTING", "value");
         // double underscore is translated to literal underscore
-        mockEnvVars.put("ES_SETTING_UNDERSCORE__HERE", "value");
+        envVars.put("ES_SETTING_UNDERSCORE__HERE", "value");
         // literal underscore and a dot
-        mockEnvVars.put("ES_SETTING_UNDERSCORE__DOT_BAZ", "value");
+        envVars.put("ES_SETTING_UNDERSCORE__DOT_BAZ", "value");
         // two literal underscores
-        mockEnvVars.put("ES_SETTING_DOUBLE____UNDERSCORE", "value");
+        envVars.put("ES_SETTING_DOUBLE____UNDERSCORE", "value");
         // literal underscore followed by a dot (not valid setting, but translated nonetheless
-        mockEnvVars.put("ES_SETTING_TRIPLE___BAZ", "value");
+        envVars.put("ES_SETTING_TRIPLE___BAZ", "value");
         // lowercase
-        mockEnvVars.put("lowercase.setting", "value");
+        envVars.put("lowercase.setting", "value");
         callback = env -> {
             Settings settings = env.settings();
             assertThat(settings.get("simple.setting"), equalTo("value"));
@@ -132,7 +119,7 @@ public class EnvironmentAwareCommandTests extends CommandTestCase {
     public void testDockerEnvVarSettingsOverrideCommandLine() throws Exception {
         // docker env takes precedence over settings on the command line
         buildType = Build.Type.DOCKER;
-        mockEnvVars.put("ES_SETTING_SIMPLE_SETTING", "override");
+        envVars.put("ES_SETTING_SIMPLE_SETTING", "override");
         callback = env -> {
             Settings settings = env.settings();
             assertThat(settings.get("simple.setting"), equalTo("override"));

@@ -331,7 +331,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     public void write(T obj, BlobContainer blobContainer, String name, boolean compress, Map<String, String> serializationParams)
         throws IOException {
         final String blobName = blobName(name);
-        blobContainer.writeBlob(blobName, false, false, out -> serialize(obj, blobName, compress, serializationParams, out));
+        blobContainer.writeMetadataBlob(blobName, false, false, out -> serialize(obj, blobName, compress, serializationParams, out));
     }
 
     public void serialize(final T obj, final String blobName, final boolean compress, final OutputStream outputStream) throws IOException {
@@ -349,7 +349,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
                 "ChecksumBlobStoreFormat.serialize(blob=\"" + blobName + "\")",
                 blobName,
-                org.elasticsearch.common.io.Streams.noCloseStream(outputStream),
+                org.elasticsearch.core.Streams.noCloseStream(outputStream),
                 BUFFER_SIZE
             )
         ) {

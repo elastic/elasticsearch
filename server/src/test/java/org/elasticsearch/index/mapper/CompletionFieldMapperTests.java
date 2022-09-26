@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -47,6 +48,7 @@ import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.CombinableMatcher;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -109,7 +111,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         checker.registerUpdateCheck(
             b -> b.field("search_analyzer", "standard"),
-            m -> assertEquals("standard", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name())
+            m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
         checker.registerUpdateCheck(b -> b.field("max_input_length", 30), m -> {
             CompletionFieldMapper cfm = (CompletionFieldMapper) m;
@@ -135,7 +137,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
     public void testPostingsFormat() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        CodecService codecService = new CodecService(mapperService);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         PerFieldMapperCodec perFieldCodec = (PerFieldMapperCodec) codec;
@@ -156,7 +158,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().searchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("simple"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
@@ -184,7 +186,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().searchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("standard"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
@@ -942,5 +944,15 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("We don't have doc values or fielddata", true);
         return null;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

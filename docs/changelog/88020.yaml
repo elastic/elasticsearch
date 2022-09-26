@@ -1,0 +1,5 @@
+pr: 88020
+summary: Adding logic to `master_is_stable` indicator to check for discovery problems
+area: Health
+type: enhancement
+issues: []

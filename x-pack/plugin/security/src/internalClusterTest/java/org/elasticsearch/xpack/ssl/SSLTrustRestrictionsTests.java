@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -34,7 +33,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLException;
@@ -43,6 +44,7 @@ import javax.net.ssl.SSLSocketFactory;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -168,11 +170,12 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         try {
             tryConnect(trustedCert, false);
         } catch (SSLException | SocketException ex) {
+            Collection<List<?>> subjectAlternativeNames = trustedCert.certificate.getSubjectAlternativeNames();
             logger.warn(
-                new ParameterizedMessage(
-                    "unexpected handshake failure with certificate [{}] [{}]",
+                () -> format(
+                    "unexpected handshake failure with certificate [%s] [%s]",
                     trustedCert.certificate.getSubjectX500Principal(),
-                    trustedCert.certificate.getSubjectAlternativeNames()
+                    subjectAlternativeNames
                 ),
                 ex
             );

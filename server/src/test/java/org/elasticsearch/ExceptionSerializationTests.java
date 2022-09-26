@@ -47,6 +47,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.query.QueryShardException;
@@ -64,6 +65,7 @@ import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.ingest.IngestProcessorException;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.rest.RestResponseTests;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -71,6 +73,7 @@ import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -131,7 +134,7 @@ public class ExceptionSerializationTests extends ESTestCase {
             .resolve("elasticsearch");
         final Set<? extends Class<?>> ignore = Sets.newHashSet(
             CancellableThreadsTests.CustomException.class,
-            org.elasticsearch.rest.BytesRestResponseTests.WithHeadersException.class,
+            RestResponseTests.WithHeadersException.class,
             AbstractClientHeadersTestCase.InternalException.class
         );
         FileVisitor<Path> visitor = new FileVisitor<Path>() {
@@ -828,6 +831,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(163, RepositoryConflictException.class);
         ids.put(164, VersionConflictException.class);
         ids.put(165, SnapshotNameAlreadyInUseException.class);
+        ids.put(166, HealthNodeNotDiscoveredException.class);
+        ids.put(167, UnsupportedAggregationOnDownsampledIndex.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

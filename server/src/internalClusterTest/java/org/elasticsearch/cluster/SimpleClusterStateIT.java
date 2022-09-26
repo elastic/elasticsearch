@@ -19,11 +19,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,8 +38,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.CollectionAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -60,6 +61,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertInde
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -217,14 +219,14 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             .setIndices(indices)
             .get();
 
-        ImmutableOpenMap<String, IndexMetadata> metadata = clusterState.getState().getMetadata().indices();
+        Map<String, IndexMetadata> metadata = clusterState.getState().getMetadata().indices();
         assertThat(metadata.size(), is(expected.length));
 
         RoutingTable routingTable = clusterState.getState().getRoutingTable();
         assertThat(routingTable.indicesRouting().size(), is(expected.length));
 
         for (String expectedIndex : expected) {
-            assertThat(metadata, CollectionAssertions.hasKey(expectedIndex));
+            assertThat(metadata, hasKey(expectedIndex));
             assertThat(routingTable.hasIndex(expectedIndex), is(true));
         }
     }
@@ -439,7 +441,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier
+            final Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer,
+            AllocationDeciders allocationDeciders
         ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();

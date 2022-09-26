@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -19,6 +18,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -30,15 +30,17 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentNodeService;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 public class TrainedModelDeploymentTask extends CancellableTask implements StartTrainedModelDeploymentAction.TaskMatcher {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelDeploymentTask.class);
 
-    private final TaskParams params;
+    private volatile TaskParams params;
     private final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService;
     private volatile boolean stopped;
+    private volatile boolean failed;
     private final SetOnce<String> stoppedReasonHolder = new SetOnce<>();
     private final SetOnce<InferenceConfig> inferenceConfigHolder = new SetOnce<>();
     private final XPackLicenseState licenseState;
@@ -56,7 +58,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         LicensedFeature.Persistent licensedFeature
     ) {
         super(id, type, action, MlTasks.trainedModelAssignmentTaskDescription(taskParams.getModelId()), parentTask, headers);
-        this.params = taskParams;
+        this.params = Objects.requireNonNull(taskParams);
         this.trainedModelAssignmentNodeService = ExceptionsHelper.requireNonNull(
             trainedModelAssignmentNodeService,
             "trainedModelAssignmentNodeService"
@@ -69,6 +71,17 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         if (this.inferenceConfigHolder.trySet(inferenceConfig)) {
             licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
         }
+    }
+
+    public void updateNumberOfAllocations(int numberOfAllocations) {
+        params = new TaskParams(
+            params.getModelId(),
+            params.getModelBytes(),
+            numberOfAllocations,
+            params.getThreadsPerAllocation(),
+            params.getQueueCapacity(),
+            null
+        );
     }
 
     public String getModelId() {
@@ -110,12 +123,19 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             reason,
             ActionListener.wrap(
                 acknowledgedResponse -> {},
-                e -> logger.error(new ParameterizedMessage("[{}] error stopping the model after task cancellation", getModelId()), e)
+                e -> logger.error(() -> "[" + getModelId() + "] error stopping the model after task cancellation", e)
             )
         );
     }
 
-    public void infer(Map<String, Object> doc, InferenceConfigUpdate update, TimeValue timeout, ActionListener<InferenceResults> listener) {
+    public void infer(
+        Map<String, Object> doc,
+        InferenceConfigUpdate update,
+        boolean skipQueue,
+        TimeValue timeout,
+        Task parentActionTask,
+        ActionListener<InferenceResults> listener
+    ) {
         if (inferenceConfigHolder.get() == null) {
             listener.onFailure(ExceptionsHelper.conflictStatusException("Trained model [{}] is not initialized", params.getModelId()));
             return;
@@ -132,14 +152,31 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             );
             return;
         }
-        trainedModelAssignmentNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, timeout, listener);
+        trainedModelAssignmentNodeService.infer(
+            this,
+            update.apply(inferenceConfigHolder.get()),
+            doc,
+            skipQueue,
+            timeout,
+            parentActionTask,
+            listener
+        );
     }
 
     public Optional<ModelStats> modelStats() {
         return trainedModelAssignmentNodeService.modelStats(this);
     }
 
+    public void clearCache(ActionListener<AcknowledgedResponse> listener) {
+        trainedModelAssignmentNodeService.clearCache(this, listener);
+    }
+
     public void setFailed(String reason) {
+        failed = true;
         trainedModelAssignmentNodeService.failAssignment(this, reason);
+    }
+
+    public boolean isFailed() {
+        return failed;
     }
 }

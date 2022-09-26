@@ -27,7 +27,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -183,7 +183,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testCase(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number2", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
@@ -194,7 +194,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testCase(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number2", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
@@ -385,7 +385,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
                 IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-                Min min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+                Min min = searchAndReduce(new AggTestConfig(indexSearcher, aggregationBuilder, fieldType));
                 assertEquals(2.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(min));
             }
@@ -416,7 +416,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
                 IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-                Min min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+                Min min = searchAndReduce(new AggTestConfig(indexSearcher, aggregationBuilder, fieldType));
                 assertEquals(-19.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(min));
             }

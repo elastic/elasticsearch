@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -137,7 +138,8 @@ public class PyTorchModelIT extends ESRestTestCase {
             {"persistent" : {
                     "logger.org.elasticsearch.xpack.ml.inference.assignment": null,
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
-                    "logger.org.elasticsearch.xpack.ml.process.logging" : null
+                    "logger.org.elasticsearch.xpack.ml.process.logging" : null,
+                    "xpack.ml.max_lazy_ml_nodes": null
                 }}""");
         client().performRequest(loggingSettings);
 
@@ -159,7 +161,10 @@ public class PyTorchModelIT extends ESRestTestCase {
                 executorService.execute(() -> {
                     try {
                         Response inference = infer("my words", modelId);
-                        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
+                        assertThat(
+                            EntityUtils.toString(inference.getEntity()),
+                            equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}")
+                        );
                     } catch (IOException ex) {
                         failures.add(ex.getMessage());
                     } finally {
@@ -184,7 +189,10 @@ public class PyTorchModelIT extends ESRestTestCase {
         startDeployment(modelId);
         String resultsField = randomAlphaOfLength(10);
         Response inference = infer("my words", modelId, resultsField);
-        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"" + resultsField + "\":[[1.0,1.0]]}"));
+        assertThat(
+            EntityUtils.toString(inference.getEntity()),
+            equalTo("{\"inference_results\":[{\"" + resultsField + "\":[[1.0,1.0]]}]}")
+        );
         stopDeployment(modelId);
     }
 
@@ -241,6 +249,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
             assertThat(responseMap.toString(), statusState, is(not(nullValue())));
             assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
+            assertThat(XContentMapValues.extractValue("inference_stats", stats.get(0)), is(not(nullValue())));
 
             Integer byteSize = (Integer) XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0));
             assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
@@ -251,7 +260,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 stats.get(0)
             );
             assertThat(responseMap.toString(), requiredNativeMemory, is(not(nullValue())));
-            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(270).getBytes() + 2 * RAW_MODEL_SIZE)));
+            assertThat(requiredNativeMemory, equalTo((int) (ByteSizeValue.ofMb(240).getBytes() + 2 * RAW_MODEL_SIZE)));
 
             Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
             var humanResponseMap = entityAsMap(humanResponse);
@@ -259,7 +268,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(stats, hasSize(1));
             String stringModelSizeBytes = (String) XContentMapValues.extractValue("model_size_stats.model_size", stats.get(0));
             assertThat(
-                "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                "stats response: " + responseMap + " human stats response " + humanResponseMap,
                 stringModelSizeBytes,
                 is(not(nullValue()))
             );
@@ -273,7 +282,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                 stringRequiredNativeMemory,
                 is(not(nullValue()))
             );
-            assertThat(stringRequiredNativeMemory, equalTo("270mb"));
+            assertThat(stringRequiredNativeMemory, equalTo("240mb"));
             stopDeployment(modelId);
         };
 
@@ -314,6 +323,10 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         infer("once", modelA);
         infer("twice", modelA);
+        // By making this request 3 times at least one of the responses must come from the cache because the cluster has 2 ML nodes
+        infer("three times", modelA);
+        infer("three times", modelA);
+        infer("three times", modelA);
         {
             Response postInferStatsResponse = getTrainedModelStats(modelA);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(postInferStatsResponse).get("trained_model_stats");
@@ -324,22 +337,62 @@ public class PyTorchModelIT extends ESRestTestCase {
                 "deployment_stats.nodes",
                 stats.get(0)
             );
-            // 2 of the 3 nodes in the cluster are ML nodes
-            assertThat(nodes, hasSize(2));
+            // 2 of the 3 nodes in the cluster are ML nodes but we have asked for a single allocation
+            assertThat(nodes, hasSize(1));
             for (var node : nodes) {
                 assertThat(node.get("number_of_pending_requests"), notNullValue());
             }
-            // last_access and average_inference_time_ms may be null if inference wasn't performed on this node
+            assertAtLeastOneOfTheseIsNonZero("inference_cache_hit_count", nodes);
+            // last_access, average_inference_time_ms and inference_cache_hit_count_last_minute
+            // may be null if inference wasn't performed on a node. Also, in this test they'll
+            // be zero even when they are present because we don't have a full minute of history.
             assertAtLeastOneOfTheseIsNotNull("last_access", nodes);
             assertAtLeastOneOfTheseIsNotNull("average_inference_time_ms", nodes);
+            assertAtLeastOneOfTheseIsNotNull("inference_cache_hit_count_last_minute", nodes);
 
+            assertThat((Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(5));
             int inferenceCount = sumInferenceCountOnNodes(nodes);
-            assertThat(inferenceCount, equalTo(2));
+            assertThat(inferenceCount, equalTo(5));
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testFailedDeploymentStats() throws Exception {
+        String badModel = "bad_model";
+        String poorlyFormattedModelBase64 = "cG9vcmx5IGZvcm1hdHRlZCBtb2RlbAo=";
+        int length = Base64.getDecoder().decode(poorlyFormattedModelBase64).length;
+        createTrainedModel(badModel);
+        putVocabulary(List.of("once", "twice"), badModel);
+        Request request = new Request("PUT", "_ml/trained_models/" + badModel + "/definition/0");
+        request.setJsonEntity("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(length, poorlyFormattedModelBase64));
+        client().performRequest(request);
+        startDeployment(badModel, AllocationStatus.State.STARTING.toString());
+        assertBusy(() -> {
+            Response noInferenceCallsStatsResponse = getTrainedModelStats(badModel);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
+                "trained_model_stats"
+            );
+            assertThat(stats, hasSize(1));
+
+            String assignmentState = (String) XContentMapValues.extractValue("deployment_stats.state", stats.get(0));
+            assertThat(assignmentState, equalTo(AssignmentState.FAILED.toString()));
+        });
+    }
+
     private void assertAtLeastOneOfTheseIsNotNull(String name, List<Map<String, Object>> nodes) {
-        assertTrue("all nodes have null value for [" + name + "]", nodes.stream().anyMatch(n -> n.get(name) != null));
+        assertTrue("all nodes have null value for [" + name + "] in " + nodes, nodes.stream().anyMatch(n -> n.get(name) != null));
+    }
+
+    private void assertAtLeastOneOfTheseIsNonZero(String name, List<Map<String, Object>> nodes) {
+        assertTrue("all nodes have null or zero value for [" + name + "] in " + nodes, nodes.stream().anyMatch(n -> {
+            Object o = n.get(name);
+            if (o instanceof Number) {
+                return ((Number) o).longValue() != 0;
+            } else {
+                return false;
+            }
+        }));
     }
 
     @SuppressWarnings("unchecked")
@@ -402,12 +455,10 @@ public class PyTorchModelIT extends ESRestTestCase {
                 "deployment_stats.nodes",
                 stats.get(i)
             );
-            // 2 ml nodes
-            assertThat(nodes, hasSize(2));
-            for (int j : new int[] { 0, 1 }) {
-                Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(j));
-                assertEquals("started", state);
-            }
+            // 2 ml nodes but we've asked a single allocation for each model
+            assertThat(nodes, hasSize(1));
+            Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(0));
+            assertEquals("started", state);
         }
 
         stopDeployment(modelFoo);
@@ -419,17 +470,15 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(stats, hasSize(2));
         assertThat(stats.get(0), not(hasKey("deployment_stats")));
 
-        // check all nodes are started for the non-stopped deployment
+        // check a node is started for the non-stopped deployment
         List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
             "deployment_stats.nodes",
             stats.get(1)
         );
-        // 2 ml nodes
-        assertThat(nodes, hasSize(2));
-        for (int j : new int[] { 0, 1 }) {
-            Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(j));
-            assertEquals("started", state);
-        }
+        // 2 ml nodes but we've asked a single allocation
+        assertThat(nodes, hasSize(1));
+        Object state = XContentMapValues.extractValue("routing_state.routing_state", nodes.get(0));
+        assertEquals("started", state);
 
         stopDeployment(modelBar);
     }
@@ -555,7 +604,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
-        request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity("""
             {
               "docs": [
@@ -685,6 +734,159 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThatTrainedModelAssignmentMetadataIsEmpty();
     }
 
+    public void testStoppingDeploymentShouldTriggerRebalance() throws Exception {
+        // We start 2 models. The first needs so many allocations it won't possibly
+        // get them all. This would leave no space to allocate the second model at all.
+        // We then stop the first model and should see the second one get allocations.
+
+        // Enable lazy starting so that the deployments start even if they cannot get fully allocated.
+        // The setting is cleared in the cleanup method of these tests.
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "xpack.ml.max_lazy_ml_nodes": 5
+                }}""");
+        client().performRequest(loggingSettings);
+
+        String modelId1 = "model_1";
+        createTrainedModel(modelId1);
+        putModelDefinition(modelId1);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId1);
+
+        String modelId2 = "model_2";
+        createTrainedModel(modelId2);
+        putModelDefinition(modelId2);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId2);
+
+        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1);
+        startDeployment(modelId2, AllocationStatus.State.STARTING.toString(), 1, 1);
+
+        // Check second model did not get any allocations
+        assertAllocationCount(modelId2, 0);
+
+        stopDeployment(modelId1);
+
+        assertBusy(() -> assertAllocationCount(modelId2, 1));
+
+        stopDeployment(modelId2);
+    }
+
+    public void testNotifications() throws IOException {
+        String modelId1 = "test_notifications_1";
+        createTrainedModel(modelId1);
+        putModelDefinition(modelId1);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId1);
+        startDeployment(modelId1);
+
+        String modelId2 = "test_notifications_2";
+        createTrainedModel(modelId2);
+        putModelDefinition(modelId2);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId2);
+        startDeployment(modelId2);
+
+        stopDeployment(modelId1);
+        stopDeployment(modelId2);
+
+        assertNotificationsContain(modelId1, "Started deployment", "Stopped deployment");
+        assertNotificationsContain(modelId2, "Started deployment", "Stopped deployment");
+        assertSystemNotificationsContain("Rebalanced trained model allocations because [model deployment started]");
+    }
+
+    public void testStartDeployment_TooManyAllocations() throws IOException {
+        String modelId = "test_start_deployment_too_many_allocations";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> startDeployment(modelId, AllocationStatus.State.STARTED.toString(), 100, 1)
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString("Could not start deployment because there are not enough resources to provide all requested allocations")
+        );
+
+        Response response = getTrainedModelStats(modelId);
+        assertThat(EntityUtils.toString(response.getEntity()), not(containsString("deployment_stats")));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStartDeployment_GivenNoProcessorsLeft_AndLazyStartEnabled() throws Exception {
+        // We start 2 models. The first needs so many allocations it won't possibly
+        // get them all. This would leave no space to allocate the second model at all.
+
+        // Enable lazy starting so that the deployments start even if they cannot get fully allocated.
+        // The setting is cleared in the cleanup method of these tests.
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "xpack.ml.max_lazy_ml_nodes": 5
+                }}""");
+        client().performRequest(loggingSettings);
+
+        String modelId1 = "model_1";
+        createTrainedModel(modelId1);
+        putModelDefinition(modelId1);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId1);
+
+        String modelId2 = "model_2";
+        createTrainedModel(modelId2);
+        putModelDefinition(modelId2);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId2);
+
+        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1);
+
+        {
+            Request request = new Request(
+                "POST",
+                "/_ml/trained_models/"
+                    + modelId2
+                    + "/deployment/_start?timeout=40s&wait_for=starting&"
+                    + "number_of_allocations=4&threads_per_allocation=2&queue_capacity=500&cache_size=100Kb"
+            );
+            client().performRequest(request);
+        }
+
+        // Check second model did not get any allocations
+        assertAllocationCount(modelId2, 0);
+
+        // Verify stats shows model is starting and deployment settings are present
+        {
+            Response statsResponse = getTrainedModelStats(modelId2);
+            var responseMap = entityAsMap(statsResponse);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
+            assertThat(stats, hasSize(1));
+            String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
+            assertThat(statusState, equalTo("starting"));
+            int numberOfAllocations = (int) XContentMapValues.extractValue("deployment_stats.number_of_allocations", stats.get(0));
+            assertThat(numberOfAllocations, equalTo(4));
+            int threadsPerAllocation = (int) XContentMapValues.extractValue("deployment_stats.threads_per_allocation", stats.get(0));
+            assertThat(threadsPerAllocation, equalTo(2));
+            int queueCapacity = (int) XContentMapValues.extractValue("deployment_stats.queue_capacity", stats.get(0));
+            assertThat(queueCapacity, equalTo(500));
+            ByteSizeValue cacheSize = ByteSizeValue.parseBytesSizeValue(
+                (String) XContentMapValues.extractValue("deployment_stats.cache_size", stats.get(0)),
+                "cache_size)"
+            );
+            assertThat(cacheSize, equalTo(ByteSizeValue.ofKb(100)));
+        }
+
+        stopDeployment(modelId1);
+        stopDeployment(modelId2);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertAllocationCount(String modelId, int expectedAllocationCount) throws IOException {
+        Response response = getTrainedModelStats(modelId);
+        var responseMap = entityAsMap(response);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
+        assertThat(stats, hasSize(1));
+        int allocations = (int) XContentMapValues.extractValue("deployment_stats.allocation_status.allocation_count", stats.get(0));
+        assertThat(allocations, equalTo(expectedAllocationCount));
+    }
+
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
         int inferenceCount = 0;
         for (var node : nodes) {
@@ -695,8 +897,9 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity("""
-            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
+        String body = """
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL);
+        request.setJsonEntity(body);
         client().performRequest(request);
     }
 
@@ -738,13 +941,21 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
+        return startDeployment(modelId, waitForState, 1, 1);
+    }
+
+    private Response startDeployment(String modelId, String waitForState, int numberOfAllocations, int threadsPerAllocation)
+        throws IOException {
         Request request = new Request(
             "POST",
             "/_ml/trained_models/"
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&inference_threads=1&model_threads=1"
+                + "&threads_per_allocation="
+                + threadsPerAllocation
+                + "&number_of_allocations="
+                + numberOfAllocations
         );
         return client().performRequest(request);
     }
@@ -768,7 +979,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId, TimeValue timeout) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer?timeout=" + timeout.toString());
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=" + timeout.toString());
         request.setJsonEntity("""
             {  "docs": [{"input":"%s"}] }
             """.formatted(input));
@@ -776,7 +987,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity("""
             {  "docs": [{"input":"%s"}] }
             """.formatted(input));
@@ -784,7 +995,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private Response infer(String input, String modelId, String resultsField) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
         request.setJsonEntity("""
             {
               "docs": [ { "input": "%s" } ],
@@ -816,5 +1027,48 @@ public class PyTorchModelIT extends ESRestTestCase {
         getTrainedModelAssignmentMetadataRequest = new Request("GET", "_cluster/state?filter_path=metadata.trained_model_allocation");
         getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
         assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), equalTo("{}"));
+    }
+
+    private void assertNotificationsContain(String modelId, String... auditMessages) throws IOException {
+        client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
+        Request search = new Request("POST", ".ml-notifications-*/_search");
+        search.setJsonEntity("""
+            {
+                "size": 100,
+                "query": {
+                  "bool": {
+                    "filter": [
+                      {"term": {"job_id": "%s"}},
+                      {"term": {"job_type": "inference"}}
+                    ]
+                  }
+                }
+            }
+            """.formatted(modelId));
+        String response = EntityUtils.toString(client().performRequest(search).getEntity());
+        for (String msg : auditMessages) {
+            assertThat(response, containsString(msg));
+        }
+    }
+
+    private void assertSystemNotificationsContain(String... auditMessages) throws IOException {
+        client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
+        Request search = new Request("POST", ".ml-notifications-*/_search");
+        search.setJsonEntity("""
+            {
+                "size": 100,
+                "query": {
+                  "bool": {
+                    "filter": [
+                      {"term": {"job_type": "system"}}
+                    ]
+                  }
+                }
+            }
+            """);
+        String response = EntityUtils.toString(client().performRequest(search).getEntity());
+        for (String msg : auditMessages) {
+            assertThat(response, containsString(msg));
+        }
     }
 }

@@ -69,13 +69,11 @@ public class JobNodeSelectorTests extends ESTestCase {
     private static final Set<DiscoveryNodeRole> ROLES_WITHOUT_ML = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
 
     private MlMemoryTracker memoryTracker;
-    private boolean isMemoryTrackerRecentlyRefreshed;
 
     @Before
     public void setup() {
         memoryTracker = mock(MlMemoryTracker.class);
-        isMemoryTrackerRecentlyRefreshed = true;
-        when(memoryTracker.isRecentlyRefreshed()).thenReturn(isMemoryTrackerRecentlyRefreshed, false);
+        when(memoryTracker.isRecentlyRefreshed()).thenReturn(true, false);
         when(memoryTracker.getAnomalyDetectorJobMemoryRequirement(anyString())).thenReturn(JOB_MEMORY_REQUIREMENT.getBytes());
         when(memoryTracker.getDataFrameAnalyticsJobMemoryRequirement(anyString())).thenReturn(JOB_MEMORY_REQUIREMENT.getBytes());
         when(memoryTracker.getJobMemoryRequirement(anyString(), anyString())).thenReturn(JOB_MEMORY_REQUIREMENT.getBytes());
@@ -110,7 +108,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         int maxMachineMemoryPercent = 30;
         long machineMemory = (maxRunningJobsPerNode + 1) * JOB_MEMORY_REQUIREMENT.getBytes() * 100 / maxMachineMemoryPercent;
 
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(machineMemory));
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(machineMemory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            Long.toString(machineMemory / 2)
+        );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, maxRunningJobsPerNode);
 
@@ -151,7 +154,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         int maxMachineMemoryPercent = 30;
         long machineMemory = (maxRunningJobsPerNode + 1) * JOB_MEMORY_REQUIREMENT.getBytes() * 100 / maxMachineMemoryPercent;
 
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(machineMemory));
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(machineMemory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            Long.toString(machineMemory / 2)
+        );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, maxRunningJobsPerNode);
 
@@ -198,7 +206,12 @@ public class JobNodeSelectorTests extends ESTestCase {
             * JOB_MEMORY_REQUIREMENT.getBytes();
         long machineMemory = currentlyRunningJobMemory * 100 / maxMachineMemoryPercent;
 
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(machineMemory));
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(machineMemory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            Long.toString(machineMemory / 2)
+        );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, currentlyRunningJobsPerNode);
 
@@ -247,7 +260,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         int maxRunningJobsPerNode = 10;
         int maxMachineMemoryPercent = 30;
 
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(ByteSizeValue.ofGb(1).getBytes()));
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            String.valueOf(ByteSizeValue.ofGb(1).getBytes()),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            String.valueOf(ByteSizeValue.ofMb(400).getBytes())
+        );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, 1, JobState.OPENED, null);
 
@@ -279,7 +297,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         long firstJobTotalMemory = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + JOB_MEMORY_REQUIREMENT.getBytes();
         long machineMemory = (firstJobTotalMemory - 1) * 100 / maxMachineMemoryPercent;
 
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(machineMemory));
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(machineMemory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            Long.toString(machineMemory / 2)
+        );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, 0);
 
@@ -331,7 +354,12 @@ public class JobNodeSelectorTests extends ESTestCase {
             * JOB_MEMORY_REQUIREMENT.getBytes();
         long machineMemory = currentlyRunningJobMemory * 100 / maxMachineMemoryPercent;
 
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(machineMemory));
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(machineMemory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            Long.toString(machineMemory / 2)
+        );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, currentlyRunningJobsPerNode);
 
@@ -382,7 +410,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         long firstJobTotalMemory = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes() + JOB_MEMORY_REQUIREMENT.getBytes();
         long machineMemory = (firstJobTotalMemory - 1) * 100 / maxMachineMemoryPercent;
 
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(machineMemory));
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(machineMemory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            Long.toString(machineMemory / 2)
+        );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, 0);
 
@@ -473,7 +506,12 @@ public class JobNodeSelectorTests extends ESTestCase {
     }
 
     public void testSelectLeastLoadedMlNode_maxConcurrentOpeningJobs() {
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "1000000000",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000"
+        );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -603,7 +641,12 @@ public class JobNodeSelectorTests extends ESTestCase {
     }
 
     public void testSelectLeastLoadedMlNode_concurrentOpeningJobsAndStaleFailedJob() {
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "1000000000",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000"
+        );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -696,7 +739,12 @@ public class JobNodeSelectorTests extends ESTestCase {
     }
 
     public void testSelectLeastLoadedMlNode_noCompatibleJobTypeNodes() {
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "1000000000",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000"
+        );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -751,7 +799,12 @@ public class JobNodeSelectorTests extends ESTestCase {
     }
 
     public void testSelectLeastLoadedMlNode_reasonsAreInDeterministicOrder() {
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "1000000000",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000"
+        );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -818,7 +871,12 @@ public class JobNodeSelectorTests extends ESTestCase {
     }
 
     public void testSelectLeastLoadedMlNode_noNodesMatchingModelSnapshotMinVersion() {
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "1000000000",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000"
+        );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -871,7 +929,12 @@ public class JobNodeSelectorTests extends ESTestCase {
     }
 
     public void testSelectLeastLoadedMlNode_jobWithRules() {
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "1000000000",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000"
+        );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -920,7 +983,12 @@ public class JobNodeSelectorTests extends ESTestCase {
     }
 
     public void testSelectMlNodeOnlyOutOfCandidates() {
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "1000000000",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000"
+        );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -1068,7 +1136,12 @@ public class JobNodeSelectorTests extends ESTestCase {
                     "_node_name1",
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(1).getBytes())),
+                    Map.of(
+                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        Long.toString(ByteSizeValue.ofGb(1).getBytes()),
+                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        Long.toString(ByteSizeValue.ofMb(400).getBytes())
+                    ),
                     ROLES_WITH_ML,
                     Version.CURRENT
                 )
@@ -1078,7 +1151,12 @@ public class JobNodeSelectorTests extends ESTestCase {
                     "_node_name2",
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(ByteSizeValue.ofGb(1).getBytes())),
+                    Map.of(
+                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        Long.toString(ByteSizeValue.ofGb(1).getBytes()),
+                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        Long.toString(ByteSizeValue.ofMb(400).getBytes())
+                    ),
                     ROLES_WITH_ML,
                     Version.CURRENT
                 )
@@ -1112,7 +1190,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         int maxMachineMemoryPercent = 30;
         long machineMemory = (maxRunningJobsPerNode + 1) * JOB_MEMORY_REQUIREMENT.getBytes() * 100 / maxMachineMemoryPercent;
 
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(machineMemory));
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(machineMemory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            Long.toString(machineMemory / 2)
+        );
 
         ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, maxRunningJobsPerNode);
 
@@ -1218,11 +1301,18 @@ public class JobNodeSelectorTests extends ESTestCase {
             0,
             node -> nodeFilter(node, job)
         );
-        Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.perceivedCapacityAndMaxFreeMemory(10, false, 1);
+        Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.currentCapacityAndMaxFreeMemory(10, false, 1);
         assertThat(capacityAndFreeMemory.v2(), equalTo(ByteSizeValue.ofGb(3).getBytes()));
+        // NativeMemoryCapacity holds memory excluding the per-node overhead for native code, so this must be subtracted once per node
         assertThat(
             capacityAndFreeMemory.v1(),
-            equalTo(new NativeMemoryCapacity(ByteSizeValue.ofGb(7).getBytes(), ByteSizeValue.ofGb(3).getBytes(), 10L))
+            equalTo(
+                new NativeMemoryCapacity(
+                    ByteSizeValue.ofGb(7).getBytes() - 3 * MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+                    ByteSizeValue.ofGb(3).getBytes() - MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+                    10L
+                )
+            )
         );
     }
 

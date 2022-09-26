@@ -19,19 +19,17 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Mapper that is used to map existing fields in legacy indices (older than N-1) that
@@ -65,10 +63,10 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void merge(FieldMapper in, Conflicts conflicts) {
+        protected void merge(FieldMapper in, Conflicts conflicts, MapperBuilderContext mapperBuilderContext) {
             assert in instanceof PlaceHolderFieldMapper;
             unknownParams.putAll(((PlaceHolderFieldMapper) in).unknownParams);
-            super.merge(in, conflicts);
+            super.merge(in, conflicts, mapperBuilderContext);
         }
 
         @Override
@@ -86,8 +84,8 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of();
+        protected Parameter<?>[] getParameters() {
+            return EMPTY_PARAMETERS;
         }
 
         @Override
@@ -114,7 +112,15 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("can't fetch values on place holder field type");
+            // ignore format parameter
+            return new SourceValueFetcher(name(), context) {
+
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    // preserve as is, we can't really do anything smarter than that here
+                    return value;
+                }
+            };
         }
 
         @Override
@@ -247,7 +253,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException(fail("aggregation or sorts"));
         }
 

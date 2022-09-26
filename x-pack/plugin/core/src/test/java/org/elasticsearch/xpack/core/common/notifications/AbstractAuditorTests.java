@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -152,6 +151,27 @@ public class AbstractAuditorTests extends ESTestCase {
         assertThat(auditMessage.getNodeName(), equalTo(TEST_NODE_NAME));
     }
 
+    public void testAudit() throws IOException {
+        Level level = randomFrom(Level.ERROR, Level.INFO, Level.WARNING);
+
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
+        auditor.audit(level, "r_id", "Here is my audit");
+
+        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        IndexRequest indexRequest = indexRequestCaptor.getValue();
+        assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
+        assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
+        AbstractAuditMessageTests.TestAuditMessage auditMessage = parseAuditMessage(indexRequest.source());
+        assertThat(auditMessage.getResourceId(), equalTo("r_id"));
+        assertThat(auditMessage.getMessage(), equalTo("Here is my audit"));
+        assertThat(auditMessage.getLevel(), equalTo(level));
+        assertThat(
+            auditMessage.getTimestamp().getTime(),
+            allOf(greaterThanOrEqualTo(startMillis), lessThanOrEqualTo(System.currentTimeMillis()))
+        );
+        assertThat(auditMessage.getNodeName(), equalTo(TEST_NODE_NAME));
+    }
+
     public void testAuditingBeforeTemplateInstalled() throws Exception {
         CountDownLatch writeSomeDocsBeforeTemplateLatch = new CountDownLatch(1);
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithoutTemplate(
@@ -206,11 +226,10 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     private TestAuditor createTestAuditorWithTemplateInstalled() {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(1);
-        templates.put(TEST_INDEX, mock(IndexTemplateMetadata.class));
+        Map<String, IndexTemplateMetadata> templates = Map.of(TEST_INDEX, mock(IndexTemplateMetadata.class));
         Map<String, ComposableIndexTemplate> templatesV2 = Collections.singletonMap(TEST_INDEX, mock(ComposableIndexTemplate.class));
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(templates.build());
+        when(metadata.getTemplates()).thenReturn(templates);
         when(metadata.templatesV2()).thenReturn(templatesV2);
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
@@ -253,9 +272,8 @@ public class AbstractAuditorTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);
 
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(0);
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(templates.build());
+        when(metadata.getTemplates()).thenReturn(Map.of());
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         ClusterState state = mock(ClusterState.class);

@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRespon
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
@@ -151,7 +150,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
         GetMappingsResponse response = client().filterWithHeader(
             singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD))
         ).admin().indices().prepareGetMappings("logstash-*").get();
-        ImmutableOpenMap<String, MappingMetadata> mappingsMap = response.getMappings();
+        Map<String, MappingMetadata> mappingsMap = response.getMappings();
         assertNotNull(mappingsMap);
         assertNotNull(mappingsMap.get(index));
         MappingMetadata mappingMetadata = mappingsMap.get(index);

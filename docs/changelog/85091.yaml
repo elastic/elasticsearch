@@ -1,5 +1,0 @@
-pr: 85091
-summary: Use `SecureString` for reindex from remote password
-area: Reindex
-type: enhancement
-issues: []

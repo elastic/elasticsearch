@@ -9,6 +9,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -87,6 +89,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -114,8 +117,14 @@ import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -163,6 +172,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
@@ -212,7 +222,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps();
+        // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
         LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
 
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
             Logger leakLogger = LogManager.getLogger(leakLoggerName);
@@ -347,6 +359,34 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {}
+
+    /**
+     * Marks a test suite or a test method that should run without security manager enabled.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ ElementType.TYPE })
+    @Inherited
+    public @interface WithoutSecurityManager {
+    }
+
+    private static Closeable securityManagerRestorer;
+
+    // disable security manager if test is annotated to run without it
+
+    @BeforeClass
+    public static void maybeStashClassSecurityManager() {
+        if (getTestClass().isAnnotationPresent(WithoutSecurityManager.class)) {
+            securityManagerRestorer = BootstrapForTesting.disableTestSecurityManager();
+        }
+    }
+
+    @AfterClass
+    public static void maybeRestoreClassSecurityManager() throws IOException {
+        if (securityManagerRestorer != null) {
+            securityManagerRestorer.close();
+            securityManagerRestorer = null;
+        }
+    }
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -954,6 +994,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return list;
     }
 
+    public static <T> Set<T> randomSet(int minSetSize, int maxSetSize, Supplier<T> valueConstructor) {
+        return new HashSet<>(randomList(minSetSize, maxSetSize, valueConstructor));
+    }
+
     private static final String[] TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m", "micros", "nanos" };
 
     public static String randomTimeValue(int lower, int upper, String... suffixes) {
@@ -975,7 +1019,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
      */
-    public long randomMillisUpToYear9999() {
+    public static long randomMillisUpToYear9999() {
         return randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
     }
 
@@ -1183,8 +1227,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
-        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
-        return builder;
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
     /**
@@ -1204,18 +1247,29 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomSubsetOf(randomInt(collection.size()), collection);
     }
 
+    public static <T> List<T> randomNonEmptySubsetOf(Collection<T> collection) {
+        if (collection.isEmpty()) {
+            throw new IllegalArgumentException("Can't pick non-empty subset of an empty collection");
+        }
+        return randomSubsetOf(randomIntBetween(1, collection.size()), collection);
+    }
+
     /**
      * Returns size random values
      */
     public static <T> List<T> randomSubsetOf(int size, Collection<T> collection) {
         if (size > collection.size()) {
             throw new IllegalArgumentException(
-                "Can\'t pick " + size + " random objects from a collection of " + collection.size() + " objects"
+                "Can't pick " + size + " random objects from a collection of " + collection.size() + " objects"
             );
         }
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
         return tempList.subList(0, size);
+    }
+
+    public static <T> List<T> shuffledList(List<T> list) {
+        return randomSubsetOf(list.size(), list);
     }
 
     /**
@@ -1395,10 +1449,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a copy of an original {@link NamedWriteable} object by running it through a {@link BytesStreamOutput} and
      * reading it in again using a provided {@link Writeable.Reader}.
      */
-    public static <T extends NamedWriteable> T copyNamedWriteable(
+    public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
-        Class<T> categoryClass
+        Class<C> categoryClass
     ) throws IOException {
         return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, Version.CURRENT);
     }
@@ -1406,17 +1460,19 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
      * a {@link Version} argument which will be used to write and read back the object.
+     * @return
      */
-    public static <T extends NamedWriteable> T copyNamedWriteable(
+    @SuppressWarnings("unchecked")
+    public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
-        Class<T> categoryClass,
+        Class<C> categoryClass,
         Version version
     ) throws IOException {
         return copyInstance(
             original,
             namedWriteableRegistry,
-            (out, value) -> out.writeNamedWriteable(value),
+            StreamOutput::writeNamedWriteable,
             in -> in.readNamedWriteable(categoryClass),
             version
         );
@@ -1596,7 +1652,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings, AnalysisPlugin... analysisPlugins)
         throws IOException {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
+        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         return new TestAnalysis(
             analysisRegistry.build(indexSettings),

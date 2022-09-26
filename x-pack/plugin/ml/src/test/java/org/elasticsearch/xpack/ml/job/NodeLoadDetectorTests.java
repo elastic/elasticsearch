@@ -18,8 +18,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -59,7 +59,12 @@ public class NodeLoadDetectorTests extends ESTestCase {
     public void testNodeLoadDetection() {
         // MachineLearning.MACHINE_MEMORY_NODE_ATTR negative, so this won't allocate any jobs that aren't already allocated
         // (in the past it would have fallen back to allocating by count, but we don't do that any more)
-        Map<String, String> nodeAttr = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "-1");
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "-1",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "10000000"
+        );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -121,14 +126,21 @@ public class NodeLoadDetectorTests extends ESTestCase {
                             .addNewAssignment(
                                 "model1",
                                 TrainedModelAssignment.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams("model1", MODEL_MEMORY_REQUIREMENT, 1, 1, 1024)
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        "model1",
+                                        MODEL_MEMORY_REQUIREMENT,
+                                        1,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ofBytes(MODEL_MEMORY_REQUIREMENT)
+                                    )
                                 )
-                                    .addNewRoutingEntry("_node_id4")
-                                    .addNewFailedRoutingEntry("_node_id2", "test")
-                                    .addNewRoutingEntry("_node_id1")
+                                    .addRoutingEntry("_node_id4", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                                    .addRoutingEntry("_node_id2", new RoutingInfo(1, 1, RoutingState.FAILED, "test"))
+                                    .addRoutingEntry("_node_id1", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                     .updateExistingRoutingEntry(
                                         "_node_id1",
-                                        new RoutingStateAndReason(randomFrom(RoutingState.STOPPED, RoutingState.FAILED), "test")
+                                        new RoutingInfo(1, 1, randomFrom(RoutingState.STOPPED, RoutingState.FAILED), "test")
                                     )
                             )
                             .build()
@@ -138,29 +150,29 @@ public class NodeLoadDetectorTests extends ESTestCase {
 
         NodeLoad load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id1"), 10, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(52428800L));
-        assertThat(load.getNumAllocatingJobs(), equalTo(2L));
-        assertThat(load.getNumAssignedJobs(), equalTo(2L));
+        assertThat(load.getNumAllocatingJobs(), equalTo(2));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(2));
         assertThat(load.getMaxJobs(), equalTo(10));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
         load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id2"), 5, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(41943040L));
-        assertThat(load.getNumAllocatingJobs(), equalTo(1L));
-        assertThat(load.getNumAssignedJobs(), equalTo(1L));
+        assertThat(load.getNumAllocatingJobs(), equalTo(1));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(1));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
         load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id3"), 5, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(0L));
-        assertThat(load.getNumAllocatingJobs(), equalTo(0L));
-        assertThat(load.getNumAssignedJobs(), equalTo(0L));
+        assertThat(load.getNumAllocatingJobs(), equalTo(0));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(0));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
         load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id4"), 5, 30, false);
-        assertThat(load.getAssignedJobMemory(), equalTo(429916160L));
-        assertThat(load.getNumAllocatingJobs(), equalTo(0L));
-        assertThat(load.getNumAssignedJobs(), equalTo(2L));
+        assertThat(load.getAssignedJobMemory(), equalTo(398458880L));
+        assertThat(load.getNumAllocatingJobs(), equalTo(0));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(2));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
     }

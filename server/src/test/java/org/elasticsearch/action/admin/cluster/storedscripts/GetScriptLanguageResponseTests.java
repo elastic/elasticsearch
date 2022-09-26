@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.script.ScriptLanguagesInfo;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -93,7 +94,7 @@ public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<
     }
 
     private static Set<String> randomStringSet(int numInstances) {
-        Set<String> rand = new HashSet<>(numInstances);
+        Set<String> rand = Sets.newHashSetWithExpectedSize(numInstances);
         for (int i = 0; i < numInstances; i++) {
             rand.add(randomValueOtherThanMany(rand::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)));
         }

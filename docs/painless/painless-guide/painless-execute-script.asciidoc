@@ -77,8 +77,9 @@ sorted list of `double` values. See
 <<painless-runtime-double,double_field context>>.
 
 `geo_point_field`::
-The context for {ref}/geo-point.html[`geo-point` fields]. `emit` takes a
-`geo-point` value and the script returns coordinates for the geo point. See
+The context for {ref}/geo-point.html[`geo-point` fields]. `emit` takes two double
+parameters, the latitude and longitude values, and the script returns an object in
+GeoJSON format containing the coordinates for the geo point. See
 <<painless-runtime-geo,geo_point_field context>>.
 
 `ip_field`::
@@ -589,7 +590,7 @@ PUT /my-index-000001/
       "lat": {
         "type": "double"
       },
-     "lon": {
+      "lon": {
         "type": "double"
       }
     }
@@ -598,7 +599,7 @@ PUT /my-index-000001/
 ----
 
 You can then use the `geo_point_field` runtime field context to write a script
-that retrieves the `lat` and `long` values.
+that retrieves the `lat` and `lon` values.
 
 [source,console]
 ----
@@ -621,7 +622,7 @@ POST /_scripts/painless/_execute
 ----
 // TEST[continued]
 
-Because this you're working with a geo-point field type, the response includes
+Because you're working with a geo-point field type, the response includes
 results that are formatted as `coordinates`.
 
 [source,console-result]
@@ -630,14 +631,18 @@ results that are formatted as `coordinates`.
   "result" : [
     {
       "coordinates" : [
-        -71.34000004269183,
-        41.1199999647215
+        -71.34,
+        41.12
       ],
       "type" : "Point"
     }
   ]
 }
 ----
+
+[NOTE]
+The emit function for {ref}/geo-point.html[geo-point] fields takes two parameters ordered with
+`lat` before `lon`, but the output GeoJSON format orders the `coordinates` as `[ lon, lat ]`.
 
 [[painless-runtime-ip]]
 ===== `ip_field`

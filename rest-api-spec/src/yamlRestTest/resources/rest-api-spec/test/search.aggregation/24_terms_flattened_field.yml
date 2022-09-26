@@ -1,0 +1,137 @@
+setup:
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                flattened:
+                  type: flattened
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_1
+        body:
+          - '{"index": {}}'
+          - '{"flattened.primary": "foo", "flattened.secondary": "bar"}'
+          - '{"index": {}}'
+          - '{"flattened.primary": "foo", "flattened.secondary": "zwomp"}'
+          - '{"index": {}}'
+          - '{"flattened.primary": "baz", "flattened.secondary": "bar"}'
+          - '{"index": {}}'
+          - '{"flattened.primary": "quux"}'
+---
+"Key exists, no missing values":
+  - skip:
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            primary_terms:
+              terms:
+                field: "flattened.primary"
+
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.primary_terms.buckets: 3 }
+  - match: { aggregations.primary_terms.buckets.0.key: "foo" }
+  - match: { aggregations.primary_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.primary_terms.buckets.1.key: "baz" }
+  - match: { aggregations.primary_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.primary_terms.buckets.2.key: "quux" }
+  - match: { aggregations.primary_terms.buckets.2.doc_count: 1 }
+---
+"Key exists, missing values, missing specified":
+  - skip:
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            primary_terms:
+              terms:
+                field: "flattened.secondary"
+                missing: "missing_value"
+
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.primary_terms.buckets: 3 }
+  - match: { aggregations.primary_terms.buckets.0.key: "bar" }
+  - match: { aggregations.primary_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.primary_terms.buckets.1.key: "missing_value" }
+  - match: { aggregations.primary_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.primary_terms.buckets.2.key: "zwomp" }
+  - match: { aggregations.primary_terms.buckets.2.doc_count: 1 }
+---
+"Key exists, missing values, missing not specified":
+  - skip:
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            primary_terms:
+              terms:
+                field: "flattened.secondary"
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.primary_terms.buckets: 2 }
+  - match: { aggregations.primary_terms.buckets.0.key: "bar" }
+  - match: { aggregations.primary_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.primary_terms.buckets.1.key: "zwomp" }
+  - match: { aggregations.primary_terms.buckets.1.doc_count: 1 }
+---
+"Key does not exist, missing specified":
+  - skip:
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            primary_terms:
+              terms:
+                field: "flattened.bogus"
+                missing: "missing_val"
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.primary_terms.buckets: 1 }
+  - match: { aggregations.primary_terms.buckets.0.key: "missing_val" }
+  - match: { aggregations.primary_terms.buckets.0.doc_count: 4 }
+---
+"Key does not exist, missing not specified":
+  - skip:
+      version: " - 8.3.99"
+      reason: "fixed in 8.4"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            primary_terms:
+              terms:
+                field: "flattened.bogus"
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.primary_terms.buckets: 0 }

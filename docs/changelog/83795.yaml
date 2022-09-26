@@ -1,6 +1,0 @@
-pr: 83795
-summary: Add leniency option to SQL CLI
-area: SQL
-type: enhancement
-issues:
- - 67436

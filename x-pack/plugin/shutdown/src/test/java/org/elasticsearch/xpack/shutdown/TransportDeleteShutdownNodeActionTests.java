@@ -46,21 +46,23 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
             indexNameExpressionResolver
         );
     }
+
     // TODO fixme
-    // public void testNoop() throws Exception {
-    // var singleNodeMetadata = mock(SingleNodeShutdownMetadata.class);
-    // var nodesShutdownMetadata = new NodesShutdownMetadata(Map.of("node1", singleNodeMetadata));
-    // var metadata = Metadata.builder().putCustom(TYPE, nodesShutdownMetadata).build();
-    // var clusterStateWithShutdown = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
-    //
-    // var request = new DeleteShutdownNodeAction.Request("node1");
-    // action.masterOperation(null, request, clusterStateWithShutdown, ActionListener.noop());
-    // var updateTask = ArgumentCaptor.forClass(DeleteShutdownNodeTask.class);
-    // var taskConfig = ArgumentCaptor.forClass(ClusterStateTaskConfig.class);
-    // var taskExecutor = ArgumentCaptor.forClass(DeleteShutdownNodeExecutor.class);
-    // verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
-    // when(taskContext.getTask()).thenReturn(updateTask.getValue());
-    // ClusterState gotState = taskExecutor.getValue().execute(ClusterState.EMPTY_STATE, List.of(taskContext));
-    // assertThat(gotState, sameInstance(ClusterState.EMPTY_STATE));
-    // }
+//    public void testNoop() throws Exception {
+//        var singleNodeMetadata = mock(SingleNodeShutdownMetadata.class);
+//        var nodesShutdownMetadata = new NodesShutdownMetadata(Map.of("node1", singleNodeMetadata));
+//        var metadata = Metadata.builder().putCustom(TYPE, nodesShutdownMetadata).build();
+//        var clusterStateWithShutdown = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
+//
+//        var request = new DeleteShutdownNodeAction.Request("node1");
+//        action.masterOperation(null, request, clusterStateWithShutdown, ActionListener.noop());
+//        var updateTask = ArgumentCaptor.forClass(DeleteShutdownNodeTask.class);
+//        var taskConfig = ArgumentCaptor.forClass(ClusterStateTaskConfig.class);
+//        var taskExecutor = ArgumentCaptor.forClass(DeleteShutdownNodeExecutor.class);
+//        verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
+//        when(taskContext.getTask()).thenReturn(updateTask.getValue());
+//        ClusterState gotState = taskExecutor.getValue()
+//            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext), () -> null));
+//        assertThat(gotState, sameInstance(ClusterState.EMPTY_STATE));
+//    }
 }

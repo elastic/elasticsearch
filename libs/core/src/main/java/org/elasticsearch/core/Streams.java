@@ -8,6 +8,7 @@
 
 package org.elasticsearch.core;
 
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -75,5 +76,26 @@ public class Streams {
      */
     public static long copy(final InputStream in, final OutputStream out) throws IOException {
         return copy(in, out, LOCAL_BUFFER.get(), true);
+    }
+
+    /**
+     * Wraps an {@link OutputStream} such that it's {@code close} method becomes a noop
+     *
+     * @param stream {@code OutputStream} to wrap
+     * @return wrapped {@code OutputStream}
+     */
+    public static OutputStream noCloseStream(OutputStream stream) {
+        return new FilterOutputStream(stream) {
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                out.write(b, off, len);
+            }
+
+            @Override
+            public void close() {
+                // noop
+            }
+        };
     }
 }

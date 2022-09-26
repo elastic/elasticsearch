@@ -38,7 +38,7 @@ public class CommandTests extends CommandTestCase {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
             if (exception != null) {
                 throw exception;
             }
@@ -51,11 +51,6 @@ public class CommandTests extends CommandTestCase {
         @Override
         protected void printAdditionalHelp(Terminal terminal) {
             terminal.println("Some extra help");
-        }
-
-        @Override
-        protected boolean addShutdownHook() {
-            return false;
         }
 
     }

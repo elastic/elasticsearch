@@ -136,7 +136,8 @@ public class PolicyStepsRegistry {
         }
 
         if (mapDiff.getUpserts().isEmpty() == false) {
-            for (LifecyclePolicyMetadata policyMetadata : mapDiff.getUpserts().values()) {
+            for (var entry : mapDiff.getUpserts()) {
+                LifecyclePolicyMetadata policyMetadata = entry.getValue();
                 LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(
                     client,
                     ClientHelper.INDEX_LIFECYCLE_ORIGIN,

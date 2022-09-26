@@ -17,7 +17,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -111,7 +111,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSortedNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), iw -> {
+        testAggregation(new FieldExistsQuery(FIELD_NAME), iw -> {
             iw.addDocument(Arrays.asList(new SortedNumericDocValuesField(FIELD_NAME, 3), new SortedNumericDocValuesField(FIELD_NAME, 4)));
             iw.addDocument(Arrays.asList(new SortedNumericDocValuesField(FIELD_NAME, 3), new SortedNumericDocValuesField(FIELD_NAME, 4)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
@@ -241,7 +241,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
                 final IndexSearcher searcher = newSearcher(multiReader, true, true);
 
-                final Sum internalSum = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldType);
+                final Sum internalSum = searchAndReduce(new AggTestConfig(searcher, builder, fieldType));
                 assertEquals(sum, internalSum.value(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(internalSum));
             }

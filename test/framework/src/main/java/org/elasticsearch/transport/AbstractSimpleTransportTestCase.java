@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
@@ -86,6 +85,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -902,10 +902,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         try {
                             listener.actionGet();
                         } catch (Exception e) {
-                            logger.trace(
-                                (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", nodeA),
-                                e
-                            );
+                            logger.trace(() -> format("caught exception while sending to node %s", nodeA), e);
                         }
                     }
                 }
@@ -945,10 +942,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             } catch (ConnectTransportException e) {
                                 // ok!
                             } catch (Exception e) {
-                                logger.error(
-                                    (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node),
-                                    e
-                                );
+                                logger.error(() -> format("caught exception while sending to node %s", node), e);
                                 sendingErrors.add(e);
                             }
                         } catch (NodeNotConnectedException ex) {
@@ -2106,7 +2100,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("---> received exception for id {}", id), exp);
+                logger.debug((Supplier<?>) () -> "---> received exception for id " + id, exp);
                 allRequestsDone.countDown();
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
                 assertNotNull(unwrap);
@@ -3182,11 +3176,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         responseListener.whenComplete(handler::handleResponse, e -> handler.handleException((TransportException) e));
         final PlainActionFuture<T> future = PlainActionFuture.newFuture();
         responseListener.addListener(future);
-        try {
-            transportService.sendRequest(node, action, request, options, futureHandler);
-        } catch (NodeNotConnectedException ex) {
-            futureHandler.handleException(ex);
-        }
+        transportService.sendRequest(node, action, request, options, futureHandler);
         return future;
     }
 }

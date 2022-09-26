@@ -203,6 +203,7 @@ public class MetadataCreateDataStreamService {
             );
         }
 
+        final var metadata = currentState.metadata();
         final boolean isSystem = systemDataStreamDescriptor != null;
         final ComposableIndexTemplate template = isSystem
             ? systemDataStreamDescriptor.getComposableIndexTemplate()
@@ -244,14 +245,12 @@ public class MetadataCreateDataStreamService {
         assert writeIndex != null;
         assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";
 
-        String fieldName = ComposableIndexTemplate.DataStreamTemplate.getTimestampField();
-        DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         List<Index> dsBackingIndices = backingIndices.stream()
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toCollection(ArrayList::new));
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
-        final IndexMode indexMode = template.getDataStreamTemplate().getIndexMode();
+        final IndexMode indexMode = metadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
         DataStream newDataStream = new DataStream(
             dataStreamName,
             dsBackingIndices,

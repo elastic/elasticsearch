@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -16,7 +17,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -35,6 +38,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 
 public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedModelDeploymentAction.Response> {
 
@@ -87,6 +91,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         private final List<Map<String, Object>> docs;
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
+        private boolean skipQueue = false;
 
         public Request(String deploymentId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
@@ -101,6 +106,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             docs = Collections.unmodifiableList(in.readList(StreamInput::readMap));
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
+            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+                skipQueue = in.readBoolean();
+            }
         }
 
         public String getDeploymentId() {
@@ -129,6 +137,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return null;
         }
 
+        public void setSkipQueue(boolean skipQueue) {
+            this.skipQueue = skipQueue;
+        }
+
+        public boolean isSkipQueue() {
+            return skipQueue;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = super.validate();
@@ -153,6 +169,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             out.writeCollection(docs, StreamOutput::writeGenericMap);
             out.writeOptionalNamedWriteable(update);
             out.writeOptionalTimeValue(inferenceTimeout);
+            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+                out.writeBoolean(skipQueue);
+            }
         }
 
         @Override
@@ -174,6 +193,11 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         @Override
         public int hashCode() {
             return Objects.hash(deploymentId, update, docs, inferenceTimeout);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("infer_trained_model_deployment[%s]", deploymentId), parentTaskId, headers);
         }
 
         public static class Builder {

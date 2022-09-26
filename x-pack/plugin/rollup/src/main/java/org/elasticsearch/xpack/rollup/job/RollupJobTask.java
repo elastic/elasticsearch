@@ -10,6 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -161,8 +163,27 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
 
         @Override
         protected void onFinish(ActionListener<Void> listener) {
-            logger.debug("Finished indexing for job [" + job.getConfig().getId() + "]");
-            listener.onResponse(null);
+            final RollupJobConfig jobConfig = job.getConfig();
+            final ActionListener<RefreshResponse> refreshResponseActionListener = new ActionListener<>() {
+
+                @Override
+                public void onResponse(RefreshResponse refreshResponse) {
+                    logger.trace("refreshing rollup index {} successful for job {}", jobConfig.getRollupIndex(), jobConfig.getId());
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(
+                        "refreshing rollup index {} failed for job {} with exception {}",
+                        jobConfig.getRollupIndex(),
+                        jobConfig.getId(),
+                        e
+                    );
+                    listener.onResponse(null);
+                }
+            };
+            client.admin().indices().refresh(new RefreshRequest(jobConfig.getRollupIndex()), refreshResponseActionListener);
         }
 
         @Override

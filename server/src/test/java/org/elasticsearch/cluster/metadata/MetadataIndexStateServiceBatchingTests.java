@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
@@ -199,14 +197,15 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
 
     private static CheckedRunnable<Exception> blockMasterService(MasterService masterService) {
         final var executionBarrier = new CyclicBarrier(2);
-        masterService.getTaskQueue("block", Priority.URGENT, (currentState, taskContexts) -> {
-            executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
-            executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
-            for (final var taskContext : taskContexts) {
-                taskContext.success(EXPECT_SUCCESS_LISTENER);
+        masterService.getTaskQueue("block", Priority.URGENT,             batchExecutionContext -> {
+                executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
+                executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
+                    taskContext.success(() -> {});
+                }
+                return batchExecutionContext.initialState();
             }
-            return currentState;
-        }).submitTask("block", new ExpectSuccessTask(), null);
+        ).submitTask("block", new ExpectSuccessTask(), null);
         return () -> executionBarrier.await(10, TimeUnit.SECONDS);
     }
 
@@ -222,31 +221,12 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
     }
 
     /**
-     * Listener that asserts it does not fail.
-     */
-    private static final ActionListener<ClusterState> EXPECT_SUCCESS_LISTENER = new ActionListener<>() {
-        @Override
-        public void onResponse(ClusterState clusterState) {}
-
-        @Override
-        public void onFailure(Exception e) {
-            throw new AssertionError("should not be called", e);
-        }
-    };
-
-    /**
      * Task that asserts it does not fail.
      */
     private static class ExpectSuccessTask implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
             throw new AssertionError("should not be called", e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            // see parent method javadoc, we use dedicated listeners rather than calling this method
-            throw new AssertionError("should not be called");
         }
     }
 }

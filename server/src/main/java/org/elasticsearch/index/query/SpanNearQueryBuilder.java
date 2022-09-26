@@ -136,7 +136,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         builder.endArray();
         builder.field(SLOP_FIELD.getPreferredName(), slop);
         builder.field(IN_ORDER_FIELD.getPreferredName(), inOrder);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 

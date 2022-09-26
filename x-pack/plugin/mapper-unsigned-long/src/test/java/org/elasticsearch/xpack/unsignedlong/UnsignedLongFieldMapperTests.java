@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -119,6 +120,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         IndexableField pointField = fields[0];
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(9223372036854775807L, pointField.numericValue().longValue());
+        assertAggregatableConsistency(mapper.mappers().getFieldType("field"));
     }
 
     public void testStore() throws Exception {
@@ -374,5 +376,15 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
                 BigInteger big = BigInteger.valueOf(randomLongBetween(0, Long.MAX_VALUE)).shiftLeft(1);
                 return big.add(randomBoolean() ? BigInteger.ONE : BigInteger.ZERO);
         }
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

@@ -13,7 +13,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -67,7 +66,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -87,7 +85,6 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
-import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -120,11 +117,9 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -1656,18 +1651,18 @@ public class AuthenticationServiceTests extends ESTestCase {
         }).when(secondRealm).lookupUser(eq("run_as"), anyActionListener());
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        ActionListener<Authentication> listener = ActionListener.wrap(result -> {
-            assertThat(result, notNullValue());
-            assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
-            User authenticated = result.getUser();
+        ActionListener<Authentication> listener = ActionListener.wrap(authentication -> {
+            assertThat(authentication, notNullValue());
+            assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
+            User effectiveUser = authentication.getUser();
 
-            assertThat(authenticated.principal(), is("looked up user"));
-            assertThat(authenticated.roles(), arrayContaining("some role"));
-            assertThreadContextContainsAuthentication(result);
+            assertThat(effectiveUser.principal(), is("looked up user"));
+            assertThat(effectiveUser.roles(), arrayContaining("some role"));
+            assertThreadContextContainsAuthentication(authentication);
 
-            assertThat(SystemUser.is(authenticated), is(false));
-            assertThat(authenticated.isRunAs(), is(true));
-            User authUser = authenticated.authenticatedUser();
+            assertThat(SystemUser.is(effectiveUser), is(false));
+            assertThat(authentication.isRunAs(), is(true));
+            User authUser = authentication.getAuthenticatingSubject().getUser();
             assertThat(authUser.principal(), is("lookup user"));
             assertThat(authUser.roles(), arrayContaining("user"));
             assertEquals(user.metadata(), authUser.metadata());
@@ -1679,7 +1674,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             } else {
                 expectAuditRequestId(threadContext);
             }
-            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
+            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), eq(threadContext));
             setCompletedToTrue(completed);
         }, this::logAndFail);
 
@@ -1713,24 +1708,25 @@ public class AuthenticationServiceTests extends ESTestCase {
         }).when(firstRealm).lookupUser(eq("run_as"), anyActionListener());
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        ActionListener<Authentication> listener = ActionListener.wrap(result -> {
-            assertThat(result, notNullValue());
-            assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
-            User authenticated = result.getUser();
+        ActionListener<Authentication> listener = ActionListener.wrap(authentication -> {
+            assertThat(authentication, notNullValue());
+            assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
+            final User effectiveUser = authentication.getUser();
+            final User authenticatingUser = authentication.getAuthenticatingSubject().getUser();
 
-            assertThat(SystemUser.is(authenticated), is(false));
-            assertThat(authenticated.isRunAs(), is(true));
-            assertThat(authenticated.authenticatedUser().principal(), is("lookup user"));
-            assertThat(authenticated.authenticatedUser().roles(), arrayContaining("user"));
-            assertThat(authenticated.principal(), is("looked up user"));
-            assertThat(authenticated.roles(), arrayContaining("some role"));
-            assertThreadContextContainsAuthentication(result);
+            assertThat(SystemUser.is(effectiveUser), is(false));
+            assertThat(authentication.isRunAs(), is(true));
+            assertThat(authenticatingUser.principal(), is("lookup user"));
+            assertThat(authenticatingUser.roles(), arrayContaining("user"));
+            assertThat(effectiveUser.principal(), is("looked up user"));
+            assertThat(effectiveUser.roles(), arrayContaining("some role"));
+            assertThreadContextContainsAuthentication(authentication);
             if (requestIdAlreadyPresent) {
                 assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
             } else {
                 expectAuditRequestId(threadContext);
             }
-            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
+            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), eq(threadContext));
             setCompletedToTrue(completed);
         }, this::logAndFail);
 
@@ -2218,18 +2214,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
     }
 
-    public void testCanAuthenticateServiceAccount() throws ExecutionException, InterruptedException {
+    public void testCanAuthenticateServiceAccount() {
         Mockito.reset(serviceAccountService);
-        final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
-        final Authentication authentication = new Authentication(
-            new User("elastic/fleet-server"),
-            new RealmRef("_service_account", "_service_account", "foo"),
-            null,
-            Version.CURRENT,
-            AuthenticationType.TOKEN,
-            Map.of("_token_name", ValidationTests.randomTokenName(), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT))
-        );
-        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
             if (requestIdAlreadyPresent) {
@@ -2258,7 +2246,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testServiceAccountFailureWillNotFallthrough() throws IOException {
         Mockito.reset(serviceAccountService);
         final ElasticsearchSecurityException bailOut = new ElasticsearchSecurityException("bail out", RestStatus.UNAUTHORIZED);
-        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
             if (requestIdAlreadyPresent) {

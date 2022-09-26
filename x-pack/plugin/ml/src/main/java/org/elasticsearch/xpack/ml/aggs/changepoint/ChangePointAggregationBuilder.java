@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -51,11 +50,6 @@ public class ChangePointAggregationBuilder extends BucketMetricsPipelineAggregat
 
     public ChangePointAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME.getPreferredName());
-    }
-
-    public static SearchPlugin.PipelineAggregationSpec buildSpec() {
-        return new SearchPlugin.PipelineAggregationSpec(NAME, ChangePointAggregationBuilder::new, ChangePointAggregationBuilder.PARSER)
-            .addResultReader(InternalChangePointAggregation::new);
     }
 
     @Override

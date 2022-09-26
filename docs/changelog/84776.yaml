@@ -1,5 +1,0 @@
-pr: 84776
-summary: Increase store ref before snapshotting index commit
-area: Engine
-type: bug
-issues: []

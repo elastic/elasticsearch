@@ -14,6 +14,7 @@ import com.google.common.jimfs.Jimfs;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
@@ -87,7 +88,7 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
     protected Command newCommand() {
         return new AutoConfigGenerateElasticPasswordHash() {
             @Override
-            protected Environment createEnv(OptionSet options) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return env;
             }
         };

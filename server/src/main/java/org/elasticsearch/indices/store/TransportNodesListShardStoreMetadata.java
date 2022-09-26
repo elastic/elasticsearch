@@ -8,7 +8,6 @@
 
 package org.elasticsearch.indices.store;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
@@ -140,10 +139,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                         exists = true;
                         return storeFilesMetadata;
                     } catch (org.apache.lucene.index.IndexNotFoundException e) {
-                        logger.trace(new ParameterizedMessage("[{}] node is missing index, responding with empty", shardId), e);
+                        logger.trace(() -> "[" + shardId + "] node is missing index, responding with empty", e);
                         return StoreFilesMetadata.EMPTY;
                     } catch (IOException e) {
-                        logger.warn(new ParameterizedMessage("[{}] can't read metadata from store, responding with empty", shardId), e);
+                        logger.warn(() -> "[" + shardId + "] can't read metadata from store, responding with empty", e);
                         return StoreFilesMetadata.EMPTY;
                     }
                 }

@@ -8,13 +8,15 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.test.ESTestCase;
+
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
-public class OverridableSystemMemoryInfoTests extends LaunchersTestCase {
+public class OverridableSystemMemoryInfoTests extends ESTestCase {
 
     private static final long FALLBACK = -1L;
 

@@ -448,10 +448,6 @@ public class XContentMapValues {
         return filtered;
     }
 
-    public static boolean isObject(Object node) {
-        return node instanceof Map;
-    }
-
     public static boolean isArray(Object node) {
         return node instanceof List;
     }
@@ -471,20 +467,6 @@ public class XContentMapValues {
             return null;
         }
         return node.toString();
-    }
-
-    public static float nodeFloatValue(Object node, float defaultValue) {
-        if (node == null) {
-            return defaultValue;
-        }
-        return nodeFloatValue(node);
-    }
-
-    public static float nodeFloatValue(Object node) {
-        if (node instanceof Number) {
-            return ((Number) node).floatValue();
-        }
-        return Float.parseFloat(node.toString());
     }
 
     public static double nodeDoubleValue(Object node, double defaultValue) {
@@ -513,48 +495,6 @@ public class XContentMapValues {
             return defaultValue;
         }
         return nodeIntegerValue(node);
-    }
-
-    public static short nodeShortValue(Object node, short defaultValue) {
-        if (node == null) {
-            return defaultValue;
-        }
-        return nodeShortValue(node);
-    }
-
-    public static short nodeShortValue(Object node) {
-        if (node instanceof Number) {
-            return Numbers.toShortExact((Number) node);
-        }
-        return Short.parseShort(node.toString());
-    }
-
-    public static byte nodeByteValue(Object node, byte defaultValue) {
-        if (node == null) {
-            return defaultValue;
-        }
-        return nodeByteValue(node);
-    }
-
-    public static byte nodeByteValue(Object node) {
-        if (node instanceof Number) {
-            return Numbers.toByteExact((Number) node);
-        }
-        return Byte.parseByte(node.toString());
-    }
-
-    public static long nodeLongValue(Object node, long defaultValue) {
-        if (node == null) {
-            return defaultValue;
-        }
-        return nodeLongValue(node);
-    }
-
-    public static long nodeLongValue(Object node) {
-        if (node instanceof Number) {
-            return Numbers.toLongExact((Number) node);
-        }
-        return Long.parseLong(node.toString());
     }
 
     public static boolean nodeBooleanValue(Object node, String name, boolean defaultValue) {

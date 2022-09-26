@@ -11,6 +11,7 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -45,7 +46,7 @@ public class LicenseVerificationTool extends Command {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         Path publicKeyPath = parsePath(publicKeyPathOption.value(options));
         if (Files.exists(publicKeyPath) == false) {
             throw new UserException(ExitCodes.USAGE, publicKeyPath + " does not exist");

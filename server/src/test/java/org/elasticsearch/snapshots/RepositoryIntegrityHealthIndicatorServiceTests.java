@@ -15,9 +15,13 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -27,9 +31,9 @@ import java.util.Map;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
-import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 import static org.elasticsearch.repositories.RepositoryData.CORRUPTED_REPO_GEN;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
+import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.CORRUPTED_REPOSITORY;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -43,14 +47,14 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     GREEN,
-                    "No corrupted repositories.",
+                    RepositoryIntegrityHealthIndicatorService.NO_CORRUPT_REPOS,
                     new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -65,18 +69,27 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
+        List<String> corruptedRepos = List.of("corrupted-repo");
         assertThat(
-            service.calculate(true),
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     RED,
-                    "Detected [1] corrupted repositories: [corrupted-repo].",
+                    "Detected [1] corrupted snapshot repositories: [corrupted-repo].",
                     new SimpleHealthIndicatorDetails(
-                        Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", List.of("corrupted-repo"))
+                        Map.of("total_repositories", repos.size(), "corrupted_repositories", 1, "corrupted", corruptedRepos)
                     ),
-                    Collections.emptyList()
+                    Collections.singletonList(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            RepositoryIntegrityHealthIndicatorService.REPOSITORY_CORRUPTED_IMPACT_ID,
+                            1,
+                            "Data in corrupted snapshot repository [corrupted-repo] may be lost and cannot be restored.",
+                            List.of(ImpactArea.BACKUP)
+                        )
+                    ),
+                    List.of(new Diagnosis(CORRUPTED_REPOSITORY, corruptedRepos))
                 )
             )
         );
@@ -87,14 +100,14 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(false),
+            service.calculate(false, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     GREEN,
-                    "No repositories configured.",
+                    RepositoryIntegrityHealthIndicatorService.NO_REPOS_CONFIGURED,
                     HealthIndicatorDetails.EMPTY,
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )

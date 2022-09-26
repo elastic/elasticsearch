@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader.CacheHelper;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -165,10 +164,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -218,7 +216,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
-    private volatile Map<String, IndexService> indices = emptyMap();
+    private volatile Map<String, IndexService> indices = Map.of();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
@@ -459,7 +457,24 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByShard(this, flags));
+        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags));
+    }
+
+    static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
+        // Currently only the Mappings flag is the only possible index-level flag.
+        if (flags.isSet(CommonStatsFlags.Flag.Mappings) == false) {
+            return Map.of();
+        }
+
+        final Map<Index, CommonStats> statsByIndex = Maps.newHashMapWithExpectedSize(indicesService.indices.size());
+        for (final IndexService indexService : indicesService) {
+            Index index = indexService.index();
+            CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+            commonStats.nodeMappings = indexService.getNodeMappingStats();
+            var existing = statsByIndex.putIfAbsent(index, commonStats);
+            assert existing == null;
+        }
+        return statsByIndex;
     }
 
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -481,7 +496,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     }
                 } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
                     // we can safely ignore illegal state on ones that are closing for example
-                    logger.trace(() -> new ParameterizedMessage("{} ignoring shard stats", indexShard.shardId()), e);
+                    logger.trace(() -> format("%s ignoring shard stats", indexShard.shardId()), e);
                 }
             }
         }
@@ -514,7 +529,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 new ShardStats(
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
-                    new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats
@@ -706,7 +721,7 @@ public class IndicesService extends AbstractLifecycleComponent
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
-        pluginsService.onIndexModule(indexModule);
+        pluginsService.forEach(p -> p.onIndexModule(indexModule));
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
@@ -768,7 +783,7 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * Note: the returned {@link MapperService} should be closed when unneeded.
      */
-    public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
+    public synchronized MapperService createIndexMapperServiceForValidation(IndexMetadata indexMetadata) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, this.settings, indexScopedSettings);
         final IndexModule indexModule = new IndexModule(
             idxSettings,
@@ -779,7 +794,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories
         );
-        pluginsService.onIndexModule(indexModule);
+        pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(parserConfig, mapperRegistry, scriptService);
     }
 
@@ -860,10 +875,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
 
                 logger.debug("[{}] closing ... (reason [{}])", indexName, reason);
-                Map<String, IndexService> newIndices = new HashMap<>(indices);
-                indexService = newIndices.remove(index.getUUID());
+                indexService = indices.get(index.getUUID());
                 assert indexService != null : "IndexService is null for index: " + index;
-                indices = unmodifiableMap(newIndices);
+                indices = Maps.copyMapWithRemovedEntry(indices, index.getUUID());
                 listener = indexService.getIndexEventListener();
             }
 
@@ -878,7 +892,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 deleteIndexStore(extraInfo, indexService.index(), indexSettings);
             }
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to remove index {} ([{}][{}])", index, reason, extraInfo), e);
+            logger.warn(() -> format("failed to remove index %s ([%s][%s])", index, reason, extraInfo), e);
         }
     }
 
@@ -950,14 +964,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
                 deleteIndexStore(reason, oldIndexMetadata);
             } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] failed to delete unassigned index (reason [{}])",
-                        oldIndexMetadata.getIndex(),
-                        reason
-                    ),
-                    e
-                );
+                logger.warn(() -> format("[%s] failed to delete unassigned index (reason [%s])", oldIndexMetadata.getIndex(), reason), e);
             }
         }
     }
@@ -1017,12 +1024,9 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             success = true;
         } catch (ShardLockObtainFailedException ex) {
-            logger.debug(
-                () -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index),
-                ex
-            );
+            logger.debug(() -> format("%s failed to delete index store - at least one shards is still locked", index), ex);
         } catch (Exception ex) {
-            logger.warn(() -> new ParameterizedMessage("{} failed to delete index", index), ex);
+            logger.warn(() -> format("%s failed to delete index", index), ex);
         } finally {
             if (success == false) {
                 addPendingDelete(index, indexSettings);
@@ -1133,10 +1137,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             } catch (Exception e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "[{}] failed to load state file from a stale deleted index, " + "folders will be left on disk",
-                        index
-                    ),
+                    () -> format("[%s] failed to load state file from a stale deleted index, " + "folders will be left on disk", index),
                     e
                 );
                 return null;
@@ -1147,7 +1148,7 @@ public class IndicesService extends AbstractLifecycleComponent
             } catch (Exception e) {
                 // we just warn about the exception here because if deleteIndexStoreIfDeletionAllowed
                 // throws an exception, it gets added to the list of pending deletes to be tried again
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete index on disk", metadata.getIndex()), e);
+                logger.warn(() -> "[" + metadata.getIndex() + "] failed to delete index on disk", e);
             }
             return metadata;
         }
@@ -1323,7 +1324,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                 );
                                 iterator.remove();
                             } catch (IOException ex) {
-                                logger.debug(() -> new ParameterizedMessage("{} retry pending delete", index), ex);
+                                logger.debug(() -> format("%s retry pending delete", index), ex);
                             }
                         } else {
                             assert delete.shardId != -1;
@@ -1334,7 +1335,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                     deleteShardStore("pending delete", shardLock, delete.settings);
                                     iterator.remove();
                                 } catch (IOException ex) {
-                                    logger.debug(() -> new ParameterizedMessage("{} retry pending delete", shardLock.getShardId()), ex);
+                                    logger.debug(() -> format("%s retry pending delete", shardLock.getShardId()), ex);
                                 }
                             } else {
                                 logger.warn("{} no shard lock for pending delete", delete.shardId);
@@ -1724,13 +1725,6 @@ public class IndicesService extends AbstractLifecycleComponent
         return mapperRegistry.getMetadataMapperParsers(version).keySet();
     }
 
-    /**
-     * Returns the registered metadata field names for all compatible versions.
-     */
-    public Set<String> getAllMetadataFields() {
-        return mapperRegistry.getAllMetadataMapperParsers().keySet();
-    }
-
     private void setIdFieldDataEnabled(boolean value) {
         this.idFieldDataEnabled = value;
     }
@@ -1746,7 +1740,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 danglingIndicesThreadPoolExecutor.execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index), e);
+                        logger.warn(() -> format("failed to write dangling indices state for index %s", index), e);
                     }
 
                     @Override

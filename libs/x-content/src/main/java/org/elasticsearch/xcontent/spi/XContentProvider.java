@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * A provider for the XContent API.
@@ -77,6 +78,20 @@ public interface XContentProvider {
 
     /** A holder for the provider instance. */
     class Holder {
-        private static final XContentProvider INSTANCE = (new ProviderLocator<>("x-content", XContentProvider.class)).get();
+
+        private Holder() {}
+
+        private static final String PROVIDER_NAME = "x-content";
+
+        private static final String PROVIDER_MODULE_NAME = "org.elasticsearch.xcontent.impl";
+
+        private static final Set<String> MISSING_MODULES = Set.of("com.fasterxml.jackson.databind");
+
+        private static final XContentProvider INSTANCE = (new ProviderLocator<>(
+            PROVIDER_NAME,
+            XContentProvider.class,
+            PROVIDER_MODULE_NAME,
+            MISSING_MODULES
+        )).get();
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.test.delayedshard;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -18,7 +17,7 @@ import java.util.Collection;
 public class DelayedShardAggregationBuilderTests extends BaseAggregationTestCase<DelayedShardAggregationBuilder> {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(DelayedShardAggregationPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(DelayedShardAggregationPlugin.class);
     }
 
     @Override

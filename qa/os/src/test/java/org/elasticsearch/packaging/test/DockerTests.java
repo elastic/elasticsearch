@@ -959,13 +959,16 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Java process running inside the container has the expected UID, GID and username.
      */
     public void test130JavaHasCorrectOwnership() {
-        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "java");
+        final List<ProcessInfo> infos = ProcessInfo.getProcessInfo(sh, "java");
+        assertThat(infos, hasSize(2));
 
-        assertThat("Incorrect UID", info.uid(), equalTo(1000));
-        assertThat("Incorrect username", info.username(), equalTo("elasticsearch"));
+        for (ProcessInfo info : infos) {
+            assertThat("Incorrect UID", info.uid(), equalTo(1000));
+            assertThat("Incorrect username", info.username(), equalTo("elasticsearch"));
 
-        assertThat("Incorrect GID", info.gid(), equalTo(0));
-        assertThat("Incorrect group", info.group(), equalTo("root"));
+            assertThat("Incorrect GID", info.gid(), equalTo(0));
+            assertThat("Incorrect group", info.group(), equalTo("root"));
+        }
     }
 
     /**
@@ -973,7 +976,9 @@ public class DockerTests extends PackagingTestCase {
      * The PID is particularly important because PID 1 handles signal forwarding and child reaping.
      */
     public void test131InitProcessHasCorrectPID() {
-        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "tini");
+        final List<ProcessInfo> infos = ProcessInfo.getProcessInfo(sh, "tini");
+        assertThat(infos, hasSize(1));
+        ProcessInfo info = infos.get(0);
 
         assertThat("Incorrect PID", info.pid(), equalTo(1));
 
@@ -1092,6 +1097,23 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Ensure that it is possible to apply CLI options when running the image.
+     */
+    public void test171AdditionalCliOptionsAreForwarded() throws Exception {
+        assumeTrue(
+            "Does not apply to Cloud images, because they don't use the default entrypoint",
+            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
+        );
+
+        runContainer(distribution(), builder().runArgs("bin/elasticsearch", "-Ecluster.name=kimchy").envVar("ELASTIC_PASSWORD", PASSWORD));
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+
+        final JsonNode node = getJson("/", "elastic", PASSWORD, ServerUtils.getCaCert(installation));
+
+        assertThat(node.get("cluster_name").textValue(), equalTo("kimchy"));
+    }
+
+    /**
      * Check that the UBI images has the correct license information in the correct place.
      */
     public void test200UbiImagesHaveLicenseDirectory() {
@@ -1188,7 +1210,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that readiness listener works
      */
-    public void testReadiness001() throws Exception {
+    public void test500Readiness() throws Exception {
         assertFalse(readinessProbe(9399));
         // Disabling security so we wait for green
         installation = runContainer(

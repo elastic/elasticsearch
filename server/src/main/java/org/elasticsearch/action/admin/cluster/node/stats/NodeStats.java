@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.StatsRequestStats;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -42,55 +40,52 @@ import java.util.Map;
  */
 public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
-    private long timestamp;
+    private final long timestamp;
 
     @Nullable
     private NodeIndicesStats indices;
 
     @Nullable
-    private OsStats os;
+    private final OsStats os;
 
     @Nullable
-    private ProcessStats process;
+    private final ProcessStats process;
 
     @Nullable
-    private JvmStats jvm;
+    private final JvmStats jvm;
 
     @Nullable
-    private ThreadPoolStats threadPool;
+    private final ThreadPoolStats threadPool;
 
     @Nullable
-    private FsInfo fs;
+    private final FsInfo fs;
 
     @Nullable
-    private TransportStats transport;
+    private final TransportStats transport;
 
     @Nullable
-    private HttpStats http;
+    private final HttpStats http;
 
     @Nullable
-    private AllCircuitBreakerStats breaker;
+    private final AllCircuitBreakerStats breaker;
 
     @Nullable
-    private ScriptStats scriptStats;
+    private final ScriptStats scriptStats;
 
     @Nullable
-    private ScriptCacheStats scriptCacheStats;
+    private final ScriptCacheStats scriptCacheStats;
 
     @Nullable
-    private DiscoveryStats discoveryStats;
+    private final DiscoveryStats discoveryStats;
 
     @Nullable
-    private IngestStats ingestStats;
+    private final IngestStats ingestStats;
 
     @Nullable
-    private AdaptiveSelectionStats adaptiveSelectionStats;
+    private final AdaptiveSelectionStats adaptiveSelectionStats;
 
     @Nullable
-    private IndexingPressureStats indexingPressureStats;
-
-    @Nullable
-    private StatsRequestStats statsRequestStats;
+    private final IndexingPressureStats indexingPressureStats;
 
     public NodeStats(StreamInput in) throws IOException {
         super(in);
@@ -112,9 +107,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         ingestStats = in.readOptionalWriteable(IngestStats::new);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
-        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
-            statsRequestStats = in.readOptionalWriteable(StatsRequestStats::new);
-        }
     }
 
     public NodeStats(
@@ -134,8 +126,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable IngestStats ingestStats,
         @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
         @Nullable ScriptCacheStats scriptCacheStats,
-        @Nullable IndexingPressureStats indexingPressureStats,
-        @Nullable StatsRequestStats statsRequestStats
+        @Nullable IndexingPressureStats indexingPressureStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -154,7 +145,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.adaptiveSelectionStats = adaptiveSelectionStats;
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
-        this.statsRequestStats = statsRequestStats;
     }
 
     public long getTimestamp() {
@@ -259,11 +249,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return indexingPressureStats;
     }
 
-    @Nullable
-    public StatsRequestStats getStatsRequestStats() {
-        return statsRequestStats;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -287,9 +272,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
-        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
-            out.writeOptionalWriteable(statsRequestStats);
-        }
     }
 
     @Override
@@ -358,9 +340,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getIndexingPressureStats() != null) {
             getIndexingPressureStats().toXContent(builder, params);
-        }
-        if (getStatsRequestStats() != null) {
-            getStatsRequestStats().toXContent(builder, params);
         }
         return builder;
     }

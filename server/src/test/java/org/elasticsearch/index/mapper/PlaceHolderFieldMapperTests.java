@@ -8,10 +8,22 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.FieldFetcher;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -39,5 +51,33 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
         merge(service, mapping);
         assertThat(service.fieldType("myfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
         assertEquals(Strings.toString(mapping), Strings.toString(service.documentMapper().mapping()));
+    }
+
+    public void testFetchValue() throws Exception {
+        MapperService mapperService = createMapperService(Version.fromString("5.0.0"), fieldMapping(b -> b.field("type", "unknown")));
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(
+                createMapperService(fieldMapping(b -> b.field("type", "keyword"))).documentMapper()
+                    .parse(source(b -> b.field("field", "value")))
+                    .rootDoc()
+            );
+        }, iw -> {
+            SearchLookup lookup = new SearchLookup(
+                mapperService::fieldType,
+                fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                new SourceLookup.ReaderSourceProvider()
+            );
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                searchExecutionContext,
+                Collections.singletonList(new FieldAndFormat("field", null))
+            );
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            lookup.source().setSegmentAndDocument(context, 0);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(lookup.source());
+            assertEquals(1, fields.size());
+            assertEquals(List.of("value"), fields.get("field").getValues());
+        });
     }
 }

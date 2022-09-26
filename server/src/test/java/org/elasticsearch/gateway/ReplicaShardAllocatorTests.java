@@ -566,7 +566,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                     )
                                 )
                             )
-                            .build()
                     )
             )
             .build();
@@ -611,7 +610,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                     unassignedInfo
                                 )
                             )
-                            .build()
                     )
             )
             .build();

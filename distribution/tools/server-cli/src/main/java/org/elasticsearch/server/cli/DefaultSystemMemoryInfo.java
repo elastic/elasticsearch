@@ -10,6 +10,8 @@ package org.elasticsearch.server.cli;
 
 import com.sun.management.OperatingSystemMXBean;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.lang.management.ManagementFactory;
 import java.util.function.LongSupplier;
 

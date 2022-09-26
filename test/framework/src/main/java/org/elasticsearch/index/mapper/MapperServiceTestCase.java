@@ -10,8 +10,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -20,6 +22,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,8 +39,11 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -61,6 +67,7 @@ import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -74,13 +81,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -273,7 +280,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
-    protected final SourceToParse source(String source) {
+    protected static SourceToParse source(String source) {
         return new SourceToParse("1", new BytesArray(source), XContentType.JSON);
     }
 
@@ -447,7 +454,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-                return ft.fielddataBuilder("test", null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+                return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+                    .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
 
             @Override
@@ -621,8 +629,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             }
         }),
-            (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
@@ -640,8 +647,89 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
-    protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
-        return (mft, lookupSource) -> mft.fielddataBuilder("test", lookupSource)
+    protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup(
+        Function<String, Set<String>> sourcePathsLookup
+    ) {
+        return (mft, lookupSource, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSource, sourcePathsLookup, fdo))
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+    }
+
+    protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapper.parse(source(build)).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                String syntheticSource = syntheticSource(mapper, reader, 0);
+                roundTripSyntheticSource(mapper, syntheticSource, reader);
+                return syntheticSource;
+            }
+        }
+    }
+
+    /*
+     * Use the synthetic source to build a *second* index and verify
+     * that the synthetic source it produces is the same. And *then*
+     * verify that the index's contents are exactly the same. Except
+     * for _recovery_source - that won't be the same because it's a
+     * precise copy of the bits in _source. And we *know* that frequently
+     * the synthetic source won't be the same as the original source.
+     * That's the point, really. It'll just be "close enough" for
+     * round tripping.
+     */
+    private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader) throws IOException {
+        try (Directory roundTripDirectory = newDirectory()) {
+            RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
+            roundTripIw.addDocument(
+                mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of())).rootDoc()
+            );
+            roundTripIw.close();
+            try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
+                String roundTripSyntheticSource = syntheticSource(mapper, roundTripReader, 0);
+                assertThat(roundTripSyntheticSource, equalTo(syntheticSource));
+                validateRoundTripReader(syntheticSource, reader, roundTripReader);
+            }
+        }
+    }
+
+    private String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
+        SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
+        LeafReader leafReader = getOnlyLeafReader(reader);
+        SourceLoader.Leaf leafLoader = loader.leaf(leafReader, new int[] { docId });
+        BytesReference syntheticSourceBytes = leafLoader.source(syntheticSourceStoredFieldLoader(mapper, leafReader, loader), docId);
+        return syntheticSourceBytes.utf8ToString();
+    }
+
+    protected static LeafStoredFieldLoader syntheticSourceStoredFieldLoader(
+        DocumentMapper mapper,
+        LeafReader leafReader,
+        SourceLoader loader
+    ) throws IOException {
+        if (loader.requiredStoredFields().isEmpty()) {
+            return StoredFieldLoader.empty().getLoader(leafReader.getContext(), null);
+        }
+        LeafStoredFieldLoader storedFields = StoredFieldLoader.create(false, loader.requiredStoredFields())
+            .getLoader(leafReader.getContext(), null);
+        storedFields.advanceTo(0);
+        return storedFields;
+    }
+
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
+        throws IOException {
+        assertReaderEquals(
+            "round trip " + syntheticSource,
+            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, reader),
+            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, roundTripReader)
+        );
+    }
+
+    protected final XContentBuilder syntheticSourceMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        return topMapping(b -> {
+            b.startObject("_source").field("mode", "synthetic").endObject();
+            b.startObject("properties");
+            buildFields.accept(b);
+            b.endObject();
+        });
     }
 }

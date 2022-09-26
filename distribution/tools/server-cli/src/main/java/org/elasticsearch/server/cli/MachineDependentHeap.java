@@ -8,9 +8,10 @@
 
 package org.elasticsearch.server.cli;
 
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.SafeConstructor;
-import org.yaml.snakeyaml.error.YAMLException;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,7 +20,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -36,7 +36,6 @@ import static org.elasticsearch.server.cli.JvmOption.isMinHeapSpecified;
 public final class MachineDependentHeap {
     private static final long GB = 1024L * 1024L * 1024L; // 1GB
     private static final long MAX_HEAP_SIZE = GB * 31; // 31GB
-    private static final long MAX_ML_HEAP_SIZE = GB * 2; // 2GB
     private static final long MIN_HEAP_SIZE = 1024 * 1024 * 128; // 128MB
     private static final int DEFAULT_HEAP_SIZE_MB = 1024;
     private static final String ELASTICSEARCH_YML = "elasticsearch.yml";
@@ -86,27 +85,23 @@ public final class MachineDependentHeap {
 
         @SuppressWarnings("unchecked")
         public static MachineNodeRole parse(InputStream config) {
-            Yaml yaml = new Yaml(new SafeConstructor());
-            Map<String, Object> root;
+            final Settings settings;
             try {
-                root = yaml.load(config);
-            } catch (YAMLException | ClassCastException ex) {
+                var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, config);
+                if (parser.currentToken() == null && parser.nextToken() == null) {
+                    settings = null;
+                } else {
+                    settings = Settings.fromXContent(parser);
+                }
+            } catch (IOException | ParsingException ex) {
                 // Strangely formatted config, so just return defaults and let startup settings validation catch the problem
                 return MachineNodeRole.UNKNOWN;
             }
 
-            if (root != null) {
-                Map<String, Object> map = flatten(root, null);
-                List<String> roles = null;
-                try {
-                    if (map.containsKey("node.roles")) {
-                        roles = (List<String>) map.get("node.roles");
-                    }
-                } catch (ClassCastException ex) {
-                    return MachineNodeRole.UNKNOWN;
-                }
+            if (settings != null && settings.isEmpty() == false) {
+                List<String> roles = settings.getAsList("node.roles");
 
-                if (roles == null || roles.isEmpty()) {
+                if (roles.isEmpty()) {
                     // If roles are missing or empty (coordinating node) assume defaults and consider this a data node
                     return MachineNodeRole.DATA;
                 } else if (containsOnly(roles, "master")) {
@@ -119,33 +114,6 @@ public final class MachineDependentHeap {
             } else { // if the config is completely empty, then assume defaults and consider this a data node
                 return MachineNodeRole.DATA;
             }
-        }
-
-        /**
-         * Flattens a nested configuration structure. This creates a consistent way of referencing settings from a config file that uses
-         * a mix of object and flat setting notation. The returned map is a single-level deep structure of dot-notation property names
-         * to values.
-         *
-         * <p>No attempt is made to deterministically deal with duplicate settings, nor are they explicitly disallowed.
-         *
-         * @param config nested configuration map
-         * @param parentPath parent node path or {@code null} if parsing the root node
-         * @return flattened configuration map
-         */
-        @SuppressWarnings("unchecked")
-        private static Map<String, Object> flatten(Map<String, Object> config, String parentPath) {
-            Map<String, Object> flatMap = new HashMap<>();
-            String prefix = parentPath != null ? parentPath + "." : "";
-
-            for (Map.Entry<String, Object> entry : config.entrySet()) {
-                if (entry.getValue() instanceof Map) {
-                    flatMap.putAll(flatten((Map<String, Object>) entry.getValue(), prefix + entry.getKey()));
-                } else {
-                    flatMap.put(prefix + entry.getKey(), entry.getValue());
-                }
-            }
-
-            return flatMap;
         }
 
         @SuppressWarnings("unchecked")
@@ -167,11 +135,26 @@ public final class MachineDependentHeap {
          *
          * <p>Heap is computed as:
          * <ul>
-         *     <li>40% of total system memory when less than 2 gigabytes.</li>
-         *     <li>25% of total system memory when greater than 2 gigabytes up to a maximum of 2 gigabytes.</li>
+         *     <li>40% of total system memory when total system memory 16 gigabytes or less.</li>
+         *     <li>40% of the first 16 gigabytes plus 10% of memory above that when total system memory is more than 16 gigabytes.</li>
+         *     <li>The absolute maximum heap size is 31 gigabytes.</li>
          * </ul>
+         *
+         * In all cases the result is rounded down to the next whole multiple of 4 megabytes.
+         * The reason for doing this is that Java will round requested heap sizes to a multiple
+         * of 4 megabytes (certainly versions 11 to 18 do this), so by doing this ourselves we
+         * are more likely to actually get the amount we request. This is worthwhile for ML where
+         * the ML autoscaling code needs to be able to calculate the JVM size for different sizes
+         * of ML node, and if Java is also rounding then this causes a discrepancy. It's possible
+         * that a future version of Java could round to an even bigger number of megabytes, which
+         * would cause a discrepancy for people using that version of Java. But there's no harm
+         * in a bit of extra rounding here - it can only reduce discrepancies.
+         *
+         * If this formula is changed then corresponding changes must be made to the {@code NativeMemoryCalculator} and
+         * {@code MlAutoscalingDeciderServiceTests} classes in the ML plugin code. Failure to keep the logic synchronized
+         * could result in repeated autoscaling up and down.
          */
-        ML_ONLY(m -> mb(m < (GB * 2) ? (long) (m * .4) : (long) min(m * .25, MAX_ML_HEAP_SIZE))),
+        ML_ONLY(m -> mb(m <= (GB * 16) ? (long) (m * .4) : (long) min((GB * 16) * .4 + (m - GB * 16) * .1, MAX_HEAP_SIZE), 4)),
 
         /**
          * Data node. Essentially any node that isn't a master or ML only node.
@@ -209,6 +192,10 @@ public final class MachineDependentHeap {
 
         private static int mb(long bytes) {
             return (int) (bytes / (1024 * 1024));
+        }
+
+        private static int mb(long bytes, int toLowerMultipleOfMb) {
+            return toLowerMultipleOfMb * (int) (bytes / (1024 * 1024 * toLowerMultipleOfMb));
         }
     }
 }

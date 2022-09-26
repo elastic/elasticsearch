@@ -18,11 +18,14 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.StatusInfo;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -34,6 +37,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -59,19 +63,23 @@ public class JoinHelperTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
             null,
-            Collections.emptySet(),
-            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext())
+            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
+            new TaskManager(Settings.EMPTY, threadPool, Set.of()),
+            Tracer.NOOP
         );
         JoinHelper joinHelper = new JoinHelper(
             null,
-            new FakeThreadPoolMasterService("node0", "master", threadPool, deterministicTaskQueue::scheduleNow),
+            null,
+            new NoOpClusterApplier(),
+            // TODO does this need a master service too?
             transportService,
             () -> 0L,
             (joinRequest, joinCallback) -> { throw new AssertionError(); },
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             () -> new StatusInfo(HEALTHY, "info"),
-            new JoinReasonService(() -> 0L)
+            new JoinReasonService(() -> 0L),
+            new NoneCircuitBreakerService()
         );
         transportService.start();
 
@@ -220,14 +228,17 @@ public class JoinHelperTests extends ESTestCase {
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
         JoinHelper joinHelper = new JoinHelper(
             null,
-            masterService,
+            null,
+            new NoOpClusterApplier(),
+            // TODO does this need a master service too?
             transportService,
             () -> 0L,
             (joinRequest, joinCallback) -> { throw new AssertionError(); },
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             nodeHealthServiceStatus::get,
-            new JoinReasonService(() -> 0L)
+            new JoinReasonService(() -> 0L),
+            new NoneCircuitBreakerService()
         );
         transportService.start();
 

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -88,6 +90,8 @@ import java.util.function.Function;
  */
 public final class IndexModule {
 
+    private static final Logger logger = LogManager.getLogger(IndexModule.class);
+
     public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP = Setting.boolSetting("node.store.allow_mmap", true, Property.NodeScope);
 
     private static final FsDirectoryFactory DEFAULT_DIRECTORY_FACTORY = new FsDirectoryFactory();
@@ -155,7 +159,7 @@ public final class IndexModule {
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
-     * via {@link org.elasticsearch.plugins.PluginsService#onIndexModule(IndexModule)}.
+     * via {@link org.elasticsearch.plugins.Plugin#onIndexModule(IndexModule)}.
      *
      * @param indexSettings       the index settings
      * @param analysisRegistry    the analysis registry
@@ -452,12 +456,13 @@ public final class IndexModule {
             if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
                 BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = forceQueryCacheProvider.get();
                 if (queryCacheProvider == null) {
-                    queryCache = new IndexQueryCache(indexSettings, indicesQueryCache);
+                    queryCache = new IndexQueryCache(indexSettings.getIndex(), indicesQueryCache);
                 } else {
                     queryCache = queryCacheProvider.apply(indexSettings, indicesQueryCache);
                 }
             } else {
-                queryCache = new DisabledQueryCache(indexSettings);
+                logger.debug("Using no query cache for [{}]", indexSettings.getIndex());
+                queryCache = DisabledQueryCache.INSTANCE;
             }
             if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
                 indexAnalyzers = analysisRegistry.build(indexSettings);
@@ -581,7 +586,7 @@ public final class IndexModule {
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,
             () -> { throw new UnsupportedOperationException("no index query shard context available"); },
-            indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
+            indexSettings.getMode().idFieldMapperWithoutFieldData(),
             scriptService
         );
     }

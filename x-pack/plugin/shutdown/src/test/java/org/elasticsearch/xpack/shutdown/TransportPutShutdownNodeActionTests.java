@@ -47,30 +47,33 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
             indexNameExpressionResolver
         );
     }
+
     // TODO fixme
-    // public void testNoop() throws Exception {
-    // var type = randomFrom(Type.REMOVE, Type.REPLACE, Type.RESTART);
-    // var allocationDelay = type == Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
-    // var targetNodeName = type == Type.REPLACE ? randomAlphaOfLength(5) : null;
-    // var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName);
-    // action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
-    // var updateTask = ArgumentCaptor.forClass(PutShutdownNodeTask.class);
-    // var taskConfig = ArgumentCaptor.forClass(ClusterStateTaskConfig.class);
-    // var taskExecutor = ArgumentCaptor.forClass(PutShutdownNodeExecutor.class);
-    // verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
-    // when(taskContext.getTask()).thenReturn(updateTask.getValue());
-    // ClusterState stableState = taskExecutor.getValue().execute(ClusterState.EMPTY_STATE, List.of(taskContext));
-    //
-    // // run the request again, there should be no call to submit an update task
-    // clearInvocations(clusterService);
-    // action.masterOperation(null, request, stableState, ActionListener.noop());
-    // verifyNoInteractions(clusterService);
-    //
-    // // run the request again with empty state, the update task should return the same state
-    // action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
-    // verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
-    // when(taskContext.getTask()).thenReturn(updateTask.getValue());
-    // ClusterState gotState = taskExecutor.getValue().execute(stableState, List.of(taskContext));
-    // assertThat(gotState, sameInstance(stableState));
-    // }
+//    public void testNoop() throws Exception {
+//        var type = randomFrom(Type.REMOVE, Type.REPLACE, Type.RESTART);
+//        var allocationDelay = type == Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
+//        var targetNodeName = type == Type.REPLACE ? randomAlphaOfLength(5) : null;
+//        var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName);
+//        action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
+//        var updateTask = ArgumentCaptor.forClass(PutShutdownNodeTask.class);
+//        var taskConfig = ArgumentCaptor.forClass(ClusterStateTaskConfig.class);
+//        var taskExecutor = ArgumentCaptor.forClass(PutShutdownNodeExecutor.class);
+//        verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
+//        when(taskContext.getTask()).thenReturn(updateTask.getValue());
+//        ClusterState stableState = taskExecutor.getValue()
+//            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext), () -> null));
+//
+//        // run the request again, there should be no call to submit an update task
+//        clearInvocations(clusterService);
+//        action.masterOperation(null, request, stableState, ActionListener.noop());
+//        verifyNoInteractions(clusterService);
+//
+//        // run the request again with empty state, the update task should return the same state
+//        action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
+//        verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
+//        when(taskContext.getTask()).thenReturn(updateTask.getValue());
+//        ClusterState gotState = taskExecutor.getValue()
+//            .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(stableState, List.of(taskContext), () -> null));
+//        assertThat(gotState, sameInstance(stableState));
+//    }
 }

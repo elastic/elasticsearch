@@ -556,10 +556,7 @@ public class BulkByScrollTask extends CancellableTask {
             out.writeFloat(requestsPerSecond);
             out.writeOptionalString(reasonCancelled);
             out.writeTimeValue(throttledUntil);
-            out.writeVInt(sliceStatuses.size());
-            for (StatusOrException sliceStatus : sliceStatuses) {
-                out.writeOptionalWriteable(sliceStatus);
-            }
+            out.writeCollection(sliceStatuses, StreamOutput::writeOptionalWriteable);
         }
 
         @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -59,8 +60,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -681,12 +680,34 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Read a {@link Map} using the given key and value readers. The return Map is immutable.
+     *
+     * @param keyReader Method to read a key. Must not return null.
+     * @param valueReader Method to read a value. Must not return null.
+     * @return The immutable map
+     */
+    public <K, V> Map<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        final int size = readVInt();
+        if (size == 0) {
+            return Map.of();
+        } else if (size == 1) {
+            return Map.of(keyReader.read(this), valueReader.read(this));
+        }
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        Map.Entry<K, V> entries[] = new Map.Entry[size];
+        for (int i = 0; i < size; ++i) {
+            entries[i] = Map.entry(keyReader.read(this), valueReader.read(this));
+        }
+        return Map.ofEntries(entries);
+    }
+
+    /**
      * Read {@link ImmutableOpenMap} using given key and value readers.
      *
      * @param keyReader   key reader
      * @param valueReader value reader
      */
-    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
+    public <K, V> ImmutableOpenMap<K, V> readImmutableOpenMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
         throws IOException {
         final int size = readVInt();
         if (size == 0) {
@@ -735,8 +756,8 @@ public abstract class StreamInput extends InputStream {
             case 21 -> readBytesRef();
             case 22 -> readGeoPoint();
             case 23 -> readZonedDateTime();
-            case 24 -> readCollection(StreamInput::readGenericValue, LinkedHashSet::new, Collections.emptySet());
-            case 25 -> readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
+            case 24 -> readCollection(StreamInput::readGenericValue, Sets::newLinkedHashSetWithExpectedSize, Collections.emptySet());
+            case 25 -> readCollection(StreamInput::readGenericValue, Sets::newHashSetWithExpectedSize, Collections.emptySet());
             case 26 -> readBigInteger();
             case 27 -> readOffsetTime();
             default -> throw new IOException("Can't read unknown type [" + type + "]");
@@ -1128,6 +1149,32 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
+     * The returned list is immutable.
+     *
+     * @return the list of objects
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public <T> List<T> readImmutableList(final Writeable.Reader<T> reader) throws IOException {
+        int count = readArraySize();
+        // special cases small arrays, just like in java.util.List.of(...)
+        if (count == 0) {
+            return List.of();
+        } else if (count == 1) {
+            return List.of(reader.read(this));
+        } else if (count == 2) {
+            return List.of(reader.read(this), reader.read(this));
+        }
+        Object[] entries = new Object[count];
+        for (int i = 0; i < count; i++) {
+            entries[i] = reader.read(this);
+        }
+        @SuppressWarnings("unchecked")
+        T[] typedEntries = (T[]) entries;
+        return List.of(typedEntries);
+    }
+
+    /**
      * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
      * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
      *
@@ -1139,6 +1186,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional list. The list is expected to have been written using
+     * {@link StreamOutput#writeOptionalCollection(Collection)}. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     */
+    public <T> List<T> readOptionalList(final Writeable.Reader<T> reader) throws IOException {
+        final boolean isPresent = readBoolean();
+        return isPresent ? readList(reader) : null;
+    }
+
+    /**
      * Reads an optional list of strings. The list is expected to have been written using
      * {@link StreamOutput#writeOptionalStringCollection(Collection)}. If the returned list contains any entries it will be mutable.
      * If it is empty it might be immutable.
@@ -1147,19 +1204,14 @@ public abstract class StreamInput extends InputStream {
      * @throws IOException if an I/O exception occurs reading the list
      */
     public List<String> readOptionalStringList() throws IOException {
-        final boolean isPresent = readBoolean();
-        if (isPresent) {
-            return readList(StreamInput::readString);
-        } else {
-            return null;
-        }
+        return readOptionalList(StreamInput::readString);
     }
 
     /**
      * Reads a set of objects. If the returned set contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
-        return readCollection(reader, HashSet::new, Collections.emptySet());
+        return readCollection(reader, Sets::newHashSetWithExpectedSize, Collections.emptySet());
     }
 
     /**

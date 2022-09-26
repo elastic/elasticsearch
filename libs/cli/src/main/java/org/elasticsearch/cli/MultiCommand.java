@@ -70,7 +70,7 @@ public class MultiCommand extends Command {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         if (subcommands.isEmpty()) {
             throw new IllegalStateException("No subcommands configured");
         }
@@ -91,7 +91,7 @@ public class MultiCommand extends Command {
             args.add("-E" + pair);
         }
 
-        subcommand.mainWithoutErrorHandling(args.toArray(new String[0]), terminal);
+        subcommand.mainWithoutErrorHandling(args.toArray(new String[0]), terminal, processInfo);
     }
 
     @Override

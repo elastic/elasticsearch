@@ -1,5 +1,0 @@
-pr: 84406
-summary: Remove intermediate map from master task execution
-area: Cluster Coordination
-type: enhancement
-issues: []

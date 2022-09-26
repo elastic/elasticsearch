@@ -1,6 +1,0 @@
-pr: 84873
-summary: Correctly return `_type` field for documents in V7 compatiblity mode
-area: Infra/REST API
-type: bug
-issues:
- - 84173

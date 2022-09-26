@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.NotMasterException;
@@ -18,14 +18,19 @@ import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.ClusterApplier;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,6 +54,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class JoinHelper {
@@ -59,11 +65,13 @@ public class JoinHelper {
     public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
     public static final String JOIN_PING_ACTION_NAME = "internal:cluster/coordination/join/ping";
 
+    private final ClusterApplier clusterApplier;
     private final TransportService transportService;
     private final MasterServiceTaskQueue<JoinTask> joinTaskQueue;
     private final LongSupplier currentTermSupplier;
     private final NodeHealthService nodeHealthService;
     private final JoinReasonService joinReasonService;
+    private final CircuitBreakerService circuitBreakerService;
 
     private final Map<Tuple<DiscoveryNode, JoinRequest>, PendingJoinInfo> pendingOutgoingJoins = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
@@ -72,20 +80,24 @@ public class JoinHelper {
     JoinHelper(
         AllocationService allocationService,
         MasterService masterService,
+        ClusterApplier clusterApplier,
         TransportService transportService,
         LongSupplier currentTermSupplier,
         BiConsumer<JoinRequest, ActionListener<Void>> joinHandler,
         Function<StartJoinRequest, Join> joinLeaderInTerm,
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
-        JoinReasonService joinReasonService
+        JoinReasonService joinReasonService,
+        CircuitBreakerService circuitBreakerService
     ) {
         this.joinTaskQueue = masterService.getTaskQueue(
             "node-join",
             Priority.URGENT,
             new JoinTaskExecutor(allocationService, rerouteService)
         );
+        this.clusterApplier = clusterApplier;
         this.transportService = transportService;
+        this.circuitBreakerService = circuitBreakerService;
         this.currentTermSupplier = currentTermSupplier;
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
@@ -164,10 +176,10 @@ public class JoinHelper {
     static class FailedJoinAttempt {
         private final DiscoveryNode destination;
         private final JoinRequest joinRequest;
-        private final TransportException exception;
+        private final ElasticsearchException exception;
         private final long timestamp;
 
-        FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, TransportException exception) {
+        FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, ElasticsearchException exception) {
             this.destination = destination;
             this.joinRequest = joinRequest;
             this.exception = exception;
@@ -175,18 +187,14 @@ public class JoinHelper {
         }
 
         void logNow() {
-            logger.log(
-                getLogLevel(exception),
-                () -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest),
-                exception
-            );
+            logger.log(getLogLevel(exception), () -> format("failed to join %s with %s", destination, joinRequest), exception);
         }
 
-        static Level getLogLevel(TransportException e) {
+        static Level getLogLevel(ElasticsearchException e) {
             Throwable cause = e.unwrapCause();
             if (cause instanceof CoordinationStateRejectedException
-                || cause instanceof FailedToCommitClusterStateException
-                || cause instanceof NotMasterException) {
+                || cause instanceof CircuitBreakingException
+                || (cause instanceof Exception causeException && MasterService.isPublishFailureException(causeException))) {
                 return Level.DEBUG;
             }
             return Level.INFO;
@@ -194,8 +202,8 @@ public class JoinHelper {
 
         void logWarnWithTimestamp() {
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "last failed join attempt was {} ago, failed to join {} with {}",
+                () -> format(
+                    "last failed join attempt was %s ago, failed to join %s with %s",
                     TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
                     destination,
                     joinRequest
@@ -224,6 +232,29 @@ public class JoinHelper {
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         final var pendingJoinInfo = new PendingJoinInfo(transportService.getThreadPool().relativeTimeInMillis());
         if (pendingOutgoingJoins.putIfAbsent(dedupKey, pendingJoinInfo) == null) {
+
+            // If this node is under excessive heap pressure then the state it receives for join validation will trip a circuit breaker and
+            // fail the join attempt, resulting in retrying in a loop which makes the master just send a constant stream of cluster states
+            // to this node. We try and keep the problem local to this node by checking that we can at least allocate one byte:
+            final var breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(1L, "pre-flight join request");
+            } catch (Exception e) {
+                pendingJoinInfo.message = PENDING_JOIN_FAILED;
+                pendingOutgoingJoins.remove(dedupKey);
+                if (e instanceof ElasticsearchException elasticsearchException) {
+                    final var attempt = new FailedJoinAttempt(destination, joinRequest, elasticsearchException);
+                    attempt.logNow();
+                    lastFailedJoinAttempt.set(attempt);
+                    assert elasticsearchException instanceof CircuitBreakingException : e; // others shouldn't happen, handle them anyway
+                } else {
+                    logger.error("join failed during pre-flight circuit breaker check", e);
+                    assert false : e; // shouldn't happen, handle it anyway
+                }
+                return;
+            }
+            breaker.addWithoutBreaking(-1L);
+
             logger.debug("attempting to join {} with {}", destination, joinRequest);
             pendingJoinInfo.message = PENDING_JOIN_CONNECTING;
             // Typically we're already connected to the destination at this point, the PeerFinder holds a reference to this connection to
@@ -237,26 +268,52 @@ public class JoinHelper {
                     // which point the NodeConnectionsService will have taken ownership of it.
                     registerConnection(destination, connectionReference);
 
-                    pendingJoinInfo.message = PENDING_JOIN_WAITING_RESPONSE;
-                    transportService.sendRequest(
-                        destination,
-                        JOIN_ACTION_NAME,
-                        joinRequest,
-                        TransportRequestOptions.of(null, TransportRequestOptions.Type.PING),
-                        new TransportResponseHandler.Empty() {
+                    // It's possible that our cluster applier is still applying an earlier cluster state (maybe stuck waiting on IO), in
+                    // which case the master will accept our join and add us to the cluster but we won't be able to apply the joining state
+                    // fast enough and will be kicked out of the cluster for lagging, which can happen repeatedly and be a little
+                    // disruptive. To avoid this we send the join from the applier thread which ensures that it's not busy doing something
+                    // else.
+                    pendingJoinInfo.message = PENDING_JOIN_WAITING_APPLIER;
+                    clusterApplier.onNewClusterState(
+                        "joining " + destination.descriptionWithoutAttributes(),
+                        () -> null,
+                        new ActionListener<>() {
                             @Override
-                            public void handleResponse(TransportResponse.Empty response) {
-                                pendingJoinInfo.message = PENDING_JOIN_WAITING_STATE; // only logged if state delayed
-                                pendingOutgoingJoins.remove(dedupKey);
-                                logger.debug("successfully joined {} with {}", destination, joinRequest);
-                                lastFailedJoinAttempt.set(null);
+                            public void onResponse(Void unused) {
+                                assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+                                pendingJoinInfo.message = PENDING_JOIN_WAITING_RESPONSE;
+                                transportService.sendRequest(
+                                    destination,
+                                    JOIN_ACTION_NAME,
+                                    joinRequest,
+                                    TransportRequestOptions.of(null, TransportRequestOptions.Type.PING),
+                                    new TransportResponseHandler.Empty() {
+                                        @Override
+                                        public void handleResponse(TransportResponse.Empty response) {
+                                            pendingJoinInfo.message = PENDING_JOIN_WAITING_STATE; // only logged if state delayed
+                                            pendingOutgoingJoins.remove(dedupKey);
+                                            logger.debug("successfully joined {} with {}", destination, joinRequest);
+                                            lastFailedJoinAttempt.set(null);
+                                        }
+
+                                        @Override
+                                        public void handleException(TransportException exp) {
+                                            cleanUpOnFailure(exp);
+                                        }
+                                    }
+                                );
                             }
 
                             @Override
-                            public void handleException(TransportException exp) {
+                            public void onFailure(Exception e) {
+                                assert false : e; // no-op cluster state update cannot fail
+                                cleanUpOnFailure(new TransportException(e));
+                            }
+
+                            private void cleanUpOnFailure(TransportException exp) {
                                 pendingJoinInfo.message = PENDING_JOIN_FAILED;
                                 pendingOutgoingJoins.remove(dedupKey);
-                                FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
+                                final var attempt = new FailedJoinAttempt(destination, joinRequest, exp);
                                 attempt.logNow();
                                 lastFailedJoinAttempt.set(attempt);
                                 unregisterAndReleaseConnection(destination, connectionReference);
@@ -269,7 +326,7 @@ public class JoinHelper {
                 public void onFailure(Exception e) {
                     pendingJoinInfo.message = PENDING_JOIN_CONNECT_FAILED;
                     pendingOutgoingJoins.remove(dedupKey);
-                    FailedJoinAttempt attempt = new FailedJoinAttempt(
+                    final var attempt = new FailedJoinAttempt(
                         destination,
                         joinRequest,
                         new ConnectTransportException(destination, "failed to acquire connection", e)
@@ -295,7 +352,7 @@ public class JoinHelper {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
+                logger.debug(() -> format("failure in response to %s from %s", startJoinRequest, destination), exp);
             }
         });
     }
@@ -431,6 +488,7 @@ public class JoinHelper {
 
     static final String PENDING_JOIN_INITIALIZING = "initializing";
     static final String PENDING_JOIN_CONNECTING = "waiting to connect";
+    static final String PENDING_JOIN_WAITING_APPLIER = "waiting for local cluster applier";
     static final String PENDING_JOIN_WAITING_RESPONSE = "waiting for response";
     static final String PENDING_JOIN_WAITING_STATE = "waiting to receive cluster state";
     static final String PENDING_JOIN_CONNECT_FAILED = "failed to connect";

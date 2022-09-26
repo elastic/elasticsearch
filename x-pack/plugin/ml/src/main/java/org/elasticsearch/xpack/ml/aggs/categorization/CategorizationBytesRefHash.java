@@ -15,14 +15,6 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 class CategorizationBytesRefHash implements Releasable {
 
-    /**
-     * Our special wild card value.
-     */
-    static final BytesRef WILD_CARD_REF = new BytesRef("*");
-    /**
-     * For all WILD_CARD references, the token ID is always -1
-     */
-    static final int WILD_CARD_ID = -1;
     private final BytesRefHash bytesRefHash;
 
     CategorizationBytesRefHash(BytesRefHash bytesRefHash) {
@@ -46,34 +38,28 @@ class CategorizationBytesRefHash implements Releasable {
     }
 
     BytesRef getDeep(long id) {
-        if (id == WILD_CARD_ID) {
-            return WILD_CARD_REF;
-        }
         BytesRef shallow = bytesRefHash.get(id, new BytesRef());
         return BytesRef.deepCopyOf(shallow);
     }
 
     int put(BytesRef bytesRef) {
-        if (WILD_CARD_REF.equals(bytesRef)) {
-            return WILD_CARD_ID;
-        }
         long hash = bytesRefHash.add(bytesRef);
         if (hash < 0) {
+            // BytesRefHash returns -1 - hash if the entry already existed, but we just want to return the hash
             return (int) (-1L - hash);
-        } else {
-            if (hash > Integer.MAX_VALUE) {
-                throw new AggregationExecutionException(
-                    LoggerMessageFormat.format(
-                        "more than [{}] unique terms encountered. "
-                            + "Consider restricting the documents queried or adding [{}] in the {} configuration",
-                        Integer.MAX_VALUE,
-                        CategorizeTextAggregationBuilder.CATEGORIZATION_FILTERS.getPreferredName(),
-                        CategorizeTextAggregationBuilder.NAME
-                    )
-                );
-            }
-            return (int) hash;
         }
+        if (hash > Integer.MAX_VALUE) {
+            throw new AggregationExecutionException(
+                LoggerMessageFormat.format(
+                    "more than [{}] unique terms encountered. "
+                        + "Consider restricting the documents queried or adding [{}] in the {} configuration",
+                    Integer.MAX_VALUE,
+                    CategorizeTextAggregationBuilder.CATEGORIZATION_FILTERS.getPreferredName(),
+                    CategorizeTextAggregationBuilder.NAME
+                )
+            );
+        }
+        return (int) hash;
     }
 
     @Override

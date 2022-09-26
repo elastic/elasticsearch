@@ -1587,7 +1587,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
             String mode = randomMode();
             Map<String, Object> answer = toMap(runSql(query(sql).mode(mode)), mode);
-            List<String> expected = Arrays.asList("integTest", dataStreamName, "VIEW", "ALIAS");
+            List<String> expected = Arrays.asList("javaRestTest", dataStreamName, "VIEW", "ALIAS");
             @SuppressWarnings("unchecked")
             List<List<String>> rows = (List<List<String>>) (answer.get("rows"));
             assertTrue(rows.contains(expected));

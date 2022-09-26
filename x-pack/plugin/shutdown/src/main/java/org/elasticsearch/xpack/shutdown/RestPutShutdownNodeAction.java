@@ -38,7 +38,7 @@ public class RestPutShutdownNodeAction extends BaseRestHandler {
         String nodeId = request.param("nodeId");
         try (XContentParser parser = request.contentParser()) {
             PutShutdownNodeAction.Request parsedRequest = PutShutdownNodeAction.Request.parseRequest(nodeId, parser);
-
+            parsedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", parsedRequest.masterNodeTimeout()));
             return channel -> client.execute(PutShutdownNodeAction.INSTANCE, parsedRequest, new RestToXContentListener<>(channel));
         }
     }

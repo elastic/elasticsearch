@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -25,10 +24,13 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -76,29 +78,28 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         final ClusterState state,
         final ActionListener<GetIndexResponse> listener
     ) {
-        ImmutableOpenMap<String, MappingMetadata> mappingsResult = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, List<AliasMetadata>> aliasesResult = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
-        ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.<String, String>builder()
-            .putAllFromMap(
-                state.metadata()
-                    .findDataStreams(concreteIndices)
-                    .entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getName()))
-            )
-            .build();
+        Map<String, MappingMetadata> mappingsResult = ImmutableOpenMap.of();
+        Map<String, List<AliasMetadata>> aliasesResult = Map.of();
+        Map<String, Settings> settings = Map.of();
+        Map<String, Settings> defaultSettings = Map.of();
+        Map<String, String> dataStreams = Map.copyOf(
+            state.metadata()
+                .findDataStreams(concreteIndices)
+                .entrySet()
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, v -> v.getValue().getName()))
+        );
         Feature[] features = request.features();
         boolean doneAliases = false;
         boolean doneMappings = false;
         boolean doneSettings = false;
         for (Feature feature : features) {
+            checkCancellation(task);
             switch (feature) {
                 case MAPPINGS:
                     if (doneMappings == false) {
                         mappingsResult = state.metadata()
-                            .findMappings(concreteIndices, indicesService.getFieldFilter(), Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
+                            .findMappings(concreteIndices, indicesService.getFieldFilter(), () -> checkCancellation(task));
                         doneMappings = true;
                     }
                     break;
@@ -110,9 +111,10 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     break;
                 case SETTINGS:
                     if (doneSettings == false) {
-                        ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
-                        ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
+                        Map<String, Settings> settingsMapBuilder = new HashMap<>();
+                        Map<String, Settings> defaultSettingsMapBuilder = new HashMap<>();
                         for (String index : concreteIndices) {
+                            checkCancellation(task);
                             Settings indexSettings = state.metadata().index(index).getSettings();
                             if (request.humanReadable()) {
                                 indexSettings = IndexMetadata.addHumanReadableSettings(indexSettings);
@@ -125,8 +127,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                                 defaultSettingsMapBuilder.put(index, defaultIndexSettings);
                             }
                         }
-                        settings = settingsMapBuilder.build();
-                        defaultSettings = defaultSettingsMapBuilder.build();
+                        settings = Collections.unmodifiableMap(settingsMapBuilder);
+                        defaultSettings = Collections.unmodifiableMap(defaultSettingsMapBuilder);
                         doneSettings = true;
                     }
                     break;
@@ -136,5 +138,11 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             }
         }
         listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams));
+    }
+
+    private static void checkCancellation(Task task) {
+        if (task instanceof CancellableTask cancellableTask) {
+            cancellableTask.ensureNotCancelled();
+        }
     }
 }

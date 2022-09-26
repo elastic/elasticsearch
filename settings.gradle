@@ -15,6 +15,14 @@ includeBuild "build-tools-internal"
 
 rootProject.name = "elasticsearch"
 
+dependencyResolutionManagement {
+  versionCatalogs {
+    buildLibs {
+      from(files("gradle/build.versions.toml"))
+    }
+  }
+}
+
 List projects = [
   'rest-api-spec',
   'docs',
@@ -55,6 +63,7 @@ List projects = [
   'distribution:tools:java-version-checker',
   'distribution:tools:cli-launcher',
   'distribution:tools:server-cli',
+  'distribution:tools:windows-service-cli',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
@@ -92,6 +101,15 @@ void addSubProjects(String path, File dir) {
   if (findProject(dir) != null) return;
 
   final String projectName = "${path}:${dir.name}"
+
+  // This project has a problem with availability of Docker images after
+  // release. Disabling individual tasks is tricky because it uses test
+  // fixtures, so instead just skip the project entirely until we can
+  // work out a way forward.
+  if (projectName.equals(":qa:apm")) {
+    return
+  }
+
   include projectName
   if (path.isEmpty() || path.startsWith(':example-plugins')) {
     project(projectName).projectDir = dir

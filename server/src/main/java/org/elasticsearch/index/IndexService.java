@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
@@ -46,11 +45,13 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -97,7 +98,7 @@ import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.core.Strings.format;
 
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
@@ -118,7 +119,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final SimilarityService similarityService;
     private final EngineFactory engineFactory;
     private final IndexWarmer warmer;
-    private volatile Map<Integer, IndexShard> shards = emptyMap();
+    private volatile Map<Integer, IndexShard> shards = Map.of();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
@@ -206,7 +207,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
                     .buildIndexSort(
                         mapperService::fieldType,
-                        (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, indexFieldData.index().getName(), searchLookup)
+                        (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, FieldDataContext.noRuntimeFields("index sort"))
                     );
             } else {
                 this.indexSortSupplier = () -> null;
@@ -214,7 +215,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexFieldData.setListener(new FieldDataCacheListener(this));
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
-            this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
+            this.indexCache = new IndexCache(queryCache, bitsetFilterCache);
         } else {
             assert indexAnalyzers == null;
             this.mapperService = null;
@@ -241,11 +242,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.readerWrapper = wrapperFactory.apply(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
-        // kick off async ops for the first shard in this index
-        this.refreshTask = new AsyncRefreshTask(this);
-        this.trimTranslogTask = new AsyncTrimTranslogTask(this);
-        this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
-        this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+            // kick off async ops for the first shard in this index
+            this.refreshTask = new AsyncRefreshTask(this);
+            this.trimTranslogTask = new AsyncTrimTranslogTask(this);
+            this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
+            this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        }
         updateFsyncTaskIfNecessary();
     }
 
@@ -294,6 +297,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             throw new ShardNotFoundException(new ShardId(index(), shardId));
         }
         return indexShard;
+    }
+
+    public NodeMappingStats getNodeMappingStats() {
+        long totalCount = mapperService().mappingLookup().getTotalFieldsCount();
+        Index index = index();
+        long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
+        NodeMappingStats indexNodeMappingStats = new NodeMappingStats(totalCount, totalEstimatedOverhead);
+        return indexNodeMappingStats;
     }
 
     public Set<Integer> shardIds() {
@@ -356,7 +367,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             IndexMetadata.FORMAT.writeAndCleanup(getMetadata(), nodeEnv.indexPaths(index()));
         } catch (WriteStateException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
+            logger.warn(() -> format("failed to write dangling indices state for index %s", index()), e);
         }
     }
 
@@ -368,7 +379,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index()));
         } catch (IOException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
+            logger.warn(() -> format("failed to delete dangling indices state for index %s", index()), e);
         }
     }
 
@@ -523,16 +534,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     @Override
     public synchronized void removeShard(int shardId, String reason) {
-        final ShardId sId = new ShardId(index(), shardId);
-        final IndexShard indexShard;
-        if (shards.containsKey(shardId) == false) {
+        final IndexShard indexShard = shards.get(shardId);
+        if (indexShard == null) {
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-        HashMap<Integer, IndexShard> newShards = new HashMap<>(shards);
-        indexShard = newShards.remove(shardId);
-        shards = unmodifiableMap(newShards);
-        closeShard(reason, sId, indexShard, indexShard.store(), indexShard.getIndexEventListener());
+        shards = Maps.copyMapWithRemovedEntry(shards, shardId);
+        closeShard(reason, indexShard.shardId(), indexShard, indexShard.store(), indexShard.getIndexEventListener());
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 
@@ -554,7 +562,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
-                        logger.debug(() -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
+                        logger.debug(() -> "[" + shardId + "] failed to close index shard", e);
                         // ignore
                     }
                 }
@@ -569,10 +577,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     logger.trace("[{}] store not initialized prior to closing shard, nothing to close", shardId);
                 }
             } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage("[{}] failed to close store on shard removal (reason: [{}])", shardId, reason),
-                    e
-                );
+                logger.warn(() -> format("[%s] failed to close store on shard removal (reason: [%s])", shardId, reason), e);
             }
         }
     }
@@ -588,10 +593,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
-                logger.debug(
-                    () -> new ParameterizedMessage("[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()),
-                    e
-                );
+                logger.debug(() -> "[" + lock.getShardId().id() + "] failed to delete shard content - scheduled a retry", e);
             }
         }
     }
@@ -802,10 +804,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 try {
                     shard.onSettingsChanged();
                 } catch (Exception e) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("[{}] failed to notify shard about setting change", shard.shardId().id()),
-                        e
-                    );
+                    logger.warn(() -> "[" + shard.shardId().id() + "] failed to notify shard about setting change", e);
                 }
             }
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
@@ -962,7 +961,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                 if (e instanceof AlreadyClosedException == false
                                     && e instanceof IndexShardClosedException == false
                                     && e instanceof ShardNotInPrimaryModeException == false) {
-                                    logger.warn(new ParameterizedMessage("{} failed to execute {} sync", shard.shardId(), source), e);
+                                    logger.warn(() -> format("%s failed to execute %s sync", shard.shardId(), source), e);
                                 }
                             }, ThreadPool.Names.SAME, source + " sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {

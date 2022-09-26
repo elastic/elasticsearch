@@ -35,6 +35,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
+import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class SecurityTestUtils {
@@ -74,10 +75,19 @@ public class SecurityTestUtils {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
-        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-            shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted()
-        ).build();
-        return RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table).build()).build();
+        return RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(index)
+                    .addIndexShard(
+                        IndexShardRoutingTable.builder(new ShardId(index, 0))
+                            .addShard(
+                                shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
+                                    .moveToStarted(UNAVAILABLE_EXPECTED_SHARD_SIZE)
+                            )
+                    )
+                    .build()
+            )
+            .build();
     }
 
     /**

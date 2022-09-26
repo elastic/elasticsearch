@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -42,7 +41,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -96,6 +94,7 @@ import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -527,15 +526,19 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             );
 
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            final PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            assertThat(tasks.tasks(), empty());
+            PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> ccrTasks = tasks.tasks()
+                .stream()
+                .filter(t -> t.getTaskName().equals(ShardFollowTask.NAME))
+                .toList();
+            assertThat(ccrTasks, empty());
 
             ListTasksRequest listTasksRequest = new ListTasksRequest();
             listTasksRequest.setDetailed(true);
             ListTasksResponse listTasksResponse = followerClient().admin().cluster().listTasks(listTasksRequest).get();
             int numNodeTasks = 0;
             for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                if (taskInfo.action().startsWith(ListTasksAction.NAME) == false) {
+                if (taskInfo.action().startsWith(ShardFollowTask.NAME)) {
                     numNodeTasks++;
                 }
             }
@@ -855,7 +858,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                                 listener.onResponse(null);
                             } else if (newEntry == null) {
                                 clusterService.removeListener(this);
-                                ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
+                                Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
                                 RestoreInfo ri = new RestoreInfo(
                                     prevEntry.snapshot().getSnapshotId().getName(),
                                     prevEntry.indices(),

@@ -330,7 +330,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        // Create empty buckets with 0 count and without sub-aggs so we can merge them with non-empty aggs
+        // Create empty buckets with 0 count and with empty sub-aggs so we can merge them with non-empty aggs
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalBinaryRange.Bucket> buckets = new ArrayList<>(ranges.length);
         for (Range range : ranges) {

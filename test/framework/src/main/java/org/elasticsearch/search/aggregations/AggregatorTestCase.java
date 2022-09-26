@@ -45,6 +45,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -458,7 +459,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             try {
                 searchAndReduce(
                     indexSettings,
-                    aggTestConfig.searcher(),
+                    aggTestConfig.searcherSupplier().get(),
                     aggTestConfig.query(),
                     aggTestConfig.builder(),
                     aggTestConfig.maxBuckets(),
@@ -477,7 +478,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         return searchAndReduce(
             indexSettings,
-            aggTestConfig.searcher(),
+            aggTestConfig.searcherSupplier().get(),
             aggTestConfig.query(),
             aggTestConfig.builder(),
             aggTestConfig.maxBuckets(),
@@ -610,29 +611,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(AggTestConfig<V> aggTestConfig)
         throws IOException {
-        boolean timeSeries = aggTestConfig.builder().isInSortOrderExecutionRequired();
-        try (Directory directory = newDirectory()) {
-            IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
-            if (timeSeries) {
-                Sort sort = new Sort(
-                    new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
-                    new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
-                );
-                config.setIndexSort(sort);
-            }
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
-            aggTestConfig.buildIndex().accept(indexWriter);
-            indexWriter.close();
-
-            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-                V agg = searchAndReduce(aggTestConfig.withSearcher(indexSearcher));
-                aggTestConfig.verify().accept(agg);
-
-                verifyOutputFieldNames(aggTestConfig.builder(), agg);
-            }
-        }
+        V agg = searchAndReduce(aggTestConfig);
+        aggTestConfig.verify().accept(agg);
+        verifyOutputFieldNames(aggTestConfig.builder(), agg);
     }
 
     protected <T extends AggregationBuilder, V extends InternalAggregation> void multiIndexTestCase(
@@ -1476,9 +1457,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     public record AggTestConfig<V extends InternalAggregation> (
-        IndexSearcher searcher,
+        CheckedSupplier<IndexSearcher, IOException> searcherSupplier,
         Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<V> verify,
         AggregationBuilder builder,
         int maxBuckets,
@@ -1488,26 +1468,89 @@ public abstract class AggregatorTestCase extends ESTestCase {
     ) {
         public AggTestConfig(
             AggregationBuilder builder,
+            Consumer<V> verify,
+            MappedFieldType... fieldTypes
+        ) {
+            this(
+                () -> null,
+                new MatchAllDocsQuery(), verify, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
+        }
+
+        // NOCOMMIT - remove this constructor
+        public AggTestConfig(
+            AggregationBuilder builder,
             CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
             Consumer<V> verify,
             MappedFieldType... fieldTypes
         ) {
-            this(null, new MatchAllDocsQuery(), buildIndex, verify, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
+            this(
+                () -> {
+                    boolean timeSeries = builder.isInSortOrderExecutionRequired();
+                    try (Directory directory = newDirectory()) {
+                        IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+                        if (timeSeries) {
+                            Sort sort = new Sort(
+                                new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
+                                new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
+                            );
+                            config.setIndexSort(sort);
+                        }
+                        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
+                        buildIndex.accept(indexWriter);
+                        indexWriter.close();
+
+                        try (
+                            DirectoryReader unwrapped = DirectoryReader.open(directory);
+                        ) {
+                            return newIndexSearcher(unwrapped);
+                        }
+                    }
+                },
+                new MatchAllDocsQuery(), verify, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
         }
 
         public AggTestConfig(IndexSearcher searcher, AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this(searcher, new MatchAllDocsQuery(), null, null, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
+            this(() -> searcher, new MatchAllDocsQuery(), agg -> {}, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
         }
 
+        // NOCOMMIT - remove this constructor
         public AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this(searcher, query, null, null, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
+            this(() -> searcher, query, agg -> {}, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
+        }
+
+        public AggTestConfig<V> withEmptyIndex() {
+            return this.withIndexBuilder(iw -> {});
+        }
+
+        public AggTestConfig<V> withIndexBuilder(CheckedConsumer<RandomIndexWriter, IOException> buildIndex) {
+            return new AggTestConfig<V>(() -> {
+                boolean timeSeries = this.builder().isInSortOrderExecutionRequired();
+                try (Directory directory = newDirectory()) {
+                    IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+                    if (timeSeries) {
+                        Sort sort = new Sort(
+                            new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
+                            new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
+                        );
+                        config.setIndexSort(sort);
+                    }
+                    RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
+                    buildIndex.accept(indexWriter);
+                    indexWriter.close();
+
+                    try (
+                        DirectoryReader unwrapped = DirectoryReader.open(directory);
+                    ) {
+                        return newIndexSearcher(unwrapped);
+                    }
+                }
+            }, query, verify, builder, maxBuckets, splitLeavesIntoSeparateAggregators, shouldBeCached, fieldTypes);
         }
 
         public AggTestConfig<V> withSearcher(IndexSearcher searcher) {
             return new AggTestConfig<V>(
-                searcher,
+                () -> searcher,
                 query,
-                buildIndex,
                 verify,
                 builder,
                 maxBuckets,
@@ -1519,9 +1562,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         public AggTestConfig<V> withQuery(Query query) {
             return new AggTestConfig<V>(
-                searcher,
+                searcherSupplier,
                 query,
-                buildIndex,
                 verify,
                 builder,
                 maxBuckets,
@@ -1533,9 +1575,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         public AggTestConfig<V> withSplitLeavesIntoSeperateAggregators(boolean splitLeavesIntoSeparateAggregators) {
             return new AggTestConfig<V>(
-                searcher,
+                searcherSupplier,
                 query,
-                buildIndex,
                 verify,
                 builder,
                 maxBuckets,
@@ -1547,9 +1588,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         public AggTestConfig<V> withShouldBeCached(boolean shouldBeCached) {
             return new AggTestConfig<V>(
-                searcher,
+                searcherSupplier,
                 query,
-                buildIndex,
                 verify,
                 builder,
                 maxBuckets,
@@ -1561,9 +1601,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         public AggTestConfig<V> withMaxBuckets(int maxBuckets) {
             return new AggTestConfig<V>(
-                searcher,
+                searcherSupplier,
                 query,
-                buildIndex,
                 verify,
                 builder,
                 maxBuckets,

@@ -34,7 +34,7 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
         AdjacencyMatrixAggregationBuilder tooBig = new AdjacencyMatrixAggregationBuilder("dummy", filters);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(new AggTestConfig<>(tooBig, iw -> {}, r -> {}))
+            () -> testCase(new AggTestConfig<>(tooBig,  r -> {}).withEmptyIndex())
         );
         assertThat(
             ex.getMessage(),
@@ -49,9 +49,8 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
         testCase(
             new AggTestConfig<InternalAdjacencyMatrix>(
                 aggregationBuilder,
-                iw -> iw.addDocument(List.of()),
                 result -> assertThat(result.getBuckets(), equalTo(List.of()))
-            )
+            ).withIndexBuilder(iw -> iw.addDocument(List.of()))
         );
     }
 
@@ -60,7 +59,7 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
             "dummy",
             Map.of("a", new MatchAllQueryBuilder(), "b", new MatchAllQueryBuilder())
         );
-        testCase(new AggTestConfig<InternalAdjacencyMatrix>(aggregationBuilder, iw -> iw.addDocument(List.of()), result -> {
+        testCase(new AggTestConfig<InternalAdjacencyMatrix>(aggregationBuilder, result -> {
             assertThat(result.getBuckets(), hasSize(3));
             InternalAdjacencyMatrix.InternalBucket a = result.getBucketByKey("a");
             InternalAdjacencyMatrix.InternalBucket b = result.getBucketByKey("b");
@@ -68,6 +67,6 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
             assertThat(a.getDocCount(), equalTo(1L));
             assertThat(b.getDocCount(), equalTo(1L));
             assertThat(ab.getDocCount(), equalTo(1L));
-        }));
+        }).withIndexBuilder(iw -> iw.addDocument(List.of())));
     }
 }

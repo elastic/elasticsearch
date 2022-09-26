@@ -84,6 +84,6 @@ public class DocCountProviderTests extends AggregatorTestCase {
         AggregationBuilder builder = new FilterAggregationBuilder("f", new MatchAllQueryBuilder());
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NUMBER_FIELD, NumberFieldMapper.NumberType.LONG);
         MappedFieldType docCountFieldType = new DocCountFieldMapper.DocCountFieldType();
-        testCase(new AggTestConfig<>(builder, indexer, verify, fieldType, docCountFieldType).withQuery(query));
+        testCase(new AggTestConfig<>(builder, verify, fieldType, docCountFieldType).withQuery(query).withIndexBuilder(indexer));
     }
 }

@@ -409,19 +409,25 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
         final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
-        testCase(new AggTestConfig<InternalAutoDateHistogram>(aggregation, iw -> {}, histogram -> {
+        testCase(new AggTestConfig<InternalAutoDateHistogram>(aggregation, histogram -> {
             assertEquals(0, histogram.getBuckets().size());
             assertFalse(AggregationInspectionHelper.hasValue(histogram));
-        }, fieldType));
+        }, fieldType).withEmptyIndex());
     }
 
     public void testBooleanFieldDeprecated() throws IOException {
         final String fieldName = "bogusBoolean";
-        testCase(new AggTestConfig<>(new AutoDateHistogramAggregationBuilder("name").field(fieldName), iw -> {
-            Document d = new Document();
-            d.add(new SortedNumericDocValuesField(fieldName, 0));
-            iw.addDocument(d);
-        }, a -> {}, new BooleanFieldMapper.BooleanFieldType(fieldName)));
+        testCase(
+            new AggTestConfig<>(
+                new AutoDateHistogramAggregationBuilder("name").field(fieldName),
+                a -> {},
+                new BooleanFieldMapper.BooleanFieldType(fieldName)
+            ).withIndexBuilder(iw -> {
+                Document d = new Document();
+                d.add(new SortedNumericDocValuesField(fieldName, 0));
+                iw.addDocument(d);
+            })
+        );
         assertWarnings("Running AutoIntervalDateHistogram aggregations on [boolean] fields is deprecated");
     }
 

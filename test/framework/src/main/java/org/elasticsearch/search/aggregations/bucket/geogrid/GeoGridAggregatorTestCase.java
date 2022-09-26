@@ -215,36 +215,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             gridBuilder.setGeoBoundingBox(bbox);
         }
         aggregationBuilder.subAggregation(gridBuilder);
-        testCase(new AggTestConfig<InternalAggregation>(aggregationBuilder, iw -> {
-            List<IndexableField> fields = new ArrayList<>();
-            Set<String> distinctHashesPerDoc = new HashSet<>();
-            String t = randomAlphaOfLength(1);
-            for (int pointId = 0; pointId < numPoints; pointId++) {
-                Map<String, Long> expectedCountPerGeoHash = expectedCountPerTPerGeoHash.computeIfAbsent(t, k -> new TreeMap<>());
-                double[] latLng = randomLatLng();
-                fields.add(new LatLonDocValuesField(FIELD_NAME, latLng[0], latLng[1]));
-                String hash = hashAsString(latLng[1], latLng[0], precision);
-                if (distinctHashesPerDoc.contains(hash) == false) {
-                    if (intersectsBounds(getTile(latLng[1], latLng[0], precision), bbox) || validPoint(latLng[1], latLng[0], bbox)) {
-                        expectedCountPerGeoHash.put(hash, expectedCountPerGeoHash.getOrDefault(hash, 0L) + 1);
-                        distinctHashesPerDoc.add(hash);
-                    }
-                }
-                if (supplier.getAsBoolean()) {
-                    fields.add(new SortedSetDocValuesField("t", new BytesRef(t)));
-                    fields.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
-                    iw.addDocument(fields);
-                    fields.clear();
-                    distinctHashesPerDoc.clear();
-                    t = randomAlphaOfLength(1);
-                }
-            }
-            if (fields.size() != 0) {
-                fields.add(new SortedSetDocValuesField("t", new BytesRef(t)));
-                fields.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
-                iw.addDocument(fields);
-            }
-        }, terms -> {
+        testCase(new AggTestConfig<InternalAggregation>(aggregationBuilder, terms -> {
             Map<String, Map<String, Long>> actual = new TreeMap<>();
             for (StringTerms.Bucket tb : ((StringTerms) terms).getBuckets()) {
                 InternalGeoGrid<?> gg = tb.getAggregations().get("gg");
@@ -255,7 +226,36 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 actual.put(tb.getKeyAsString(), sub);
             }
             assertThat(actual, equalTo(expectedCountPerTPerGeoHash));
-        }, keywordField("t"), geoPointField(FIELD_NAME)).withQuery(new MatchAllDocsQuery()));
+        }, keywordField("t"), geoPointField(FIELD_NAME)).withIndexBuilder(iw -> {
+                List<IndexableField> fields = new ArrayList<>();
+                Set<String> distinctHashesPerDoc = new HashSet<>();
+                String t = randomAlphaOfLength(1);
+                for (int pointId = 0; pointId < numPoints; pointId++) {
+                    Map<String, Long> expectedCountPerGeoHash = expectedCountPerTPerGeoHash.computeIfAbsent(t, k -> new TreeMap<>());
+                    double[] latLng = randomLatLng();
+                    fields.add(new LatLonDocValuesField(FIELD_NAME, latLng[0], latLng[1]));
+                    String hash = hashAsString(latLng[1], latLng[0], precision);
+                    if (distinctHashesPerDoc.contains(hash) == false) {
+                        if (intersectsBounds(getTile(latLng[1], latLng[0], precision), bbox) || validPoint(latLng[1], latLng[0], bbox)) {
+                            expectedCountPerGeoHash.put(hash, expectedCountPerGeoHash.getOrDefault(hash, 0L) + 1);
+                            distinctHashesPerDoc.add(hash);
+                        }
+                    }
+                    if (supplier.getAsBoolean()) {
+                        fields.add(new SortedSetDocValuesField("t", new BytesRef(t)));
+                        fields.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
+                        iw.addDocument(fields);
+                        fields.clear();
+                        distinctHashesPerDoc.clear();
+                        t = randomAlphaOfLength(1);
+                    }
+                }
+                if (fields.size() != 0) {
+                    fields.add(new SortedSetDocValuesField("t", new BytesRef(t)));
+                    fields.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
+                    iw.addDocument(fields);
+                }
+            }));
     }
 
     private double[] randomLatLng() {

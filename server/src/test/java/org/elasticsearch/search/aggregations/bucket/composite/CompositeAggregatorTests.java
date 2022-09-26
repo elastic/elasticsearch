@@ -728,16 +728,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 createDocument("keyword", "c")
             )
         );
-        testCase(new AggTestConfig<InternalComposite>(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), iw -> {
-            Document document = new Document();
-            int id = 0;
-            for (Map<String, List<Object>> fields : dataset) {
-                document.clear();
-                addToDocument(id, document, fields);
-                iw.addDocument(document);
-                id++;
-            }
-        }, result -> {
+        testCase(new AggTestConfig<InternalComposite>(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), result -> {
             assertEquals(3, result.getBuckets().size());
             assertEquals("{keyword=d}", result.afterKey().toString());
             assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
@@ -746,7 +737,18 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, FIELD_TYPES));
+        }, FIELD_TYPES).withIndexBuilder(
+            iw -> {
+                Document document = new Document();
+                int id = 0;
+                for (Map<String, List<Object>> fields : dataset) {
+                    document.clear();
+                    addToDocument(id, document, fields);
+                    iw.addDocument(document);
+                    id++;
+                }
+            }
+        ));
     }
 
     /**
@@ -762,28 +764,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         NestedAggregationBuilder builder = new NestedAggregationBuilder("nestedAggName", nestedPath);
         builder.subAggregation(new CompositeAggregationBuilder("compositeAggName", Collections.singletonList(terms)));
         // Without after
-        testCase(new AggTestConfig<InternalSingleBucketAggregation>(builder, iw -> {
-            // Sub-Docs
-            List<Iterable<IndexableField>> documents = new ArrayList<>();
-            documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price", 10L));
-            documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pen World", "price", 9L));
-            documents.add(createNestedDocument("2", nestedPath, leafNameField, "Pens and Stuff", "price", 5L));
-            documents.add(createNestedDocument("2", nestedPath, leafNameField, "Stationary", "price", 7L));
-            // Root docs
-            LuceneDocument root;
-            root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
-            sequenceIDFields.addFields(root);
-            root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
-            documents.add(root);
-
-            root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
-            root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
-            sequenceIDFields.addFields(root);
-            documents.add(root);
-            iw.addDocuments(documents);
-        }, parent -> {
+        testCase(new AggTestConfig<InternalSingleBucketAggregation>(builder, parent -> {
             assertEquals(1, parent.getAggregations().asList().size());
             InternalComposite result = (InternalComposite) parent.getProperty("compositeAggName");
             assertEquals(3, result.getBuckets().size());
@@ -797,6 +778,29 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         },
             new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
             new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+        ).withIndexBuilder(
+            iw -> {
+                // Sub-Docs
+                List<Iterable<IndexableField>> documents = new ArrayList<>();
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price", 10L));
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pen World", "price", 9L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Pens and Stuff", "price", 5L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Stationary", "price", 7L));
+                // Root docs
+                LuceneDocument root;
+                root = new LuceneDocument();
+                root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+                sequenceIDFields.addFields(root);
+                root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
+                documents.add(root);
+
+                root = new LuceneDocument();
+                root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+                root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
+                sequenceIDFields.addFields(root);
+                documents.add(root);
+                iw.addDocuments(documents);
+            }
         ));
     }
 
@@ -816,28 +820,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 createAfterKey("keyword", "Pens and Stuff")
             )
         );
-        testCase(new AggTestConfig<InternalSingleBucketAggregation>(builder, iw -> {
-            // Sub-Docs
-            List<Iterable<IndexableField>> documents = new ArrayList<>();
-            documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price", 10L));
-            documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pen World", "price", 9L));
-            documents.add(createNestedDocument("2", nestedPath, leafNameField, "Pens and Stuff", "price", 5L));
-            documents.add(createNestedDocument("2", nestedPath, leafNameField, "Stationary", "price", 7L));
-            // Root docs
-            LuceneDocument root;
-            root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
-            sequenceIDFields.addFields(root);
-            root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
-            documents.add(root);
-
-            root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
-            root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
-            sequenceIDFields.addFields(root);
-            documents.add(root);
-            iw.addDocuments(documents);
-        }, parent -> {
+        testCase(new AggTestConfig<InternalSingleBucketAggregation>(builder, parent -> {
             assertEquals(1, parent.getAggregations().asList().size());
             InternalComposite result = (InternalComposite) parent.getProperty("compositeAggName");
             assertEquals(1, result.getBuckets().size());
@@ -847,6 +830,29 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         },
             new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
             new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+        ).withIndexBuilder(
+            iw -> {
+                // Sub-Docs
+                List<Iterable<IndexableField>> documents = new ArrayList<>();
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price", 10L));
+                documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pen World", "price", 9L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Pens and Stuff", "price", 5L));
+                documents.add(createNestedDocument("2", nestedPath, leafNameField, "Stationary", "price", 7L));
+                // Root docs
+                LuceneDocument root;
+                root = new LuceneDocument();
+                root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+                sequenceIDFields.addFields(root);
+                root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
+                documents.add(root);
+
+                root = new LuceneDocument();
+                root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+                root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
+                sequenceIDFields.addFields(root);
+                documents.add(root);
+                iw.addDocuments(documents);
+            }
         ));
     }
 

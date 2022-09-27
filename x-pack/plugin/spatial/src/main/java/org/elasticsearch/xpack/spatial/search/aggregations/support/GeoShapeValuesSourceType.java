@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MissingValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
@@ -67,7 +68,34 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
         return new GeoShapeValuesSource() {
             @Override
             public GeoShapeValues shapeValues(LeafReaderContext context) {
-                return new GeoShapeValues.Wrapped(shapeValuesSource.shapeValues(context), missing);
+                GeoShapeValues values = shapeValuesSource.shapeValues(context);
+                return new GeoShapeValues() {
+
+                    private boolean exists;
+
+                    @Override
+                    public boolean advanceExact(int doc) throws IOException {
+                        exists = values.advanceExact(doc);
+                        // always return true because we want to return a value even if
+                        // the document does not have a value
+                        return true;
+                    }
+
+                    @Override
+                    public ValuesSourceType valuesSourceType() {
+                        return values.valuesSourceType();
+                    }
+
+                    @Override
+                    public GeoShapeValue value() throws IOException {
+                        return exists ? values.value() : missing;
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "anon MultiShapeValues of [" + super.toString() + "]";
+                    }
+                };
             }
 
             @Override

@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -46,7 +49,26 @@ final class LatLonShapeDVAtomicShapeFieldData extends LeafShapeFieldData<GeoShap
     @Override
     public GeoShapeValues getShapeValues() {
         try {
-            return new GeoShapeValues.BinaryDocData(DocValues.getBinary(reader, fieldName));
+            final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
+            final GeoShapeValues.GeoShapeValue geoShapeValue = new GeoShapeValues.GeoShapeValue();
+            return new GeoShapeValues() {
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return binaryValues.advanceExact(doc);
+                }
+
+                @Override
+                public ValuesSourceType valuesSourceType() {
+                    return GeoShapeValuesSourceType.instance();
+                }
+
+                @Override
+                public GeoShapeValue value() throws IOException {
+                    geoShapeValue.reset(binaryValues.binaryValue());
+                    return geoShapeValue;
+                }
+            };
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

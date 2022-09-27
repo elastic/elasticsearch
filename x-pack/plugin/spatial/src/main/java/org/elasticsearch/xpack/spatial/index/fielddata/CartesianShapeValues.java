@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.XYGeometry;
 import org.apache.lucene.geo.XYPoint;
-import org.apache.lucene.index.BinaryDocValues;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
@@ -18,58 +18,41 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShap
 import java.io.IOException;
 
 /**
- * A set of factory methods for generating versions of ShapeValues that are specific to cartesian point and shape data.
+ * A stateful lightweight per document cartesian values.
  */
-public interface CartesianShapeValues extends ShapeValues<CartesianShapeValues.CartesianShapeValue> {
+public abstract class CartesianShapeValues extends ShapeValues<CartesianShapeValues.CartesianShapeValue> {
 
-    CartesianShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = CartesianShapeValuesSourceType.instance();
-    CartesianShapeValues EMPTY = new CartesianShapeValues.Empty();
+    public static CartesianShapeValues EMPTY = new CartesianShapeValues() {
+        private final CartesianShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = CartesianShapeValuesSourceType.instance();
+
+        @Override
+        public boolean advanceExact(int doc) {
+            return false;
+        }
+
+        @Override
+        public ValuesSourceType valuesSourceType() {
+            return DEFAULT_VALUES_SOURCE_TYPE;
+        }
+
+        @Override
+        public CartesianShapeValue value() {
+            throw new UnsupportedOperationException();
+        }
+    };
 
     /**
-     * Produce empty ShapeValues for cartesian data
+     * Creates a new {@link CartesianShapeValues} instance
      */
-    class Empty extends ShapeValues.Empty<CartesianShapeValues.CartesianShapeValue> implements CartesianShapeValues {
-        Empty() {
-            super(CoordinateEncoder.CARTESIAN, CartesianShapeValue::new, new CartesianShapeIndexer("missing"), DEFAULT_VALUES_SOURCE_TYPE);
-        }
-    }
-
-    /**
-     * Produce ShapeValues for geo data that wrap existing ShapeValues but replace missing fields with the specified value
-     */
-    class Wrapped extends ShapeValues.Wrapped<CartesianShapeValue> implements CartesianShapeValues {
-        public Wrapped(ShapeValues<CartesianShapeValue> values, CartesianShapeValue missing) {
-            super(
-                CoordinateEncoder.CARTESIAN,
-                CartesianShapeValue::new,
-                new CartesianShapeIndexer("missing"),
-                DEFAULT_VALUES_SOURCE_TYPE,
-                values,
-                missing
-            );
-        }
-    }
-
-    /**
-     * Produce ShapeValues for geo data that generate each ShapeValue from the specified BinaryDocValues
-     */
-    class BinaryDocData extends ShapeValues.BinaryDocData<CartesianShapeValue> implements CartesianShapeValues {
-        public BinaryDocData(BinaryDocValues binaryValues) {
-            super(
-                CoordinateEncoder.CARTESIAN,
-                CartesianShapeValue::new,
-                new CartesianShapeIndexer("missing"),
-                DEFAULT_VALUES_SOURCE_TYPE,
-                binaryValues,
-                new CartesianShapeValue()
-            );
-        }
+    protected CartesianShapeValues() {
+        super(CoordinateEncoder.CARTESIAN, CartesianShapeValues.CartesianShapeValue::new, new CartesianShapeIndexer("missing"));
     }
 
     /**
      * thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using the cartesian decoder
      */
-    class CartesianShapeValue extends ShapeValues.ShapeValue {
+    public static class CartesianShapeValue extends ShapeValues.ShapeValue {
+
         public CartesianShapeValue() {
             super(CoordinateEncoder.CARTESIAN, CartesianPoint::new);
         }

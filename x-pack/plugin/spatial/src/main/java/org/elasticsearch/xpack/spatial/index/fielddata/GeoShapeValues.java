@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Point;
-import org.apache.lucene.index.BinaryDocValues;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
@@ -21,56 +21,38 @@ import java.io.IOException;
 /**
  * A stateful lightweight per document geo values.
  */
-public interface GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue> {
+public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue> {
 
-    GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
-    GeoShapeValues EMPTY = new Empty();
+    public static GeoShapeValues EMPTY = new GeoShapeValues() {
+        private final GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
+
+        @Override
+        public boolean advanceExact(int doc) {
+            return false;
+        }
+
+        @Override
+        public ValuesSourceType valuesSourceType() {
+            return DEFAULT_VALUES_SOURCE_TYPE;
+        }
+
+        @Override
+        public GeoShapeValue value() {
+            throw new UnsupportedOperationException();
+        }
+    };
 
     /**
-     * Produce empty ShapeValues for geo data
+     * Creates a new {@link GeoShapeValues} instance
      */
-    class Empty extends ShapeValues.Empty<GeoShapeValue> implements GeoShapeValues {
-        Empty() {
-            super(CoordinateEncoder.GEO, GeoShapeValue::new, new GeoShapeIndexer(Orientation.CCW, "missing"), DEFAULT_VALUES_SOURCE_TYPE);
-        }
-    }
-
-    /**
-     * Produce ShapeValues for geo data that wrap existing ShapeValues but replace missing fields with the specified value
-     */
-    class Wrapped extends ShapeValues.Wrapped<GeoShapeValue> implements GeoShapeValues {
-        public Wrapped(ShapeValues<GeoShapeValue> values, GeoShapeValue missing) {
-            super(
-                CoordinateEncoder.GEO,
-                GeoShapeValue::new,
-                new GeoShapeIndexer(Orientation.CCW, "missing"),
-                DEFAULT_VALUES_SOURCE_TYPE,
-                values,
-                missing
-            );
-        }
-    }
-
-    /**
-    * Produce ShapeValues for geo data that generate each ShapeValue from the specified BinaryDocValues
-    */
-    class BinaryDocData extends ShapeValues.BinaryDocData<GeoShapeValue> implements GeoShapeValues {
-        public BinaryDocData(BinaryDocValues binaryValues) {
-            super(
-                CoordinateEncoder.GEO,
-                GeoShapeValue::new,
-                new GeoShapeIndexer(Orientation.CCW, "missing"),
-                DEFAULT_VALUES_SOURCE_TYPE,
-                binaryValues,
-                new GeoShapeValue()
-            );
-        }
+    protected GeoShapeValues() {
+        super(CoordinateEncoder.GEO, GeoShapeValues.GeoShapeValue::new, new GeoShapeIndexer(Orientation.CCW, "missing"));
     }
 
     /**
      * thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using the Geo decoder
      */
-    class GeoShapeValue extends ShapeValues.ShapeValue {
+    public static class GeoShapeValue extends ShapeValues.ShapeValue {
         private final Tile2DVisitor tile2DVisitor;  // This does not work for cartesian, so we currently only support this in geo
 
         public GeoShapeValue() {

@@ -8,7 +8,7 @@
 
 /**
  * <h2>Bucket aggregations</h2>
- * </p>
+ * <p>
  * The package that contains all common bucket aggregation that should be available in the default distribution.
  * Bucket aggregations is one of the three main types of aggregations which groups documents (e.g. by term or histogram)
  */

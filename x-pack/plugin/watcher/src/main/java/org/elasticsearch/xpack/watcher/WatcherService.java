@@ -230,14 +230,17 @@ public class WatcherService {
      * @param state                     the current cluster state
      * @param postWatchesLoadedCallback the callback to be triggered, when watches where loaded successfully
      */
-    public void start(ClusterState state, Runnable postWatchesLoadedCallback) {
+    public void start(ClusterState state, Runnable postWatchesLoadedCallback, Consumer<Exception> exceptionConsumer) {
         executionService.unPause();
         processedClusterStateVersion.set(state.getVersion());
         executor.execute(wrapWatcherService(() -> {
             if (reloadInner(state, "starting", true)) {
                 postWatchesLoadedCallback.run();
             }
-        }, e -> logger.error("error starting watcher", e)));
+        }, e -> {
+            logger.error("error starting watcher", e);
+            exceptionConsumer.accept(e);
+        }));
     }
 
     /**

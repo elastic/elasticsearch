@@ -244,7 +244,7 @@ public class WatcherServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(ClearScrollRequest.class), anyActionListener());
 
-        service.start(clusterState, () -> {});
+        service.start(clusterState, () -> {}, exception -> {});
 
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
         verify(triggerService).start(captor.capture());

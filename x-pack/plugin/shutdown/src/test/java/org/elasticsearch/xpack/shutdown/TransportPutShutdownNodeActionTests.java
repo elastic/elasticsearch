@@ -84,7 +84,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
             .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext), () -> null));
 
         // run the request again, there should be no call to submit an update task
-        clearInvocations(taskQueue);
+        clearTaskQueueInvocations();
         action.masterOperation(null, request, stableState, ActionListener.noop());
         verifyNoInteractions(taskQueue);
 
@@ -95,5 +95,10 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         ClusterState gotState = taskExecutor.getValue()
             .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(stableState, List.of(taskContext), () -> null));
         assertThat(gotState, sameInstance(stableState));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void clearTaskQueueInvocations() {
+        clearInvocations(taskQueue);
     }
 }

@@ -55,7 +55,7 @@ public class TranslogHeaderTests extends ESTestCase {
     }
 
     public void testLegacyTranslogVersions() {
-        final String expectedMessage = "translog has corrupted header";
+        final String expectedMessage = "translog header corrupted";
         checkFailsToOpen("/org/elasticsearch/index/translog/translog-v0.binary", TranslogCorruptedException.class, expectedMessage);
         checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1.binary", TranslogCorruptedException.class, expectedMessage);
         checkFailsToOpen("/org/elasticsearch/index/translog/translog-v2.binary", TranslogCorruptedException.class, expectedMessage);

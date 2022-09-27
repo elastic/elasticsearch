@@ -96,7 +96,6 @@ final class TranslogHeader {
         try {
             version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_PRIMARY_TERM, VERSION_PRIMARY_TERM);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
-            tryReportOldVersionError(path, channel);
             throw new TranslogCorruptedException(path.toString(), "translog header corrupted", e);
         }
         return version;
@@ -147,21 +146,6 @@ final class TranslogHeader {
             return new TranslogHeader(translogUUID, primaryTerm, headerSizeInBytes);
         } catch (EOFException e) {
             throw new TranslogCorruptedException(path.toString(), "translog header truncated", e);
-        }
-    }
-
-    private static void tryReportOldVersionError(final Path path, final FileChannel channel) throws IOException {
-        // Lucene's CodecUtil writes a magic number of 0x3FD76C17 with the header, in binary this looks like:
-        // binary: 0011 1111 1101 0111 0110 1100 0001 0111
-        // hex : 3 f d 7 6 c 1 7
-        //
-        // With version 0 of the translog, the first byte is the Operation.Type, which will always be between 0-4,
-        // so we know if we grab the first byte, it can be:
-        // 0x3f => Lucene's magic number, so we can assume it's version 1 or later
-        // 0x00 => version 0 of the translog
-        final byte b1 = Channels.readFromFileChannel(channel, 0, 1)[0];
-        if (b1 == 0x3f || b1 == 0x00) { // LUCENE_CODEC_HEADER_BYTE or UNVERSIONED_TRANSLOG_HEADER_BYTE
-            throw new TranslogCorruptedException(path.toString(), "translog has corrupted header");
         }
     }
 

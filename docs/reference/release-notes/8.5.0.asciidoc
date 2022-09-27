@@ -17,11 +17,10 @@ CRUD::
 === Bug fixes
 
 Aggregations::
-* Aggs: fix `auto_date_histogram` > `ip_range` {es-pull}90317[#90317] (issue: {es-issue}90121[#90121])
+* Fix `auto_date_histogram` > `ip_range` {es-pull}90317[#90317] (issue: {es-issue}90121[#90121])
 * Fail when rebuilding scorer in `breadth_first` mode and query context has changed {es-pull}89993[#89993] (issue: {es-issue}37650[#37650])
 * Fix merging with empty results {es-pull}86939[#86939] (issue: {es-issue}84622[#84622])
 * Fix partial reduce bug in `ip_prefix` {es-pull}89734[#89734] (issue: {es-issue}89686[#89686])
-* Fixed: aggregate_metric_double multi values exception {es-pull}90290[#90290]
 * Remove unexpected meta param in agg's response {es-pull}89467[#89467] (issue: {es-issue}89455[#89455])
 * Top_metrics: consistently allow sorting by size>1 {es-pull}89974[#89974] (issue: {es-issue}86663[#86663])
 * check parent circuit breaker when allocating empty bucket {es-pull}89568[#89568] (issue: {es-issue}80789[#80789])
@@ -40,7 +39,7 @@ Geo::
 * Buffer H3Polygon2D bounding boxes to avoid edge precision issues {es-pull}89196[#89196] (issues: {es-issue}89868[#89868], {es-issue}87391[#87391])
 * Date histogram range edge case fix {es-pull}88957[#88957]
 * Format runtime `geo_points` {es-pull}85449[#85449] (issue: {es-issue}85245[#85245])
-* Synthetic source error on script loads {es-pull}88334[#88334]
+* Synthetic _source error on script loads {es-pull}88334[#88334]
 
 Graph::
 * Graph: fix race condition in timeout {es-pull}88946[#88946] (issue: {es-issue}55396[#55396])
@@ -64,6 +63,7 @@ Machine Learning::
 Mapping::
 * Fix duplication bug for source fallback in numeric types {es-pull}89352[#89352]
 * Include runtime fields in total fields count {es-pull}89251[#89251] (issue: {es-issue}88265[#88265])
+* Fix `aggregate_metric_double` multi-values exception {es-pull}90290[#90290]
 
 Search::
 * Add support for predefined char class regexp on wildcard fields {es-pull}90064[#90064]
@@ -77,10 +77,10 @@ Snapshot/Restore::
 * Re-registering corrupt repository unblocks it {es-pull}89719[#89719] (issue: {es-issue}89130[#89130])
 * Reject unknown request body fields in Mount API {es-pull}88987[#88987] (issue: {es-issue}75982[#75982])
 
-TSDB::
+TSDS::
 * Fix segment stats in tsdb {es-pull}89754[#89754] (issue: {es-issue}89609[#89609])
 * Synthetic _source: fix extra fields in GET {es-pull}89778[#89778]
-* Synthetic source: fix `scaled_float` rounding {es-pull}88916[#88916] (issue: {es-issue}88854[#88854])
+* Synthetic _source: fix `scaled_float` rounding {es-pull}88916[#88916] (issue: {es-issue}88854[#88854])
 
 Transform::
 * Fix NPE in transform scheduling {es-pull}90347[#90347] (issues: {es-issue}90356[#90356], {es-issue}88203[#88203], {es-issue}90301[#90301], {es-issue}90255[#90255])
@@ -132,7 +132,7 @@ Highlighting::
 
 ILM+SLM::
 * Add validations for the downsampling ILM action {es-pull}90295[#90295]
-* ILM don't rollover empty indices {es-pull}89557[#89557] (issue: {es-issue}86203[#86203])
+* ILM must not rollover empty indices {es-pull}89557[#89557] (issue: {es-issue}86203[#86203])
 * Reuse Info in lifecycle step {es-pull}89419[#89419]
 * move log-related logic into log block in IndexLifecycleRunner {es-pull}89292[#89292]
 
@@ -221,7 +221,7 @@ Snapshot/Restore::
 Stats::
 * Introduce node mappings stats {es-pull}89807[#89807]
 
-TSDB::
+TSDS::
 * Synthetic _source: support `match_only_text` {es-pull}89516[#89516]
 * Synthetic _source: support histogram field {es-pull}89833[#89833]
 * Synthetic _source: support version field type {es-pull}89706[#89706]

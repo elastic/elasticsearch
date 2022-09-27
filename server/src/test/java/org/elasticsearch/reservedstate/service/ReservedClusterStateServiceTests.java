@@ -71,7 +71,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private static <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> mockTaskQueue() {
-        return (MasterServiceTaskQueue<T>)mock(MasterServiceTaskQueue.class);
+        return (MasterServiceTaskQueue<T>) mock(MasterServiceTaskQueue.class);
     }
 
     public void testOperatorController() throws IOException {

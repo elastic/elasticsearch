@@ -153,7 +153,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 assert taskContexts.size() == 1 : "this only supports a single task but received " + taskContexts;
                 final var taskContext = taskContexts.get(0);
                 final var task = taskContext.getTask();
-                final var newState = task.execute(currentState);
+                final ClusterState newState;
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    newState = task.execute(currentState);
+                }
                 if (task instanceof ClusterStateAckListener ackListener) {
                     taskContext.success(publishedState -> task.clusterStateProcessed(currentState, publishedState), ackListener);
                 } else {
@@ -1062,7 +1065,8 @@ public class MasterService extends AbstractLifecycleComponent {
         void notifyOnFailure() {
             if (failure != null) {
                 try (ThreadContext.StoredContext ignore = threadContextSupplier.get()) {
-                    task.onFailure(failure);
+                    restoreResponseHeaders();
+                    getTask().onFailure(failure);
                 } catch (Exception inner) {
                     inner.addSuppressed(failure);
                     logger.error("exception thrown by listener notifying of failure", inner);

@@ -228,89 +228,90 @@ public class MasterServiceTests extends ESTestCase {
         assertThat(registeredActions.toString(), registeredActions, contains(MasterService.STATE_UPDATE_ACTION_NAME));
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testThreadContext() throws InterruptedException {
-        final MasterService master = createMasterService(true);
-        final CountDownLatch latch = new CountDownLatch(1);
+        try (var master = createMasterService(true)) {
+            final CountDownLatch latch = new CountDownLatch(1);
 
-        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
-            final Map<String, String> expectedHeaders = Collections.singletonMap("test", "test");
-            final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap(
-                "testResponse",
-                Collections.singletonList("testResponse")
-            );
-            threadPool.getThreadContext().putHeader(expectedHeaders);
+            try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+                final Map<String, String> expectedHeaders = Collections.singletonMap("test", "test");
+                final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap(
+                    "testResponse",
+                    Collections.singletonList("testResponse")
+                );
+                threadPool.getThreadContext().putHeader(expectedHeaders);
 
-            final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
-            final TimeValue masterTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
+                final TimeValue ackTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
+                final TimeValue masterTimeout = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(randomInt(10000));
 
-            master.submitUnbatchedStateUpdateTask("test", new AckedClusterStateUpdateTask(ackedRequest(ackTimeout, masterTimeout), null) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    assertTrue(threadPool.getThreadContext().isSystemContext());
-                    assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getHeaders());
-                    threadPool.getThreadContext().addResponseHeader("testResponse", "testResponse");
-                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                master.submitUnbatchedStateUpdateTask(
+                    "test",
+                    new AckedClusterStateUpdateTask(ackedRequest(ackTimeout, masterTimeout), null) {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            assertTrue(threadPool.getThreadContext().isSystemContext());
+                            assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getHeaders());
+                            threadPool.getThreadContext().addResponseHeader("testResponse", "testResponse");
+                            assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
 
-                    if (randomBoolean()) {
-                        return ClusterState.builder(currentState).build();
-                    } else if (randomBoolean()) {
-                        return currentState;
-                    } else {
-                        throw new IllegalArgumentException("mock failure");
+                            if (randomBoolean()) {
+                                return ClusterState.builder(currentState).build();
+                            } else if (randomBoolean()) {
+                                return currentState;
+                            } else {
+                                throw new IllegalArgumentException("mock failure");
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertFalse(threadPool.getThreadContext().isSystemContext());
+                            assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                            assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                            assertFalse(threadPool.getThreadContext().isSystemContext());
+                            assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                            assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void onAllNodesAcked() {
+                            assertFalse(threadPool.getThreadContext().isSystemContext());
+                            assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                            assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void onAckFailure(Exception e) {
+                            assertFalse(threadPool.getThreadContext().isSystemContext());
+                            assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                            assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void onAckTimeout() {
+                            assertFalse(threadPool.getThreadContext().isSystemContext());
+                            assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                            assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                            latch.countDown();
+                        }
+
                     }
-                }
+                );
 
-                @Override
-                public void onFailure(Exception e) {
-                    assertFalse(threadPool.getThreadContext().isSystemContext());
-                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
-                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
-                    latch.countDown();
-                }
+                assertFalse(threadPool.getThreadContext().isSystemContext());
+                assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getResponseHeaders());
+            }
 
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    assertFalse(threadPool.getThreadContext().isSystemContext());
-                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
-                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
-                    latch.countDown();
-                }
-
-                @Override
-                public void onAllNodesAcked() {
-                    assertFalse(threadPool.getThreadContext().isSystemContext());
-                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
-                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
-                    latch.countDown();
-                }
-
-                @Override
-                public void onAckFailure(Exception e) {
-                    assertFalse(threadPool.getThreadContext().isSystemContext());
-                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
-                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
-                    latch.countDown();
-                }
-
-                @Override
-                public void onAckTimeout() {
-                    assertFalse(threadPool.getThreadContext().isSystemContext());
-                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
-                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
-                    latch.countDown();
-                }
-
-            });
-
-            assertFalse(threadPool.getThreadContext().isSystemContext());
-            assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
-            assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getResponseHeaders());
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
         }
-
-        latch.await();
-
-        master.close();
     }
 
     /*
@@ -1293,7 +1294,6 @@ public class MasterServiceTests extends ESTestCase {
         mockAppender.assertAllExpectationsMatched();
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testAcking() throws InterruptedException {
         final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);

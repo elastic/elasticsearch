@@ -312,30 +312,25 @@ details have contents and a structure that is unique to each indicator.
     (int) The number of replica shards that are relocating because of a node shutdown operation.
 
 `started_replicas`::
-    (int) The number of replica shards that are active and available on the sysetm.
+    (int) The number of replica shards that are active and available on the system.
 
 [[health-api-response-details-disk]]
 ===== disk
 
-`nodes`::
-    (Optional, array) A list of nodes that have reported disk usage information. This field
-    is present if any node has reported disk usage.
-+
-.Properties of `nodes`
-[%collapsible%open]
-====
-`node_id`::
-    (string) The node id of the node reporting disk usage.
+`blocked_indices`::
+(int) The number of indices that are blocked by the system because the cluster is running out of space.
 
-`name`::
-    (Optional, string) The node name of the node reporting disk usage.
+`green_nodes`::
+(int) The number of nodes that have enough available disk space to function.
 
-`status`::
-    (string) The status of the disk indicator on the node.
+`yellow_nodes`::
+(int) The number of nodes that are running low on disk and it is likely that they will run out of space.
 
-`cause`::
-    (Optional, string) The cause for the status not being GREEN, if known.
-====
+`red_nodes`::
+(int) The number of nodes that have run out of disk.
+
+`unknown_nodes`::
+(int) The number of nodes for which it was not possible to determine their disk health.
 
 [[health-api-response-details-repository-integrity]]
 ===== repository_integrity

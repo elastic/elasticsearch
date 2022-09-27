@@ -143,7 +143,7 @@ public class HealthMetadataService {
         // We do not use the cluster state to check if this is the master node because the cluster state might not have been initialized
         if (isMaster && enabled) {
             ClusterState clusterState = clusterService.state();
-            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
+            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
                 var task = new UpdateHealthMetadata(setting, value);
                 taskQueue.submitTask("health-metadata-update", task, null);
             }

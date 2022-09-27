@@ -113,8 +113,8 @@ The response for the above aggregation:
           "doc_count": 3,
           "centroid": {
             "location": {
-              "x": 490.9563297405839,
-              "y": 5237.1655656024814
+              "x": 490.9563293457031,
+              "y": 5237.16552734375
             },
             "count": 3
           }
@@ -124,8 +124,8 @@ The response for the above aggregation:
           "doc_count": 2,
           "centroid": {
             "location": {
-              "x": 233.16944623366,
-              "y": 4886.055548675358
+              "x": 233.16944885253906,
+              "y": 4886.0556640625
             },
             "count": 2
           }
@@ -135,8 +135,8 @@ The response for the above aggregation:
           "doc_count": 1,
           "centroid": {
             "location": {
-              "x": 440.519998781383,
-              "y": 5122.289997059852
+              "x": 440.5199890136719,
+              "y": 5122.2900390625
             },
             "count": 1
           }

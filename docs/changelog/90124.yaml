@@ -1,5 +1,0 @@
-pr: 90142
-summary: Harden GitHub workflow token permissions
-area: Infra/Scripting
-type: feature
-issues: []

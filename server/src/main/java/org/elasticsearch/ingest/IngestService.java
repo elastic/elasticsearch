@@ -133,7 +133,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Specialized cluster state update task specifically for ingest pipeline operations.
      * These operations all receive an AcknowledgedResponse.
      */
-    abstract static class PipelineClusterStateUpdateTask implements ClusterStateTaskListener {
+    public abstract static class PipelineClusterStateUpdateTask implements ClusterStateTaskListener {
         final ActionListener<AcknowledgedResponse> listener;
 
         PipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener) {
@@ -336,13 +336,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
     }
 
-    // visible for testing
-    static class DeletePipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
+    /**
+     * Used by this class and {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+     */
+    public static class DeletePipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final DeletePipelineRequest request;
 
         DeletePipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, DeletePipelineRequest request) {
             super(listener);
             this.request = request;
+        }
+
+        /**
+         * Used by the {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+         */
+        public DeletePipelineClusterStateUpdateTask(String id) {
+            this(null, new DeletePipelineRequest(id));
         }
 
         @Override
@@ -461,31 +470,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ActionListener<AcknowledgedResponse> listener,
         Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
     ) throws Exception {
-
-        Map<String, Object> pipelineConfig = null;
-        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        if (request.getVersion() == null
-            && currentIngestMetadata != null
-            && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
-            pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-            var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
-            if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {
-                // existing pipeline matches request pipeline -- no need to update
-                listener.onResponse(AcknowledgedResponse.TRUE);
-                return;
-            }
+        if (isNoOpPipelineUpdate(state, request)) {
+            // existing pipeline matches request pipeline -- no need to update
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
         }
 
-        final Map<String, Object> config = pipelineConfig == null
-            ? XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2()
-            : pipelineConfig;
         nodeInfoListener.accept(ActionListener.wrap(nodeInfos -> {
-            Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
-            for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
-                ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
-            }
+            validatePipelineRequest(request, nodeInfos);
 
-            validatePipeline(ingestInfos, request.getId(), config);
             clusterService.submitStateUpdateTask(
                 "put-pipeline-" + request.getId(),
                 new PutPipelineClusterStateUpdateTask(listener, request),
@@ -493,6 +486,31 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 PIPELINE_TASK_EXECUTOR
             );
         }, listener::onFailure));
+    }
+
+    public void validatePipelineRequest(PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {
+        final Map<String, Object> config = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
+            ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
+        }
+
+        validatePipeline(ingestInfos, request.getId(), config);
+    }
+
+    public static boolean isNoOpPipelineUpdate(ClusterState state, PutPipelineRequest request) {
+        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        if (request.getVersion() == null
+            && currentIngestMetadata != null
+            && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
+            var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+            var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
+            if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -553,13 +571,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return processorMetrics;
     }
 
-    // visible for testing
-    static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
+    /**
+     * Used in this class and externally by the {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+     */
+    public static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final PutPipelineRequest request;
 
         PutPipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, PutPipelineRequest request) {
             super(listener);
             this.request = request;
+        }
+
+        /**
+         * Used by {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
+         */
+        public PutPipelineClusterStateUpdateTask(PutPipelineRequest request) {
+            this(null, request);
         }
 
         @Override

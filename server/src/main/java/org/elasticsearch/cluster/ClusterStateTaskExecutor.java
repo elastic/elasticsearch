@@ -204,7 +204,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     }
 
     /**
-     * A basic implementation for batch executors that simply need to execute the task in the batch iteratively,
+     * A basic implementation for batch executors that simply need to execute the tasks in the batch iteratively,
      * producing a cluster state after each task. This allows executing the tasks in the batch as a
      * series of executions, each taking an input cluster state and producing a new cluster state that serves as the
      * input of the next task in the batch.

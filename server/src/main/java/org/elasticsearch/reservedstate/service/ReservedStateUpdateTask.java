@@ -138,8 +138,6 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
              * It doesn't matter this reporter needs to re-access the base state,
              * any updates set by this task will just be discarded when the below exception is thrown,
              * and we just need to set the error state once
-             *
-             * TODO - does this need to use a 'force' option on the underlying ReservedErrorStateTask?
              */
             errorReporter.accept(errorState);
 

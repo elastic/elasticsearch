@@ -403,7 +403,7 @@ public final class IndicesPermission {
         // by at least one indices permission group
         final Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Map<String, DocumentLevelPermissions> roleQueriesByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
-        final Set<String> grantedResources = new HashSet<>(totalResourceCount);
+        final Set<String> grantedResources = Sets.newHashSetWithExpectedSize(totalResourceCount);
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 

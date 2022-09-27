@@ -496,11 +496,8 @@ public interface AuthorizationEngine {
 
         @Nullable
         public static String[] indices(TransportRequest transportRequest) {
-            if (transportRequest instanceof IndicesRequest) {
-                final String[] indices = ((IndicesRequest) transportRequest).indices();
-                if (indices != null) {
-                    return ((IndicesRequest) transportRequest).indices();
-                }
+            if (transportRequest instanceof final IndicesRequest indicesRequest) {
+                return indicesRequest.indices();
             }
             return null;
         }

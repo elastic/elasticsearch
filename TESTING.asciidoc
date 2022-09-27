@@ -107,10 +107,12 @@ password: `elastic-password`.
 - In order to set a different keystore password: `--keystore-password`
 - In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 - In order to pass a JVM setting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`
+- In order to use HTTPS: ./gradlew run --https
 
 ==== Customizing the test cluster for ./gradlew run
 
 You may need to customize the cluster configuration for the ./gradlew run task.
+The settings can be set via the command line, but other options require updating the task itself.
 You can simply find the task in the source code and configure it there.
 (The task is currently defined in build-tools-internal/src/main/groovy/elasticsearch.run.gradle)
 However, this requires modifying a source controlled file and is subject to accidental commits.
@@ -118,7 +120,7 @@ Alternatively, you can use a Gradle init script to inject custom build logic wit
 
 For example:
 
-To enable HTTPS for use with ./gradlew run, an extraConfigFile is needed to be added to the cluster configuration.
+To use a custom certificate for HTTPS with `./gradlew run`, you can do the following.
 Create a file (for example ~/custom-run.gradle) with the following contents:
 -------------------------------------
 rootProject {

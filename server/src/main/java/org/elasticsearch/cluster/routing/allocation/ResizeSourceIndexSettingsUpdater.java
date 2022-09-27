@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
@@ -41,14 +42,17 @@ public class ResizeSourceIndexSettingsUpdater implements RoutingChangesObserver 
         if (changes.isEmpty() == false) {
             final Map<Index, Settings> updates = Maps.newHashMapWithExpectedSize(changes.size());
             for (Index index : changes) {
-                var previousIndexMetadata = metadata.getIndexSafe(index);
+                var indexMetadata = metadata.getIndexSafe(index);
                 if (routingTable.index(index).allPrimaryShardsActive()) {
-                    assert previousIndexMetadata.getResizeSourceIndex() != null : "no resize source index for " + index;
+                    assert indexMetadata.getResizeSourceIndex() != null : "no resize source index for " + index;
 
-                    Settings.Builder builder = Settings.builder().put(previousIndexMetadata.getSettings());
+                    Settings.Builder builder = Settings.builder().put(indexMetadata.getSettings());
                     builder.remove(IndexMetadata.INDEX_SHRINK_INITIAL_RECOVERY_KEY);
                     builder.remove(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY);
-                    builder.remove(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY);
+                    if (Strings.isNullOrEmpty(indexMetadata.getLifecyclePolicyName())) {
+                        // Required by ILM after an index has been shrunk
+                        builder.remove(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY);
+                    }
                     updates.put(index, builder.build());
                 }
             }

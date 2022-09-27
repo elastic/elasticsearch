@@ -87,6 +87,6 @@ specific clients, refer to:
 * {jsclient-current}/auth-reference.html[JavaScript]
 * {es-dotnet-client}/configuration-options.html[.NET]
 * https://metacpan.org/pod/Search::Elasticsearch::Cxn::HTTPTiny#CONFIGURATION[Perl]
-* {es-php-client}/security.html[PHP]
+* {es-php-client}/connecting.html[PHP]
 * https://elasticsearch-py.readthedocs.io/en/master/#ssl-and-authentication[Python]
 * https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-transport#authentication[Ruby]

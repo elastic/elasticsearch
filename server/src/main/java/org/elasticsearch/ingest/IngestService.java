@@ -72,6 +72,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -911,60 +912,72 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         VersionType versionType = indexRequest.versionType();
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
         IngestDocument ingestDocument = new IngestDocument(index, id, version, routing, versionType, sourceAsMap);
+        /*
+         * Our assumption is that the listener passed to the processor is only ever called once. However, there is no way to enforce
+         * that in all processors and all of the code that they call. If the listener is called more than once it causes problems
+         * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
+         * is only executed once.
+         */
+        final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
-            long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-            totalMetrics.postIngest(ingestTimeInNanos);
-            if (e != null) {
-                totalMetrics.ingestFailed();
-                handler.accept(e);
-            } else if (result == null) {
-                itemDroppedHandler.accept(slot);
-                handler.accept(null);
+            if (listenerHasBeenCalled.getAndSet(true)) {
+                logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
+                assert false : "A listener was unexpectedly called more than once";
             } else {
-                org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
-
-                // it's fine to set all metadata fields all the time, as ingest document holds their starting values
-                // before ingestion, which might also get modified during ingestion.
-                indexRequest.index(metadata.getIndex());
-                indexRequest.id(metadata.getId());
-                indexRequest.routing(metadata.getRouting());
-                indexRequest.version(metadata.getVersion());
-                if (metadata.getVersionType() != null) {
-                    indexRequest.versionType(VersionType.fromString(metadata.getVersionType()));
-                }
-                Number number;
-                if ((number = metadata.getIfSeqNo()) != null) {
-                    indexRequest.setIfSeqNo(number.longValue());
-                }
-                if ((number = metadata.getIfPrimaryTerm()) != null) {
-                    indexRequest.setIfPrimaryTerm(number.longValue());
-                }
-                try {
-                    boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
-                    indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
-                } catch (IllegalArgumentException ex) {
-                    // An IllegalArgumentException can be thrown when an ingest
-                    // processor creates a source map that is self-referencing.
-                    // In that case, we catch and wrap the exception so we can
-                    // include which pipeline failed.
+                long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                totalMetrics.postIngest(ingestTimeInNanos);
+                if (e != null) {
                     totalMetrics.ingestFailed();
-                    handler.accept(
-                        new IllegalArgumentException(
-                            "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
-                            ex
-                        )
-                    );
-                    return;
-                }
-                Map<String, String> map;
-                if ((map = metadata.getDynamicTemplates()) != null) {
-                    Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
-                    mergedDynamicTemplates.putAll(map);
-                    indexRequest.setDynamicTemplates(mergedDynamicTemplates);
-                }
-                postIngest(ingestDocument, indexRequest);
+                    handler.accept(e);
+                } else if (result == null) {
+                    itemDroppedHandler.accept(slot);
+                    handler.accept(null);
+                } else {
+                    org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
 
-                handler.accept(null);
+                    // it's fine to set all metadata fields all the time, as ingest document holds their starting values
+                    // before ingestion, which might also get modified during ingestion.
+                    indexRequest.index(metadata.getIndex());
+                    indexRequest.id(metadata.getId());
+                    indexRequest.routing(metadata.getRouting());
+                    indexRequest.version(metadata.getVersion());
+                    if (metadata.getVersionType() != null) {
+                        indexRequest.versionType(VersionType.fromString(metadata.getVersionType()));
+                    }
+                    Number number;
+                    if ((number = metadata.getIfSeqNo()) != null) {
+                        indexRequest.setIfSeqNo(number.longValue());
+                    }
+                    if ((number = metadata.getIfPrimaryTerm()) != null) {
+                        indexRequest.setIfPrimaryTerm(number.longValue());
+                    }
+                    try {
+                        boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
+                        indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
+                    } catch (IllegalArgumentException ex) {
+                        // An IllegalArgumentException can be thrown when an ingest
+                        // processor creates a source map that is self-referencing.
+                        // In that case, we catch and wrap the exception so we can
+                        // include which pipeline failed.
+                        totalMetrics.ingestFailed();
+                        handler.accept(
+                            new IllegalArgumentException(
+                                "Failed to generate the source document for ingest pipeline [" + pipeline.getId() + "]",
+                                ex
+                            )
+                        );
+                        return;
+                    }
+                    Map<String, String> map;
+                    if ((map = metadata.getDynamicTemplates()) != null) {
+                        Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
+                        mergedDynamicTemplates.putAll(map);
+                        indexRequest.setDynamicTemplates(mergedDynamicTemplates);
+                    }
+                    postIngest(ingestDocument, indexRequest);
+
+                    handler.accept(null);
+                }
             }
         });
     }

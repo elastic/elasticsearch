@@ -238,18 +238,18 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
         }
 
         /**
-         * Called if executing a task in the batch finished successfully, and before execution of the next
+         * Called if executing a task in the batch finished successfully, and before the execution of the next
          * task in the batch.
          *
-         * @param taskContext The task that finished execution successfully.
+         * @param taskContext The task that successfully finished execution.
          */
         public void taskSucceeded(TaskContext<T> taskContext) {
             taskContext.success(() -> {});
         }
 
         /**
-         * Called if executing a task in the batch fails by throwing an Exception, and before execution the next
-         * task in the batch.
+         * Called if executing a task in the batch fails by throwing an Exception, and before the execution of the
+         * next task in the batch.
          *
          * @param taskContext The task that failed with an exception.
          * @param e The Exception thrown by the task execution.

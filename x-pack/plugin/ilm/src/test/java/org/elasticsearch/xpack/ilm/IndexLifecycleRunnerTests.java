@@ -255,6 +255,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, waitForRolloverStep);
         ClusterService clusterService = mock(ClusterService.class);
+        MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> taskQueue = newMockTaskQueue(clusterService);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder();
@@ -273,8 +274,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        // TODO reinstate this
-        // Mockito.verify(clusterService, times(1)).submitStateUpdateTask(any(), any(), eq(IndexLifecycleRunner.ILM_TASK_CONFIG), any());
+        Mockito.verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
     }
 
     public void testRunStateChangePolicyWithNoNextStep() throws Exception {

@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 
-public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
+public class StepKeyTests extends AbstractXContentSerializingTestCase<StepKey> {
 
     @Override
     public StepKey createTestInstance() {

@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -24,7 +24,7 @@ import java.time.temporal.TemporalAccessor;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<DateHistogramGroupSource> {
+public class DateHistogramGroupSourceTests extends AbstractXContentSerializingTestCase<DateHistogramGroupSource> {
 
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
         return randomDateHistogramGroupSource(Version.CURRENT);

@@ -13,7 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFollowMetadata> {
+public class AutoFollowMetadataTests extends AbstractXContentSerializingTestCase<AutoFollowMetadata> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {

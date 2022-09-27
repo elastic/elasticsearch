@@ -9,12 +9,12 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class PointInTimeBuilderTests extends AbstractSerializingTestCase<PointInTimeBuilder> {
+public class PointInTimeBuilderTests extends AbstractXContentSerializingTestCase<PointInTimeBuilder> {
     @Override
     protected PointInTimeBuilder doParseInstance(XContentParser parser) throws IOException {
         return PointInTimeBuilder.fromXContent(parser);

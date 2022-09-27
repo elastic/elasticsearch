@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -22,7 +22,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.hasSize;
 
-public class TimeSeriesAggregationBuilderTests extends AbstractSerializingTestCase<TimeSeriesAggregationBuilder> {
+public class TimeSeriesAggregationBuilderTests extends AbstractXContentSerializingTestCase<TimeSeriesAggregationBuilder> {
 
     @Override
     protected TimeSeriesAggregationBuilder doParseInstance(XContentParser parser) throws IOException {

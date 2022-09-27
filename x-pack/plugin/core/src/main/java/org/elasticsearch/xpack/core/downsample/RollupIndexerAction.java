@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadCastXContentResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
@@ -160,7 +160,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         }
     }
 
-    public static class Response extends BroadcastResponse implements Writeable, ToXContentObject {
+    public static class Response extends BroadCastXContentResponse implements Writeable {
         private final boolean created;
 
         private final long numIndexed;

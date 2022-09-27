@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
@@ -110,7 +111,12 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         FieldCapabilitiesResponse randomResponse = createResponseWithFailures();
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(randomResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(
+            ChunkedToXContent.wrapAsXContentObject(randomResponse),
+            xContentType,
+            ToXContent.EMPTY_PARAMS,
+            humanReadable
+        );
         FieldCapabilitiesResponse parsedResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             parsedResponse = FieldCapabilitiesResponse.fromXContent(parser);

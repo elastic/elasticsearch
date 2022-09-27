@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadCastXContentResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class IndicesStatsResponse extends BroadcastResponse {
+public class IndicesStatsResponse extends BroadCastXContentResponse {
 
     private final Map<String, ClusterHealthStatus> indexHealthMap;
 

@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.core.transform.transforms.TransformStats.S
 import static org.elasticsearch.xpack.core.transform.transforms.TransformStats.State.WAITING;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransformStatsTests extends AbstractSerializingTestCase<TransformStats> {
+public class TransformStatsTests extends AbstractXContentSerializingTestCase<TransformStats> {
 
     public static TransformStats randomTransformStats() {
         return new TransformStats(

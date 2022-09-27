@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
+public class EnsembleTests extends AbstractXContentSerializingTestCase<Ensemble> {
 
     private boolean lenient;
 

@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction.Request;
@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class EvaluateDataFrameActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {

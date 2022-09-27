@@ -10,8 +10,8 @@ package org.elasticsearch.action.datastreams;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadCastXContentResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,7 +47,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         }
     }
 
-    public static class Response extends BroadcastResponse {
+    public static class Response extends BroadCastXContentResponse {
         private final int dataStreamCount;
         private final int backingIndices;
         private final ByteSizeValue totalStoreSize;

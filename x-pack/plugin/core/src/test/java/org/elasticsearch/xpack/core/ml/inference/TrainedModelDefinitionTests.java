@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,7 +36,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<TrainedModelDefinition> {
+public class TrainedModelDefinitionTests extends AbstractXContentSerializingTestCase<TrainedModelDefinition> {
 
     @Override
     protected TrainedModelDefinition doParseInstance(XContentParser parser) throws IOException {

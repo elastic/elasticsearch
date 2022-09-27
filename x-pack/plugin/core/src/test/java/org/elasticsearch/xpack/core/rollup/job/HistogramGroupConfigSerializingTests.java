@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.rollup.job;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class HistogramGroupConfigSerializingTests extends AbstractSerializingTestCase<HistogramGroupConfig> {
+public class HistogramGroupConfigSerializingTests extends AbstractXContentSerializingTestCase<HistogramGroupConfig> {
 
     @Override
     protected HistogramGroupConfig doParseInstance(XContentParser parser) throws IOException {

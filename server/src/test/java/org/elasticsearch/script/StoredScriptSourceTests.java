@@ -11,7 +11,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredScriptSource> {
+public class StoredScriptSourceTests extends AbstractXContentSerializingTestCase<StoredScriptSource> {
 
     @Override
     protected StoredScriptSource createTestInstance() {

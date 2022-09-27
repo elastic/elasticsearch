@@ -10,7 +10,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadCastXContentResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.Index;
@@ -28,7 +28,7 @@ import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastResponse> extends AbstractXContentTestCase<T> {
+public abstract class AbstractBroadcastResponseTestCase<T extends BroadCastXContentResponse> extends AbstractXContentTestCase<T> {
 
     @Override
     protected T createTestInstance() {

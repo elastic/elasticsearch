@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
@@ -21,7 +21,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FOLLOWER_INDICES_FIELD;
 import static org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.Status;
 
-public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowInfoAction.Response> {
+public class FollowInfoResponseTests extends AbstractXContentSerializingTestCase<FollowInfoAction.Response> {
 
     static final ConstructingObjectParser<FollowerInfo, Void> INFO_PARSER = new ConstructingObjectParser<>("info_parser", args -> {
         return new FollowerInfo(

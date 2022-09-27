@@ -9,14 +9,14 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.IntervalsSourceProvider.Prefix;
 
-public class PrefixIntervalsSourceProviderTests extends AbstractSerializingTestCase<Prefix> {
+public class PrefixIntervalsSourceProviderTests extends AbstractXContentSerializingTestCase<Prefix> {
 
     @Override
     protected Prefix createTestInstance() {

@@ -15,7 +15,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +28,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.containsString;
 
-public class KnnSearchBuilderTests extends AbstractSerializingTestCase<KnnSearchBuilder> {
+public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<KnnSearchBuilder> {
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry namedXContentRegistry;
 

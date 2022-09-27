@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
-public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingConfig> {
+public class ChunkingConfigTests extends AbstractXContentSerializingTestCase<ChunkingConfig> {
 
     @Override
     protected ChunkingConfig createTestInstance() {

@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
+public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<LifecyclePolicy> {
 
     private String lifecycleName;
 

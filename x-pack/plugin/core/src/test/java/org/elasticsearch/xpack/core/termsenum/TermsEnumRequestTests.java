@@ -15,7 +15,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class TermsEnumRequestTests extends AbstractSerializingTestCase<TermsEnumRequest> {
+public class TermsEnumRequestTests extends AbstractXContentSerializingTestCase<TermsEnumRequest> {
     private NamedXContentRegistry xContentRegistry;
     private NamedWriteableRegistry namedWriteableRegistry;
 

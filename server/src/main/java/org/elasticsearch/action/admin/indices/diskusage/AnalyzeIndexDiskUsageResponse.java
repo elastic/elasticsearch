@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadCastXContentResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public final class AnalyzeIndexDiskUsageResponse extends BroadcastResponse {
+public final class AnalyzeIndexDiskUsageResponse extends BroadCastXContentResponse {
     private final Map<String, IndexDiskUsageStats> stats;
 
     AnalyzeIndexDiskUsageResponse(

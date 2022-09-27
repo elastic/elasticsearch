@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSettingsResponse> {
+public class GetSettingsResponseTests extends AbstractChunkedSerializingTestCase<GetSettingsResponse> {
 
     @Override
     protected GetSettingsResponse createTestInstance() {

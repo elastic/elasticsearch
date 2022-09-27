@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 
 import java.io.IOException;
 
-public class StartTrainedModelDeploymentTaskParamsTests extends AbstractSerializingTestCase<TaskParams> {
+public class StartTrainedModelDeploymentTaskParamsTests extends AbstractXContentSerializingTestCase<TaskParams> {
 
     @Override
     protected TaskParams doParseInstance(XContentParser parser) throws IOException {

@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction.Request;
 
-public class GetInfluencersActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class GetInfluencersActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) {

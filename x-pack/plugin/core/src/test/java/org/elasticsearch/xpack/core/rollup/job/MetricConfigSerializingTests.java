@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.rollup.job;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MetricConfigSerializingTests extends AbstractSerializingTestCase<MetricConfig> {
+public class MetricConfigSerializingTests extends AbstractXContentSerializingTestCase<MetricConfig> {
 
     @Override
     protected MetricConfig doParseInstance(final XContentParser parser) throws IOException {

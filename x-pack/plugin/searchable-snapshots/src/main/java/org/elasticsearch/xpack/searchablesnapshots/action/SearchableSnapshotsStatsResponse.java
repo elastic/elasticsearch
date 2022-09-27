@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadCastXContentResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +27,7 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
-public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
+public class SearchableSnapshotsStatsResponse extends BroadCastXContentResponse {
 
     private List<SearchableSnapshotShardStats> stats;
     private volatile List<CacheIndexInputStats> total;

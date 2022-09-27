@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
+public class PrecisionTests extends AbstractXContentSerializingTestCase<Precision> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
     private static final EvaluationFields EVALUATION_FIELDS = new EvaluationFields("foo", "bar", null, null, null, true);

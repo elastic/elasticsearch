@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregati
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
+public class RSquaredTests extends AbstractXContentSerializingTestCase<RSquared> {
 
     @Override
     protected RSquared doParseInstance(XContentParser parser) throws IOException {

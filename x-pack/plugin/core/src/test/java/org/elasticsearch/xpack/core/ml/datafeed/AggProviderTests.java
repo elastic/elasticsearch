@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +28,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
+public class AggProviderTests extends AbstractXContentSerializingTestCase<AggProvider> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {

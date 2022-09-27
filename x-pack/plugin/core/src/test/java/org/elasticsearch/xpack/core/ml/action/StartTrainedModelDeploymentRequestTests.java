@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StartTrainedModelDeploymentRequestTests extends AbstractSerializingTestCase<Request> {
+public class StartTrainedModelDeploymentRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {

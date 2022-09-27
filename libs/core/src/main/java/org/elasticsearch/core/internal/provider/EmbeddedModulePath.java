@@ -213,7 +213,7 @@ final class EmbeddedModulePath {
         if (parent == null) {
             String name = file.toString();
             if (name.endsWith(".class") && name.equals(MODULE_INFO) == false) {
-                String msg = name + " found in top-level directory" + " (unnamed package not allowed in module)";
+                String msg = name + " found in top-level directory (unnamed package not allowed in module)";
                 throw new InvalidModuleDescriptorException(msg);
             }
             return Optional.empty();

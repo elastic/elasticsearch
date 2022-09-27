@@ -202,5 +202,4 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
             return dropHeadersContextSupplier.get();
         }
     }
-
 }

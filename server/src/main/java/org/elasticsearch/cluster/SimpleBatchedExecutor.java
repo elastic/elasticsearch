@@ -51,7 +51,7 @@ public abstract class SimpleBatchedExecutor<T extends ClusterStateTaskListener> 
     }
 
     /**
-     * Callback invoked after new cluster state is published. Note that this method is not invoked if the cluster state was not updated.
+     * Called after the new cluster state is published. Note that this method is not invoked if the cluster state was not updated.
      */
     public void clusterStatePublished() {}
 
@@ -63,7 +63,7 @@ public abstract class SimpleBatchedExecutor<T extends ClusterStateTaskListener> 
             try (var ignored = taskContext.captureResponseHeaders()) {
                 var task = taskContext.getTask();
                 clusterState = executeTask(task, clusterState);
-                taskContext.success(() -> taskSucceeded(taskContext.getTask()));
+                taskContext.success(() -> taskSucceeded(task));
             } catch (Exception e) {
                 taskContext.onFailure(e);
             }

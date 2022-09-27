@@ -643,7 +643,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.mapping = mapping;
         this.customData = customData;
         this.aliases = aliases;
-        this.inSyncAllocationIds = Collections.unmodifiableList(inSyncAllocationIds);
+        this.inSyncAllocationIds = inSyncAllocationIds;
+        assert(this.numberOfShards == this.inSyncAllocationIds.size());
         this.requireFilters = requireFilters;
         this.includeFilters = includeFilters;
         this.excludeFilters = excludeFilters;
@@ -752,7 +753,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.mapping,
             this.aliases,
             this.customData,
-            copiedInSyncAllocationIds,
+            Collections.unmodifiableList(copiedInSyncAllocationIds),
             this.requireFilters,
             this.initialRecoveryFilters,
             this.includeFilters,
@@ -2024,7 +2025,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping,
                 aliases.build(),
                 newCustomMetadata,
-                denseInSyncAllocationIds,
+                Collections.unmodifiableList(denseInSyncAllocationIds),
                 requireFilters,
                 initialRecoveryFilters,
                 includeFilters,

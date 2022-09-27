@@ -879,7 +879,6 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("B-0").size(), equalTo(5));
     }
 
-    @AwaitsFix(bugUrl = "fails rarely with desired balance allocator (seems to be related to the iteration order)")
     public void testUnassignedShardsWithUnbalancedZones() {
         AllocationService strategy = createAllocationService(
             Settings.builder()

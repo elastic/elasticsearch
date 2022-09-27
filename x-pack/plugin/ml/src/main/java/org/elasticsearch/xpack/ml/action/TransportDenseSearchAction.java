@@ -94,6 +94,9 @@ public class TransportDenseSearchAction extends HandledTransportAction<DenseSear
     ) {
         var searchBuilder = client.unwrap().prepareSearch();
         searchBuilder.setIndices(request.getIndices());
+        if (request.getRouting() != null) {
+            searchBuilder.setRouting(request.getRouting());
+        }
 
         var knnBuilder = request.getKnnSearchBuilder();
         knnBuilder.queryVector(inferenceResults.getInferenceAsFloat());

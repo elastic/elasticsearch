@@ -186,8 +186,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (docs == null) {
                 validationException = addValidationError("[" + DOCS.getPreferredName() + "] must not be null", validationException);
             } else {
-                if (docs.isEmpty()) {
-                    validationException = addValidationError("at least one document is required", validationException);
+                if (docs.isEmpty() && textInput == null) {
+                    validationException = addValidationError("at least one document is required ", validationException);
                 }
                 if (docs.size() > 1) {
                     // TODO support multiple docs

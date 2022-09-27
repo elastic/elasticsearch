@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -47,22 +48,32 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
 
     public static class Request extends ActionRequest {
 
-        public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
         public static final ParseField QUERY_STRING = new ParseField("query_string");
         public static final ParseField TIMEOUT = new ParseField("timeout");
-        public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
         public static final ParseField KNN = new ParseField("knn");
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME);
 
         static {
-            PARSER.declareString(Request.Builder::setDeploymentId, DEPLOYMENT_ID);
-            PARSER.declareString(Request.Builder::setDeploymentId, DEPLOYMENT_ID);
+            PARSER.declareString(Request.Builder::setDeploymentId, InferTrainedModelDeploymentAction.Request.DEPLOYMENT_ID);
             PARSER.declareString(Request.Builder::setQueryString, QUERY_STRING);
             PARSER.declareString(Request.Builder::setTimeout, TIMEOUT);
-            PARSER.declareObject(Request.Builder::setUpdate, (p, c) -> TextEmbeddingConfigUpdate.fromXContentStrict(p), INFERENCE_CONFIG);
-            PARSER.declareObject(Request.Builder::setKnnSearch, (p, c) -> KnnSearchBuilder.fromXContentWithoutVectorField(p), KNN);
-
+            PARSER.declareObject(
+                Request.Builder::setUpdate,
+                (p, c) -> TextEmbeddingConfigUpdate.fromXContentStrict(p),
+                InferTrainedModelDeploymentAction.Request.INFERENCE_CONFIG
+            );
+            PARSER.declareObject(
+                Request.Builder::setKnnSearch,
+                (p, c) -> KnnSearchBuilder.fromXContentWithoutVectorField(p),
+                SearchSourceBuilder.KNN_FIELD
+            );
+            PARSER.declareFieldArray(
+                Request.Builder::setFilters,
+                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+                KnnSearchBuilder.FILTER_FIELD,
+                ObjectParser.ValueType.OBJECT_ARRAY
+            );
             PARSER.declareField(
                 (p, request, c) -> request.setFetchSource(FetchSourceContext.fromXContent(p)),
                 SearchSourceBuilder._SOURCE_FIELD,
@@ -90,6 +101,7 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
 
         public static Request parseRestRequest(RestRequest restRequest) throws IOException {
             Builder builder = new Builder(Strings.splitStringByCommaToArray(restRequest.param("index")));
+            builder.setRouting(restRequest.param("routing"));
             if (restRequest.hasContentOrSourceParam()) {
                 try (XContentParser contentParser = restRequest.contentOrSourceParamParser()) {
                     PARSER.parse(contentParser, builder, null);
@@ -99,6 +111,7 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
         }
 
         private final String[] indices;
+        private final String routing;
         private final String queryString;
         private final String deploymentId;
         private final TimeValue inferenceTimeout;
@@ -113,6 +126,7 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             indices = in.readStringArray();
+            routing = in.readOptionalString();
             queryString = in.readString();
             deploymentId = in.readString();
             inferenceTimeout = in.readOptionalTimeValue();
@@ -127,6 +141,7 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
 
         Request(
             String[] indices,
+            String routing,
             String queryString,
             String deploymentId,
             KnnSearchBuilder knnSearchBuilder,
@@ -139,6 +154,7 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
             StoredFieldsContext storedFields
         ) {
             this.indices = indices;
+            this.routing = routing;
             this.queryString = queryString;
             this.deploymentId = deploymentId;
             this.knnSearchBuilder = knnSearchBuilder;
@@ -155,6 +171,7 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(indices);
+            out.writeOptionalString(routing);
             out.writeString(queryString);
             out.writeString(deploymentId);
             out.writeOptionalTimeValue(inferenceTimeout);
@@ -169,6 +186,10 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
 
         public String[] getIndices() {
             return indices;
+        }
+
+        public String getRouting() {
+            return routing;
         }
 
         public String getQueryString() {
@@ -217,6 +238,7 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Arrays.equals(indices, request.indices)
+                && Objects.equals(routing, request.routing)
                 && Objects.equals(queryString, request.queryString)
                 && Objects.equals(deploymentId, request.deploymentId)
                 && Objects.equals(inferenceTimeout, request.inferenceTimeout)
@@ -232,6 +254,7 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
         @Override
         public int hashCode() {
             int result = Objects.hash(
+                routing,
                 queryString,
                 deploymentId,
                 inferenceTimeout,
@@ -266,6 +289,7 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
         public static class Builder {
 
             private final String[] indices;
+            private String routing;
             private String deploymentId;
             private String queryString;
             private TimeValue timeout;
@@ -279,6 +303,10 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
 
             Builder(String[] indices) {
                 this.indices = indices;
+            }
+
+            void setRouting(String routing) {
+                this.routing = routing;
             }
 
             void setDeploymentId(String deploymentId) {
@@ -328,6 +356,7 @@ public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
             Request build() {
                 return new Request(
                     indices,
+                    routing,
                     queryString,
                     deploymentId,
                     knnSearchBuilder,

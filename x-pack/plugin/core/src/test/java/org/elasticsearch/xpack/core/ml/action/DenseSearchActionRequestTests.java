@@ -34,6 +34,7 @@ public class DenseSearchActionRequestTests extends AbstractWireSerializingTestCa
             generateRandomStringArray(1, 5, false),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
             randomKnnSearchBuilder(),
             TextEmbeddingConfigUpdateTests.randomUpdate(),
             TimeValue.timeValueSeconds(randomIntBetween(1, 10)),
@@ -57,7 +58,7 @@ public class DenseSearchActionRequestTests extends AbstractWireSerializingTestCa
         var validAction = createTestInstance();
         assertNull(validAction.validate());
 
-        var action = new DenseSearchAction.Request(null, null, null, null, null, null, null, null, null, null, null);
+        var action = new DenseSearchAction.Request(null, null, null, null, null, null, null, null, null, null, null, null);
         var validation = action.validate();
         assertNotNull(validation);
         assertThat(validation.validationErrors(), hasSize(3));

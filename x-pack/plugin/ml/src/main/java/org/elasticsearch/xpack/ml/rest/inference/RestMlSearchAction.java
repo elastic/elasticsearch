@@ -18,7 +18,6 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestMlSearchAction extends BaseRestHandler {
 
@@ -26,7 +25,7 @@ public class RestMlSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        String path = BASE_PATH + "_ml_search";
+        String path = "{index}/_ml_search";
         return List.of(new Route(GET, path), new Route(POST, path));
     }
 

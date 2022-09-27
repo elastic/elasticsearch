@@ -1,10 +1,10 @@
 pr: 90399
-summary: Deprecate `state` field in `/_cluster/reroute` response
+summary: Deprecate state field in /_cluster/reroute response
 area: Allocation
 type: deprecation
 issues: []
 deprecation:
-  title: `state` field is deprecated in `/_cluster/reroute` response
+  title: state field is deprecated in /_cluster/reroute response
   area: REST API
   details: |-
     `state` field is deprecated in `/_cluster/reroute` response. Cluster state does not provide meaningful information

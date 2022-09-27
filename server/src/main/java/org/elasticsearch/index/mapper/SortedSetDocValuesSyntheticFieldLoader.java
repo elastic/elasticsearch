@@ -53,7 +53,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
      * @param name the name of the field to load from doc values
      * @param simpleName the name to give the field in the rendered {@code _source}
      * @param storedValuesName the name of a stored field to load or null if there aren't any stored field for this field
-     * @param loadIgnoreMalformedValues should we load values skipped by {@code ignore_malfored}
+     * @param loadIgnoreMalformedValues should we load values skipped by {@code ignore_malformed}
      */
     public SortedSetDocValuesSyntheticFieldLoader(
         String name,

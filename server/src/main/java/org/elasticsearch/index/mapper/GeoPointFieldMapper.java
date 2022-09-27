@@ -497,7 +497,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
             );
         }
-        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName()) {
+        return new SortedNumericDocValuesSyntheticFieldLoader(name(), simpleName(), ignoreMalformed()) {
             final GeoPoint point = new GeoPoint();
 
             @Override

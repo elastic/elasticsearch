@@ -29,16 +29,11 @@ public abstract class SimpleBatchedExecutor<T extends ClusterStateTaskListener> 
      * Called once all tasks in the batch have finished execution. It should return a cluster state that reflects
      * the execution of all the tasks.
      *
-     * @param batchExecutionContext The tasks that were executed.
      * @param clusterState The cluster state resulting from the execution of all the tasks.
      * @param clusterStateChanged Whether {@code clusterState} is different from the cluster state before executing the tasks in the batch.
      * @return The resulting cluster state after executing all the tasks.
      */
-    public ClusterState afterBatchExecution(
-        BatchExecutionContext<T> batchExecutionContext,
-        ClusterState clusterState,
-        boolean clusterStateChanged
-    ) {
+    public ClusterState afterBatchExecution(ClusterState clusterState, boolean clusterStateChanged) {
         return clusterState;
     }
 
@@ -73,6 +68,8 @@ public abstract class SimpleBatchedExecutor<T extends ClusterStateTaskListener> 
                 taskContext.onFailure(e);
             }
         }
-        return afterBatchExecution(batchExecutionContext, clusterState, clusterState != initState);
+        try (var ignored = batchExecutionContext.dropHeadersContext()) {
+            return afterBatchExecution(clusterState, clusterState != initState);
+        }
     }
 }

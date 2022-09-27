@@ -1890,6 +1890,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(reason="nocommit", value="org.elasticsearch:INFO,org.elasticsearch.common.util.concurrent.DeterministicTaskQueue:TRACE")
     public void testSingleNodeDiscoveryWithQuorum() {
         try (
             Cluster cluster = new Cluster(
@@ -1898,7 +1899,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE).build()
             )
         ) {
-
             cluster.runRandomly();
             cluster.stabilise();
         }

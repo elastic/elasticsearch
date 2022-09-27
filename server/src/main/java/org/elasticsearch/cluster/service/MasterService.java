@@ -260,7 +260,7 @@ public class MasterService extends AbstractLifecycleComponent {
         final long computationStartTime = threadPool.rawRelativeTimeInMillis();
         final var newClusterState = patchVersions(
             previousClusterState,
-            executeTasks(previousClusterState, executionResults, executor, summary)
+            executeTasks(previousClusterState, executionResults, executor, summary, threadPool.getThreadContext())
         );
         // fail all tasks that have failed
         for (final var executionResult : executionResults) {
@@ -1042,12 +1042,11 @@ public class MasterService extends AbstractLifecycleComponent {
 
         ContextPreservingAckListener getContextPreservingAckListener() {
             assert incomplete() == false;
-            return wrapInTaskContext(clusterStateAckListener, this::restoreResponseHeaders);
-        }
-
-        ContextPreservingAckListener wrapInTaskContext(Object o, Runnable r) {
-            assert false; // TODO
-            return null;
+            if (clusterStateAckListener == null) {
+                return null;
+            } else {
+                return new ContextPreservingAckListener(clusterStateAckListener, threadContextSupplier, this::restoreResponseHeaders);
+            }
         }
 
         @Override
@@ -1071,9 +1070,10 @@ public class MasterService extends AbstractLifecycleComponent {
         ClusterState previousClusterState,
         List<ExecutionResult<T>> executionResults,
         ClusterStateTaskExecutor<T> executor,
-        BatchSummary summary
+        BatchSummary summary,
+        ThreadContext threadContext
     ) {
-        final var resultingState = innerExecuteTasks(previousClusterState, executionResults, executor, summary, null /* TODO */);
+        final var resultingState = innerExecuteTasks(previousClusterState, executionResults, executor, summary, threadContext);
         if (previousClusterState != resultingState
             && previousClusterState.nodes().isLocalNodeElectedMaster()
             && (resultingState.nodes().isLocalNodeElectedMaster() == false)) {

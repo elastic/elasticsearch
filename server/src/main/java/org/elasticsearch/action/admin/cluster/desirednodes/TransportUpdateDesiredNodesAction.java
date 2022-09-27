@@ -41,7 +41,6 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     private static final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
 
     private final DesiredNodesSettingsValidator settingsValidator;
-
     private final MasterServiceTaskQueue<UpdateDesiredNodesTask> taskQueue;
 
     @Inject
@@ -68,7 +67,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         );
         this.settingsValidator = settingsValidator;
         this.taskQueue = clusterService.getTaskQueue(
-            "delete-desired-nodes",
+            "update-desired-nodes",
             Priority.URGENT,
             new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService)
         );

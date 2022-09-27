@@ -3,6 +3,19 @@
 
 Also see <<breaking-changes-8.4,Breaking changes in 8.4>>.
 
+[[known-issues-8.4.2]]
+[float]
+=== Known issues
+
+* **This version contains a regression in `multi_match` queries that use the
+`cross_fields` scoring type.** {es}
++
+When running a <<query-dsl-multi-match-query,`multi_match`>> query with the
+`cross_fields` type, {es} can sometimes throw an IllegalArgument exception
+with the message "totalTermFreq must be at least docFreq". If you use the
+`cross_fields` scoring type, it is recommended that you skip version 8.4.2.
+This regression was fixed in version 8.4.3.
+
 [[bug-8.4.2]]
 [float]
 === Bug fixes

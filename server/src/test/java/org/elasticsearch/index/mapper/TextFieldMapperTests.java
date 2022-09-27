@@ -529,6 +529,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     public void testFielddata() throws IOException {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
         boolean isSyntheticSource = disabledMapper.mappingLookup().isSourceSynthetic();
+        assertFalse(disabledMapper.fieldType("field").isAggregatable());
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> disabledMapper.fieldType("field")
@@ -544,6 +545,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
         enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test", isSyntheticSource)); // no exception
+        assertTrue(enabledMapper.fieldType("field").isAggregatable());
         e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "text").field("index", false).field("fielddata", true)))

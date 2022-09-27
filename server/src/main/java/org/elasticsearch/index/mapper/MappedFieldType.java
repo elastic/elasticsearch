@@ -178,13 +178,7 @@ public abstract class MappedFieldType {
      * Returns true if the field is aggregatable.
      */
     public boolean isAggregatable() {
-        // TODO make this abstract and each type should have a "native" implementation
-        try {
-            fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_check", false));
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+        return hasDocValues();
     }
 
     /**

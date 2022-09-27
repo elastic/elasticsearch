@@ -190,6 +190,10 @@ public class Setting<T> implements ToXContentObject {
             if (propertiesAsSet.contains(Property.Deprecated) && propertiesAsSet.contains(Property.DeprecatedWarning)) {
                 throw new IllegalArgumentException("setting [" + key + "] cannot be deprecated at both critical and warning levels");
             }
+            if ((propertiesAsSet.contains(Property.Deprecated) || propertiesAsSet.contains(Property.DeprecatedWarning))
+                && propertiesAsSet.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8)) {
+                throw new IllegalArgumentException("setting [" + key + "] cannot be just deprecated and deprecated and removed in V7");
+            }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
@@ -425,7 +429,7 @@ public class Setting<T> implements ToXContentObject {
         return properties.contains(Property.DeprecatedWarning);
     }
 
-    private boolean isDeprecatedAndRemoved() {
+    public boolean isDeprecatedAndRemoved() {
         return properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8);
     }
 

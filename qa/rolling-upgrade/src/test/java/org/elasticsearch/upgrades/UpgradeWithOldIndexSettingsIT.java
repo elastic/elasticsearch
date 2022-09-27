@@ -33,7 +33,7 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
             case OLD -> {
                 Request createTestIndex = new Request("PUT", "/" + INDEX_NAME);
                 if (UPGRADE_FROM_VERSION.before(Version.V_8_0_0)) {
-                    // create index with settings no longer valid
+                    // create index with settings no longer valid in 8.0
                     createTestIndex.setJsonEntity("{\"settings\": {\"index.indexing.slowlog.level\": \"INFO\"}}");
                 }
                 createTestIndex.setOptions(expectWarnings(EXPECTED_WARNING));
@@ -65,12 +65,12 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
                     Request indexSettingsRequest = new Request("GET", "/" + INDEX_NAME + "/_settings");
                     Map<String, Object> response = entityAsMap(client().performRequest(indexSettingsRequest));
 
-                    var slowLog = (Map<?, ?>) ((List<?>) (XContentMapValues.extractValue("settings.index.indexing.slowlog", response))).get(
-                        0
+                    var slowLogLevel = (String) (
+                        XContentMapValues.extractValue(INDEX_NAME + ".settings.index.indexing.slowlog.level", response)
                     );
 
-                    // Make sure our non-system index is still non-system
-                    assertThat(slowLog.get("level"), is("INFO"));
+                    // check that we can read our old index settings
+                    assertThat(slowLogLevel, is("INFO"));
                 }
                 assertCount(INDEX_NAME, 2);
             }

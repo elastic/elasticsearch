@@ -237,19 +237,14 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     }
 
     @Override
-    protected void validateDeprecatedAndRemovedSetting(Settings settings, Setting<?> setting) {
+    protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {
         Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
-        if (indexVersion.major != Version.V_7_0_0.major) {
+        // At various stages in settings verification we will perform validation without having the
+        // IndexMetadata at hand, in which case the setting version will be empty. We don't want to
+        // error out on those validations, we will check with the creation version present at index
+        // creation time, as well as on index update settings.
+        if (indexVersion.equals(Version.V_EMPTY) == false && indexVersion.major != Version.V_7_0_0.major) {
             throw new IllegalArgumentException("unknown setting [" + setting.getKey() + "]");
-        }
-    }
-
-    public static void validateVersionDependentDeprecatedSettingV7(String key, Map<Setting<?>, Object> settings) {
-        assert settings.size() > 0;
-        Version indexVersion = (Version) settings.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED);
-        System.out.println("Validating 2 version: " + indexVersion);
-        if (indexVersion.major != Version.V_7_0_0.major) {
-            throw new IllegalArgumentException("unknown setting [" + key + "]");
         }
     }
 }

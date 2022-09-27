@@ -434,7 +434,7 @@ public abstract class AbstractScopedSettings {
         addSettingsUpdateConsumer(setting, consumer, (s) -> {});
     }
 
-    protected void validateDeprecatedAndRemovedSetting(Settings settings, Setting<?> setting) {}
+    protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {}
 
     /**
      * Validates that all settings are registered and valid.
@@ -564,7 +564,9 @@ public abstract class AbstractScopedSettings {
             if (setting.hasComplexMatcher()) {
                 setting = setting.getConcreteSetting(key);
             }
-            validateDeprecatedAndRemovedSetting(settings, setting);
+            if (setting.isDeprecatedAndRemoved()) {
+                validateDeprecatedAndRemovedSettingV7(settings, setting);
+            }
             if (validateValue && settingsDependencies.isEmpty() == false) {
                 for (final Setting.SettingDependency settingDependency : settingsDependencies) {
                     final Setting<?> dependency = settingDependency.getSetting();

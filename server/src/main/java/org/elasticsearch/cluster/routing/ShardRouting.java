@@ -338,7 +338,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             recoverySource.writeTo(out);
         }
         out.writeOptionalWriteable(unassignedInfo);
-        if (out.getVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION)) {
+        if (out.getVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
             relocationFailureInfo.writeTo(out);
         }
         out.writeOptionalWriteable(allocationId);

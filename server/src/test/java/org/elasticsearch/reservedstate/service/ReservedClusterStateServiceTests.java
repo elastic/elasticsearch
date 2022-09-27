@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
@@ -68,10 +69,15 @@ import static org.mockito.Mockito.when;
 
 public class ReservedClusterStateServiceTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
+    private static <T extends ClusterStateTaskListener> MasterServiceTaskQueue<T> mockTaskQueue() {
+        return (MasterServiceTaskQueue<T>)mock(MasterServiceTaskQueue.class);
+    }
+
     public void testOperatorController() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getTaskQueue(any(), any(), any())).thenReturn(mock(MasterServiceTaskQueue.class));
+        when(clusterService.getTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
         final ClusterName clusterName = new ClusterName("elasticsearch");
 
         ClusterState state = ClusterState.builder(clusterName).build();
@@ -486,7 +492,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
     public void testCheckAndReportError() {
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getTaskQueue(any(), any(), any())).thenReturn(mock(MasterServiceTaskQueue.class));
+        when(clusterService.getTaskQueue(any(), any(), any())).thenReturn(mockTaskQueue());
         final var controller = spy(new ReservedClusterStateService(clusterService, List.of()));
 
         assertNull(controller.checkAndReportError("test", List.of(), null, null));

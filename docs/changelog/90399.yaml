@@ -1,0 +1,11 @@
+pr: 90399
+summary: Deprecate state field in `/_cluster/reroute` response
+area: Allocation
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate state field in `/_cluster/reroute` response
+  area: Allocation
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

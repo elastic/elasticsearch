@@ -35,7 +35,7 @@
       },
       "number_of_allocations":{
         "type":"int",
-        "description": "The number of model allocations on each node where the model is deployed.",
+        "description": "The total number of allocations this model is assigned across machine learning nodes.",
         "required": false,
         "default": 1
       },

@@ -314,13 +314,7 @@ public class WatcherService {
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
         try {
-            RefreshResponse refreshResponse = client.admin()
-                .indices()
-                .refresh(new RefreshRequest(INDEX))
-                .actionGet(TimeValue.timeValueSeconds(5));
-            if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
-                throw illegalState("not all required shards have been refreshed");
-            }
+            refreshWatches(indexMetadata);
 
             // find out local shards
             String watchIndexName = indexMetadata.getIndex().getName();
@@ -404,6 +398,17 @@ public class WatcherService {
         logger.debug("Loaded [{}] watches for execution", watches.size());
 
         return watches;
+    }
+
+    // Non private for unit testing purposes
+    void refreshWatches(IndexMetadata indexMetadata) {
+        RefreshResponse refreshResponse = client.admin()
+            .indices()
+            .refresh(new RefreshRequest(INDEX))
+            .actionGet(TimeValue.timeValueSeconds(5));
+        if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
+            throw illegalState("not all required shards have been refreshed");
+        }
     }
 
     /**

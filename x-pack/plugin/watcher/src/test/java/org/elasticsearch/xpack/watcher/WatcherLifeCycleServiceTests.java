@@ -199,6 +199,10 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExceptionOnStart() {
+        /*
+         * This tests that if watcher fails to start because of some exception (for example a timeout while refreshing indices) that it
+         * will fail gracefully, and will start the next time there is a cluster change event if there is no exception that time.
+         */
         Index index = new Index(Watch.INDEX, "uuid");
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         indexRoutingTableBuilder.addShard(

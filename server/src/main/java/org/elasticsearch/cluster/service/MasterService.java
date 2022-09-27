@@ -253,6 +253,7 @@ public class MasterService extends AbstractLifecycleComponent {
             logger.debug("failing [{}]: local node is no longer master", summary);
             for (ExecutionResult<T> executionResult : executionResults) {
                 executionResult.onBatchFailure(new NotMasterException("no longer master"));
+                executionResult.notifyOnFailure();
             }
             return;
         }

@@ -8,14 +8,12 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,14 +77,17 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
         }
     }
 
-    private void assertCount(String index, int count) throws IOException {
+    private void assertCount(String index, int countAtLeast) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals(
-            "{\"hits\":{\"total\":" + count + "}}",
-            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
+        Map<String, Object> response = entityAsMap(searchTestIndexResponse);
+
+        var hitsTotal = (Integer) (XContentMapValues.extractValue("hits.total", response));
+
+        assertTrue(
+            hitsTotal >= countAtLeast
         );
     }
 }

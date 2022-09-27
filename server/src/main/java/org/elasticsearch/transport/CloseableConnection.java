@@ -9,16 +9,21 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.AbstractRefCounted;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Abstract Transport.Connection that provides common close logic.
  */
 public abstract class CloseableConnection extends AbstractRefCounted implements Transport.Connection {
 
-    private final StepListener<Void> closeContext = new StepListener<>();
-    private final StepListener<Void> removeContext = new StepListener<>();
+    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
+    private final ListenableFuture<Void> removeContext = new ListenableFuture<>();
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final AtomicBoolean removed = new AtomicBoolean(false);
 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
@@ -32,19 +37,21 @@ public abstract class CloseableConnection extends AbstractRefCounted implements 
 
     @Override
     public boolean isClosed() {
-        return closeContext.asFuture().isDone();
+        return closed.get();
     }
 
     @Override
     public void close() {
-        // This method is safe to call multiple times as the close context will provide concurrency
-        // protection and only be completed once. The attached listeners will only be notified once.
-        closeContext.onResponse(null);
+        if (closed.compareAndSet(false, true)) {
+            closeContext.onResponse(null);
+        }
     }
 
     @Override
     public void onRemoved() {
-        removeContext.onResponse(null);
+        if (removed.compareAndSet(false, true)) {
+            removeContext.onResponse(null);
+        }
     }
 
     @Override

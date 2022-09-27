@@ -15,8 +15,8 @@ import io.netty.channel.ChannelPromise;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.TcpChannel;
@@ -29,8 +29,8 @@ public class Netty4TcpChannel implements TcpChannel {
     private final Channel channel;
     private final boolean isServer;
     private final String profile;
-    private final StepListener<Void> connectContext;
-    private final StepListener<Void> closeContext = new StepListener<>();
+    private final ListenableFuture<Void> connectContext;
+    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
     private final ChannelStats stats = new ChannelStats();
     private final boolean rstOnClose;
 
@@ -38,18 +38,18 @@ public class Netty4TcpChannel implements TcpChannel {
         this.channel = channel;
         this.isServer = isServer;
         this.profile = profile;
-        this.connectContext = new StepListener<>();
+        this.connectContext = new ListenableFuture<>();
         this.rstOnClose = rstOnClose;
         addListener(this.channel.closeFuture(), closeContext);
         addListener(connectFuture, connectContext);
     }
 
     /**
-     * Adds a listener that completes the given {@link StepListener} to the given {@link ChannelFuture}.
+     * Adds a listener that completes the given {@link ListenableFuture} to the given {@link ChannelFuture}.
      * @param channelFuture Channel future
      * @param listener Listener to complete
      */
-    public static void addListener(ChannelFuture channelFuture, StepListener<Void> listener) {
+    public static void addListener(ChannelFuture channelFuture, ListenableFuture<Void> listener) {
         channelFuture.addListener(f -> {
             if (f.isSuccess()) {
                 listener.onResponse(null);

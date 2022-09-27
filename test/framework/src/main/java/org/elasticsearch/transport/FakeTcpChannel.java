@@ -8,10 +8,11 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class FakeTcpChannel implements TcpChannel {
@@ -21,7 +22,9 @@ public class FakeTcpChannel implements TcpChannel {
     private final InetSocketAddress remoteAddress;
     private final String profile;
     private final ChannelStats stats = new ChannelStats();
-    private final StepListener<Void> closeContext = new StepListener<>();
+    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicReference<BytesReference> messageCaptor;
     private final AtomicReference<ActionListener<Void>> listenerCaptor;
 
@@ -89,7 +92,9 @@ public class FakeTcpChannel implements TcpChannel {
 
     @Override
     public void close() {
-        closeContext.onResponse(null);
+        if (closed.compareAndSet(false, true)) {
+            closeContext.onResponse(null);
+        }
     }
 
     @Override
@@ -99,7 +104,7 @@ public class FakeTcpChannel implements TcpChannel {
 
     @Override
     public boolean isOpen() {
-        return closeContext.asFuture().isDone() == false;
+        return closed.get() == false;
     }
 
     @Override

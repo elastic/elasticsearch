@@ -3,3 +3,10 @@ summary: Ensure `cross_fields` always uses valid term statistics
 area: Ranking
 type: regression
 issues: []
+highlight:
+  title: Errors with the `cross_fields` query type
+  body: |-
+    The 8.4.2 release introduced a bug that may fail queries that use the
+    `cross_fields` type at search time with an error message containing
+    `totalTermFreq must be at least docFreq`. Users of the `cross_fields` type
+    are recommended to upgrade to 8.4.3 to avoid hitting this bug.

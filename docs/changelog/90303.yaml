@@ -1,0 +1,6 @@
+pr: 90303
+summary: Use `IndexOrDocValues` query for IP range queries
+area: Search
+type: enhancement
+issues:
+ - 83658

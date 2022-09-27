@@ -387,7 +387,7 @@ public class AllocationService {
         allocation.ignoreDisable(true);
 
         if (retryFailed) {
-            allocation.routingNodes().unassigned().resetFailedAllocationCounter(allocation.changes());
+            allocation.routingNodes().resetFailedCounter(allocation.changes());
         }
 
         RoutingExplanations explanations = commands.execute(allocation, explain);

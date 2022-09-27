@@ -630,7 +630,11 @@ public class MasterService extends AbstractLifecycleComponent {
                 isRunning = true;
                 try {
                     if (acquireForExecution()) {
-                        executeAndPublishBatch(unbatchedExecutor, List.of(new ExecutionResult<>(updateTask, restorableContext)), summary);
+                        executeAndPublishBatch(
+                            unbatchedExecutor,
+                            List.of(new ExecutionResult<>(updateTask, threadPool.getThreadContext(), restorableContext)),
+                            summary
+                        );
                     }
                 } finally {
                     isRunning = false;
@@ -863,6 +867,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private static class ExecutionResult<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
         private final T task;
+        private final ThreadContext threadContext;
         private final Supplier<ThreadContext.StoredContext> threadContextSupplier;
 
         @Nullable // if the task is incomplete or failed or onPublicationSuccess supplied
@@ -880,8 +885,9 @@ public class MasterService extends AbstractLifecycleComponent {
         @Nullable
         Map<String, List<String>> responseHeaders;
 
-        ExecutionResult(T task, Supplier<ThreadContext.StoredContext> threadContextSupplier) {
+        ExecutionResult(T task, ThreadContext threadContext, Supplier<ThreadContext.StoredContext> threadContextSupplier) {
             this.task = task;
+            this.threadContext = threadContext;
             this.threadContextSupplier = threadContextSupplier;
         }
 
@@ -952,7 +958,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public Releasable captureResponseHeaders() {
-            final ThreadContext threadContext = null; // TODO updateTask.getThreadContext();
             final var storedContext = threadContext.newStoredContext();
             return Releasables.wrap(() -> {
                 final var newResponseHeaders = threadContext.getResponseHeaders();
@@ -978,8 +983,7 @@ public class MasterService extends AbstractLifecycleComponent {
             if (responseHeaders != null) {
                 for (final var responseHeader : responseHeaders.entrySet()) {
                     for (final var value : responseHeader.getValue()) {
-                        // TODO
-                        // updateTask.getThreadContext().addResponseHeader(responseHeader.getKey(), value);
+                        threadContext.addResponseHeader(responseHeader.getKey(), value);
                     }
                 }
             }
@@ -1608,7 +1612,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 final var tasks = new ArrayList<ExecutionResult<T>>(taskCount);
                 final var tasksBySource = new HashMap<String, List<T>>();
                 for (final var entry : executing) {
-                    tasks.add(new ExecutionResult<>(entry.task(), entry.storedContextSupplier()));
+                    tasks.add(new ExecutionResult<>(entry.task(), threadPool.getThreadContext(), entry.storedContextSupplier()));
                     tasksBySource.computeIfAbsent(entry.source(), ignored -> new ArrayList<>()).add(entry.task());
                 }
                 try {

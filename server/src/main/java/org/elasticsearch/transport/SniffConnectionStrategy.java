@@ -64,13 +64,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }, new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF), Setting.Property.Dynamic, Setting.Property.NodeScope)
     );
 
-    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_AUTHORIZATION = Setting.affixKeySetting(
-        "cluster.remote.",
-        "authorization",
-        key -> Setting.simpleString(key, v -> {}, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered),
-        () -> REMOTE_CLUSTER_SEEDS
-    );
-
     /**
      * A proxy address for the remote cluster. By default this is not set, meaning that Elasticsearch will connect directly to the nodes in
      * the remote cluster using their publish addresses. If this setting is set to an IP address or hostname then Elasticsearch will connect
@@ -114,13 +107,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             Setting.Property.NodeScope
         )
     );
+
     static final int CHANNELS_PER_CONNECTION = 6;
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
         && (node.isMasterNode() == false || node.canContainData() || node.isIngestNode());
 
     private final List<String> configuredSeedNodes;
-    private final String authorization;
     private final List<Supplier<DiscoveryNode>> seedNodes;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
@@ -141,10 +134,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             settings,
             REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             getNodePredicate(settings),
-            REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings),
-            TcpTransport.isUntrustedRemoteClusterEnabled()
-                ? REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).get(settings)
-                : null
+            REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings)
         );
     }
 
@@ -156,8 +146,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         Settings settings,
         int maxNumRemoteConnections,
         Predicate<DiscoveryNode> nodePredicate,
-        List<String> configuredSeedNodes,
-        String authorization
+        List<String> configuredSeedNodes
     ) {
         this(
             clusterAlias,
@@ -168,7 +157,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             maxNumRemoteConnections,
             nodePredicate,
             configuredSeedNodes,
-            authorization,
             configuredSeedNodes.stream()
                 .map(seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(clusterAlias, seedAddress, proxyAddress))
                 .toList()
@@ -184,7 +172,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         int maxNumRemoteConnections,
         Predicate<DiscoveryNode> nodePredicate,
         List<String> configuredSeedNodes,
-        String authorization,
         List<Supplier<DiscoveryNode>> seedNodes
     ) {
         super(clusterAlias, transportService, connectionManager, settings);
@@ -192,7 +179,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;
         this.configuredSeedNodes = configuredSeedNodes;
-        this.authorization = authorization;
         this.seedNodes = seedNodes;
     }
 
@@ -214,10 +200,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         List<String> addresses = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         int nodeConnections = REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        String authorization = REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         return nodeConnections != maxNumRemoteConnections
             || seedsChanged(configuredSeedNodes, addresses)
-            || (TcpTransport.isUntrustedRemoteClusterEnabled() && authorizationChanged(this.authorization, authorization))
             || proxyChanged(proxyAddress, proxy);
     }
 
@@ -522,14 +506,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         Set<String> oldSeeds = new HashSet<>(oldSeedNodes);
         Set<String> newSeeds = new HashSet<>(newSeedNodes);
         return oldSeeds.equals(newSeeds) == false;
-    }
-
-    private static boolean authorizationChanged(String oldAuthorization, String newAuthorization) {
-        if (oldAuthorization == null || oldAuthorization.isEmpty()) {
-            return (newAuthorization == null || newAuthorization.isEmpty()) == false;
-        }
-
-        return Objects.equals(oldAuthorization, newAuthorization) == false;
     }
 
     private static boolean proxyChanged(String oldProxy, String newProxy) {

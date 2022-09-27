@@ -10,15 +10,11 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.settings.AbstractScopedSettings;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
@@ -27,7 +23,6 @@ import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_SK
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_NODE_ATTRIBUTE;
 import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY;
-import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION;
 import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS;
 import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER;
 import static org.hamcrest.Matchers.emptyCollectionOf;
@@ -79,7 +74,10 @@ public class RemoteClusterSettingsTests extends ESTestCase {
     public void testCredentialsDefault() {
         assumeTrue("Skipped test because CCx2 feature flag is not enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final String alias = randomAlphaOfLength(8);
-        assertThat(REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), equalTo(""));
+        assertThat(
+            RemoteConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).get(Settings.EMPTY),
+            equalTo("")
+        );
     }
 
     public void testProxyDefault() {
@@ -96,28 +94,10 @@ public class RemoteClusterSettingsTests extends ESTestCase {
             .put("cluster.remote.cluster3.authorization", (String) null)
             .build();
         try {
-            SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
+            RemoteConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings)
+                .forEach(setting -> setting.get(settings));
         } catch (Throwable t) {
             fail("Cluster Settings must be able to accept a null, empty, or non-empty string. Exception: " + t.getMessage());
-        }
-    }
-
-    public void testRemoteClusterAuthorizationSettingDependencies() {
-        assumeTrue("Skipped test because CCx2 feature flag is not enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-        AbstractScopedSettings service = new ClusterSettings(
-            Settings.EMPTY,
-            new HashSet<>(Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION))
-        );
-        {
-            Settings missingDependentSetting = Settings.builder().put("cluster.remote.foo.authorization", randomBoolean()).build();
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
-                () -> service.validate(missingDependentSetting, true)
-            );
-            assertEquals(
-                "missing required setting [cluster.remote.foo.seeds] for setting [cluster.remote.foo.authorization]",
-                iae.getMessage()
-            );
         }
     }
 }

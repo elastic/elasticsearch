@@ -137,8 +137,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(seedNode),
-                        null
+                        seedNodes(seedNode)
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -192,7 +191,6 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         3,
                         n -> true,
                         seedNodes(seedNode),
-                        null,
                         Collections.singletonList(seedNodeSupplier)
                     )
                 ) {
@@ -244,8 +242,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         Settings.EMPTY,
                         2,
                         n -> true,
-                        seedNodes(seedNode),
-                        null
+                        seedNodes(seedNode)
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -306,8 +303,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(seedNode),
-                        null
+                        seedNodes(seedNode)
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -350,8 +346,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(incompatibleSeedNode),
-                        null
+                        seedNodes(incompatibleSeedNode)
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -397,8 +392,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         Settings.EMPTY,
                         3,
                         n -> n.equals(rejectedNode) == false,
-                        seedNodes(seedNode),
-                        null
+                        seedNodes(seedNode)
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -449,8 +443,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         Settings.EMPTY,
                         3,
                         n -> n.equals(seedNode) == false,
-                        seedNodes(seedNode),
-                        null
+                        seedNodes(seedNode)
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -503,8 +496,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(seedNode, otherSeedNode),
-                        null
+                        seedNodes(seedNode, otherSeedNode)
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -576,8 +568,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(seedNode),
-                        null
+                        seedNodes(seedNode)
                     )
                 ) {
                     assertFalse(connectionManager.nodeConnected(seedNode));
@@ -670,8 +661,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes,
-                        null
+                        seedNodes
                     )
                 ) {
                     assertFalse(connectionManager.nodeConnected(unaddressableSeedNode));
@@ -723,8 +713,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(seedNode),
-                        null
+                        seedNodes(seedNode)
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();

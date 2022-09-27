@@ -108,6 +108,12 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         )
     );
 
+    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_AUTHORIZATION = Setting.affixKeySetting(
+        "cluster.remote.",
+        "authorization",
+        key -> Setting.simpleString(key, v -> {}, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered)
+    );
+
     // this setting is intentionally not registered, it is only used in tests
     public static final Setting<Integer> REMOTE_MAX_PENDING_CONNECTION_LISTENERS = Setting.intSetting(
         "cluster.remote.max_pending_connection_listeners",
@@ -126,6 +132,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
     protected final String clusterAlias;
+    protected final String authorization;
 
     RemoteConnectionStrategy(
         String clusterAlias,
@@ -137,11 +144,15 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         this.transportService = transportService;
         this.connectionManager = connectionManager;
         this.maxPendingConnectionListeners = REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
+        this.authorization = TcpTransport.isUntrustedRemoteClusterEnabled()
+            ? REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(this.clusterAlias).get(settings)
+            : null;
         connectionManager.addListener(this);
     }
 
     static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        String authorization = REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder().setConnectTimeout(
             TransportSettings.CONNECT_TIMEOUT.get(settings)
         )
@@ -151,6 +162,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace(clusterAlias).get(settings)
             )
             .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
+            .setAuthorization(authorization)
             .addConnections(
                 0,
                 TransportRequestOptions.Type.BULK,
@@ -305,7 +317,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     boolean shouldRebuildConnection(Settings newSettings) {
         ConnectionStrategy newMode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        if (newMode.equals(strategyType()) == false) {
+        String newAuthorization = REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        if ((newMode.equals(strategyType()) == false) || (newAuthorization.equals(this.authorization) == false)) {
             return true;
         } else {
             Compression.Enabled compressionEnabled = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(

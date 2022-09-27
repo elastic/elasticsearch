@@ -532,7 +532,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HealthNodeTaskExecutor.ENABLED_SETTING,
         LocalHealthMonitor.POLL_INTERVAL_SETTING,
         TransportHealthNodeAction.HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT,
-        TcpTransport.isUntrustedRemoteClusterEnabled() ? SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION : null
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? RemoteConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION : null
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

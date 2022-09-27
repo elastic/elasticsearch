@@ -1,0 +1,23 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name 'relevance-search'
+  description 'Elasticsearch Expanded Pack Plugin - relevance_search query implementation'
+  classname 'org.elasticsearch.xpack.relevancesearch.RelevanceSearchPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-enterprise-search'
+
+dependencies {
+  compileOnly project(":server")
+  compileOnly project(path: xpackModule('core'))
+}
+
+tasks.named("dependencyLicenses").configure {
+  ignoreSha 'x-pack-core'
+}
+
+//no tests
+tasks.named("test").configure {
+  enabled = false
+}

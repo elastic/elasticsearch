@@ -31,14 +31,13 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
     @Override
     public void apply(final Project project) {
-        var extension = project.getExtensions()
-            .create(BasePluginBuildPlugin.PLUGIN_EXTENSION_NAME, PluginPropertiesExtension.class, project);
-
         project.getPluginManager().apply(BasePluginBuildPlugin.class);
 
         var dependencies = project.getDependencies();
         dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
         dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
+
+        var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 
         project.getTasks().withType(GeneratePluginPropertiesTask.class).named("pluginProperties").configure(task -> {
             task.getIsStable().set(false);

@@ -17,9 +17,6 @@ public class StableBuildPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        var extension = project.getExtensions()
-            .create(BasePluginBuildPlugin.PLUGIN_EXTENSION_NAME, BasePluginPropertiesExtension.class, project);
-
         project.getPluginManager().apply(BasePluginBuildPlugin.class);
 
         project.getTasks().withType(GeneratePluginPropertiesTask.class).named("pluginProperties").configure(task -> {

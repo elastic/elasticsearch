@@ -96,6 +96,9 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         if (stablePlugin == false && classname.isEmpty()) {
             throw new InvalidUserDataException("classname is a required setting for esplugin");
         }
+        if (stablePlugin && classname.isEmpty() == false) {
+            throw new InvalidUserDataException("classname is a forbidden for stable esplugin");
+        }
 
         Map<String, Object> props = new HashMap<>();
         props.put("name", getPluginName().get());

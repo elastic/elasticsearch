@@ -127,39 +127,6 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         props.size() == 9
     }
 
-    def "can build stable plugin properties"() {
-        given:
-        buildFile << """plugins {
-                id 'elasticsearch.stable_esplugin'
-            }
-
-            version = '1.2.3'
-
-            esplugin {
-                name = 'myplugin'
-                description = 'test plugin'
-            }
-            """
-
-        when:
-        def result = gradleRunner(":pluginProperties").build()
-        def props = getPluginProperties("build/generated-descriptor/stable-plugin-descriptor.properties")
-
-        then:
-        result.task(":pluginProperties").outcome == TaskOutcome.SUCCESS
-        props.get("classname") == null
-
-        props.get("name") == "myplugin"
-        props.get("version") == "1.2.3"
-        props.get("description") == "test plugin"
-        props.get("modulename") == ""
-        props.get("java.version") == Integer.toString(Runtime.version().feature())
-        props.get("elasticsearch.version") == VersionProperties.elasticsearchVersion.toString()
-        props.get("extended.plugins") == ""
-        props.get("has.native.controller") == "false"
-        props.size() == 8
-    }
-
     def "module name is inferred by plugin properties"() {
         given:
         buildFile << """plugins {

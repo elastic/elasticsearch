@@ -69,7 +69,8 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(JarHellPlugin.class);
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
 
-        var extension = (BasePluginPropertiesExtension) project.getExtensions().getByName(BasePluginBuildPlugin.PLUGIN_EXTENSION_NAME);
+        var extension = project.getExtensions()
+            .create(BasePluginBuildPlugin.PLUGIN_EXTENSION_NAME, PluginPropertiesExtension.class, project);
 
         final var bundleTask = createBundleTasks(project, extension);
         project.getConfigurations().getByName("default").extendsFrom(project.getConfigurations().getByName("runtimeClasspath"));
@@ -100,7 +101,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
      * Adds bundle tasks which builds the dir and zip containing the plugin jars,
      * metadata, properties, and packaging files
      */
-    private TaskProvider<Zip> createBundleTasks(final Project project, BasePluginPropertiesExtension extension) {
+    private TaskProvider<Zip> createBundleTasks(final Project project, PluginPropertiesExtension extension) {
         final var pluginMetadata = project.file("src/main/plugin-metadata");
 
         final var buildProperties = project.getTasks().register("pluginProperties", GeneratePluginPropertiesTask.class, task -> {

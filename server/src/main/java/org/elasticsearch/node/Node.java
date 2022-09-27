@@ -256,7 +256,7 @@ public class Node implements Closeable {
         (key) -> new Setting<>(key, "", (value) -> {
             if (value.length() > 0
                 && (Character.isWhitespace(value.charAt(0)) || Character.isWhitespace(value.charAt(value.length() - 1)))) {
-                throw new IllegalArgumentException(key + " cannot have leading or trailing whitespace " + "[" + value + "]");
+                throw new IllegalArgumentException(key + " cannot have leading or trailing whitespace [" + value + "]");
             }
             if (value.length() > 0 && "node.attr.server_name".equals(key)) {
                 try {

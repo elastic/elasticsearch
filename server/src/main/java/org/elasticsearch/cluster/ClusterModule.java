@@ -64,7 +64,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
-import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -194,10 +193,9 @@ public class ClusterModule extends AbstractModule {
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
 
-        if (HealthNode.isEnabled()) {
-            entries.addAll(HealthNodeTaskExecutor.getNamedWriteables());
-            entries.addAll(HealthMetadataService.getNamedWriteables());
-        }
+        // Health API
+        entries.addAll(HealthNodeTaskExecutor.getNamedWriteables());
+        entries.addAll(HealthMetadataService.getNamedWriteables());
         return entries;
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -62,7 +63,6 @@ public class DesiredBalanceReconciler {
             failAllocationOfNewPrimaries(allocation);
             logger.trace("no nodes available, nothing to reconcile");
             return;
-            // TODO test that we do this even if desired balance is empty
         }
 
         if (desiredBalance.assignments().isEmpty()) {
@@ -217,46 +217,56 @@ public class DesiredBalanceReconciler {
                         }
                     }
 
-                    for (final var desiredNodeId : allocationOrdering.sort(assignmentNodeIds)) {
-                        final var routingNode = routingNodes.node(desiredNodeId);
-                        if (routingNode == null) {
-                            // desired node no longer exists
-                            continue;
-                        }
-                        final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
-                        switch (decision.type()) {
-                            case YES -> {
-                                if (logger.isTraceEnabled()) {
-                                    logger.trace("Assigned shard [{}] to [{}]", shard, desiredNodeId);
-                                }
-                                final long shardSize = DiskThresholdDecider.getExpectedShardSize(
-                                    shard,
-                                    ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                                    allocation.clusterInfo(),
-                                    allocation.snapshotShardSizeInfo(),
-                                    allocation.metadata(),
-                                    allocation.routingTable()
-                                );
-                                routingNodes.initializeShard(shard, desiredNodeId, null, shardSize, allocation.changes());
-                                allocationOrdering.recordAllocation(desiredNodeId);
-                                if (shard.primary() == false) {
-                                    // copy over the same replica shards to the secondary array so they will get allocated
-                                    // in a subsequent iteration, allowing replicas of other shards to be allocated first
-                                    while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
-                                        secondary[secondaryLength++] = primary[++i];
-                                    }
-                                }
-                                continue nextShard;
+                    for (final var nodeIdIterator : List.<Iterable<String>>of(
+                        allocationOrdering.sort(assignmentNodeIds),
+                        // TODO consider ignored nodes here too?
+                        () -> (shard.primary()
+                            ? allocationOrdering.sort(
+                                allocation.routingNodes().stream().map(RoutingNode::nodeId).collect(Collectors.toSet())
+                            )
+                            : List.<String>of()).iterator()
+                    )) {
+                        for (final var desiredNodeId : nodeIdIterator) {
+                            final var routingNode = routingNodes.node(desiredNodeId);
+                            if (routingNode == null) {
+                                // desired node no longer exists
+                                continue;
                             }
-                            case THROTTLE -> isThrottled = true;
-                            case NO -> {
-                                if (logger.isTraceEnabled()) {
-                                    logger.trace(
-                                        "Unexpected NO decision [{}] for shard [{}] on assigned node [{}]",
-                                        decision,
-                                        shard.shardId(),
-                                        desiredNodeId
+                            final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
+                            switch (decision.type()) {
+                                case YES -> {
+                                    if (logger.isTraceEnabled()) {
+                                        logger.trace("Assigned shard [{}] to [{}]", shard, desiredNodeId);
+                                    }
+                                    final long shardSize = DiskThresholdDecider.getExpectedShardSize(
+                                        shard,
+                                        ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                                        allocation.clusterInfo(),
+                                        allocation.snapshotShardSizeInfo(),
+                                        allocation.metadata(),
+                                        allocation.routingTable()
                                     );
+                                    routingNodes.initializeShard(shard, desiredNodeId, null, shardSize, allocation.changes());
+                                    allocationOrdering.recordAllocation(desiredNodeId);
+                                    if (shard.primary() == false) {
+                                        // copy over the same replica shards to the secondary array so they will get allocated
+                                        // in a subsequent iteration, allowing replicas of other shards to be allocated first
+                                        while (i < primaryLength - 1 && comparator.compare(primary[i], primary[i + 1]) == 0) {
+                                            secondary[secondaryLength++] = primary[++i];
+                                        }
+                                    }
+                                    continue nextShard;
+                                }
+                                case THROTTLE -> isThrottled = true;
+                                case NO -> {
+                                    if (logger.isTraceEnabled()) {
+                                        logger.trace(
+                                            "Unexpected NO decision [{}] for shard [{}] on assigned node [{}]",
+                                            decision,
+                                            shard.shardId(),
+                                            desiredNodeId
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -409,9 +419,12 @@ public class DesiredBalanceReconciler {
         BiFunction<ShardRouting, RoutingNode, Decision> canAllocateDecider
     ) {
         for (final var nodeId : desiredNodeIds) {
+            // TODO consider ignored nodes here too?
             if (nodeId.equals(shardRouting.currentNodeId()) == false) {
                 final var currentNode = routingNodes.node(nodeId);
-                if (canAllocateDecider.apply(shardRouting, currentNode).type() == Decision.Type.YES) {
+                final var decision = canAllocateDecider.apply(shardRouting, currentNode);
+                logger.trace("relocate {} to {}: {}", shardRouting, nodeId, decision);
+                if (decision.type() == Decision.Type.YES) {
                     return currentNode.node();
                 }
             }

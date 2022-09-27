@@ -472,9 +472,14 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
      *
      * @return the started shard
      */
-    public ShardRouting startShard(Logger logger, ShardRouting initializingShard, RoutingChangesObserver routingChangesObserver) {
+    public ShardRouting startShard(
+        Logger logger,
+        ShardRouting initializingShard,
+        RoutingChangesObserver routingChangesObserver,
+        long startedExpectedShardSize
+    ) {
         ensureMutable();
-        ShardRouting startedShard = started(initializingShard);
+        ShardRouting startedShard = started(initializingShard, startedExpectedShardSize);
         logger.trace("{} marked shard as started (routing: {})", initializingShard.shardId(), initializingShard);
         routingChangesObserver.shardStarted(initializingShard, startedShard);
 
@@ -676,7 +681,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
      *
      * @return the started shard
      */
-    private ShardRouting started(ShardRouting shard) {
+    private ShardRouting started(ShardRouting shard, long expectedShardSize) {
         assert shard.initializing() : "expected an initializing shard " + shard;
         if (shard.relocatingNodeId() == null) {
             // if this is not a target shard for relocation, we need to update statistics
@@ -686,7 +691,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             }
         }
         removeRecovery(shard);
-        ShardRouting startedShard = shard.moveToStarted();
+        ShardRouting startedShard = shard.moveToStarted(expectedShardSize);
         updateAssigned(shard, startedShard);
         return startedShard;
     }
@@ -995,30 +1000,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             ignored.clear();
         }
 
-        public void resetFailedAllocationCounter(RoutingChangesObserver routingChangesObserver) {
-            final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = iterator();
-            while (unassignedIterator.hasNext()) {
-                ShardRouting shardRouting = unassignedIterator.next();
-                UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-                unassignedIterator.updateUnassigned(
-                    new UnassignedInfo(
-                        unassignedInfo.getNumFailedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(),
-                        unassignedInfo.getMessage(),
-                        unassignedInfo.getFailure(),
-                        0,
-                        unassignedInfo.getUnassignedTimeInNanos(),
-                        unassignedInfo.getUnassignedTimeInMillis(),
-                        unassignedInfo.isDelayed(),
-                        unassignedInfo.getLastAllocationStatus(),
-                        Collections.emptySet(),
-                        unassignedInfo.getLastAllocatedNodeId()
-                    ),
-                    shardRouting.recoverySource(),
-                    routingChangesObserver
-                );
-            }
-        }
-
         public class UnassignedIterator implements Iterator<ShardRouting>, ExistingShardsAllocator.UnassignedAllocationHandler {
 
             private final ListIterator<ShardRouting> iterator;
@@ -1295,6 +1276,46 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     private void ensureMutable() {
         if (readOnly) {
             throw new IllegalStateException("can't modify RoutingNodes - readonly");
+        }
+    }
+
+    public void resetFailedCounter(RoutingChangesObserver routingChangesObserver) {
+        final var unassignedIterator = unassigned().iterator();
+        while (unassignedIterator.hasNext()) {
+            ShardRouting shardRouting = unassignedIterator.next();
+            UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+            unassignedIterator.updateUnassigned(
+                new UnassignedInfo(
+                    unassignedInfo.getNumFailedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(),
+                    unassignedInfo.getMessage(),
+                    unassignedInfo.getFailure(),
+                    0,
+                    unassignedInfo.getUnassignedTimeInNanos(),
+                    unassignedInfo.getUnassignedTimeInMillis(),
+                    unassignedInfo.isDelayed(),
+                    unassignedInfo.getLastAllocationStatus(),
+                    Collections.emptySet(),
+                    unassignedInfo.getLastAllocatedNodeId()
+                ),
+                shardRouting.recoverySource(),
+                routingChangesObserver
+            );
+        }
+
+        for (RoutingNode routingNode : this) {
+            var shardsWithRelocationFailures = new ArrayList<ShardRouting>();
+            for (ShardRouting shardRouting : routingNode) {
+                if (shardRouting.relocationFailureInfo() != null && shardRouting.relocationFailureInfo().failedRelocations() > 0) {
+                    shardsWithRelocationFailures.add(shardRouting);
+                }
+            }
+
+            for (ShardRouting original : shardsWithRelocationFailures) {
+                ShardRouting updated = original.updateRelocationFailure(RelocationFailureInfo.NO_FAILURES);
+                routingNode.update(original, updated);
+                assignedShardsRemove(original);
+                assignedShardsAdd(updated);
+            }
         }
     }
 

@@ -586,7 +586,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             "@&~(abc.+)",
             "aaa.+&.+bbb",
             "a*",
-            "...*.." };
+            "...*..",
+            "\\w",
+            "\\W",
+            "\\s",
+            "\\S",
+            "\\d",
+            "\\D" };
         for (String regex : matchAllButVerifyTests) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
             BinaryDvConfirmedAutomatonQuery q = (BinaryDvConfirmedAutomatonQuery) wildcardFieldQuery;

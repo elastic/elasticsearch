@@ -67,7 +67,7 @@ public class DesiredBalanceComputer {
         for (final var routingNode : routingNodes) {
             for (final var shardRouting : routingNode) {
                 if (shardRouting.initializing()) {
-                    routingNodes.startShard(logger, shardRouting, changes);
+                    routingNodes.startShard(logger, shardRouting, changes, 0L);
                     // TODO adjust disk usage info to reflect the assumed shard movement
                 }
             }
@@ -128,7 +128,8 @@ public class DesiredBalanceComputer {
                     routingNodes.startShard(
                         logger,
                         routingNodes.relocateShard(shardRouting, targetNodesIterator.next(), 0L, changes).v2(),
-                        changes
+                        changes,
+                        0L
                     );
                 } else {
                     break;
@@ -153,7 +154,7 @@ public class DesiredBalanceComputer {
                 final var nodeIds = unassignedShardsToInitialize.get(shardRouting);
                 if (nodeIds != null && nodeIds.isEmpty() == false) {
                     final String nodeId = nodeIds.removeFirst();
-                    routingNodes.startShard(logger, unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes), changes);
+                    routingNodes.startShard(logger, unassignedPrimaryIterator.initialize(nodeId, null, 0L, changes), changes, 0L);
                 }
             }
         }
@@ -165,7 +166,7 @@ public class DesiredBalanceComputer {
                 final var nodeIds = unassignedShardsToInitialize.get(shardRouting);
                 if (nodeIds != null && nodeIds.isEmpty() == false) {
                     final String nodeId = nodeIds.removeFirst();
-                    routingNodes.startShard(logger, unassignedReplicaIterator.initialize(nodeId, null, 0L, changes), changes);
+                    routingNodes.startShard(logger, unassignedReplicaIterator.initialize(nodeId, null, 0L, changes), changes, 0L);
                 }
             }
         }
@@ -187,14 +188,6 @@ public class DesiredBalanceComputer {
                 }
             }
         }
-
-        // TODO must also bypass ResizeAllocationDecider
-        // TODO must also bypass RestoreInProgressAllocationDecider
-        // TODO what about delayed allocation?
-
-        // TODO consider also whether to unassign any shards that cannot remain on their current nodes so that the desired balance reflects
-        // the actual desired state of the cluster. But this would mean that a REPLACE shutdown needs special handling at reconciliation
-        // time too. But maybe it needs special handling anyway since reconciliation also tries to respect allocation rules.
 
         boolean hasChanges = false;
         for (int i = 0; true; i++) {
@@ -225,7 +218,7 @@ public class DesiredBalanceComputer {
                 for (final var shardRouting : routingNode) {
                     if (shardRouting.initializing()) {
                         hasChanges = true;
-                        routingNodes.startShard(logger, shardRouting, changes);
+                        routingNodes.startShard(logger, shardRouting, changes, 0L);
                         logger.trace("starting shard {}", shardRouting);
                         // TODO adjust disk usage info to reflect the assumed shard movement
                     }

@@ -102,7 +102,7 @@ public class ReservedClusterStateService {
             return stateChunkParser.apply(parser, null);
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
-            saveErrorState(clusterService.state(), errorState);
+            updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
             throw new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState, e);

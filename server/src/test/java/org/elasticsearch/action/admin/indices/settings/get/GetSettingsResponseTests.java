@@ -74,4 +74,15 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
         return f -> f.equals("") || f.contains(".settings") || f.contains(".defaults");
     }
 
+    public void testOneChunkPerIndex() {
+        final var instance = createTestInstance();
+        final var iterator = instance.toXContentChunked();
+        int chunks = 0;
+        while (iterator.hasNext()) {
+            chunks++;
+            iterator.next();
+        }
+        assertEquals(2 + instance.getIndexToSettings().size(), chunks);
+    }
+
 }

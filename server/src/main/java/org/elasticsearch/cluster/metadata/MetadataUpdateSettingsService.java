@@ -34,7 +34,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -54,7 +53,6 @@ public class MetadataUpdateSettingsService {
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
-    private final ThreadPool threadPool;
     private final MasterServiceTaskQueue<UpdateSettingsTask> taskQueue;
 
     public MetadataUpdateSettingsService(
@@ -67,7 +65,6 @@ public class MetadataUpdateSettingsService {
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
-        this.threadPool = clusterService.threadPool();
         this.taskQueue = clusterService.getTaskQueue("update-settings", Priority.URGENT, batchExecutionContext -> {
             ClusterState state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {

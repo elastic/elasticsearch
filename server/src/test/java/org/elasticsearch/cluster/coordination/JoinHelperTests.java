@@ -13,8 +13,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -33,7 +33,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -55,23 +54,24 @@ public class JoinHelperTests extends ESTestCase {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
-        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var taskManger = new TaskManager(Settings.EMPTY, threadPool, Set.of());
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             capturingTransport,
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
-            null,
+            clusterSettings,
             new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
-            new TaskManager(Settings.EMPTY, threadPool, Set.of()),
+            taskManger,
             Tracer.NOOP
         );
         JoinHelper joinHelper = new JoinHelper(
             null,
-            null,
+            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger),
             new NoOpClusterApplier(),
-            // TODO does this need a master service too?
             transportService,
             () -> 0L,
             (joinRequest, joinCallback) -> { throw new AssertionError(); },
@@ -216,21 +216,24 @@ public class JoinHelperTests extends ESTestCase {
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
         ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
-        TransportService transportService = capturingTransport.createTransportService(
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var taskManger = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        TransportService transportService = new TransportService(
             Settings.EMPTY,
+            capturingTransport,
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
-            null,
-            Collections.emptySet()
+            clusterSettings,
+            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
+            taskManger,
+            Tracer.NOOP
         );
-        MasterService masterService = new FakeThreadPoolMasterService("node0", "master", threadPool, deterministicTaskQueue::scheduleNow);
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
         JoinHelper joinHelper = new JoinHelper(
             null,
-            null,
+            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger),
             new NoOpClusterApplier(),
-            // TODO does this need a master service too?
             transportService,
             () -> 0L,
             (joinRequest, joinCallback) -> { throw new AssertionError(); },

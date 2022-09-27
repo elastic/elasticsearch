@@ -23,6 +23,7 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -258,6 +259,7 @@ public class SourceOnlySnapshot {
                             0,
                             0,
                             0,
+                            VectorEncoding.FLOAT32,
                             VectorSimilarityFunction.EUCLIDEAN,
                             fieldInfo.isSoftDeletesField()
                         )

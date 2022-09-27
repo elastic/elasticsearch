@@ -1,5 +1,5 @@
 [[synthetic-source]]
-==== Synthetic `_source`
+==== Synthetic `_source` preview:[]
 
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you
@@ -45,13 +45,13 @@ types:
 ** <<numeric-synthetic-source,`long`>>
 ** <<numeric-synthetic-source,`scaled_float`>>
 ** <<numeric-synthetic-source,`short`>>
-** <<text-synthetic-source,`text`>> (with a `keyword` sub-field)
+** <<text-synthetic-source,`text`>>
 ** <<version-synthetic-source,`version`>>
 
 Runtime fields cannot, at this stage, use synthetic `_source`.
 
 [[synthetic-source-modifications]]
-===== Synthetic source modifications
+===== Synthetic `_source` modifications
 
 When synthetic `_source` is enabled, retrieved documents undergo some
 modifications compared to the original JSON.

@@ -64,6 +64,9 @@ step by step troubleshooting guide to fix the diagnosed problem.
   `shards_availability`::
       Reports health issues regarding shard assignments.
 
+  `disk`::
+      Reports health issues caused by lack of disk space.
+
   `ilm`::
       Reports health issues related to
       Indexing Lifecycle Management.
@@ -273,6 +276,9 @@ details have contents and a structure that is unique to each indicator.
 `node_id`::
     (string) The node id of a master-eligible node
 
+`name`::
+(Optional, string) The node name of a master-eligible node
+
 `cluster_formation_message`::
     (string) A detailed description explaining what went wrong with cluster formation, or why this node was
     unable to join the cluster if it has formed.
@@ -306,8 +312,25 @@ details have contents and a structure that is unique to each indicator.
     (int) The number of replica shards that are relocating because of a node shutdown operation.
 
 `started_replicas`::
-    (int) The number of replica shards that are active and available on the sysetm.
+    (int) The number of replica shards that are active and available on the system.
 
+[[health-api-response-details-disk]]
+===== disk
+
+`blocked_indices`::
+(int) The number of indices that are blocked by the system because the cluster is running out of space.
+
+`green_nodes`::
+(int) The number of nodes that have enough available disk space to function.
+
+`yellow_nodes`::
+(int) The number of nodes that are running low on disk and it is likely that they will run out of space.
+
+`red_nodes`::
+(int) The number of nodes that have run out of disk.
+
+`unknown_nodes`::
+(int) The number of nodes for which it was not possible to determine their disk health.
 
 [[health-api-response-details-repository-integrity]]
 ===== repository_integrity

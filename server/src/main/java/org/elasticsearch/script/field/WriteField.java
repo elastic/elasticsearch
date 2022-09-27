@@ -12,10 +12,12 @@ import org.elasticsearch.common.util.Maps;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -23,7 +25,7 @@ import java.util.function.Supplier;
 
 public class WriteField implements Field<Object> {
     protected String path;
-    protected final Supplier<Map<String, Object>> rootSupplier;
+    protected Supplier<Map<String, Object>> rootSupplier;
 
     protected Map<String, Object> container;
     protected String leaf;
@@ -68,6 +70,41 @@ public class WriteField implements Field<Object> {
     }
 
     /**
+     * Move this path to the path of the given {@code WriteField}, using that {@code WriteField}s root,
+     * which may be a {@link NestedDocument}.
+     *
+     * @throws IllegalArgumentException if the other path has contents
+     */
+    public WriteField move(WriteField path) {
+        if (path.isEmpty() == false) {
+            throw new IllegalArgumentException("Cannot move to non-empty destination [" + path.path + "]");
+        }
+        return overwrite(path);
+    }
+
+    /**
+     * The painless API for {@code move}, delegates to {@link #move(String)} or {@link #move(WriteField)},
+     * throws an {@link IllegalArgumentException} if {@param path} is neither a {@link String} nor a {@link WriteField}.
+     *
+     * This is necessary because Painless does not support method overloading, only arity overloading.
+     */
+    public WriteField move(Object path) {
+        if (path instanceof String str) {
+            return move(str);
+        } else if (path instanceof WriteField field) {
+            return move(field);
+        }
+
+        throw new IllegalArgumentException(
+            "Cannot call move with ["
+                + path
+                + "], must be String or WriteField, not ["
+                + ((path != null) ? path.getClass().getName() : "null")
+                + "]"
+        );
+    }
+
+    /**
      * Move this path to another path in the map, overwriting the destination path if it exists.
      *
      * If this Field has no value, the value at {@param path} is removed.
@@ -85,6 +122,52 @@ public class WriteField implements Field<Object> {
             set(value);
         }
         return this;
+    }
+
+    /**
+     * Move this path to the path represented by another {@code WriteField}, using that {@code WriteField}s root,
+     * which may be a {@link NestedDocument}.  Overwrites the destination path if it exists.
+     *
+     * If this Field has no value, the value at {@param path} is removed.
+     */
+    public WriteField overwrite(WriteField path) {
+        Object value = get(MISSING);
+        remove();
+        setPath(path.path);
+        this.rootSupplier = path.rootSupplier;
+        if (value == MISSING) {
+            // The source has a missing value, remove the value, if it exists, at the destination
+            // to match the missing value at the source.
+            remove();
+        } else {
+            setLeaf();
+            set(value);
+        }
+        // refresh argument field
+        path.resolveDepthFlat();
+        return this;
+    }
+
+    /**
+     * The painless API for {@code overwrite}, delegates to {@link #overwrite(String)} or {@link #overwrite(WriteField)},
+     * throws an {@link IllegalArgumentException} if {@param path} is neither a {@link String} nor a {@link WriteField}.
+     *
+     * This is necessary because Painless does not support method overloading, only arity overloading.
+     */
+    public WriteField overwrite(Object path) {
+        if (path instanceof String str) {
+            return overwrite(str);
+        } else if (path instanceof WriteField field) {
+            return overwrite(field);
+        }
+
+        throw new IllegalArgumentException(
+            "Cannot call overwrite with ["
+                + path
+                + "], must be String or WriteField, not ["
+                + ((path != null) ? path.getClass().getName() : "null")
+                + "]"
+        );
     }
 
     // Path Delete
@@ -107,6 +190,9 @@ public class WriteField implements Field<Object> {
      */
     public WriteField set(Object value) {
         setLeaf();
+        if (value instanceof NestedDocument doc) {
+            throw new IllegalArgumentException("cannot set NestedDocument [" + doc.getDoc() + "] as path [" + path + "]");
+        }
         container.put(leaf, value);
         return this;
     }
@@ -128,7 +214,11 @@ public class WriteField implements Field<Object> {
                 values = new ArrayList<>(4);
                 values.add(v);
             }
-            values.add(value);
+            if (value instanceof NestedDocument doc) {
+                throw new IllegalArgumentException("cannot append NestedDocument [" + doc.getDoc() + "] to path [" + path + "]");
+            } else {
+                values.add(value);
+            }
             return values;
         });
         return this;
@@ -336,6 +426,180 @@ public class WriteField implements Field<Object> {
     }
 
     /**
+     * Removes the {@param o} if this WriteField contains {@param o} using reference equality.
+     */
+    void remove(Object o) {
+        Object value = container.getOrDefault(leaf, MISSING);
+        if (value == MISSING) {
+            return;
+        }
+
+        if (value instanceof List<?> list) {
+            Iterator<?> it = list.iterator();
+            // List.remove(Object) uses Objects.equals which will check content equality for Maps.
+            while (it.hasNext()) {
+                if (it.next() == o) {
+                    it.remove();
+                    return;
+                }
+            }
+        } else if (container.get(leaf) == value) {
+            container.remove(leaf);
+        }
+    }
+
+    /**
+     * Append a {@link NestedDocument} to this field and return it.
+     */
+    public NestedDocument doc() {
+        List<Map<String, Object>> docs = getDocsAsList();
+
+        if (docs == null) {
+            NestedDocument doc = new NestedDocument(this, new HashMap<>());
+            set(doc.getDoc());
+            return doc;
+        }
+
+        NestedDocument doc = new NestedDocument(this, new HashMap<>());
+        docs.add(doc.getDoc());
+        return doc;
+    }
+
+    /**
+     *  Returns a {@link NestedDocument} at the index, if index is beyond the end of the List, creates empty
+     *  NestedDocument through the end of the array to the index.
+     */
+    public NestedDocument doc(int index) {
+        List<Map<String, Object>> docs = getDocsAsList();
+        if (docs == null) {
+            if (index == 0) {
+                NestedDocument doc = new NestedDocument(this, new HashMap<>());
+                set(doc.getDoc());
+                return doc;
+            }
+            docs = new ArrayList<>(index + 1);
+            set(docs);
+        }
+
+        if (index < docs.size()) {
+            return new NestedDocument(this, docs.get(index));
+        }
+
+        for (int i = docs.size(); i < index; i++) {
+            docs.add(new HashMap<>());
+        }
+
+        NestedDocument doc = new NestedDocument(this, new HashMap<>());
+        docs.add(doc.getDoc());
+        return doc;
+    }
+
+    /**
+     * Fetch the value at the current location, changing a Map into a single element list.  The new list is written back to the leaf.
+     * If there is no value, return {@code null}.
+     * If there is a value that is not a List or a Map, {@throws IllegalStateException}.
+     */
+    @SuppressWarnings("unchecked")
+    protected List<Map<String, Object>> getDocsAsList() {
+        Object value = get(MISSING);
+        if (value == MISSING) {
+            return null;
+        }
+
+        List<Map<String, Object>> docs;
+        if (value instanceof List<?> list) {
+            docs = (List<Map<String, Object>>) list;
+
+        } else if (value instanceof Map<?, ?> map) {
+            docs = new ArrayList<>(4);
+            docs.add((Map<String, Object>) map);
+            set(docs);
+
+        } else {
+            throw new IllegalStateException(
+                "Unexpected value [" + value + "] of type [" + typeName(value) + "] at path [" + path + "], expected Map or List of Map"
+            );
+        }
+        return docs;
+    }
+
+    /**
+     * Iterable over all {@link NestedDocument}s in this field.
+     */
+    @SuppressWarnings("unchecked")
+    public Iterable<NestedDocument> docs() {
+        Object value = get(MISSING);
+        if (value == MISSING) {
+            return Collections.emptyList();
+        }
+
+        if (value instanceof Map<?, ?> map) {
+            return () -> new Iterator<>() {
+                private boolean done = false;
+
+                @Override
+                public boolean hasNext() {
+                    return done == false;
+                }
+
+                @Override
+                public NestedDocument next() {
+                    if (done) {
+                        throw new NoSuchElementException();
+                    }
+                    done = true;
+                    return new NestedDocument(WriteField.this, (Map<String, Object>) map);
+                }
+
+                @Override
+                public void remove() {
+                    WriteField.this.remove();
+                }
+            };
+
+        } else if (value instanceof List<?> list) {
+            return () -> new Iterator<>() {
+                private final Iterator<?> it = list.iterator();
+                private int index;
+
+                @Override
+                public boolean hasNext() {
+                    return it.hasNext();
+                }
+
+                @Override
+                @SuppressWarnings("unchecked")
+                public NestedDocument next() {
+                    Object value = it.next();
+                    if (value instanceof Map<?, ?> map) {
+                        index++;
+                        return new NestedDocument(WriteField.this, (Map<String, Object>) map);
+                    }
+
+                    throw new IllegalStateException(
+                        "Unexpected value ["
+                            + value
+                            + "] of type ["
+                            + typeName(value)
+                            + "] at ["
+                            + path
+                            + "] and index ["
+                            + index
+                            + "] for docs() iterator"
+                    );
+                }
+
+                @Override
+                public void remove() {
+                    it.remove();
+                }
+            };
+        }
+
+        throw new IllegalStateException("Unexpected value [" + value + "] of type [" + typeName(value) + "] at [" + path + "] for docs()");
+    }
+
+    /**
      * Change the path and clear the existing resolution by setting {@link #leaf} and {@link #container} to null.
      * Caller needs to re-resolve after this call.
      */
@@ -411,19 +675,23 @@ public class WriteField implements Field<Object> {
         String[] segments = path.split("\\.");
         for (int i = 0; i < segments.length - 1; i++) {
             String segment = segments[i];
-            Object value = container.get(segment);
+            Object value = container.getOrDefault(segment, MISSING);
             if (value instanceof Map<?, ?> map) {
                 container = (Map<String, Object>) map;
-            } else if (value == null) {
+            } else if (value == MISSING) {
                 Map<String, Object> next = Maps.newHashMapWithExpectedSize(4);
                 container.put(segment, next);
                 container = next;
             } else {
                 throw new IllegalArgumentException(
-                    "Segment [" + i + ":'" + segment + "'] has value [" + value + "] of type [" + value.getClass().getName() + "]"
+                    "Segment [" + i + ":'" + segment + "'] has value [" + value + "] of type [" + typeName(value) + "]"
                 );
             }
         }
         leaf = segments[segments.length - 1];
+    }
+
+    protected String typeName(Object value) {
+        return value != null ? value.getClass().getName() : "null";
     }
 }

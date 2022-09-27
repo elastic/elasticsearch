@@ -149,4 +149,18 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
             equalTo("CompositeBytesReference cannot hold more than 2GB")
         );
     }
+
+    public void testGetIntLE() {
+        BytesReference[] refs = new BytesReference[] {
+            new BytesArray(new byte[] { 0x12, 0x10, 0x12, 0x00 }),
+            new BytesArray(new byte[] { 0x01, 0x02, 0x03, 0x04 }) };
+        BytesReference comp = CompositeBytesReference.of(refs);
+        assertThat(comp.getIntLE(0), equalTo(0x00121012));
+        assertThat(comp.getIntLE(1), equalTo(0x01001210));
+        assertThat(comp.getIntLE(2), equalTo(0x02010012));
+        assertThat(comp.getIntLE(3), equalTo(0x03020100));
+        assertThat(comp.getIntLE(4), equalTo(0x04030201));
+        Exception e = expectThrows(ArrayIndexOutOfBoundsException.class, () -> comp.getIntLE(5));
+        assertThat(e.getMessage(), equalTo("Index 4 out of bounds for length 4"));
+    }
 }

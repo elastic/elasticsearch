@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Response returned after a cluster reroute request
@@ -59,9 +60,11 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
 
     @Override
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("state");
-        state.toXContent(builder, params);
-        builder.endObject();
+        if (Objects.equals(params.param("metric"), "none") == false) {
+            builder.startObject("state");
+            state.toXContent(builder, params);
+            builder.endObject();
+        }
         if (params.paramAsBoolean("explain", false)) {
             explanations.toXContent(builder, ToXContent.EMPTY_PARAMS);
         }

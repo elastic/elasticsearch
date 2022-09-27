@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-final class CartesianPointDVLeafFieldData extends AbstractLeafCartesianPointFieldData {
+final class CartesianPointDVLeafFieldData extends LeafCartesianPointFieldData {
     private final LeafReader reader;
     private final String fieldName;
 

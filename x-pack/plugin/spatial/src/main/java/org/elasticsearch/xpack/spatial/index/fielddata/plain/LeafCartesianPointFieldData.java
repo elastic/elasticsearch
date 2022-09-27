@@ -12,13 +12,11 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSource;
 
-public abstract class AbstractLeafCartesianPointFieldData extends LeafPointFieldData<CartesianPointValuesSource.MultiCartesianPointValues> {
+public abstract class LeafCartesianPointFieldData extends LeafPointFieldData<CartesianPointValuesSource.MultiCartesianPointValues> {
 
     protected final ToScriptFieldFactory<CartesianPointValuesSource.MultiCartesianPointValues> toScriptFieldFactory;
 
-    public AbstractLeafCartesianPointFieldData(
-        ToScriptFieldFactory<CartesianPointValuesSource.MultiCartesianPointValues> toScriptFieldFactory
-    ) {
+    public LeafCartesianPointFieldData(ToScriptFieldFactory<CartesianPointValuesSource.MultiCartesianPointValues> toScriptFieldFactory) {
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 

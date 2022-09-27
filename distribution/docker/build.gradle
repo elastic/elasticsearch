@@ -340,7 +340,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 for (final Architecture architecture : Architecture.values()) {
   for (final DockerBase base : DockerBase.values()) {
     // We don't build an ARM version of the Iron Bank image
-    if (architecture == Architecture.AARCH64 && base == DockerBase.IRON_BANK) return
+    if (architecture == Architecture.AARCH64 && base == DockerBase.IRON_BANK) continue
 
     addBuildDockerContextTask(architecture, base)
     addTransformDockerContextTask(architecture, base)

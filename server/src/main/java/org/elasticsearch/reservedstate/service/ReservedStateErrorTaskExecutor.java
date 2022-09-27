@@ -19,20 +19,19 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
  * <p>
  * We use this task executor to record any errors while updating and reserving the cluster state
  */
-record ReservedStateErrorTaskExecutor() implements ClusterStateTaskExecutor<ReservedStateErrorTask> {
+class ReservedStateErrorTaskExecutor extends ClusterStateTaskExecutor.DefaultBatchExecutor<ReservedStateErrorTask> {
+
     private static final Logger logger = LogManager.getLogger(ReservedStateErrorTaskExecutor.class);
 
     @Override
-    public ClusterState execute(BatchExecutionContext<ReservedStateErrorTask> batchExecutionContext) {
-        var updatedState = batchExecutionContext.initialState();
-        for (final var taskContext : batchExecutionContext.taskContexts()) {
-            final var task = taskContext.getTask();
-            try (var ignored = taskContext.captureResponseHeaders()) {
-                updatedState = task.execute(updatedState);
-            }
-            taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
-        }
-        return updatedState;
+    public ClusterState executeTask(TaskContext<ReservedStateErrorTask> taskContext, ClusterState curState) {
+        return taskContext.getTask().execute(curState);
+    }
+
+    @Override
+    public void taskSucceeded(TaskContext<ReservedStateErrorTask> taskContext) {
+        var task = taskContext.getTask();
+        taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
     }
 
     @Override

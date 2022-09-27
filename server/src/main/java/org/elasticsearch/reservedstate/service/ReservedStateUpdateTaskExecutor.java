@@ -19,24 +19,26 @@ import org.elasticsearch.common.Priority;
 
 /**
  * Reserved cluster state update task executor
- *
- * @param rerouteService instance of {@link RerouteService}, so that we can execute reroute after cluster state is published
  */
-public record ReservedStateUpdateTaskExecutor(RerouteService rerouteService) implements ClusterStateTaskExecutor<ReservedStateUpdateTask> {
+public class ReservedStateUpdateTaskExecutor extends ClusterStateTaskExecutor.DefaultBatchExecutor<ReservedStateUpdateTask> {
 
     private static final Logger logger = LogManager.getLogger(ReservedStateUpdateTaskExecutor.class);
 
-    @Override
-    public ClusterState execute(BatchExecutionContext<ReservedStateUpdateTask> batchExecutionContext) throws Exception {
-        var updatedState = batchExecutionContext.initialState();
+    // required to execute a reroute after cluster state is published
+    private final RerouteService rerouteService;
 
-        for (final var taskContext : batchExecutionContext.taskContexts()) {
-            try (var ignored = taskContext.captureResponseHeaders()) {
-                updatedState = taskContext.getTask().execute(updatedState);
-            }
-            taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
-        }
-        return updatedState;
+    public ReservedStateUpdateTaskExecutor(RerouteService rerouteService) {
+        this.rerouteService = rerouteService;
+    }
+
+    @Override
+    public ClusterState executeTask(TaskContext<ReservedStateUpdateTask> taskContext, ClusterState curState) {
+        return taskContext.getTask().execute(curState);
+    }
+
+    @Override
+    public void taskSucceeded(TaskContext<ReservedStateUpdateTask> taskContext) {
+        taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
     }
 
     @Override

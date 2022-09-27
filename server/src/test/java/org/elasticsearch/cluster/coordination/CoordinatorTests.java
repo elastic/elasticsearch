@@ -1890,10 +1890,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    @TestLogging(
-        reason = "nocommit",
-        value = "org.elasticsearch:INFO,org.elasticsearch.common.util.concurrent.DeterministicTaskQueue:TRACE"
-    )
     public void testSingleNodeDiscoveryWithQuorum() {
         try (
             Cluster cluster = new Cluster(

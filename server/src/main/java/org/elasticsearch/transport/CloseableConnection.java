@@ -9,42 +9,42 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.CompletableContext;
 
 /**
  * Abstract Transport.Connection that provides common close logic.
  */
 public abstract class CloseableConnection extends AbstractRefCounted implements Transport.Connection {
 
-    private final CompletableContext<Void> closeContext = new CompletableContext<>();
-    private final CompletableContext<Void> removeContext = new CompletableContext<>();
+    private final StepListener<Void> closeContext = new StepListener<>();
+    private final StepListener<Void> removeContext = new StepListener<>();
 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
-        closeContext.addListener(ActionListener.toBiConsumer(listener));
+        closeContext.addListener(listener);
     }
 
     @Override
     public void addRemovedListener(ActionListener<Void> listener) {
-        removeContext.addListener(ActionListener.toBiConsumer(listener));
+        removeContext.addListener(listener);
     }
 
     @Override
     public boolean isClosed() {
-        return closeContext.isDone();
+        return closeContext.asFuture().isDone();
     }
 
     @Override
     public void close() {
         // This method is safe to call multiple times as the close context will provide concurrency
         // protection and only be completed once. The attached listeners will only be notified once.
-        closeContext.complete(null);
+        closeContext.onResponse(null);
     }
 
     @Override
     public void onRemoved() {
-        removeContext.complete(null);
+        removeContext.onResponse(null);
     }
 
     @Override

@@ -15,10 +15,9 @@ import io.netty.channel.ChannelPromise;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.CompletableContext;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportException;
@@ -30,37 +29,37 @@ public class Netty4TcpChannel implements TcpChannel {
     private final Channel channel;
     private final boolean isServer;
     private final String profile;
-    private final CompletableContext<Void> connectContext;
-    private final CompletableContext<Void> closeContext = new CompletableContext<>();
+    private final StepListener<Void> connectContext;
+    private final StepListener<Void> closeContext = new StepListener<>();
     private final ChannelStats stats = new ChannelStats();
     private final boolean rstOnClose;
 
-    Netty4TcpChannel(Channel channel, boolean isServer, String profile, boolean rstOnClose, @Nullable ChannelFuture connectFuture) {
+    Netty4TcpChannel(Channel channel, boolean isServer, String profile, boolean rstOnClose, ChannelFuture connectFuture) {
         this.channel = channel;
         this.isServer = isServer;
         this.profile = profile;
-        this.connectContext = new CompletableContext<>();
+        this.connectContext = new StepListener<>();
         this.rstOnClose = rstOnClose;
         addListener(this.channel.closeFuture(), closeContext);
         addListener(connectFuture, connectContext);
     }
 
     /**
-     * Adds a listener that completes the given {@link CompletableContext} to the given {@link ChannelFuture}.
+     * Adds a listener that completes the given {@link StepListener} to the given {@link ChannelFuture}.
      * @param channelFuture Channel future
-     * @param context Context to complete
+     * @param listener Listener to complete
      */
-    public static void addListener(ChannelFuture channelFuture, CompletableContext<Void> context) {
+    public static void addListener(ChannelFuture channelFuture, StepListener<Void> listener) {
         channelFuture.addListener(f -> {
             if (f.isSuccess()) {
-                context.complete(null);
+                listener.onResponse(null);
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
                     ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    context.completeExceptionally(new Exception(cause));
+                    listener.onFailure(new Exception(cause));
                 } else {
-                    context.completeExceptionally((Exception) cause);
+                    listener.onFailure((Exception) cause);
                 }
             }
         });
@@ -133,12 +132,12 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
-        closeContext.addListener(ActionListener.toBiConsumer(listener));
+        closeContext.addListener(listener);
     }
 
     @Override
     public void addConnectListener(ActionListener<Void> listener) {
-        connectContext.addListener(ActionListener.toBiConsumer(listener));
+        connectContext.addListener(listener);
     }
 
     @Override

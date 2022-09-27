@@ -43,7 +43,7 @@ public class AllocationIdTests extends ESTestCase {
         assertThat(allocationId.getRelocationId(), nullValue());
 
         logger.info("-- start the shard");
-        shard = shard.moveToStarted();
+        shard = shard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         assertThat(shard.allocationId().getId(), equalTo(allocationId.getId()));
         allocationId = shard.allocationId();
         assertThat(allocationId.getId(), notNullValue());
@@ -59,7 +59,7 @@ public class AllocationIdTests extends ESTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
         );
         shard = shard.initialize("node1", null, -1);
-        shard = shard.moveToStarted();
+        shard = shard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
         AllocationId allocationId = shard.allocationId();
         logger.info("-- relocate the shard");
@@ -73,7 +73,7 @@ public class AllocationIdTests extends ESTestCase {
         assertThat(target.allocationId().getRelocationId(), equalTo(shard.allocationId().getId()));
 
         logger.info("-- finalize the relocation");
-        target = target.moveToStarted();
+        target = target.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         assertThat(target.allocationId().getId(), equalTo(shard.allocationId().getRelocationId()));
         assertThat(target.allocationId().getRelocationId(), nullValue());
     }
@@ -87,7 +87,7 @@ public class AllocationIdTests extends ESTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
         );
         shard = shard.initialize("node1", null, -1);
-        shard = shard.moveToStarted();
+        shard = shard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
         AllocationId allocationId = shard.allocationId();
         logger.info("-- relocate the shard");
@@ -112,7 +112,7 @@ public class AllocationIdTests extends ESTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
         );
         shard = shard.initialize("node1", null, -1);
-        shard = shard.moveToStarted();
+        shard = shard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
         logger.info("-- move to unassigned");
         shard = shard.moveToUnassigned(

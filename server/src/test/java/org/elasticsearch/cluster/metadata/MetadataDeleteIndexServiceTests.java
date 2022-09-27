@@ -7,12 +7,15 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -100,7 +103,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         );
     }
 
-    public void testDeleteUnassigned() {
+    public void testDeleteUnassigned() throws Exception {
         // Create an unassigned index
         String index = randomAlphaOfLength(5);
         ClusterState before = clusterState(index);
@@ -109,7 +112,15 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
 
         // Remove it
-        ClusterState after = service.deleteIndices(before, Set.of(before.metadata().getIndices().get(index).getIndex()));
+        final ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            before,
+            service.executor,
+            List.of(
+                new DeleteIndexClusterStateUpdateRequest(ActionListener.noop()).indices(
+                    new Index[] { before.metadata().getIndices().get(index).getIndex() }
+                )
+            )
+        );
 
         // It is gone
         assertNull(after.metadata().getIndices().get(index));

@@ -1,0 +1,93 @@
+---
+ip:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              ip:
+                type: ip
+                ignore_malformed: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          ip: 192.168.0.1
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          ip: garbage
+  - do:
+      index:
+        index:   test
+        id:      3
+        refresh: true
+        body:
+          ip:
+            - 10.10.1.1
+            - 192.8.1.2
+            - hot garbage
+            - 7
+  - do:
+      catch: "/failed to parse field \\[ip\\] of type \\[ip\\] in document with id '4'. Preview of field's value: '\\{object=wow\\}'/"
+      index:
+        index:   test
+        id:      4
+        refresh: true
+        body:
+          ip:
+            object: wow
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        ip: 192.168.0.1
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    2
+  - match: {_index: "test"}
+  - match: {_id: "2"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        ip: garbage
+  - is_false: fields
+
+  - do:
+      get:
+        index: test
+        id:    3
+  - match: {_index: "test"}
+  - match: {_id: "3"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        ip:
+          - 10.10.1.1
+          - 192.8.1.2
+          - hot garbage # fields saved by ignore_malformed are sorted after doc values
+          - 7
+  - is_false: fields

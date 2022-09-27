@@ -156,12 +156,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                         expectedOddMin = Math.min(expectedOddMin, e.getValue().v2());
                     }
                 }
-                StringTerms result = searchAndReduce(
-                    indexSearcher,
-                    new MatchAllDocsQuery(),
-                    request,
-                    withJoinFields(longField("number"), kwd)
-                );
+                StringTerms result = searchAndReduce(new AggTestConfig(indexSearcher, request, withJoinFields(longField("number"), kwd)));
 
                 StringTerms.Bucket evenBucket = result.getBucketByKey("even");
                 InternalChildren evenChildren = evenBucket.getAggregations().get("children");
@@ -193,7 +188,9 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     new ShardId(new Index("foo", "_na_"), 1)
                 )
             ) {
-                var indexSearcher = newSearcher(indexReader, true, false);
+                // maybeWrap should be false here, in ValueSource.java we sometimes cast to DirectoryReader and
+                // these casts can then fail if the maybeWrap is true.
+                var indexSearcher = newSearcher(indexReader, false, true);
                 // invalid usage,
                 {
                     var aggregationBuilder = new ChildrenAggregationBuilder("_name1", CHILD_TYPE);
@@ -207,10 +204,12 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     var e = expectThrows(
                         RuntimeException.class,
                         () -> searchAndReduce(
-                            indexSearcher,
-                            new TermQuery(new Term("join_field", "parent_type")),
-                            aggregationBuilder,
-                            withJoinFields(fieldType, fieldType2)
+                            new AggTestConfig(
+                                indexSearcher,
+                                new TermQuery(new Term("join_field", "parent_type")),
+                                aggregationBuilder,
+                                withJoinFields(fieldType, fieldType2)
+                            )
                         )
                     );
                     assertThat(
@@ -237,16 +236,16 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     var fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
                     var fieldType2 = new KeywordFieldMapper.KeywordFieldType("string_field", false, true, Map.of());
                     InternalChildren result = searchAndReduce(
-                        indexSearcher,
-                        new TermQuery(new Term("join_field", "parent_type")),
-                        aggregationBuilder,
-                        withJoinFields(fieldType, fieldType2)
+                        new AggTestConfig(
+                            indexSearcher,
+                            new TermQuery(new Term("join_field", "parent_type")),
+                            aggregationBuilder,
+                            withJoinFields(fieldType, fieldType2)
+                        )
                     );
 
                     Terms terms = result.getAggregations().get("_name2");
                     TopHits topHits = terms.getBuckets().get(0).getAggregations().get("_name3");
-                    assertThat(topHits.getHits().getHits(), arrayWithSize(1));
-                    topHits = terms.getBuckets().get(1).getAggregations().get("_name3");
                     assertThat(topHits.getHits().getHits(), arrayWithSize(1));
                 }
             }
@@ -298,7 +297,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             new StringField("join_field", CHILD_TYPE, Field.Store.NO),
             createJoinField(PARENT_TYPE, parentId),
             new SortedNumericDocValuesField("number", value),
-            new SortedSetDocValuesField("string_field", new BytesRef(randomBoolean() ? "1" : "2"))
+            new SortedSetDocValuesField("string_field", new BytesRef("str_value"))
         );
     }
 
@@ -312,7 +311,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalChildren result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType));
+        InternalChildren result = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType)));
         verify.accept(result);
     }
 

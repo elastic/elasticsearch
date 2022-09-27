@@ -81,7 +81,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
         private double scriptHeight(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue> geometry = assertGeometry(doc);
             if (geometry.size() == 0) {
                 return Double.NaN;
             } else {
@@ -92,7 +92,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
         private double scriptWidth(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue> geometry = assertGeometry(doc);
             if (geometry.size() == 0) {
                 return Double.NaN;
             } else {
@@ -103,29 +103,29 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
         private double scriptLat(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lat();
         }
 
         private double scriptLon(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lon();
         }
 
         private double scriptLabelLat(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lat();
         }
 
         private double scriptLabelLon(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            LeafShapeFieldData.ShapeScriptValues<GeoPoint> geometry = assertGeometry(doc);
+            LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue> geometry = assertGeometry(doc);
             return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lon();
         }
 
-        private LeafShapeFieldData.ShapeScriptValues<GeoPoint> assertGeometry(Map<?, ?> doc) {
+        private LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue> assertGeometry(Map<?, ?> doc) {
             AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues geometry =
                 (AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues) doc.get("location");
             if (geometry.size() == 0) {

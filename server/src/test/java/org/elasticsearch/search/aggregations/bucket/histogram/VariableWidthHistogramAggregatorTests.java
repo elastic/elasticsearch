@@ -624,7 +624,9 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                     throw new IOException("Test data has an invalid type");
                 }
 
-                final InternalVariableWidthHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                final InternalVariableWidthHistogram histogram = searchAndReduce(
+                    new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldType)
+                );
                 verify.accept(histogram);
             }
         }

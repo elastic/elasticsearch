@@ -360,6 +360,101 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
     }
 
+    public void testValidateDownsamplingAction() {
+        {
+            Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, TEST_ROLLOVER_ACTION));
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(warmPhase, coldPhase, hotPhase))
+            );
+            assertThat(
+                e.getMessage(),
+                is("Downsampling interval [1h] for phase [cold] must be greater than the interval [1h] for phase [warm]")
+            );
+        }
+
+        {
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30)))
+            );
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(coldPhase, warmPhase))
+            );
+            assertThat(
+                e.getMessage(),
+                is("Downsampling interval [30m] for phase [cold] must be greater than the interval [1h] for phase [warm]")
+            );
+        }
+
+        {
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(130)))
+            );
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(coldPhase, warmPhase))
+            );
+            assertThat(
+                e.getMessage(),
+                is("Downsampling interval [130m] for phase [cold] must be a multiple of the interval [1h] for phase [warm]")
+            );
+        }
+
+        {
+            Phase hotPhase = new Phase(
+                "hot",
+                TimeValue.ZERO,
+                Map.of(
+                    RolloverAction.NAME,
+                    TEST_ROLLOVER_ACTION,
+                    DownsampleAction.NAME,
+                    new DownsampleAction(DateHistogramInterval.minutes(10))
+                )
+            );
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(2)))
+            );
+
+            // This is a valid interval combination
+            TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(coldPhase, warmPhase, hotPhase));
+        }
+    }
+
     public void testGetOrderedPhases() {
         Map<String, Phase> phaseMap = new HashMap<>();
         for (String phaseName : randomSubsetOf(randomIntBetween(0, ORDERED_VALID_PHASES.size()), ORDERED_VALID_PHASES)) {
@@ -843,6 +938,29 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
+        {
+            // not inject in hot phase
+            Phase phase = new Phase(HOT_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // not inject in frozen phase
+            Phase phase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // not inject in delete phase
+            Phase phase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // return false for invalid phase
+            Phase phase = new Phase(HOT_PHASE + randomAlphaOfLength(5), TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
     }
 
     public void testValidatingSearchableSnapshotRepos() {

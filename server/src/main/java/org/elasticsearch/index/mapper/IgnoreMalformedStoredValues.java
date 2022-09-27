@@ -10,10 +10,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -33,6 +33,13 @@ import static java.util.Collections.emptyList;
  * {@code _source}.
  */
 public abstract class IgnoreMalformedStoredValues {
+    public static XContentParser prepareParser(XContentParser parser) throws IOException {
+        if (parser.currentToken().isValue()) {
+            return parser;
+        }
+        return new CopyingXContentParser(parser);
+    }
+
     /**
      * Build a {@link StoredField} for the value on which the parser is
      * currently positioned.
@@ -45,6 +52,9 @@ public abstract class IgnoreMalformedStoredValues {
      */
     public static StoredField storedField(String fieldName, XContentParser parser) throws IOException {
         String name = name(fieldName);
+        if (parser instanceof CopyingXContentParser copying) {
+            return new StoredField(name, encode(copying));
+        }
         return switch (parser.currentToken()) {
             case VALUE_STRING -> new StoredField(name, parser.text());
             case VALUE_NUMBER -> switch (parser.numberType()) {
@@ -57,13 +67,7 @@ public abstract class IgnoreMalformedStoredValues {
                 };
             case VALUE_BOOLEAN -> new StoredField(name, new byte[] { parser.booleanValue() ? (byte) 't' : (byte) 'f' });
             case VALUE_EMBEDDED_OBJECT -> new StoredField(name, encode(parser.binaryValue()));
-            case START_OBJECT, START_ARRAY -> {
-                try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
-                    builder.copyCurrentStructure(parser);
-                    yield new StoredField(name, encode(builder));
-                }
-            }
-            default -> throw new IllegalArgumentException("synthetic _source doesn't support malformed objects");
+            default -> throw new IllegalArgumentException("synthetic _source doesn't support malformed " + parser.currentToken());
         };
     }
 
@@ -225,25 +229,17 @@ public abstract class IgnoreMalformedStoredValues {
         return encoded;
     }
 
-    private static byte[] encode(XContentBuilder builder) throws IOException {
-        BytesReference b = BytesReference.bytes(builder);
-        byte[] encoded = new byte[1 + b.length()];
-        encoded[0] = switch (builder.contentType()) {
+    private static byte[] encode(CopyingXContentParser parser) throws IOException {
+        byte[] bytes = parser.bytes();
+        byte[] encoded = new byte[1 + bytes.length];
+        encoded[0] = switch (parser.contentType()) {
             case JSON -> 'j';
             case SMILE -> 's';
             case YAML -> 'y';
             case CBOR -> 'c';
-            default -> throw new IllegalArgumentException("unsupported type " + builder.contentType());
+            default -> throw new IllegalArgumentException("unsupported type " + parser.contentType());
         };
-
-        int position = 1;
-        BytesRefIterator itr = b.iterator();
-        BytesRef ref;
-        while ((ref = itr.next()) != null) {
-            System.arraycopy(ref.bytes, ref.offset, encoded, position, ref.length);
-            position += ref.length;
-        }
-        assert position == encoded.length;
+        System.arraycopy(bytes, 0, encoded, 1, bytes.length);
         return encoded;
     }
 }

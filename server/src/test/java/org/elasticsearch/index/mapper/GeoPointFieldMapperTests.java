@@ -31,6 +31,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -453,94 +455,117 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("synthetic _source for geo_point doesn't support ignore_malformed", ignoreMalformed);
-        return new SyntheticSourceSupport() {
-            private final boolean ignoreZValue = usually();
-            private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
+        return new GeoPointSyntheticSourceSupport(ignoreMalformed);
+    }
 
-            @Override
-            public SyntheticSourceExample example(int maxVals) {
-                if (randomBoolean()) {
-                    Tuple<Object, GeoPoint> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), this::mapping);
+    private class GeoPointSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final boolean ignoreZValue = usually();
+        private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
+        private final boolean ignoreMalformed;
+
+        private GeoPointSyntheticSourceSupport(boolean ignoreMalformed) {
+            this.ignoreMalformed = ignoreMalformed;
+        }
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            if (randomBoolean()) {
+                Tuple<Object, Object> v = generateValue();
+                if (v.v2()instanceof GeoPoint p) {
+                    return new SyntheticSourceExample(v.v1(), decode(encode(p)), this::mapping);
                 }
-                List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
-                List<Object> in = values.stream().map(Tuple::v1).toList();
-                List<Map<String, Object>> outList = values.stream().map(t -> encode(t.v2())).sorted().map(this::decode).toList();
-                Object out = outList.size() == 1 ? outList.get(0) : outList;
-                return new SyntheticSourceExample(in, out, this::mapping);
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
             }
+            List<Tuple<Object, Object>> values = randomList(1, maxVals, this::generateValue);
+            List<Object> in = values.stream().map(Tuple::v1).toList();
+            List<Object> outList = values.stream()
+                .filter(v -> v.v2() instanceof GeoPoint)
+                .map(t -> encode((GeoPoint) t.v2()))
+                .sorted()
+                .map(this::decode)
+                .collect(Collectors.toCollection(ArrayList::new));
+            values.stream().filter(v -> false == v.v2() instanceof GeoPoint).map(v -> v.v2()).forEach(outList::add);
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
 
-            private Tuple<Object, GeoPoint> generateValue() {
-                if (nullValue != null && randomBoolean()) {
-                    return Tuple.tuple(null, nullValue);
-                }
-                GeoPoint point = randomGeoPoint();
-                return Tuple.tuple(randomGeoPointInput(point), point);
-            }
-
-            private GeoPoint randomGeoPoint() {
-                Point point = GeometryTestUtils.randomPoint(false);
-                return new GeoPoint(point.getLat(), point.getLon());
-            }
-
-            private Object randomGeoPointInput(GeoPoint point) {
-                if (randomBoolean()) {
-                    return Map.of("lat", point.lat(), "lon", point.lon());
-                }
-                List<Double> coords = new ArrayList<>();
-                coords.add(point.lon());
-                coords.add(point.lat());
-                if (ignoreZValue) {
-                    coords.add(randomDouble());
-                }
-                return Map.of("coordinates", coords, "type", "point");
-            }
-
-            private long encode(GeoPoint point) {
-                return new LatLonDocValuesField("f", point.lat(), point.lon()).numericValue().longValue();
-            }
-
-            private Map<String, Object> decode(long point) {
-                double lat = GeoEncodingUtils.decodeLatitude((int) (point >> 32));
-                double lon = GeoEncodingUtils.decodeLongitude((int) (point & 0xFFFFFFFF));
-                return new TreeMap<>(Map.of("lat", lat, "lon", lon));
-            }
-
-            private void mapping(XContentBuilder b) throws IOException {
-                b.field("type", "geo_point");
-                if (ignoreZValue == false || rarely()) {
-                    b.field("ignore_z_value", ignoreZValue);
-                }
-                if (nullValue != null) {
-                    b.field("null_value", randomGeoPointInput(nullValue));
-                }
-                if (rarely()) {
-                    b.field("index", false);
-                }
-                if (rarely()) {
-                    b.field("store", false);
-                }
-            }
-
-            @Override
-            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of(
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it doesn't have doc values"),
-                        b -> b.field("type", "geo_point").field("doc_values", false)
-                    ),
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it declares copy_to"),
-                        b -> b.field("type", "geo_point").field("copy_to", "foo")
-                    ),
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it ignores malformed points"),
-                        b -> b.field("type", "geo_point").field("ignore_malformed", true)
-                    )
+        private Tuple<Object, Object> generateValue() {
+            if (ignoreMalformed && randomBoolean()) {
+                List<Supplier<Object>> choices = List.of(
+                    () -> "not a valid geohash " + randomAlphaOfLength(3),
+                    () -> Map.of("garbage", "garbage")
                 );
+                // We can't generate numbers here because they might be interpreted as half of a geo point....
+                Object v = randomFrom(choices).get();
+                return Tuple.tuple(v, v);
             }
-        };
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            GeoPoint point = randomGeoPoint();
+            return Tuple.tuple(randomGeoPointInput(point), point);
+        }
+
+        private GeoPoint randomGeoPoint() {
+            Point point = GeometryTestUtils.randomPoint(false);
+            return new GeoPoint(point.getLat(), point.getLon());
+        }
+
+        private Object randomGeoPointInput(GeoPoint point) {
+            if (randomBoolean()) {
+                return Map.of("lat", point.lat(), "lon", point.lon());
+            }
+            List<Double> coords = new ArrayList<>();
+            coords.add(point.lon());
+            coords.add(point.lat());
+            if (ignoreZValue) {
+                coords.add(randomDouble());
+            }
+            return Map.of("coordinates", coords, "type", "point");
+        }
+
+        private long encode(GeoPoint point) {
+            return new LatLonDocValuesField("f", point.lat(), point.lon()).numericValue().longValue();
+        }
+
+        private Object decode(long point) {
+            double lat = GeoEncodingUtils.decodeLatitude((int) (point >> 32));
+            double lon = GeoEncodingUtils.decodeLongitude((int) (point & 0xFFFFFFFF));
+            return new TreeMap<>(Map.of("lat", lat, "lon", lon));
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "geo_point");
+            if (ignoreZValue == false || rarely()) {
+                b.field("ignore_z_value", ignoreZValue);
+            }
+            if (nullValue != null) {
+                b.field("null_value", randomGeoPointInput(nullValue));
+            }
+            if (ignoreMalformed) {
+                b.field("ignore_malformed", true);
+            }
+            if (rarely()) {
+                b.field("index", false);
+            }
+            if (rarely()) {
+                b.field("store", false);
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    equalTo("field [field] of type [geo_point] doesn't support synthetic source because it doesn't have doc values"),
+                    b -> b.field("type", "geo_point").field("doc_values", false)
+                ),
+                new SyntheticSourceInvalidExample(
+                    equalTo("field [field] of type [geo_point] doesn't support synthetic source because it declares copy_to"),
+                    b -> b.field("type", "geo_point").field("copy_to", "foo")
+                )
+            );
+        }
     }
 
     @Override

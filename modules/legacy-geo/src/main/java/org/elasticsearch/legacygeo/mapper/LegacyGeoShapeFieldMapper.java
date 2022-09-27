@@ -18,6 +18,7 @@ import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
@@ -57,7 +58,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -393,18 +393,19 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public void parse(
             XContentParser parser,
             CheckedConsumer<ShapeBuilder<?, ?, ?>, IOException> consumer,
-            Consumer<Exception> onMalformed
+            CheckedBiConsumer<XContentParser, Exception, IOException> onMalformed,
+            boolean saveSyntheticSourceForMalformed
         ) throws IOException {
             try {
                 if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        parse(parser, consumer, onMalformed);
+                        parse(parser, consumer, onMalformed, saveSyntheticSourceForMalformed);
                     }
                 } else {
                     consumer.accept(ShapeParser.parse(parser));
                 }
             } catch (ElasticsearchParseException e) {
-                onMalformed.accept(e);
+                onMalformed.accept(parser, e);
             }
         }
 

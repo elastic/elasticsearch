@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
@@ -16,7 +17,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.function.Consumer;
 
 class ShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry> {
     private final GeometryParser geometryParser;
@@ -26,18 +26,22 @@ class ShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry> {
     }
 
     @Override
-    public void parse(XContentParser parser, CheckedConsumer<Geometry, IOException> consumer, Consumer<Exception> onMalformed)
-        throws IOException {
+    public void parse(
+        XContentParser parser,
+        CheckedConsumer<Geometry, IOException> consumer,
+        CheckedBiConsumer<XContentParser, Exception, IOException> onMalformed,
+        boolean saveSyntheticSourceForMalformed
+    ) throws IOException {
         try {
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    parse(parser, consumer, onMalformed);
+                    parse(parser, consumer, onMalformed, saveSyntheticSourceForMalformed);
                 }
             } else {
                 consumer.accept(geometryParser.parse(parser));
             }
         } catch (ParseException | ElasticsearchParseException | IllegalArgumentException e) {
-            onMalformed.accept(e);
+            onMalformed.accept(parser, e);
         }
     }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.core.CheckedConsumer;
@@ -52,12 +53,16 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
          * Parse the given xContent value to one or more objects of type {@link T}. The value can be
          * in any supported format.
          */
-        public abstract void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, Consumer<Exception> onMalformed)
-            throws IOException;
+        public abstract void parse(
+            XContentParser parser,
+            CheckedConsumer<T, IOException> consumer,
+            CheckedBiConsumer<XContentParser, Exception, IOException> onMalformed,
+            boolean saveSyntheticSourceForMalformed
+        ) throws IOException;
 
         private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
             try (XContentParser parser = wrapObject(sourceMap)) {
-                parse(parser, v -> consumer.accept(normalizeFromSource(v)), e -> {}); /* ignore malformed */
+                parse(parser, v -> consumer.accept(normalizeFromSource(v)), (xContentParser, e) -> {/* ignore malformed */}, false);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -197,14 +202,21 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                 new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter")
             );
         }
-        parser.parse(context.parser(), v -> index(context, v), e -> {
+
+        parser.parse(context.parser(), v -> index(context, v), (xContentParser, e) -> {
             if (ignoreMalformed()) {
                 context.addIgnoredField(fieldType().name());
+                onIgnoredMalformedValue(context, xContentParser);
             } else {
                 throw new MapperParsingException("failed to parse field [" + fieldType().name() + "] of type [" + contentType() + "]", e);
             }
-        });
+        }, ignoreMalformed() && context.isSyntheticSource());
     }
+
+    /**
+     * Called when we encounter a malformed value. Override to support synthetic {@code _source}.
+     */
+    protected void onIgnoredMalformedValue(DocumentParserContext context, XContentParser parser) throws IOException {}
 
     @Override
     public boolean ignoreMalformed() {

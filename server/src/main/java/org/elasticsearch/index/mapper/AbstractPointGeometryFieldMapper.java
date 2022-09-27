@@ -8,6 +8,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.core.CheckedConsumer;
@@ -16,7 +17,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -91,8 +91,12 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         protected abstract T createPoint(double x, double y);
 
         @Override
-        public void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, Consumer<Exception> onMalformed)
-            throws IOException {
+        public void parse(
+            XContentParser parser,
+            CheckedConsumer<T, IOException> consumer,
+            CheckedBiConsumer<XContentParser, Exception, IOException> onMalformed,
+            boolean saveSyntheticSourceForMalformed
+        ) throws IOException {
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 XContentParser.Token token = parser.nextToken();
                 if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -121,7 +125,7 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                                 consumer.accept(nullValue);
                             }
                         } else {
-                            parseAndConsumeFromObject(parser, consumer, onMalformed);
+                            parseAndConsumeFromObject(parser, consumer, onMalformed, saveSyntheticSourceForMalformed);
                         }
                         token = parser.nextToken();
                     }
@@ -131,20 +135,22 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                     consumer.accept(nullValue);
                 }
             } else {
-                parseAndConsumeFromObject(parser, consumer, onMalformed);
+                parseAndConsumeFromObject(parser, consumer, onMalformed, saveSyntheticSourceForMalformed);
             }
         }
 
         private void parseAndConsumeFromObject(
             XContentParser parser,
             CheckedConsumer<T, IOException> consumer,
-            Consumer<Exception> onMalformed
-        ) {
+            CheckedBiConsumer<XContentParser, Exception, IOException> onMalformed,
+            boolean saveSyntheticSourceForMalformed
+        ) throws IOException {
+            XContentParser wrappedParser = saveSyntheticSourceForMalformed ? IgnoreMalformedStoredValues.prepareParser(parser) : parser;
             try {
-                T point = objectParser.apply(parser);
+                T point = objectParser.apply(wrappedParser);
                 consumer.accept(validate(point));
             } catch (Exception e) {
-                onMalformed.accept(e);
+                onMalformed.accept(wrappedParser, e);
             }
         }
     }

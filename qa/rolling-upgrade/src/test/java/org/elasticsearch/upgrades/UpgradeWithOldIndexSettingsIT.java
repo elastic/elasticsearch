@@ -53,7 +53,9 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
                 // add some data
                 Request bulk = new Request("POST", "/_bulk");
                 bulk.addParameter("refresh", "true");
-                bulk.setOptions(expectWarnings(EXPECTED_WARNING));
+                if (UPGRADE_FROM_VERSION.before(Version.V_8_0_0)) {
+                    bulk.setOptions(expectWarnings(EXPECTED_WARNING));
+                }
                 bulk.setJsonEntity(String.format(Locale.ROOT, """
                     {"index": {"_index": "%s"}}
                     {"f1": "v1", "f2": "v2"}
@@ -64,7 +66,9 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
                 // add some more data
                 Request bulk = new Request("POST", "/_bulk");
                 bulk.addParameter("refresh", "true");
-                bulk.setOptions(expectWarnings(EXPECTED_WARNING));
+                if (UPGRADE_FROM_VERSION.before(Version.V_8_0_0)) {
+                    bulk.setOptions(expectWarnings(EXPECTED_WARNING));
+                }
                 bulk.setJsonEntity(String.format(Locale.ROOT, """
                     {"index": {"_index": "%s"}}
                     {"f1": "v3", "f2": "v4"}

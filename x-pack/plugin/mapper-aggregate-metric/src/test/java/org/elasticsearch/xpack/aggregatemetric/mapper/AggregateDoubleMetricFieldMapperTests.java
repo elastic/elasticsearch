@@ -353,6 +353,28 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         );
     }
 
+    /**
+     * Test parsing a metric and check the min max value
+     */
+    public void testCheckMinMaxValue() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+
+        // min > max
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                source(b -> b.startObject("field").field("min", 50.0).field("max", 10.0).field("value_count", 14).endObject())
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("Aggregate metric field [field] max value cannot be smaller than min value"));
+
+        // min == max
+        mapper.parse(source(b -> b.startObject("field").field("min", 50.0).field("max", 50.0).field("value_count", 14).endObject()));
+
+        // min < max
+        mapper.parse(source(b -> b.startObject("field").field("min", 10.0).field("max", 50.0).field("value_count", 14).endObject()));
+    }
+
     private void randomMapping(XContentBuilder b, int randomNumber) throws IOException {
         b.field("type", CONTENT_TYPE);
         switch (randomNumber) {
@@ -626,6 +648,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             for (Metric m : storedMetrics) {
                 if (Metric.value_count == m) {
                     value.put(m.name(), randomLongBetween(1, 1_000_000));
+                } else if (Metric.max == m) {
+                    value.put(m.name(), randomDoubleBetween(100d, 1_000_000d, false));
+                } else if (Metric.min == m) {
+                    value.put(m.name(), randomDoubleBetween(-1_000_000d, 99d, false));
                 } else {
                     value.put(m.name(), randomDouble());
                 }

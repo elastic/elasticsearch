@@ -383,7 +383,7 @@ setup:
   - is_true: acknowledged
 
   - do:
-      catch: /Downsampling interval \[1h\] must be greater than the the source index interval \[1h\]/
+      catch: /Downsampling interval \[1h\] must be greater than the source index interval \[1h\]/
       indices.downsample:
         index: rollup-test
         target_index: rollup-test-2
@@ -393,7 +393,7 @@ setup:
           }
 
   - do:
-      catch: /Downsampling interval \[30m\] must be greater than the the source index interval \[1h\]/
+      catch: /Downsampling interval \[30m\] must be greater than the source index interval \[1h\]/
       indices.downsample:
         index: rollup-test
         target_index: rollup-test-2

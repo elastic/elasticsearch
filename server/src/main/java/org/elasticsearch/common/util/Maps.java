@@ -341,15 +341,15 @@ public class Maps {
     }
 
     /**
-     * Converts the supplied list to a hash map where each key is the list's index.
+     * Converts the supplied list to a map where each key is the list's index.
      *
      * @param list the list to convert
      * @param <V> the value type
-     * @return a new {@link HashMap}
+     * @return a new {@link Map}
      */
     public static <V> Map<Integer, V> fromList(List<V> list) {
         return IntStream.range(0, list.size())
-            .mapToObj(index -> Map.entry(Integer.valueOf(index), list.get(index)))
+            .mapToObj(index -> Map.entry(index, list.get(index)))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }

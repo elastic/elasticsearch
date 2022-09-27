@@ -643,7 +643,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.mapping = mapping;
         this.customData = customData;
         this.aliases = aliases;
-        this.inSyncAllocationIds = inSyncAllocationIds;
+        this.inSyncAllocationIds = Collections.unmodifiableList(inSyncAllocationIds);
         this.requireFilters = requireFilters;
         this.includeFilters = includeFilters;
         this.excludeFilters = excludeFilters;

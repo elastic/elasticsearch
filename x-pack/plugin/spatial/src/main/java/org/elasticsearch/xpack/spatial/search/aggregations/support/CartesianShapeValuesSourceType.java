@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MissingValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexCartesianPointFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
@@ -68,34 +67,7 @@ public class CartesianShapeValuesSourceType extends ShapeValuesSourceType {
         return new CartesianShapeValuesSource() {
             @Override
             public CartesianShapeValues shapeValues(LeafReaderContext context) {
-                CartesianShapeValues values = shapeValuesSource.shapeValues(context);
-                return new CartesianShapeValues() {
-
-                    private boolean exists;
-
-                    @Override
-                    public boolean advanceExact(int doc) throws IOException {
-                        exists = values.advanceExact(doc);
-                        // always return true because we want to return a value even if
-                        // the document does not have a value
-                        return true;
-                    }
-
-                    @Override
-                    public ValuesSourceType valuesSourceType() {
-                        return values.valuesSourceType();
-                    }
-
-                    @Override
-                    public CartesianShapeValue value() throws IOException {
-                        return exists ? values.value() : missing;
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "anon MultiShapeValues of [" + super.toString() + "]";
-                    }
-                };
+                return new CartesianShapeValues.Wrapped(shapeValuesSource.shapeValues(context), missing);
             }
 
             @Override

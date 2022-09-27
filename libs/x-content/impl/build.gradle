@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.java'
 archivesBaseName = "x-content-impl"
 
 String jacksonVersion = "2.13.2"
-String snakeyamlVersion = "1.30"
+String snakeyamlVersion = "1.33"
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')

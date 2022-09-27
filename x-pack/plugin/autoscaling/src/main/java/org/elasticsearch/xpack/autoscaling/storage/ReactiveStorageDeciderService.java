@@ -60,6 +60,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -68,6 +69,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -230,6 +232,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     // todo: move this to top level class.
     public static class AllocationState {
+
+        static final int MAX_AMOUNT_OF_SHARD_DECISIONS = 5;
+
         private final ClusterState state;
         private final ClusterState originalState;
         private final AllocationDeciders allocationDeciders;
@@ -291,7 +296,15 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 unassignedShards.stream().map(e -> e.shard.shardId()).collect(Collectors.toCollection(TreeSet::new)),
                 unassignedShards.stream()
                     .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                    .collect(toMap(snd -> snd.shard.shardId(), snd -> new NodeDecisions(snd.nodeDecisions, List.of()), (a, b) -> b))
+                    .sorted(Comparator.comparing((ShardNodeDecisions shd) -> shd.shard.shardId()))
+                    .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
+                    .collect(
+                        toMap(snd -> snd.shard.shardId(), snd -> new NodeDecisions(snd.nodeDecisions, List.of()), (a, b) -> b, TreeMap::new)
+                    )
+                    .entrySet()
+                    .stream()
+                    .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
+                    .collect(toMap(Map.Entry::getKey, Map.Entry::getValue))
             );
         }
 
@@ -378,9 +391,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                                 shardAllocateDecisions.getOrDefault(snd.shard.shardId(), List.of()),
                                 snd.nodeDecisions
                             ),
-                            (a, b) -> b
+                            (a, b) -> b,
+                            TreeMap::new
                         )
                     )
+                    .entrySet()
+                    .stream()
+                    .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
+                    .collect(toMap(Map.Entry::getKey, Map.Entry::getValue))
             );
         }
 
@@ -895,7 +913,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
-        static final int MAX_AMOUNT_OF_SHARD_DECISIONS = 5;
         private static final Version SHARD_IDS_OUTPUT_VERSION = Version.V_8_4_0;
         private static final Version UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = Version.V_8_6_0;
 
@@ -1010,17 +1027,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             builder.field("assigned_shards_count", assignedShardIds.size());
             builder.xContentValuesMap(
                 "unassigned_node_decisions",
-                unassignedNodeDecisions.entrySet()
-                    .stream()
-                    .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
-                    .collect(toMap(e -> e.getKey().toString(), Map.Entry::getValue))
+                unassignedNodeDecisions.entrySet().stream().collect(toMap(e -> e.getKey().toString(), Map.Entry::getValue))
             );
             builder.xContentValuesMap(
                 "assigned_node_decisions",
-                assignedNodeDecisions.entrySet()
-                    .stream()
-                    .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
-                    .collect(toMap(e -> e.getKey().toString(), Map.Entry::getValue))
+                assignedNodeDecisions.entrySet().stream().collect(toMap(e -> e.getKey().toString(), Map.Entry::getValue))
             );
             builder.endObject();
             return builder;

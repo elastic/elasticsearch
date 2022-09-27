@@ -67,10 +67,12 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptySortedSet;
+import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
+import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService.AllocationState.MAX_AMOUNT_OF_SHARD_DECISIONS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -156,7 +158,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 expectedShardIds,
                 shardNodeDecisions -> {
                     if (numPrevents > 0) {
-                        assertEquals(expectedShardIds, shardNodeDecisions.keySet());
+                        assertEquals(cappedShardIds(expectedShardIds), shardNodeDecisions.keySet());
                         assertEquals(
                             Decision.single(Decision.Type.NO, "disk_threshold", "test"),
                             singleNoDecision(shardNodeDecisions.get(expectedShardIds.first()).canAllocateDecisions().get(0))
@@ -199,7 +201,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             );
             if (numPrevents > 0) {
                 verifyScale(numPrevents, "not enough storage available, needs " + numPrevents + "b", Map::isEmpty, shardIdNodeDecisions -> {
-                    assertEquals(expectedShardIds, shardIdNodeDecisions.keySet());
+                    assertEquals(cappedShardIds(expectedShardIds), shardIdNodeDecisions.keySet());
                     assertEquals(
                         Decision.single(Decision.Type.NO, "disk_threshold", "test"),
                         singleNoDecision(shardIdNodeDecisions.get(expectedShardIds.first()).canAllocateDecisions().get(0))
@@ -290,7 +292,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             subjectShards.size(),
             expectedShardIds,
             shardIdNodeDecisions -> {
-                assertEquals(expectedShardIds, shardIdNodeDecisions.keySet());
+                assertEquals(cappedShardIds(expectedShardIds), shardIdNodeDecisions.keySet());
                 assertEquals(
                     Decision.single(Decision.Type.NO, "disk_threshold", "test"),
                     singleNoDecision(shardIdNodeDecisions.get(expectedShardIds.first()).canAllocateDecisions().get(0))
@@ -314,7 +316,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, 0, emptySortedSet(), Map::isEmpty);
 
         verifyScale(subjectShards.size(), "not enough storage available, needs " + subjectShards.size() + "b", shardNodeDecisions -> {
-            assertEquals(expectedShardIds, shardNodeDecisions.keySet());
+            assertEquals(cappedShardIds(expectedShardIds), shardNodeDecisions.keySet());
             assertEquals(Decision.Type.NO, shardNodeDecisions.get(expectedShardIds.first()).canRemainDecisions().get(0).decision().type());
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
@@ -425,7 +427,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             .collect(Collectors.toCollection(TreeSet::new));
 
         verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, nodes, shardIds, shardNodeDecisions -> {
-            assertEquals(shardIds, shardNodeDecisions.keySet());
+            assertEquals(cappedShardIds(shardIds), shardNodeDecisions.keySet());
             assertEquals(hotNodes - 1, shardNodeDecisions.get(shardIds.first()).canAllocateDecisions().size());
             assertTrue(
                 shardNodeDecisions.get(shardIds.first())
@@ -453,7 +455,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         // only consider it once (move case) if both cannot remain and cannot allocate.
         verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, nodes, shardIds, shardNodeDecisions -> {
-            assertEquals(shardIds, shardNodeDecisions.keySet());
+            assertEquals(cappedShardIds(shardIds), shardNodeDecisions.keySet());
             assertEquals(hotNodes - 1, shardNodeDecisions.get(shardIds.first()).canAllocateDecisions().size());
             assertTrue(
                 shardNodeDecisions.get(shardIds.first())
@@ -470,7 +472,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         }, mockCanAllocateDiskDecider, mockCanRemainDiskDecider);
 
         verifyScale(nodes, "not enough storage available, needs " + nodes + "b", shardNodeDecisions -> {
-            assertEquals(shardIds, shardNodeDecisions.keySet());
+            assertEquals(cappedShardIds(shardIds), shardNodeDecisions.keySet());
             assertEquals(hotNodes - 1, shardNodeDecisions.get(shardIds.first()).canAllocateDecisions().size());
             assertTrue(
                 shardNodeDecisions.get(shardIds.first())
@@ -487,6 +489,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         }, Map::isEmpty, mockCanRemainDiskDecider, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok", Map::isEmpty, Map::isEmpty, mockCanRemainDiskDecider, CAN_REMAIN_NO_DECIDER, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok", Map::isEmpty, Map::isEmpty);
+    }
+
+    private static SortedSet<ShardId> cappedShardIds(SortedSet<ShardId> shardIds) {
+        return shardIds.stream().limit(MAX_AMOUNT_OF_SHARD_DECISIONS).collect(Collectors.toCollection(TreeSet::new));
     }
 
     private static Decision singleNoDecision(NodeDecision nodeAllocationResult) {
@@ -688,7 +694,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                     Set<RoutingNode> candidates = allocation.routingNodes()
                         .stream()
                         .filter(n -> allocation.deciders().canAllocate(toMove, n, allocation) == Decision.YES)
-                        .collect(Collectors.toSet());
+                        .collect(toSet());
                     if (candidates.isEmpty() == false) {
                         allocation.routingNodes().relocateShard(toMove, randomFrom(candidates).nodeId(), 0L, allocation.changes());
                     }
@@ -725,7 +731,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         private TestAutoscalingDeciderContext(ClusterState state, Set<DiscoveryNodeRole> roles, AutoscalingCapacity currentCapacity) {
             this.state = state;
             this.currentCapacity = currentCapacity;
-            this.nodes = state.nodes().stream().filter(n -> roles.stream().anyMatch(n.getRoles()::contains)).collect(Collectors.toSet());
+            this.nodes = state.nodes().stream().filter(n -> roles.stream().anyMatch(n.getRoles()::contains)).collect(toSet());
             this.roles = roles;
             this.info = createClusterInfo(state);
         }
@@ -839,11 +845,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static String randomNodeId(RoutingNodes routingNodes, DiscoveryNodeRole role) {
-        return randomFrom(routingNodes.stream().map(RoutingNode::node).filter(n -> n.getRoles().contains(role)).collect(Collectors.toSet()))
-            .getId();
+        return randomFrom(routingNodes.stream().map(RoutingNode::node).filter(n -> n.getRoles().contains(role)).collect(toSet())).getId();
     }
 
     private static Set<ShardId> shardIds(Iterable<ShardRouting> candidateShards) {
-        return StreamSupport.stream(candidateShards.spliterator(), false).map(ShardRouting::shardId).collect(Collectors.toSet());
+        return StreamSupport.stream(candidateShards.spliterator(), false).map(ShardRouting::shardId).collect(toSet());
     }
 }

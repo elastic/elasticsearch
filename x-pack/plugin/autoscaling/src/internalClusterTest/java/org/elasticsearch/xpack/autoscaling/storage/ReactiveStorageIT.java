@@ -40,6 +40,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService.AllocationState.MAX_AMOUNT_OF_SHARD_DECISIONS;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -112,7 +113,10 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             .results()
             .get("reactive_storage")
             .reason();
-        assertEquals(reactiveReason.assignedShardIds(), reactiveReason.assignedNodeDecisions().keySet());
+        assertEquals(
+            reactiveReason.assignedShardIds().stream().limit(MAX_AMOUNT_OF_SHARD_DECISIONS).collect(Collectors.toSet()),
+            reactiveReason.assignedNodeDecisions().keySet()
+        );
         NodeDecision canRemainNodeDecision = reactiveReason.assignedNodeDecisions()
             .get(reactiveReason.assignedShardIds().first())
             .canRemainDecisions()

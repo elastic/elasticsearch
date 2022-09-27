@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -87,7 +88,9 @@ public class ReservedClusterStateService {
             Priority.URGENT,
             new ReservedStateUpdateTaskExecutor(clusterService.getRerouteService())
         );
-        this.errorTaskQueue = clusterService.getTaskQueue("reserved state error", Priority.URGENT, new ReservedStateErrorTaskExecutor());
+        this.errorTaskQueue = Objects.requireNonNull(
+            clusterService.getTaskQueue("reserved state error", Priority.URGENT, new ReservedStateErrorTaskExecutor())
+        );
         this.handlers = handlerList.stream().collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity()));
         stateChunkParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, name) -> {
             if (handlers.containsKey(name) == false) {

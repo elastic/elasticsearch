@@ -35,7 +35,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * Generic test that creates new instance from the test instance and checks
      * both for equality and asserts equality on the two instances.
      */
-    public final void testFromXContent() throws IOException {
+    public void testFromXContent() throws IOException {
         xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance).numberOfTestRuns(
             NUMBER_OF_TEST_RUNS
         )

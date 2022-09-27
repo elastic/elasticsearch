@@ -61,7 +61,7 @@ public interface ShardsAllocator {
 
         try {
             if (retryFailed) {
-                allocation.routingNodes().unassigned().resetFailedAllocationCounter(allocation.changes());
+                allocation.routingNodes().resetFailedCounter(allocation.changes());
             }
             return commands.execute(allocation, explain);
         } finally {

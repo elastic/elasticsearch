@@ -31,9 +31,7 @@ import java.nio.file.Path;
 final class TranslogHeader {
     public static final String TRANSLOG_CODEC = "translog";
 
-    public static final int VERSION_CHECKSUMS = 1; // pre-2.0 - unsupported
-    public static final int VERSION_CHECKPOINTS = 2; // added checkpoints
-    public static final int VERSION_PRIMARY_TERM = 3; // added primary term
+    public static final int VERSION_PRIMARY_TERM = 3; // with: checksums, checkpoints and primary term
     public static final int CURRENT_VERSION = VERSION_PRIMARY_TERM;
 
     private final String translogUUID;
@@ -96,16 +94,10 @@ final class TranslogHeader {
     static int readHeaderVersion(final Path path, final FileChannel channel, final StreamInput in) throws IOException {
         final int version;
         try {
-            version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_CHECKSUMS, VERSION_PRIMARY_TERM);
+            version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_PRIMARY_TERM, VERSION_PRIMARY_TERM);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
             tryReportOldVersionError(path, channel);
             throw new TranslogCorruptedException(path.toString(), "translog header corrupted", e);
-        }
-        if (version == VERSION_CHECKSUMS) {
-            throw new IllegalStateException("pre-2.0 translog found [" + path + "]");
-        }
-        if (version == VERSION_CHECKPOINTS) {
-            throw new IllegalStateException("pre-6.3 translog found [" + path + "]");
         }
         return version;
     }
@@ -168,10 +160,8 @@ final class TranslogHeader {
         // 0x3f => Lucene's magic number, so we can assume it's version 1 or later
         // 0x00 => version 0 of the translog
         final byte b1 = Channels.readFromFileChannel(channel, 0, 1)[0];
-        if (b1 == 0x3f) { // LUCENE_CODEC_HEADER_BYTE
-            throw new TranslogCorruptedException(path.toString(), "translog looks like version 1 or later, but has corrupted header");
-        } else if (b1 == 0x00) { // UNVERSIONED_TRANSLOG_HEADER_BYTE
-            throw new IllegalStateException("pre-1.4 translog found [" + path + "]");
+        if (b1 == 0x3f || b1 == 0x00) { // LUCENE_CODEC_HEADER_BYTE or UNVERSIONED_TRANSLOG_HEADER_BYTE
+            throw new TranslogCorruptedException(path.toString(), "translog has corrupted header");
         }
     }
 

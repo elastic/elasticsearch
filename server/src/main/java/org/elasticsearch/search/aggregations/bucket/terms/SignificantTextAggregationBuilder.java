@@ -74,7 +74,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
 
         PARSER.declareObject(
             SignificantTextAggregationBuilder::backgroundFilter,
-            (p, context) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+            (p, context) -> AbstractQueryBuilder.parseTopLevelQuery(p),
             SignificantTermsAggregationBuilder.BACKGROUND_FILTER
         );
 

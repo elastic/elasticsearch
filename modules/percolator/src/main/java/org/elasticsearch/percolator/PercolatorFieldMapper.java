@@ -79,7 +79,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class PercolatorFieldMapper extends FieldMapper {
 
@@ -495,7 +495,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     private static QueryBuilder parseQueryBuilder(XContentParser parser, XContentLocation location) {
         try {
-            return parseInnerQueryBuilder(parser);
+            return parseTopLevelQuery(parser);
         } catch (IOException e) {
             throw new ParsingException(location, "Failed to parse", e);
         }

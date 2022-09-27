@@ -246,7 +246,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     protected static <R extends EqlSearchRequest> ObjectParser<R, Void> objectParser(Supplier<R> supplier) {
         ObjectParser<R, Void> parser = new ObjectParser<>("eql/search", false, supplier);
-        parser.declareObject(EqlSearchRequest::filter, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
+        parser.declareObject(EqlSearchRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER);
         parser.declareString(EqlSearchRequest::timestampField, TIMESTAMP_FIELD);
         parser.declareString(EqlSearchRequest::tiebreakerField, TIEBREAKER_FIELD);
         parser.declareString(EqlSearchRequest::eventCategoryField, EVENT_CATEGORY_FIELD);

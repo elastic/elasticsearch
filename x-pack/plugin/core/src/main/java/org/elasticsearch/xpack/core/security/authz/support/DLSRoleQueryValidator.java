@@ -157,7 +157,7 @@ public final class DLSRoleQueryValidator {
     public static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
         if (query != null) {
             try (XContentParser parser = XContentFactory.xContent(query).createParser(parserConfig(xContentRegistry), query)) {
-                QueryBuilder queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
+                QueryBuilder queryBuilder = AbstractQueryBuilder.parseTopLevelQuery(parser);
                 verifyRoleQuery(queryBuilder);
                 return queryBuilder;
             }

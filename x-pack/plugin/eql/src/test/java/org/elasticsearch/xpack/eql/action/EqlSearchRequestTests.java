@@ -25,7 +25,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 
 public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlSearchRequest> {
@@ -90,7 +90,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
     }
 
     protected QueryBuilder parseFilter(XContentParser parser) throws IOException {
-        QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
+        QueryBuilder parseInnerQueryBuilder = parseTopLevelQuery(parser);
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
     }

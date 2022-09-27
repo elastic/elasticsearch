@@ -56,7 +56,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -390,7 +390,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
-        QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
+        QueryBuilder parseInnerQueryBuilder = parseTopLevelQuery(parser);
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
     }

@@ -30,7 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTANCE;
@@ -139,7 +139,7 @@ public class RestGraphAction extends BaseRestHandler {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(fieldName, parser.getDeprecationHandler())) {
-                    currentHop.guidingQuery(parseInnerQueryBuilder(parser));
+                    currentHop.guidingQuery(parseTopLevelQuery(parser));
                 } else if (CONNECTIONS_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                     parseHop(parser, graphRequest.createNextHop(null), graphRequest);
                 } else if (CONTROLS_FIELD.match(fieldName, parser.getDeprecationHandler())) {

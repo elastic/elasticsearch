@@ -169,7 +169,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class IndicesService extends AbstractLifecycleComponent
@@ -1638,7 +1638,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 InputStream inputStream = bytes.streamInput();
                 XContentParser parser = XContentFactory.xContentType(inputStream).xContent().createParser(parserConfig, inputStream)
             ) {
-                return parseInnerQueryBuilder(parser);
+                return parseTopLevelQuery(parser);
             }
         };
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);

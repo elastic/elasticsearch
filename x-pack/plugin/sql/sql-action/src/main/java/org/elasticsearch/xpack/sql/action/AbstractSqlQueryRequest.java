@@ -154,7 +154,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
             (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, Protocol.PAGE_TIMEOUT, PAGE_TIMEOUT_NAME)),
             PAGE_TIMEOUT
         );
-        parser.declareObject(AbstractSqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
+        parser.declareObject(AbstractSqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER);
         parser.declareObject(AbstractSqlQueryRequest::runtimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
         return parser;
     }

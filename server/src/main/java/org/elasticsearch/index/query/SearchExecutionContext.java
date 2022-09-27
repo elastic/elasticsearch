@@ -61,7 +61,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
@@ -643,10 +642,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public Client getClient() {
         failIfFrozen(); // we somebody uses a terms filter with lookup for instance can't be cached...
         return client;
-    }
-
-    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
-        return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
     }
 
     @Override

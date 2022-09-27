@@ -25,7 +25,11 @@ class ReservedStateErrorTaskExecutor extends SimpleBatchedExecutor<ReservedState
 
     @Override
     public ClusterState executeTask(ReservedStateErrorTask task, ClusterState clusterState) {
-        return task.execute(clusterState);
+        if (task.shouldUpdate(clusterState)) {
+            return task.execute(clusterState);
+        }
+        // if the task didn't run, it still 'succeeded', it just didn't have any effect
+        return clusterState;
     }
 
     @Override

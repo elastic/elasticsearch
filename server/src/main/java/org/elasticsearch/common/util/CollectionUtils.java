@@ -230,6 +230,7 @@ public class CollectionUtils {
      * @param set      set to copy
      * @param elements elements to add
      */
+    @SuppressWarnings("unchecked")
     public static <E> Set<E> addToCopy(Set<E> set, E... elements) {
         var copy = new HashSet<>(set);
         copy.addAll(Arrays.asList(elements));

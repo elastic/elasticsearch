@@ -644,7 +644,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.customData = customData;
         this.aliases = aliases;
         this.inSyncAllocationIds = inSyncAllocationIds;
-        assert(this.numberOfShards == this.inSyncAllocationIds.size());
+        assert this.numberOfShards == this.inSyncAllocationIds.size();
         this.requireFilters = requireFilters;
         this.includeFilters = includeFilters;
         this.excludeFilters = excludeFilters;

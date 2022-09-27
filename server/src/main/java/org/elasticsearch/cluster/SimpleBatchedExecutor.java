@@ -19,11 +19,11 @@ public abstract class SimpleBatchedExecutor<T extends ClusterStateTaskListener> 
     /**
      * Executes the provided task from the batch.
      *
-     * @param taskContext The task to be executed.
+     * @param task The task to be executed.
      * @param clusterState    The cluster state on which the task should be executed.
      * @return The resulting cluster state after executing this task.
      */
-    public abstract ClusterState executeTask(T taskContext, ClusterState clusterState);
+    public abstract ClusterState executeTask(T task, ClusterState clusterState) throws Exception;
 
     /**
      * Called once all tasks in the batch have finished execution. It should return a cluster state that reflects

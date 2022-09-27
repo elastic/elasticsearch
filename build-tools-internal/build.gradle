@@ -293,6 +293,8 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
+
+  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
 }
 
 tasks.named('test').configure {

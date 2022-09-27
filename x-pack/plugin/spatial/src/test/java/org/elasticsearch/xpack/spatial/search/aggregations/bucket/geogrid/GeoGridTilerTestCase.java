@@ -29,10 +29,8 @@ import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
-import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -264,12 +262,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         int index = 0;
 
         private TestGeoShapeValues(GeoShapeValues.GeoShapeValue[] values) {
-            super(
-                CoordinateEncoder.GEO,
-                GeoShapeValues.GeoShapeValue::new,
-                new GeoShapeIndexer(Orientation.CCW, "missing"),
-                GeoShapeValuesSourceType.instance()
-            );
+            super(GeoShapeValues.DEFAULT_CONFIG);
             this.values = values;
         }
 

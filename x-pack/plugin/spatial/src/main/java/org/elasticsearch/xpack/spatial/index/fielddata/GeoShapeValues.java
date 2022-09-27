@@ -25,13 +25,19 @@ public interface GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue
 
     GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
     GeoShapeValues EMPTY = new Empty();
+    ShapeValuesConfig<GeoShapeValues.GeoShapeValue> DEFAULT_CONFIG = new ShapeValuesConfig<>(
+        CoordinateEncoder.GEO,
+        GeoShapeValue::new,
+        new GeoShapeIndexer(Orientation.CCW, "missing"),
+        DEFAULT_VALUES_SOURCE_TYPE
+    );
 
     /**
      * Produce empty ShapeValues for geo data
      */
     class Empty extends ShapeValues.Empty<GeoShapeValue> implements GeoShapeValues {
         Empty() {
-            super(CoordinateEncoder.GEO, GeoShapeValue::new, new GeoShapeIndexer(Orientation.CCW, "missing"), DEFAULT_VALUES_SOURCE_TYPE);
+            super(DEFAULT_CONFIG);
         }
     }
 
@@ -40,14 +46,7 @@ public interface GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue
      */
     class Wrapped extends ShapeValues.Wrapped<GeoShapeValue> implements GeoShapeValues {
         public Wrapped(ShapeValues<GeoShapeValue> values, GeoShapeValue missing) {
-            super(
-                CoordinateEncoder.GEO,
-                GeoShapeValue::new,
-                new GeoShapeIndexer(Orientation.CCW, "missing"),
-                DEFAULT_VALUES_SOURCE_TYPE,
-                values,
-                missing
-            );
+            super(DEFAULT_CONFIG, values, missing);
         }
     }
 
@@ -56,14 +55,7 @@ public interface GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue
     */
     class BinaryDocData extends ShapeValues.BinaryDocData<GeoShapeValue> implements GeoShapeValues {
         public BinaryDocData(BinaryDocValues binaryValues) {
-            super(
-                CoordinateEncoder.GEO,
-                GeoShapeValue::new,
-                new GeoShapeIndexer(Orientation.CCW, "missing"),
-                DEFAULT_VALUES_SOURCE_TYPE,
-                binaryValues,
-                new GeoShapeValue()
-            );
+            super(DEFAULT_CONFIG, binaryValues, new GeoShapeValue());
         }
     }
 

@@ -64,13 +64,13 @@ public interface ShapeValues<T extends ShapeValues.ShapeValue> {
 
     T missing(String missing);
 
-    abstract class ShapeValuesImpl<T extends ShapeValues.ShapeValue> implements ShapeValues<T> {
+    class ShapeValuesConfig<T extends ShapeValues.ShapeValue> {
         protected final CoordinateEncoder encoder;
         protected final Supplier<T> supplier;
         protected final ShapeIndexer missingShapeIndexer;
         protected final ShapeValuesSourceType valuesSourceType;
 
-        protected ShapeValuesImpl(
+        protected ShapeValuesConfig(
             CoordinateEncoder encoder,
             Supplier<T> supplier,
             ShapeIndexer missingShapeIndexer,
@@ -81,19 +81,27 @@ public interface ShapeValues<T extends ShapeValues.ShapeValue> {
             this.missingShapeIndexer = missingShapeIndexer;
             this.valuesSourceType = valuesSourceType;
         }
+    }
+
+    abstract class ShapeValuesImpl<T extends ShapeValues.ShapeValue> implements ShapeValues<T> {
+        protected final ShapeValuesConfig<T> config;
+
+        protected ShapeValuesImpl(ShapeValuesConfig<T> config) {
+            this.config = config;
+        }
 
         @Override
         public ValuesSourceType valuesSourceType() {
-            return valuesSourceType;
+            return config.valuesSourceType;
         }
 
         @Override
         public T missing(String missing) {
             try {
                 final Geometry geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing);
-                final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder);
-                field.add(missingShapeIndexer.indexShape(geometry), geometry);
-                final T value = supplier.get();
+                final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", config.encoder);
+                field.add(config.missingShapeIndexer.indexShape(geometry), geometry);
+                final T value = config.supplier.get();
                 value.reset(field.binaryValue());
                 return value;
             } catch (IOException | ParseException e) {
@@ -106,8 +114,8 @@ public interface ShapeValues<T extends ShapeValues.ShapeValue> {
      * An empty collection of ShapeValue
      */
     class Empty<T extends ShapeValues.ShapeValue> extends ShapeValuesImpl<T> {
-        protected Empty(CoordinateEncoder encoder, Supplier<T> supplier, ShapeIndexer indexer, ShapeValuesSourceType sourceType) {
-            super(encoder, supplier, indexer, sourceType);
+        protected Empty(ShapeValuesConfig<T> config) {
+            super(config);
         }
 
         @Override
@@ -128,15 +136,8 @@ public interface ShapeValues<T extends ShapeValues.ShapeValue> {
         private final BinaryDocValues binaryValues;
         private final T shapeValue;
 
-        protected BinaryDocData(
-            CoordinateEncoder encoder,
-            Supplier<T> supplier,
-            ShapeIndexer indexer,
-            ShapeValuesSourceType sourceType,
-            BinaryDocValues binaryValues,
-            T shapeValue
-        ) {
-            super(encoder, supplier, indexer, sourceType);
+        protected BinaryDocData(ShapeValuesConfig<T> config, BinaryDocValues binaryValues, T shapeValue) {
+            super(config);
             this.binaryValues = binaryValues;
             this.shapeValue = shapeValue;
         }
@@ -161,15 +162,8 @@ public interface ShapeValues<T extends ShapeValues.ShapeValue> {
         private final T missing;
         private boolean exists;
 
-        protected Wrapped(
-            CoordinateEncoder encoder,
-            Supplier<T> supplier,
-            ShapeIndexer indexer,
-            ShapeValuesSourceType sourceType,
-            ShapeValues<T> values,
-            T missing
-        ) {
-            super(encoder, supplier, indexer, sourceType);
+        protected Wrapped(ShapeValuesConfig<T> config, ShapeValues<T> values, T missing) {
+            super(config);
             this.values = values;
             this.missing = missing;
         }

@@ -24,13 +24,19 @@ public interface CartesianShapeValues extends ShapeValues<CartesianShapeValues.C
 
     CartesianShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = CartesianShapeValuesSourceType.instance();
     CartesianShapeValues EMPTY = new CartesianShapeValues.Empty();
+    ShapeValuesConfig<CartesianShapeValues.CartesianShapeValue> DEFAULT_CONFIG = new ShapeValuesConfig<>(
+        CoordinateEncoder.CARTESIAN,
+        CartesianShapeValue::new,
+        new CartesianShapeIndexer("missing"),
+        DEFAULT_VALUES_SOURCE_TYPE
+    );
 
     /**
      * Produce empty ShapeValues for cartesian data
      */
     class Empty extends ShapeValues.Empty<CartesianShapeValues.CartesianShapeValue> implements CartesianShapeValues {
         Empty() {
-            super(CoordinateEncoder.CARTESIAN, CartesianShapeValue::new, new CartesianShapeIndexer("missing"), DEFAULT_VALUES_SOURCE_TYPE);
+            super(DEFAULT_CONFIG);
         }
     }
 
@@ -39,14 +45,7 @@ public interface CartesianShapeValues extends ShapeValues<CartesianShapeValues.C
      */
     class Wrapped extends ShapeValues.Wrapped<CartesianShapeValue> implements CartesianShapeValues {
         public Wrapped(ShapeValues<CartesianShapeValue> values, CartesianShapeValue missing) {
-            super(
-                CoordinateEncoder.CARTESIAN,
-                CartesianShapeValue::new,
-                new CartesianShapeIndexer("missing"),
-                DEFAULT_VALUES_SOURCE_TYPE,
-                values,
-                missing
-            );
+            super(DEFAULT_CONFIG, values, missing);
         }
     }
 
@@ -55,14 +54,7 @@ public interface CartesianShapeValues extends ShapeValues<CartesianShapeValues.C
      */
     class BinaryDocData extends ShapeValues.BinaryDocData<CartesianShapeValue> implements CartesianShapeValues {
         public BinaryDocData(BinaryDocValues binaryValues) {
-            super(
-                CoordinateEncoder.CARTESIAN,
-                CartesianShapeValue::new,
-                new CartesianShapeIndexer("missing"),
-                DEFAULT_VALUES_SOURCE_TYPE,
-                binaryValues,
-                new CartesianShapeValue()
-            );
+            super(DEFAULT_CONFIG, binaryValues, new CartesianShapeValue());
         }
     }
 

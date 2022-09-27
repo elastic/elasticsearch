@@ -1,9 +1,15 @@
 ---
+setup:
+  - skip:
+      features: warnings
+---
 "Test ingest attachment processor with .doc file":
   - skip:
       version: " - 7.99.99"
       reason: "new fields added in 8.0.0"
   - do:
+      warnings:
+        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change."
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -47,6 +53,8 @@
       version: " - 8.2.99"
       reason: "tika upgraded in 8.3.0"
   - do:
+      warnings:
+        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change."
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >

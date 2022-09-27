@@ -335,7 +335,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         @Override
         public String toString() {
-            return "{" + "primaryTerm=" + primaryTerm + ", seqNo=" + seqNo + '}';
+            return "{primaryTerm=" + primaryTerm + ", seqNo=" + seqNo + '}';
         }
 
         public Version nextSeqNo(int increment) {

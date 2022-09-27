@@ -46,12 +46,18 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
         return listener;
     }
 
-    boolean shouldUpdate(ClusterState currentState) {
-        // check for noop here
-        ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
+    // package private for testing
+    static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion) {
+        return (existingMetadata == null
+            || existingMetadata.errorMetadata() == null
+            || newStateVersion <= 0 // version will be -1 when we can't even parse the file, it might be 0 on snapshot restore
+            || existingMetadata.errorMetadata().version() < newStateVersion);
+    }
 
-        boolean shouldUpdate = ReservedClusterStateService.isNewError(existingMetadata, errorState.version());
-        if (shouldUpdate == false) {
+    static boolean checkErrorVersion(ClusterState currentState, ErrorState errorState) {
+        ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
+        // check for noop here
+        if (isNewError(existingMetadata, errorState.version()) == false) {
             logger.info(
                 () -> format(
                     "Not updating error state because version [%s] is less or equal to the last state error version [%s]",
@@ -59,8 +65,13 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
                     existingMetadata.errorMetadata().version()
                 )
             );
+            return false;
         }
-        return shouldUpdate;
+        return true;
+    }
+
+    boolean shouldUpdate(ClusterState currentState) {
+        return checkErrorVersion(currentState, errorState);
     }
 
     ClusterState execute(ClusterState currentState) {

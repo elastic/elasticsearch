@@ -40,6 +40,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.checkErrorVersion;
+import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.isNewError;
 import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.checkMetadataVersion;
 import static org.elasticsearch.reservedstate.service.ReservedStateUpdateTask.keysForHandler;
 
@@ -248,15 +250,13 @@ public class ReservedClusterStateService {
     }
 
     // package private for testing
-    static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion) {
-        return (existingMetadata == null
-            || existingMetadata.errorMetadata() == null
-            || newStateVersion <= 0 // version will be -1 when we can't even parse the file, it might be 0 on snapshot restore
-            || existingMetadata.errorMetadata().version() < newStateVersion);
-    }
-
-    // package private for testing
     void updateErrorState(ErrorState errorState) {
+        // optimistic check here - the cluster state might change after this, so also need to re-check later
+        if (checkErrorVersion(clusterService.state(), errorState) == false) {
+            // nothing to update
+            return;
+        }
+
         submitErrorUpdateTask(errorState);
     }
 

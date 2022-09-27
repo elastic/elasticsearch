@@ -326,10 +326,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(operatorMetadata).build();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
-        assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 2L));
-        assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 1L));
-        assertTrue(ReservedClusterStateService.isNewError(operatorMetadata, 3L));
-        assertTrue(ReservedClusterStateService.isNewError(null, 1L));
+        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 2L));
+        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 1L));
+        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, 3L));
+        assertTrue(ReservedStateErrorTask.isNewError(null, 1L));
 
         var chunk = new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT));
         var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
@@ -343,7 +343,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             List.of(),
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
             orderedHandlers,
-            errorState -> assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())),
+            errorState -> assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, errorState.version())),
             new ActionListener<>() {
                 @Override
                 public void onResponse(ActionResponse.Empty empty) {}
@@ -484,6 +484,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
     public void testCheckAndReportError() {
         ClusterService clusterService = mock(ClusterService.class);
+        var state = ClusterState.builder(new ClusterName("elasticsearch")).build();
+        when(clusterService.state()).thenReturn(state);
+
         final var controller = spy(new ReservedClusterStateService(clusterService, List.of()));
 
         assertNull(controller.checkAndReportError("test", List.of(), null));

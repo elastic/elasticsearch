@@ -203,14 +203,32 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
         }
     }
 
+    /**
+     * A basic implementation for batch executors that simply need to execute the task in the batch iteratively,
+     * producing a cluster state after each task. This allows executing the tasks in the batch as a
+     * series of executions, each taking an input cluster state and producing a new cluster state that serves as the
+     * input of the next task in the batch.
+     */
     abstract class DefaultBatchExecutor<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor<T> {
 
+        /**
+         * Executes the provided task from the batch.
+         *
+         * @param taskContext The task to be executed.
+         * @param curState The cluster state on which the task should be executed.
+         * @return The resulting cluster state after executing this task.
+         */
         public abstract ClusterState executeTask(TaskContext<T> taskContext, ClusterState curState);
 
-        public ClusterState beforeBatchExecution(BatchExecutionContext<T> batchExecutionContext) {
-            return batchExecutionContext.initialState();
-        }
-
+        /**
+         * Called once all tasks in the batch have finished execution. It should return a cluster state that reflects
+         * the execution of all the tasks.
+         *
+         * @param batchExecutionContext The tasks that were executed.
+         * @param initState The cluster state before executing the tasks.
+         * @param curState The cluster state resulting from the execution of all the tasks.
+         * @return The resulting cluster state after executing all the tasks.
+         */
         public ClusterState afterBatchExecution(
             BatchExecutionContext<T> batchExecutionContext,
             ClusterState initState,
@@ -219,17 +237,30 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
             return curState;
         }
 
+        /**
+         * Called if executing a task in the batch finished successfully, and before execution of the next
+         * task in the batch.
+         *
+         * @param taskContext The task that finished execution successfully.
+         */
         public void taskSucceeded(TaskContext<T> taskContext) {
             taskContext.success(() -> {});
         }
 
+        /**
+         * Called if executing a task in the batch fails by throwing an Exception, and before execution the next
+         * task in the batch.
+         *
+         * @param taskContext The task that failed with an exception.
+         * @param e The Exception thrown by the task execution.
+         */
         public void taskFailed(TaskContext<T> taskContext, Exception e) {
             taskContext.onFailure(e);
         }
 
         @Override
-        public ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception {
-            var initState = beforeBatchExecution(batchExecutionContext);
+        public final ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception {
+            var initState = batchExecutionContext.initialState();
             var curState = initState;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try (var ignored = taskContext.captureResponseHeaders()) {

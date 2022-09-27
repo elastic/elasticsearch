@@ -11,10 +11,10 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -27,17 +27,28 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
     private static final String EXPECTED_WARNING = "[index.indexing.slowlog.level] setting was deprecated in Elasticsearch and will "
         + "be removed in a future release! See the breaking changes documentation for the next major version.";
 
+    private static final String EXPECTED_V8_WARNING = "[index.indexing.slowlog.level] setting was deprecated in the previous Elasticsearch"
+        + " release and is removed in this release.";
+
     @SuppressWarnings("unchecked")
     public void testOldIndexSettings() throws Exception {
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 Request createTestIndex = new Request("PUT", "/" + INDEX_NAME);
+                createTestIndex.setJsonEntity("{\"settings\": {\"index.indexing.slowlog.level\": \"WARN\"}}");
+                createTestIndex.setOptions(expectWarnings(EXPECTED_WARNING));
                 if (UPGRADE_FROM_VERSION.before(Version.V_8_0_0)) {
                     // create index with settings no longer valid in 8.0
-                    createTestIndex.setJsonEntity("{\"settings\": {\"index.indexing.slowlog.level\": \"INFO\"}}");
+                    client().performRequest(createTestIndex);
+                } else {
+                    assertTrue(
+                        expectThrows(ResponseException.class, () -> client().performRequest(createTestIndex)).getMessage()
+                            .contains("unknown setting [index.indexing.slowlog.level]")
+                    );
+
+                    Request createTestIndex1 = new Request("PUT", "/" + INDEX_NAME);
+                    client().performRequest(createTestIndex1);
                 }
-                createTestIndex.setOptions(expectWarnings(EXPECTED_WARNING));
-                client().performRequest(createTestIndex);
 
                 // add some data
                 Request bulk = new Request("POST", "/_bulk");
@@ -62,12 +73,20 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
             }
             case UPGRADED -> {
                 if (UPGRADE_FROM_VERSION.before(Version.V_8_0_0)) {
+                    Request createTestIndex = new Request("PUT", "/" + INDEX_NAME + "/_settings");
+                    // update index settings should work
+                    createTestIndex.setJsonEntity("{\"index.indexing.slowlog.level\": \"INFO\"}");
+                    createTestIndex.setOptions(expectWarnings(EXPECTED_V8_WARNING));
+                    client().performRequest(createTestIndex);
+
+                    // ensure we were able to change the setting, despite it having no effect
                     Request indexSettingsRequest = new Request("GET", "/" + INDEX_NAME + "/_settings");
                     Map<String, Object> response = entityAsMap(client().performRequest(indexSettingsRequest));
 
-                    var slowLogLevel = (String) (
-                        XContentMapValues.extractValue(INDEX_NAME + ".settings.index.indexing.slowlog.level", response)
-                    );
+                    var slowLogLevel = (String) (XContentMapValues.extractValue(
+                        INDEX_NAME + ".settings.index.indexing.slowlog.level",
+                        response
+                    ));
 
                     // check that we can read our old index settings
                     assertThat(slowLogLevel, is("INFO"));
@@ -86,8 +105,6 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
 
         var hitsTotal = (Integer) (XContentMapValues.extractValue("hits.total", response));
 
-        assertTrue(
-            hitsTotal >= countAtLeast
-        );
+        assertTrue(hitsTotal >= countAtLeast);
     }
 }

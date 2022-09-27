@@ -1516,3 +1516,97 @@ setup:
   - match:  { aggregations.date_histogram_no__tz.buckets.1.doc_count: 2 }
   - match:  { aggregations.date_histogram_no__tz.buckets.2.doc_count: 4 }
   - match:  { aggregations.date_histogram_no__tz.buckets.3.doc_count: 3 }
+
+---
+"Composite with date histogram on two indices with same field but different date type":
+  - do:
+      indices.create:
+        index: date_field_type_date
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date_field:
+                type: date
+
+  - do:
+      indices.create:
+        index: date_field_type_date_nanos
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date_field:
+                type: date_nanos
+
+  - do:
+      index:
+        index: date_field_type_date
+        refresh: true
+        id: "1"
+        body:
+          date_field: "2017-10-20T03:08:45"
+
+  - do:
+      index:
+        index: date_field_type_date_nanos
+        refresh: true
+        id: "2"
+        body:
+          date_field: "2017-10-20T04:10:15"
+
+  - do:
+      search:
+        index: date_field_type_date,date_field_type_date_nanos
+        body:
+          aggs:
+            composite_date_histogram:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date_field",
+                        "calendar_interval": "hour"
+                      }
+                    }
+                  }
+                ]
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+  - length: { hits.hits: 2 }
+  - length: { aggregations.composite_date_histogram.buckets: 2 }
+  - match: { aggregations.composite_date_histogram.after_key.date: 1508472000000 }
+  - match: { aggregations.composite_date_histogram.buckets.0.key.date: 1508468400000 }
+  - match: { aggregations.composite_date_histogram.buckets.0.doc_count: 1 }
+  - match: { aggregations.composite_date_histogram.buckets.1.key.date: 1508472000000 }
+  - match: { aggregations.composite_date_histogram.buckets.1.doc_count: 1 }
+
+  - do:
+      search:
+        index: date_field_type_date,date_field_type_date_nanos
+        body:
+          aggs:
+            composite_date_histogram:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date_field",
+                        "calendar_interval": "day"
+                      }
+                    }
+                  }
+                ]
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+  - length: { hits.hits: 2 }
+  - length: { aggregations.composite_date_histogram.buckets: 1 }
+  - match: { aggregations.composite_date_histogram.after_key.date: 1508457600000 }
+  - match: { aggregations.composite_date_histogram.buckets.0.key.date: 1508457600000 }
+  - match: { aggregations.composite_date_histogram.buckets.0.doc_count: 2 }

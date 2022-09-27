@@ -2407,6 +2407,34 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertArrayEquals(new long[] { 10, 10 }, longs2);
     }
 
+    public void testDeeplyNestedDocument() throws Exception {
+        int depth = 10000;
+
+        DocumentMapper docMapper = createMapperService(Settings.builder().put(getIndexSettings()).build(), mapping(b -> {}))
+            .documentMapper();
+        // hits the mapping object depth limit (defaults to 20)
+        MapperParsingException mpe = expectThrows(MapperParsingException.class, () -> docMapper.parse(source(b -> {
+            for (int i = 0; i < depth; i++) {
+                b.startObject("obj");
+            }
+            b.field("foo", 10);
+            for (int i = 0; i < depth; i++) {
+                b.endObject();
+            }
+        })));
+        assertThat(mpe.getCause().getMessage(), containsString("Limit of mapping depth [20] has been exceeded due to object field"));
+
+        // check that multiple-dotted field name underneath an object mapper with subobjects=false does not trigger this
+        DocumentMapper docMapper2 = createMapperService(topMapping(b -> { b.field("subobjects", false); })).documentMapper();
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < depth; i++) {
+            sb.append("obj.");
+        }
+        sb.append("foo");
+        docMapper2.parse(source(b -> { b.field(sb.toString(), 10); }));
+    }
+
     /**
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
      */

@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -937,7 +938,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         // irrecoverable error without special handling
-        if (unwrappedException instanceof ElasticsearchException) {
+        // gh#89802 treat ClusterBlockException is retry-able
+        if (unwrappedException instanceof ClusterBlockException == false && unwrappedException instanceof ElasticsearchException) {
             ElasticsearchException elasticsearchException = (ElasticsearchException) unwrappedException;
             if (ExceptionRootCauseFinder.IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
                 failIndexer("task encountered irrecoverable failure: " + elasticsearchException.getDetailedMessage());

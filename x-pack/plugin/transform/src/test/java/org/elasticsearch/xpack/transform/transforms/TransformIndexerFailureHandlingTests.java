@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -20,11 +21,14 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -518,6 +522,130 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             failureMessage.get(),
             matchesRegex("Failed to execute script with error: \\[.*ArithmeticException: / by zero\\], stack trace: \\[stack\\]")
         );
+    }
+
+    public void testDontFailForClusterBlockException() throws Exception {
+        Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
+        String transformId = randomAlphaOfLength(10);
+        TransformConfig config = new TransformConfig(
+            transformId,
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            null,
+            null,
+            randomPivotConfig(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            new SettingsConfig(pageSize, null, (Boolean) null, null, null),
+            null,
+            null,
+            null,
+            null
+        );
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
+            throw new ClusterBlockException(
+                Collections.singletonMap("test-index", Collections.singleton(MetadataIndexStateService.INDEX_CLOSED_BLOCK))
+            );
+        };
+
+        Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
+
+        TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            null,
+            null,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
+        final CountDownLatch latch = indexer.newLatch(1);
+        indexer.start();
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+
+        latch.countDown();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.MINUTES);
+        assertThat(context.getFailureCount(), equalTo(1));
+    }
+
+    public void testFailForNonRetryableElasticSearchException() throws Exception {
+        Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
+        String transformId = randomAlphaOfLength(10);
+        TransformConfig config = new TransformConfig(
+            transformId,
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            null,
+            null,
+            randomPivotConfig(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            new SettingsConfig(pageSize, null, (Boolean) null, null, null),
+            null,
+            null,
+            null,
+            null
+        );
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
+            throw new ElasticsearchException("internal error") {
+                @Override
+                public RestStatus status() {
+                    return RestStatus.BAD_REQUEST;
+                }
+            };
+        };
+
+        Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
+
+        final AtomicBoolean failIndexerCalled = new AtomicBoolean(false);
+        final AtomicReference<String> failureMessage = new AtomicReference<>();
+        Consumer<String> failureConsumer = message -> {
+            failIndexerCalled.compareAndSet(false, true);
+            failureMessage.compareAndSet(null, message);
+        };
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+
+        MockedTransformIndexer indexer = createMockIndexer(
+            config,
+            state,
+            searchFunction,
+            bulkFunction,
+            null,
+            failureConsumer,
+            threadPool,
+            ThreadPool.Names.GENERIC,
+            auditor,
+            context
+        );
+
+        final CountDownLatch latch = indexer.newLatch(1);
+
+        indexer.start();
+        assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+
+        latch.countDown();
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 10, TimeUnit.SECONDS);
+        assertTrue(failIndexerCalled.get());
+        verify(contextListener, times(1)).fail(matches("task encountered irrecoverable failure: .*: internal error"), any());
+
+        assertThat(failureMessage.get(), matchesRegex("task encountered irrecoverable failure: .*: internal error"));
     }
 
     public void testRetentionPolicyDeleteByQueryThrowsIrrecoverable() throws Exception {

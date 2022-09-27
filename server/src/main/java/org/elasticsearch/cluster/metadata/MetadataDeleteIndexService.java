@@ -52,29 +52,22 @@ public class MetadataDeleteIndexService {
     public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         this.settings = settings;
         this.clusterService = clusterService;
-        executor = new ClusterStateTaskExecutor.DefaultBatchExecutor<DeleteIndexClusterStateUpdateRequest>() {
-            @Override
-            public ClusterState executeTask(TaskContext<DeleteIndexClusterStateUpdateRequest> taskContext, ClusterState curState) {
-                return deleteIndices(curState, Sets.newHashSet(taskContext.getTask().indices()));
-            }
-
-            @Override
-            public void taskSucceeded(TaskContext<DeleteIndexClusterStateUpdateRequest> taskContext) {
-                taskContext.success(taskContext.getTask());
-            }
-
-            @Override
-            public ClusterState afterBatchExecution(
-                BatchExecutionContext<DeleteIndexClusterStateUpdateRequest> batchExecutionContext,
-                ClusterState initState,
-                ClusterState curState
-            ) {
-                if (curState == initState) {
-                    return curState;
+        executor = batchExecutionContext -> {
+            ClusterState state = batchExecutionContext.initialState();
+            for (ClusterStateTaskExecutor.TaskContext<DeleteIndexClusterStateUpdateRequest> taskContext : batchExecutionContext
+                .taskContexts()) {
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    state = deleteIndices(state, Sets.newHashSet(taskContext.getTask().indices()));
+                    taskContext.success(taskContext.getTask());
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
                 }
-                try (var ignored = batchExecutionContext.dropHeadersContext()) {
-                    return allocationService.reroute(curState, "deleted indices");
-                }
+            }
+            if (state == batchExecutionContext.initialState()) {
+                return state;
+            }
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                return allocationService.reroute(state, "deleted indices");
             }
         };
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
@@ -79,24 +80,24 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
         }
     }
 
-    private static class DeleteDesiredNodesExecutor extends ClusterStateTaskExecutor.DefaultBatchExecutor<DeleteDesiredNodesTask> {
+    private static class DeleteDesiredNodesExecutor extends SimpleBatchedExecutor<DeleteDesiredNodesTask> {
         @Override
-        public ClusterState executeTask(TaskContext<DeleteDesiredNodesTask> taskContext, ClusterState curState) {
-            return curState;
+        public ClusterState executeTask(DeleteDesiredNodesTask task, ClusterState clusterState) {
+            return clusterState;
         }
 
         @Override
-        public void taskSucceeded(TaskContext<DeleteDesiredNodesTask> taskContext) {
-            taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
+        public void taskSucceeded(DeleteDesiredNodesTask task) {
+            task.listener().onResponse(ActionResponse.Empty.INSTANCE);
         }
 
         @Override
         public ClusterState afterBatchExecution(
             BatchExecutionContext<DeleteDesiredNodesTask> batchExecutionContext,
-            ClusterState initState,
-            ClusterState curState
+            ClusterState clusterState,
+            boolean clusterStateChanged
         ) {
-            return initState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
+            return clusterState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
         }
     }
 }

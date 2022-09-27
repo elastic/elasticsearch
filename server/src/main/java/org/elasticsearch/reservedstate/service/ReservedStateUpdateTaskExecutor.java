@@ -13,14 +13,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 
 /**
  * Reserved cluster state update task executor
  */
-public class ReservedStateUpdateTaskExecutor extends ClusterStateTaskExecutor.DefaultBatchExecutor<ReservedStateUpdateTask> {
+public class ReservedStateUpdateTaskExecutor extends SimpleBatchedExecutor<ReservedStateUpdateTask> {
 
     private static final Logger logger = LogManager.getLogger(ReservedStateUpdateTaskExecutor.class);
 
@@ -32,17 +32,17 @@ public class ReservedStateUpdateTaskExecutor extends ClusterStateTaskExecutor.De
     }
 
     @Override
-    public ClusterState executeTask(TaskContext<ReservedStateUpdateTask> taskContext, ClusterState curState) {
-        return taskContext.getTask().execute(curState);
+    public ClusterState executeTask(ReservedStateUpdateTask task, ClusterState clusterState) {
+        return task.execute(clusterState);
     }
 
     @Override
-    public void taskSucceeded(TaskContext<ReservedStateUpdateTask> taskContext) {
-        taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
+    public void taskSucceeded(ReservedStateUpdateTask task) {
+        task.listener().onResponse(ActionResponse.Empty.INSTANCE);
     }
 
     @Override
-    public void clusterStatePublished(ClusterState newClusterState) {
+    public void clusterStatePublished() {
         rerouteService.reroute(
             "reroute after saving and reserving part of the cluster state",
             Priority.NORMAL,

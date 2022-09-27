@@ -674,7 +674,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             )
         );
 
-        final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.AbstractRoutingChangesObserver();
+        final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver() {
+        };
         final RoutingNodes routingNodes = clusterState.mutableRoutingNodes();
         final ShardRouting startedPrimary = routingNodes.startShard(
             logger,

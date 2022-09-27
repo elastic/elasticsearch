@@ -135,6 +135,7 @@ public class SequenceSpecTests extends ESTestCase {
                 tsExtractor,
                 tbExtractor,
                 implicitTbExtractor,
+                false,
                 false
             );
             this.ordinal = ordinal;

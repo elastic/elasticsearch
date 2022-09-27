@@ -121,7 +121,8 @@ public class ImplicitTiebreakerTests extends ESTestCase {
                     tsExtractor,
                     tbExtractor,
                     implicitTbExtractor,
-                    criteriaDescending
+                    criteriaDescending,
+                    false
                 )
             );
             // for DESC (TAIL) sequences only the first criterion is descending the rest are ASC, so flip it after the first query

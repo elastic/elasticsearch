@@ -66,7 +66,8 @@ public class ExecutionManager {
         Attribute tiebreaker,
         OrderDirection direction,
         TimeValue maxSpan,
-        Limit limit
+        Limit limit,
+        boolean[] missing
     ) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
 
@@ -129,7 +130,8 @@ public class ExecutionManager {
                     tsExtractor,
                     tbExtractor,
                     itbExtractor,
-                    i == 0 && descending
+                    i == 0 && descending,
+                    missing[i]
                 );
                 criteria.add(criterion);
             } else {

@@ -25,6 +25,7 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
     private final HitExtractor implicitTiebreaker;
 
     private final boolean descending;
+    private final boolean missing;
 
     public SequenceCriterion(
         int stage,
@@ -33,7 +34,8 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
         HitExtractor timestamp,
         HitExtractor tiebreaker,
         HitExtractor implicitTiebreaker,
-        boolean descending
+        boolean descending,
+        boolean missing
     ) {
         super(keys.size());
         this.stage = stage;
@@ -42,8 +44,8 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
         this.implicitTiebreaker = implicitTiebreaker;
-
         this.descending = descending;
+        this.missing = missing;
     }
 
     public int stage() {

@@ -121,6 +121,7 @@ public class PITFailureTests extends ESTestCase {
                     TimestampExtractor.INSTANCE,
                     null,
                     ImplicitTiebreakerHitExtractor.INSTANCE,
+                    false,
                     false
                 )
             );

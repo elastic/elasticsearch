@@ -29,22 +29,31 @@ public class KeyedFilter extends UnaryPlan {
     private final List<? extends NamedExpression> keys;
     private final Attribute timestamp;
     private final Attribute tiebreaker;
+    private final boolean missingEvent;
 
-    public KeyedFilter(Source source, LogicalPlan child, List<? extends NamedExpression> keys, Attribute timestamp, Attribute tiebreaker) {
+    public KeyedFilter(
+        Source source,
+        LogicalPlan child,
+        List<? extends NamedExpression> keys,
+        Attribute timestamp,
+        Attribute tiebreaker,
+        boolean missingEvent
+    ) {
         super(source, child);
         this.keys = keys;
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
+        this.missingEvent = missingEvent;
     }
 
     @Override
     protected NodeInfo<KeyedFilter> info() {
-        return NodeInfo.create(this, KeyedFilter::new, child(), keys, timestamp, tiebreaker);
+        return NodeInfo.create(this, KeyedFilter::new, child(), keys, timestamp, tiebreaker, missingEvent);
     }
 
     @Override
     public KeyedFilter replaceChild(LogicalPlan newChild) {
-        return new KeyedFilter(source(), newChild, keys, timestamp, tiebreaker);
+        return new KeyedFilter(source(), newChild, keys, timestamp, tiebreaker, missingEvent);
     }
 
     public List<? extends NamedExpression> keys() {
@@ -80,9 +89,13 @@ public class KeyedFilter extends UnaryPlan {
         return Resolvables.resolved(keys) && timestamp.resolved() && tiebreaker.resolved();
     }
 
+    public boolean missingEvent() {
+        return missingEvent;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(keys, timestamp, tiebreaker, child());
+        return Objects.hash(keys, timestamp, tiebreaker, child(), missingEvent);
     }
 
     @Override
@@ -99,6 +112,7 @@ public class KeyedFilter extends UnaryPlan {
         return Objects.equals(keys, other.keys)
             && Objects.equals(timestamp, other.timestamp)
             && Objects.equals(tiebreaker, other.tiebreaker)
-            && Objects.equals(child(), other.child());
+            && Objects.equals(child(), other.child())
+            && missingEvent == missingEvent;
     }
 }

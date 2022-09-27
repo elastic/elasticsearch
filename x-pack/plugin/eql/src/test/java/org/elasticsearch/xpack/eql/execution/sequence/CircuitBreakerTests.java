@@ -271,6 +271,7 @@ public class CircuitBreakerTests extends ESTestCase {
                     tsExtractor,
                     null,
                     implicitTbExtractor,
+                    false,
                     false
                 )
             );

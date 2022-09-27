@@ -73,7 +73,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             expectedMax = randomIntBetween(Math.max(1, core), 16);
             builder.put("thread_pool." + threadPoolName + ".max", expectedMax);
         } else {
-            expectedMax = threadPoolName.equals("snapshot") ? 10 : maxBasedOnNumberOfProcessors;
+            expectedMax = threadPoolName.equals(ThreadPool.Names.SNAPSHOT) ? 10 : maxBasedOnNumberOfProcessors;
         }
 
         final long keepAlive;

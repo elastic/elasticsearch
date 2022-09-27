@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90336")
     public void testScalingThreadPoolConfiguration() throws InterruptedException {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         final Settings.Builder builder = Settings.builder();

@@ -81,7 +81,11 @@ public class Sequence implements Comparable<Sequence>, Accountable {
 
     @Override
     public int compareTo(Sequence o) {
-        return ordinal().compareTo(o.ordinal());
+        int result = ordinal().compareTo(o.ordinal());
+        if (result == 0) {
+            return key().compareTo(o.key());
+        }
+        return result;
     }
 
     @Override

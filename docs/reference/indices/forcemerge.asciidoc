@@ -39,13 +39,16 @@ deleted documents. Merging normally happens automatically, but sometimes it is
 useful to trigger a merge manually.
 
 // tag::force-merge-read-only-warn[]
-WARNING: **Force merge should only be called against an index after you have
-finished writing to it.** Force merge can cause very large (>5GB) segments to
-be produced, and if you continue to write to such an index then the automatic
-merge policy will never consider these segments for future merges until they
-mostly consist of deleted documents. This can cause very large segments to
-remain in the index which can result in increased disk usage and worse search
-performance.
+WARNING: **We recommend only force merging a read-only index (meaning the index
+is no longer receiving writes).**  When documents are updated or deleted, the
+old version is not immediately removed, but instead soft-deleted and marked
+with a "tombstone". These soft-deleted documents are automatically cleaned up
+during regular segment merges. But force merge can cause very large (> 5GB)
+segments to be produced, which are not eligible for regular merges. So the
+number of soft-deleted documents can then grow rapidly, resulting in higher
+disk usage and worse search performance. If you regularly force merge an index
+receiving writes, this can also make snapshots more expensive, since the new
+documents can't be backed up incrementally.
 // end::force-merge-read-only-warn[]
 
 

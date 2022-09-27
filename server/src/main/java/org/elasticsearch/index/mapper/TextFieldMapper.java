@@ -895,6 +895,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isAggregatable() {
+            return fielddata;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
 

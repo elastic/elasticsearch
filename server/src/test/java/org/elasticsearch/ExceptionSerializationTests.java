@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -118,6 +117,7 @@ import static java.lang.reflect.Modifier.isInterface;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -241,7 +241,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testIllegalShardRoutingStateException() throws IOException {
-        final ShardRouting routing = TestShardRouting.newShardRouting("test", 0, "xyz", "def", false, ShardRoutingState.STARTED);
+        final ShardRouting routing = newShardRouting("test", 0, "xyz", false, ShardRoutingState.STARTED);
         final String routingAsString = routing.toString();
         IllegalShardRoutingStateException serialize = serialize(
             new IllegalShardRoutingStateException(routing, "foo", new NullPointerException())

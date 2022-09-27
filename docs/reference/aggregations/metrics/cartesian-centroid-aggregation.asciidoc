@@ -219,8 +219,8 @@ POST /places/_search?size=0
   "aggregations": {
     "centroid": {
       "location": {
-        "x": 496.7404240742326,
-        "y": 5239.296147599816
+        "x": 496.74041748046875,
+        "y": 5239.29638671875
       },
       "count": 2
     }

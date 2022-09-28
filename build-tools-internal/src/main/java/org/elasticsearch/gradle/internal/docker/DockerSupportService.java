@@ -48,7 +48,10 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     private static final Logger LOGGER = Logging.getLogger(DockerSupportService.class);
     // Defines the possible locations of the Docker CLI. These will be searched in order.
     private static final String[] DOCKER_BINARIES = { "/usr/bin/docker", "/usr/local/bin/docker" };
-    private static final String[] DOCKER_COMPOSE_BINARIES = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+    private static final String[] DOCKER_COMPOSE_BINARIES = {
+        "/usr/local/bin/docker-compose",
+        "/usr/bin/docker-compose",
+        "/usr/libexec/docker/cli-plugins/docker-compose" };
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
     private final ExecOperations execOperations;

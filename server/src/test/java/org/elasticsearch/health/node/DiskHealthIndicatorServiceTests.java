@@ -494,7 +494,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         List<String> affectedResources = diagnosis.affectedResources();
         assertThat(affectedResources.size(), equalTo(numberOfProblemNodes));
         Diagnosis.Definition diagnosisDefinition = diagnosis.definition();
-        assertThat(diagnosisDefinition.cause(), equalTo("Disk is almost full."));
+        if (expectedStatus == HealthStatus.RED) {
+            assertThat(diagnosisDefinition.cause(), equalTo("Disk is full."));
+        } else {
+            assertThat(diagnosisDefinition.cause(), equalTo("The cluster is running low on disk space."));
+        }
         assertThat(
             diagnosisDefinition.action(),
             equalTo("Please add capacity to the current nodes, or replace them with ones with higher capacity.")
@@ -540,7 +544,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         List<String> affectedResources = diagnosis.affectedResources();
         assertThat(affectedResources.size(), equalTo(numberOfProblemNodes));
         Diagnosis.Definition diagnosisDefinition = diagnosis.definition();
-        assertThat(diagnosisDefinition.cause(), equalTo("Disk is almost full."));
+        if (expectedStatus == HealthStatus.RED) {
+            assertThat(diagnosisDefinition.cause(), equalTo("Disk is full."));
+        } else {
+            assertThat(diagnosisDefinition.cause(), equalTo("The cluster is running low on disk space."));
+        }
         assertThat(
             diagnosisDefinition.action(),
             equalTo("Please add capacity to the current nodes, or replace them with ones with higher capacity.")
@@ -626,7 +634,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             List<String> masterAffectedResources = diagnosis.affectedResources();
             assertThat(masterAffectedResources.size(), equalTo(numberOfRedMasterNodes));
             Diagnosis.Definition masterDiagnosisDefinition = diagnosis.definition();
-            assertThat(masterDiagnosisDefinition.cause(), equalTo("Disk is almost full."));
+            assertThat(masterDiagnosisDefinition.cause(), equalTo("Disk is full."));
             assertThat(
                 masterDiagnosisDefinition.action(),
                 equalTo("Please add capacity to the current nodes, or replace them with ones with higher capacity.")
@@ -638,7 +646,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             List<String> nonDataNonMasterAffectedResources = diagnosis.affectedResources();
             assertThat(nonDataNonMasterAffectedResources.size(), equalTo(numberOfRedOtherNodes));
             Diagnosis.Definition nonDataNonMasterDiagnosisDefinition = diagnosis.definition();
-            assertThat(nonDataNonMasterDiagnosisDefinition.cause(), equalTo("Disk is almost full."));
+            assertThat(nonDataNonMasterDiagnosisDefinition.cause(), equalTo("Disk is full."));
             assertThat(
                 nonDataNonMasterDiagnosisDefinition.action(),
                 equalTo("Please add capacity to the current nodes, or replace them with ones with higher capacity.")

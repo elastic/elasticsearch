@@ -29,9 +29,11 @@ import java.util.Objects;
 public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXContentObject {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
+    public static final String STATE_FIELD_DEPRECATION_MESSAGE = "The [state] field in the response to the reroute API is deprecated "
+        + "and will be removed in a future version. Specify ?metric=none to adopt the future behaviour.";
 
     /**
-     * To bre removed in 9
+     * To be removed in 9
      */
     private final ClusterState state;
     private final RoutingExplanations explanations;
@@ -71,12 +73,7 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
         if (Objects.equals(params.param("metric"), "none") == false) {
             // this entire branch needs to be removed in 9
             if (builder.getRestApiVersion().major > RestApiVersion.V_7.major) {
-                deprecationLogger.critical(
-                    DeprecationCategory.API,
-                    "reroute_cluster_state",
-                    "The [state] field in the response to the reroute API is deprecated and will be removed in a future version. "
-                        + "Specify ?metric=none to adopt the future behaviour."
-                );
+                deprecationLogger.critical(DeprecationCategory.API, "reroute_cluster_state", STATE_FIELD_DEPRECATION_MESSAGE);
             }
             builder.startObject("state");
             state.toXContent(builder, params);

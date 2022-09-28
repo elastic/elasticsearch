@@ -8,7 +8,7 @@
 
 Starts a new trained model deployment.
 
-preview::[]
+beta::[]
 
 [[start-trained-model-deployment-request]]
 == {api-request-title}

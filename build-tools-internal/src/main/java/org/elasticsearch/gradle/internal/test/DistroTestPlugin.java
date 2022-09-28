@@ -393,6 +393,10 @@ public class DistroTestPlugin implements Plugin<Project> {
                             continue;
                         }
                     }
+                    if (type == DOCKER_IRONBANK && architecture == Architecture.AARCH64) {
+                        // We don't produce an ARM IronBank Image
+                        continue;
+                    }
                     currentDistros.add(
                         createDistro(distributions, architecture, type, null, bundledJdk, VersionProperties.getElasticsearch())
                     );

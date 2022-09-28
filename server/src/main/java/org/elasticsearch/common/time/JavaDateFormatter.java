@@ -16,7 +16,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
+import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAccessor;
+import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -41,12 +43,17 @@ class JavaDateFormatter implements DateFormatter {
     */
     private static final BiConsumer<DateTimeFormatterBuilder, DateTimeFormatter> DEFAULT_ROUND_UP = (builder, parser) -> {
         String parserAsString = parser.toString();
-        if (parserAsString.contains(ChronoField.MONTH_OF_YEAR.toString())) {
+        if (parserAsString.contains(ChronoField.DAY_OF_YEAR.toString())) {
+            builder.parseDefaulting(ChronoField.DAY_OF_YEAR, 1L);
+        } /*
+            TODO ideally we should make defaulting for weekbased year here too,
+            but this will not work when locale is changed
+            weekbased rounding relies on DateFormatters#localDateFromWeekBasedDate
+        } */else {
             builder.parseDefaulting(ChronoField.MONTH_OF_YEAR, 1L);
-        }
-        if (parserAsString.contains(ChronoField.DAY_OF_MONTH.toString())) {
             builder.parseDefaulting(ChronoField.DAY_OF_MONTH, 1L);
         }
+
         if (parserAsString.contains(ChronoField.CLOCK_HOUR_OF_AMPM.toString())) {
             builder.parseDefaulting(ChronoField.CLOCK_HOUR_OF_AMPM, 11L);
             builder.parseDefaulting(ChronoField.AMPM_OF_DAY, 1L);

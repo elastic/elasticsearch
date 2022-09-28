@@ -176,6 +176,15 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return Arrays.stream(indicesPrivileges).anyMatch(ip -> ip.isUsingDocumentLevelSecurity() || ip.isUsingFieldLevelSecurity());
     }
 
+    // TODO
+    public boolean hasOnlyRemotePrivileges() {
+        return clusterPrivileges == null
+            && configurableClusterPrivileges == null
+            && applicationPrivileges == null
+            && runAs == null
+            && (indicesPrivileges != null && Arrays.stream(indicesPrivileges).allMatch(IndicesPrivileges::hasTargetClusters));
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("Role[");

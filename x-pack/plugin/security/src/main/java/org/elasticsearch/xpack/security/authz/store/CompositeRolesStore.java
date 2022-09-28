@@ -421,8 +421,13 @@ public class CompositeRolesStore {
         // Keyed by application + resource
         Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
 
+        // TODO initialCapacity
         List<String> roleNames = new ArrayList<>(roleDescriptors.size());
         for (RoleDescriptor descriptor : roleDescriptors) {
+            if (descriptor.hasOnlyRemotePrivileges()) {
+                logger.debug("Role descriptor [{}] only has remote privileges. Skipping during local role building.", descriptor.getName());
+                continue;
+            }
             roleNames.add(descriptor.getName());
             if (descriptor.getClusterPrivileges() != null) {
                 clusterPrivileges.addAll(Arrays.asList(descriptor.getClusterPrivileges()));
@@ -579,6 +584,10 @@ public class CompositeRolesStore {
             Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
         ) {
             for (final IndicesPrivileges indicesPrivilege : indicesPrivileges) {
+                if (indicesPrivilege.hasTargetClusters()) {
+                    logger.debug("Index privilege has remote target clusters. Skipping during local role building.");
+                    continue;
+                }
                 // if a index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
                 // merging
                 final boolean isExplicitDenial = indicesPrivileges.length == 1

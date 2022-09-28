@@ -469,18 +469,14 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private void handleException(BatchSummary summary, long startTimeMillis, ClusterState newClusterState, Exception e) {
-        final TimeValue executionTime = getTimeSince(startTimeMillis);
-        final long version = newClusterState.version();
-        final String stateUUID = newClusterState.stateUUID();
-        final String fullState = newClusterState.toString();
         logger.warn(
             () -> format(
                 "took [%s] and then failed to publish updated cluster state (version: %s, uuid: %s) for [%s]:\n%s",
-                executionTime,
-                version,
-                stateUUID,
+                getTimeSince(startTimeMillis),
+                newClusterState.version(),
+                newClusterState.stateUUID(),
                 summary,
-                fullState
+                newClusterState
             ),
             e
         );

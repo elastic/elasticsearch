@@ -43,6 +43,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -299,11 +300,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testSanitizeHeaders() throws Exception {
-        enum SuccessOrFail {
-            SUCCESS,
-            FAIL
-        }
-        for (SuccessOrFail mode : SuccessOrFail.values()) {
+        for (boolean failRequest : List.of(true, false)) {
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, randomAlphaOfLengthBetween(1, 10));
             RestRequest request = mock(RestRequest.class);
             when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
@@ -311,7 +308,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             doAnswer((i) -> {
                 @SuppressWarnings("unchecked")
                 ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
-                if (SuccessOrFail.FAIL.equals(mode)) {
+                if (failRequest) {
                     callback.onFailure(new RuntimeException());
                 } else {
                     callback.onResponse(authentication);
@@ -325,52 +322,6 @@ public class SecurityRestFilterTests extends ESTestCase {
 
             foundKeys = threadContext.getHeaders().keySet();
             assertThat(foundKeys, not(hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER)));
-        }
-    }
-
-    public void testSanitizeHeadersWithSecondaryAuth() throws Exception {
-        enum SuccessOrFail {
-            SUCCESS,
-            FAIL
-        }
-        for (SuccessOrFail mode : SuccessOrFail.values()) {
-            threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, randomAlphaOfLengthBetween(1, 10));
-            threadContext.putHeader(SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME, randomAlphaOfLengthBetween(1, 10));
-            RestRequest request = mock(RestRequest.class);
-            when(channel.request()).thenReturn(request);
-            when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
-            Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
-            doAnswer(i -> {
-                final Object[] arguments = i.getArguments();
-                @SuppressWarnings("unchecked")
-                ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
-                callback.onResponse(primaryAuthentication);
-                return null;
-            }).when(authcService).authenticate(eq(request), anyActionListener());
-
-            Authentication secondaryAuthentication = AuthenticationTestHelper.builder().build();
-            doAnswer(i -> {
-                final Object[] arguments = i.getArguments();
-                @SuppressWarnings("unchecked")
-                ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
-                if (SuccessOrFail.FAIL.equals(mode)) {
-                    callback.onFailure(new RuntimeException());
-                } else {
-                    callback.onResponse(secondaryAuthentication);
-                }
-                return null;
-            }).when(authcService).authenticate(eq(request), eq(false), anyActionListener());
-
-            Set<String> foundKeys = threadContext.getHeaders().keySet();
-            assertThat(foundKeys, hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER));
-            assertThat(foundKeys, hasItem(SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME));
-
-            filter.handleRequest(request, channel, null);
-
-            foundKeys = threadContext.getHeaders().keySet();
-            assertThat(foundKeys, not(hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER)));
-            assertThat(foundKeys, not(hasItem(SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME)));
-
         }
     }
 

@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -702,39 +703,40 @@ public class ThreadContextTests extends ESTestCase {
     }
 
     public void testSanitizeHeaders() {
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final String authorizationHeader = randomCase("authorization");
-        final String authorizationHeader2 = randomCase("es-secondary-authorization");
-        final String authorizationHeader3 = randomCase("ES-Client-Authentication");
-        threadContext.putHeader(authorizationHeader, randomAsciiLettersOfLengthBetween(1, 10));
-        threadContext.putHeader(authorizationHeader2, randomAsciiLettersOfLengthBetween(1, 10));
-        threadContext.putHeader(authorizationHeader3, randomAsciiLettersOfLengthBetween(1, 10));
-        Set<Tuple<String, String>> additionalHeaders = IntStream.range(0, randomInt(10))
-            .mapToObj(i -> new Tuple<>(randomAsciiLettersOfLengthBetween(1, 10), randomAsciiLettersOfLengthBetween(1, 10)))
-            .collect(Collectors.toSet());
-        additionalHeaders.forEach(t -> threadContext.putHeader(t.v1(), t.v2()));
-        Set<String> foundKeys = threadContext.getHeaders().keySet();
-        assertThat(foundKeys, hasItem(authorizationHeader));
-        assertThat(foundKeys, hasItem(authorizationHeader2));
-        assertThat(foundKeys, hasItem(authorizationHeader3));
-        assertThat(
-            foundKeys,
-            containsInAnyOrder(
-                Stream.concat(
-                    additionalHeaders.stream().map(Tuple::v1),
-                    Stream.of(authorizationHeader, authorizationHeader2, authorizationHeader3)
-                ).toArray()
-            )
-        );
+        for (boolean randomizeHeaders : List.of(true, false)) {
+            final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            final String authorizationHeader = randomCase("authorization");
+            final String authorizationHeader2 = randomCase("es-secondary-authorization");
+            final String authorizationHeader3 = randomCase("ES-Client-Authentication");
+            Set<String> possibleHeaders = Set.of(authorizationHeader, authorizationHeader2, authorizationHeader3);
+            Set<String> headers = randomizeHeaders
+                ? randomSet(0, possibleHeaders.size(), () -> randomFrom(possibleHeaders))
+                : possibleHeaders;
 
-        threadContext.sanitizeHeaders();
+            headers.forEach(header -> threadContext.putHeader(header, randomAsciiLettersOfLengthBetween(1, 10)));
 
-        foundKeys = threadContext.getHeaders().keySet();
-        assertThat(foundKeys, not(hasItem(authorizationHeader)));
-        assertThat(foundKeys, not(hasItem(authorizationHeader2)));
-        assertThat(foundKeys, not(hasItem(authorizationHeader3)));
-        assertThat(foundKeys.size(), equalTo(additionalHeaders.size()));
-        assertThat(foundKeys, containsInAnyOrder(additionalHeaders.stream().map(Tuple::v1).toArray()));
+            Set<Tuple<String, String>> additionalHeaders = IntStream.range(0, randomInt(10))
+                .mapToObj(i -> new Tuple<>(randomAsciiLettersOfLengthBetween(1, 10), randomAsciiLettersOfLengthBetween(1, 10)))
+                .collect(Collectors.toSet());
+            additionalHeaders.forEach(t -> threadContext.putHeader(t.v1(), t.v2()));
+            Set<String> requestHeaders = threadContext.getHeaders().keySet();
+            threadContext.addResponseHeader("authorization", randomAsciiLettersOfLengthBetween(1, 10));
+            threadContext.putTransient("authorization", randomAsciiLettersOfLengthBetween(1, 10));
+            assertThat(
+                requestHeaders,
+                containsInAnyOrder(Stream.concat(additionalHeaders.stream().map(Tuple::v1), headers.stream()).toArray())
+            );
+
+            threadContext.sanitizeHeaders();
+
+            requestHeaders = threadContext.getHeaders().keySet();
+            assertThat(requestHeaders, not(hasItem(authorizationHeader)));
+            assertThat(requestHeaders, not(hasItem(authorizationHeader2)));
+            assertThat(requestHeaders, not(hasItem(authorizationHeader3)));
+            assertThat(requestHeaders, containsInAnyOrder(additionalHeaders.stream().map(Tuple::v1).toArray()));
+            assertThat(threadContext.getTransient("authorization"), instanceOf(String.class)); // we don't sanitize transients
+            assertThat(threadContext.getResponseHeaders().keySet(), containsInAnyOrder("authorization")); // we don't sanitize responses
+        }
     }
 
     private String randomCase(String original) {

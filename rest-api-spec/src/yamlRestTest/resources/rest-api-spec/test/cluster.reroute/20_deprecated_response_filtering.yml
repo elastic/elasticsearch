@@ -1,0 +1,21 @@
+---
+"Do not return metadata by default and produce deprecation warning":
+  - skip:
+      features: [ "allowed_warnings" ]
+  - do:
+      cluster.reroute: {}
+      allowed_warnings:
+        - "[state] field is deprecated in a reroute response and will be removed."
+  - is_false: state.metadata
+---
+"If requested return metadata and produce deprecation warning":
+  - skip:
+      features: [ "allowed_warnings" ]
+  - do:
+      cluster.reroute:
+        metric: metadata
+      allowed_warnings:
+        - "[state] field is deprecated in a reroute response and will be removed."
+  - is_true: state.metadata
+  - is_false: state.nodes
+

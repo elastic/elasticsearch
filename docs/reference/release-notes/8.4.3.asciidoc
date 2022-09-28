@@ -10,7 +10,7 @@ Also see <<breaking-changes-8.4,Breaking changes in 8.4>>.
 === Bug fixes
 
 Infra/Core::
-* Fix another potential race in the file settings watcher {es-pull}90302[#90302] (issue: {es-issue}89500[#89500])
+* Fix potential race condition in the file settings watcher on Windows {es-pull}90302[#90302] (issue: {es-issue}89500[#89500])
 * Fix file permission errors to avoid repeated error save loops on Windows {es-pull}90271[#90271] (issue: {es-issue}90222[#90222])
 
 [[regression-8.4.3]]

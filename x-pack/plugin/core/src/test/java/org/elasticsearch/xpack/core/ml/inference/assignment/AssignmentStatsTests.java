@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 
 import java.time.Instant;
@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AssignmentStatsTests extends AbstractWireSerializingTestCase<AssignmentStats> {
+public class AssignmentStatsTests extends AbstractBWCWireSerializationTestCase<AssignmentStats> {
 
     public static AssignmentStats randomDeploymentStats() {
         List<AssignmentStats.NodeStats> nodeStatsList = new ArrayList<>();
@@ -58,6 +58,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
         var lastAccess = Instant.now();
         var inferenceCount = randomNonNegativeLong();
         Double avgInferenceTime = randomDoubleBetween(0.0, 100.0, true);
+        Double avgResponseTime = randomDoubleBetween(0.0, 100.0, true);
         Double avgInferenceTimeLastPeriod = randomDoubleBetween(0.0, 100.0, true);
 
         var noInferenceCallsOnNodeYet = randomBoolean();
@@ -65,12 +66,14 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             lastAccess = null;
             inferenceCount = 0;
             avgInferenceTime = null;
+            avgResponseTime = null;
             avgInferenceTimeLastPeriod = null;
         }
         return AssignmentStats.NodeStats.forStartedState(
             node,
             inferenceCount,
             avgInferenceTime,
+            avgResponseTime,
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
             randomLongBetween(0, 100),
@@ -102,6 +105,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     new DiscoveryNode("node_started_1", buildNewFakeTransportAddress(), Version.CURRENT),
                     10L,
                     randomDoubleBetween(0.0, 100.0, true),
+                    randomDoubleBetween(0.0, 100.0, true),
                     randomIntBetween(1, 10),
                     5,
                     4L,
@@ -119,6 +123,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                 AssignmentStats.NodeStats.forStartedState(
                     new DiscoveryNode("node_started_2", buildNewFakeTransportAddress(), Version.CURRENT),
                     12L,
+                    randomDoubleBetween(0.0, 100.0, true),
                     randomDoubleBetween(0.0, 100.0, true),
                     randomIntBetween(1, 10),
                     15,
@@ -202,5 +207,10 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
     @Override
     protected AssignmentStats createTestInstance() {
         return randomDeploymentStats();
+    }
+
+    @Override
+    protected AssignmentStats mutateInstanceForVersion(AssignmentStats instance, Version version) {
+        return instance;
     }
 }

@@ -32,6 +32,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         private final DiscoveryNode node;
         private final Long inferenceCount;
         private final Double avgInferenceTime;
+        private final Double avgResponseTime;
         private final Instant lastAccess;
         private final Integer pendingCount;
         private final int errorCount;
@@ -51,6 +52,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             DiscoveryNode node,
             long inferenceCount,
             Double avgInferenceTime,
+            Double avgResponseTime,
             int pendingCount,
             int errorCount,
             long cacheHitCount,
@@ -69,6 +71,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 node,
                 inferenceCount,
                 avgInferenceTime,
+                avgResponseTime,
                 lastAccess,
                 pendingCount,
                 errorCount,
@@ -93,6 +96,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 null,
                 null,
                 null,
+                null,
                 0,
                 null,
                 0,
@@ -112,6 +116,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             DiscoveryNode node,
             Long inferenceCount,
             Double avgInferenceTime,
+            Double avgResponseTime,
             @Nullable Instant lastAccess,
             Integer pendingCount,
             int errorCount,
@@ -130,6 +135,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             this.node = node;
             this.inferenceCount = inferenceCount;
             this.avgInferenceTime = avgInferenceTime;
+            this.avgResponseTime = avgResponseTime;
             this.lastAccess = lastAccess;
             this.pendingCount = pendingCount;
             this.errorCount = errorCount;
@@ -186,6 +192,12 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 this.cacheHitCount = null;
                 this.cacheHitCountLastPeriod = null;
             }
+            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+                this.avgResponseTime = in.readOptionalDouble();
+            } else {
+                this.avgResponseTime = null;
+            }
+
         }
 
         public DiscoveryNode getNode() {
@@ -202,6 +214,10 @@ public class AssignmentStats implements ToXContentObject, Writeable {
 
         public Optional<Double> getAvgInferenceTime() {
             return Optional.ofNullable(avgInferenceTime);
+        }
+
+        public Optional<Double> getAvgResponseTime() {
+            return Optional.ofNullable(avgResponseTime);
         }
 
         public Instant getLastAccess() {
@@ -269,8 +285,13 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 builder.field("inference_count", inferenceCount);
             }
             // avoid reporting the average time as 0 if count < 1
-            if (avgInferenceTime != null && (inferenceCount != null && inferenceCount > 0)) {
-                builder.field("average_inference_time_ms", avgInferenceTime);
+            if (inferenceCount != null && inferenceCount > 0) {
+                if (avgInferenceTime != null) {
+                    builder.field("average_inference_time_ms", avgInferenceTime);
+                }
+                if (avgResponseTime != null) {
+                    builder.field("average_response_time_ms", avgResponseTime);
+                }
             }
             if (cacheHitCount != null) {
                 builder.field("inference_cache_hit_count", cacheHitCount);
@@ -337,6 +358,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 out.writeOptionalVLong(cacheHitCount);
                 out.writeOptionalVLong(cacheHitCountLastPeriod);
             }
+            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+                out.writeOptionalDouble(avgResponseTime);
+            }
         }
 
         @Override
@@ -346,6 +370,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             AssignmentStats.NodeStats that = (AssignmentStats.NodeStats) o;
             return Objects.equals(inferenceCount, that.inferenceCount)
                 && Objects.equals(that.avgInferenceTime, avgInferenceTime)
+                && Objects.equals(that.avgResponseTime, avgResponseTime)
                 && Objects.equals(node, that.node)
                 && Objects.equals(lastAccess, that.lastAccess)
                 && Objects.equals(pendingCount, that.pendingCount)
@@ -369,6 +394,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 node,
                 inferenceCount,
                 avgInferenceTime,
+                avgResponseTime,
                 lastAccess,
                 pendingCount,
                 errorCount,

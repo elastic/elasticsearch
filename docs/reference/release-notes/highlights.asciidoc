@@ -128,10 +128,11 @@ the original documents, it's good enough for features like reindexing data.
 [discrete]
 [[errors_with_cross_fields_query_type]]
 === Errors with the `cross_fields` query type
-The 8.4.2 release introduced a bug that may fail queries that use the
+The {es} 8.4.2 release introduced a bug that may fail queries using the
 `cross_fields` type at search time with an error message containing
-`totalTermFreq must be at least docFreq`. Users of the `cross_fields` type
-are recommended to upgrade to 8.4.3 to avoid hitting this bug.
+`totalTermFreq must be at least docFreq`. If you run queries that use
+ the <<type-cross-fields,`cross_fields` type>>, we strongly recommend
+ upgrading to 8.4.3 to avoid hitting this bug.
 
 {es-pull}90314[#90314]
 

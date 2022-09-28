@@ -17,7 +17,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -84,7 +83,7 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
         }
 
         if (params.paramAsBoolean("explain", false)) {
-            explanations.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            explanations.toXContent(builder, params);
         }
     }
 }

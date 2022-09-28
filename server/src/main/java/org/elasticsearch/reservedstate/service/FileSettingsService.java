@@ -65,12 +65,12 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     private WatchService watchService; // null;
     private Thread watcherThread;
-    private volatile FileUpdateState fileUpdateState = null;
-    private volatile WatchKey settingsDirWatchKey = null;
-    private volatile WatchKey configDirWatchKey = null;
+    private FileUpdateState fileUpdateState;
+    private WatchKey settingsDirWatchKey;
+    private WatchKey configDirWatchKey;
 
     private volatile boolean active = false;
-    private volatile boolean initialState = true;
+    private boolean initialState = true;
 
     public static final String OPERATOR_DIRECTORY = "operator";
 
@@ -219,17 +219,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         return watcherThread != null;
     }
 
-    private void cleanupWatchKeys() {
-        if (settingsDirWatchKey != null) {
-            settingsDirWatchKey.cancel();
-            settingsDirWatchKey = null;
-        }
-        if (configDirWatchKey != null) {
-            configDirWatchKey.cancel();
-            configDirWatchKey = null;
-        }
-    }
-
     synchronized void startWatcher(ClusterState clusterState, boolean onStartup) {
         if (watching() || active == false) {
             refreshExistingFileStateIfNeeded(clusterState);
@@ -273,7 +262,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         } catch (Exception e) {
             if (watchService != null) {
                 try {
-                    cleanupWatchKeys();
+                    // this will also close any keys
                     this.watchService.close();
                 } catch (Exception ce) {
                     e.addSuppressed(ce);
@@ -314,9 +303,10 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                     try {
                         Path path = operatorSettingsFile();
 
-                        var events = key.pollEvents();
                         if (logger.isDebugEnabled()) {
-                            events.forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
+                            key.pollEvents().forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
+                        } else {
+                            key.pollEvents();
                         }
                         key.reset();
 
@@ -351,13 +341,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     synchronized void stopWatcher() {
         logger.debug("stopping watcher ...");
         if (watching()) {
-            try (var ws = watchService) {   // make sure watch service is closed whatever
+            // make sure watch service is closed whatever
+            // this will also close any outstanding keys
+            try (var ws = watchService) {
                 watcherThread.interrupt();
                 watcherThread.join();
-
-                // clean up the watch service
-                cleanupWatchKeys();
-                fileUpdateState = null;
             } catch (IOException e) {
                 logger.warn("encountered exception while closing watch service", e);
             } catch (InterruptedException interruptedException) {
@@ -426,8 +414,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     }
 
     private void completeProcessing(Exception e, CompletableFuture<Void> completion) {
-        if (e != null) completion.completeExceptionally(e);
-        else completion.complete(null);
+        if (e != null) {
+            completion.completeExceptionally(e);
+        } else {
+            completion.complete(null);
+        }
     }
 
     /**

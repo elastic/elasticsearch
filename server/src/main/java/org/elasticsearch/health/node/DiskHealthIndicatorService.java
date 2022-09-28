@@ -326,8 +326,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                             "add_disk_capacity_data_nodes",
                             String.format(
                                 Locale.ROOT,
-                                "%d %s %s on nodes that have run or are likely to run out of disk space, " +
-                                    "this can temporarily disable writing on %s %s.",
+                                "%d %s %s on nodes that have run or are likely to run out of disk space, "
+                                    + "this can temporarily disable writing on %s %s.",
                                 affectedIndices.size(),
                                 indices(affectedIndices.size()),
                                 regularVerb("reside", affectedIndices.size()),

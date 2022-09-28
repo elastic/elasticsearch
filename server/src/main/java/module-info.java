@@ -356,6 +356,8 @@ module org.elasticsearch.server {
 
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
+    exports org.elasticsearch.search.profile.dfs;
+
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;

@@ -239,7 +239,7 @@ dfs without knn vector profiling:
         index: keywords
         body:
           settings:
-            index.number_of_shards: 1
+            index.number_of_shards: 2
           mappings:
             properties:
               keyword:
@@ -253,6 +253,14 @@ dfs without knn vector profiling:
           keyword: "a"
 
   - do:
+      index:
+        index: keywords
+        id: "2"
+        refresh: true
+        body:
+          keyword: "b"
+
+  - do:
       search:
         index: keywords
         search_type: dfs_query_then_fetch
@@ -263,7 +271,14 @@ dfs without knn vector profiling:
               keyword: "a"
 
   - match: { hits.total.value: 1 }
-  - is_false: profile.shards.0.dfs
+  - match: { profile.shards.0.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.0.dfs.statistics.description: "collect term statistics" }
+  - gt: { profile.shards.0.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.0.dfs.statistics.breakdown
+  - match: { profile.shards.1.dfs.statistics.type: "statistics" }
+  - match: { profile.shards.1.dfs.statistics.description: "collect term statistics" }
+  - gt: { profile.shards.1.dfs.statistics.time_in_nanos: 0 }
+  - is_true: profile.shards.1.dfs.statistics.breakdown
 
   - do:
       search:

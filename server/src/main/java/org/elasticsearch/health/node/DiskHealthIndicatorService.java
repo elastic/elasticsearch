@@ -39,8 +39,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.are;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getSortedUniqueValuesString;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indices;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.regularNoun;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.regularVerb;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.these;
 
 /**
  * This indicator reports the cluster is disk health aka if the cluster has enough available space to function.
@@ -247,11 +252,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 int unhealthyNodesCount = masterNodes.size() + otherNodes.size() + dataNodes.size();
                 symptom = String.format(
                     Locale.ROOT,
-                    "%d node%s with roles: [%s] %s out of disk or running low on disk space.",
+                    "%d %s with roles: [%s] %s out of disk or running low on disk space.",
                     unhealthyNodesCount,
-                    unhealthyNodesCount == 1 ? "" : "s",
+                    regularNoun("node", unhealthyNodesCount),
                     roles,
-                    unhealthyNodesCount == 1 ? "is" : "are"
+                    are(unhealthyNodesCount)
                 );
             }
             return symptom;
@@ -298,7 +303,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     new HealthIndicatorImpact(
                         NAME,
                         IMPACT_CLUSTER_STABILITY_AT_RISK_ID,
-                        2,
+                        1,
                         "Cluster stability might be impaired.",
                         List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                     )
@@ -314,7 +319,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     new HealthIndicatorImpact(
                         NAME,
                         IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID,
-                        2,
+                        3,
                         String.format(Locale.ROOT, "The [%s] functionality might be impaired.", impactedOtherRoles),
                         List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                     )
@@ -330,6 +335,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             List<Diagnosis> diagnosisList = new ArrayList<>();
             if (hasBlockedIndices() || hasUnhealthyDataNodes()) {
                 Set<String> impactedIndices = Sets.union(blockedIndices, indicesAtRisk);
+                String indices = indices(impactedIndices.size());
                 diagnosisList.add(
                     new Diagnosis(
                         new Diagnosis.Definition(
@@ -337,11 +343,13 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                             "add_disk_capacity_data_nodes",
                             String.format(
                                 Locale.ROOT,
-                                "%d %s reside%s on nodes that have run or are likely to run out of space, this can temporarily "
-                                    + "disable writing on this indices.",
+                                "%d %s %s on nodes that have run or are likely to run out of disk space, this can temporarily "
+                                    + "disable writing on %s %s.",
                                 impactedIndices.size(),
-                                impactedIndices.size() == 1 ? "index" : "indices",
-                                impactedIndices.size() == 1 ? "s" : ""
+                                indices,
+                                regularVerb("reside", impactedIndices.size()),
+                                these(impactedIndices.size()),
+                                indices
                             ),
                             "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
                                 + "this. If you have already taken action please wait for the rebalancing to complete.",

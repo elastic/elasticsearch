@@ -482,10 +482,10 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         List<HealthIndicatorImpact> impacts = result.impacts();
         assertThat(impacts.size(), equalTo(2));
         assertThat(impacts.get(0).impactDescription(), equalTo("Cluster stability might be impaired."));
-        assertThat(impacts.get(0).severity(), equalTo(2));
+        assertThat(impacts.get(0).severity(), equalTo(1));
         assertThat(impacts.get(0).impactAreas(), equalTo(List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
         assertThat(impacts.get(1).impactDescription(), equalTo("The [" + otherRole.roleName() + "] functionality might be impaired."));
-        assertThat(impacts.get(1).severity(), equalTo(2));
+        assertThat(impacts.get(1).severity(), equalTo(3));
         assertThat(impacts.get(1).impactAreas(), equalTo(List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
 
         List<Diagnosis> diagnosisList = result.diagnosisList();
@@ -532,7 +532,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         List<HealthIndicatorImpact> impacts = result.impacts();
         assertThat(impacts.size(), equalTo(1));
         assertThat(impacts.get(0).impactDescription(), equalTo("The [" + displayRoles + "] functionality might be impaired."));
-        assertThat(impacts.get(0).severity(), equalTo(2));
+        assertThat(impacts.get(0).severity(), equalTo(3));
         assertThat(impacts.get(0).impactAreas(), equalTo(List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
         List<Diagnosis> diagnosisList = result.diagnosisList();
         assertThat(diagnosisList.size(), equalTo(1));
@@ -590,13 +590,13 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(impacts.get(0).severity(), equalTo(1));
         assertThat(impacts.get(0).impactAreas(), equalTo(List.of(ImpactArea.INGEST)));
         assertThat(impacts.get(1).impactDescription(), equalTo("Cluster stability might be impaired."));
-        assertThat(impacts.get(1).severity(), equalTo(2));
+        assertThat(impacts.get(1).severity(), equalTo(1));
         assertThat(impacts.get(1).impactAreas(), equalTo(List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
         assertThat(
             impacts.get(2).impactDescription(),
             equalTo("The " + otherRoles.stream().map(DiscoveryNodeRole::roleName).sorted().toList() + " functionality might be impaired.")
         );
-        assertThat(impacts.get(2).severity(), equalTo(2));
+        assertThat(impacts.get(2).severity(), equalTo(3));
         assertThat(impacts.get(2).impactAreas(), equalTo(List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)));
 
         List<Diagnosis> diagnosisList = result.diagnosisList();
@@ -609,8 +609,8 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             assertThat(
                 dataDiagnosisDefinition.cause(),
                 equalTo(
-                    "1 index resides on nodes that have run or are likely to run out of space, "
-                        + "this can temporarily disable writing on this indices."
+                    "1 index resides on nodes that have run or are likely to run out of disk space, "
+                        + "this can temporarily disable writing on this index."
                 )
             );
             assertThat(

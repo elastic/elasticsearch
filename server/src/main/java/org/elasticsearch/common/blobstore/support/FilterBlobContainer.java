@@ -63,9 +63,13 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
-        throws IOException {
-        delegate.writeBlob(blobName, failIfAlreadyExists, atomic, writer);
+    public void writeMetadataBlob(
+        String blobName,
+        boolean failIfAlreadyExists,
+        boolean atomic,
+        CheckedConsumer<OutputStream, IOException> writer
+    ) throws IOException {
+        delegate.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, writer);
     }
 
     @Override

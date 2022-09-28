@@ -294,18 +294,22 @@ public final class MappingLookup {
 
     private void checkObjectDepthLimit(long limit) {
         for (String objectPath : objectMappers.keySet()) {
-            int numDots = 0;
-            for (int i = 0; i < objectPath.length(); ++i) {
-                if (objectPath.charAt(i) == '.') {
-                    numDots += 1;
-                }
+            checkObjectDepthLimit(limit, objectPath);
+        }
+    }
+
+    static void checkObjectDepthLimit(long limit, String objectPath) {
+        int numDots = 0;
+        for (int i = 0; i < objectPath.length(); ++i) {
+            if (objectPath.charAt(i) == '.') {
+                numDots += 1;
             }
-            final int depth = numDots + 2;
-            if (depth > limit) {
-                throw new IllegalArgumentException(
-                    "Limit of mapping depth [" + limit + "] has been exceeded due to object field [" + objectPath + "]"
-                );
-            }
+        }
+        final int depth = numDots + 2;
+        if (depth > limit) {
+            throw new IllegalArgumentException(
+                "Limit of mapping depth [" + limit + "] has been exceeded due to object field [" + objectPath + "]"
+            );
         }
     }
 

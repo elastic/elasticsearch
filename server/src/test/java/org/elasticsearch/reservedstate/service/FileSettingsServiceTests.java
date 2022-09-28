@@ -322,10 +322,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         CountDownLatch deadThreadLatch = new CountDownLatch(1);
 
         doAnswer((Answer<ReservedStateChunk>) invocation -> {
-            processFileLatch.countDown();
             // allow the other thread to continue, but hold on a bit to avoid
-            // setting the count-down latch in the main watcher loop.
+            // completing the task immediately in the main watcher loop
             Thread.sleep(1_000);
+            processFileLatch.countDown();
             new Thread(() -> {
                 // Simulate a thread that never allows the completion to complete
                 try {
@@ -349,9 +349,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // on Linux is instantaneous. Windows is instantaneous too.
         assertTrue(processFileLatch.await(30, TimeUnit.SECONDS));
 
-        // Stopping the service should interrupt the watcher thread, we should be able to stop
-        // sleep to avoid interrupting the sleep in the invocation handler above
-        Thread.sleep(1_000);
+        // Stopping the service should interrupt the watcher thread, allowing the whole thing to exit
         service.stop();
         assertFalse(service.watching());
         service.close();

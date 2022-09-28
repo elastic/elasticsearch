@@ -13,6 +13,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.PlainJWT;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.kerby.kerberos.kerb.crypto.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -152,8 +154,11 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         LOGGER.debug("JWT 1 still worked, because JWT realm has old JWKs cached in memory");
 
         // Generate a replacement set of JWKs 2 for the JWT issuer.
+        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        secureRandom.setSeed(Random.makeBytes(32));
         final List<JwtIssuer.AlgJwkPair> jwtIssuerJwks2Backup = JwtRealmTestCase.randomJwks(
             jwtIssuerJwks1Backup.stream().map(e -> e.alg()).toList(),
+            secureRandom,
             jwtIssuerJwks1OidcSafe
         );
         jwtIssuerAndRealm.issuer().setJwks(jwtIssuerJwks2Backup, jwtIssuerJwks1OidcSafe);

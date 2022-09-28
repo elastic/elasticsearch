@@ -55,6 +55,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -254,23 +255,29 @@ public abstract class JwtTestCase extends ESTestCase {
         return roleMapper;
     }
 
-    public static List<JwtIssuer.AlgJwkPair> randomJwks(final List<String> signatureAlgorithms, final boolean requireOidcSafe)
-        throws JOSEException {
+    public static List<JwtIssuer.AlgJwkPair> randomJwks(
+        final List<String> signatureAlgorithms,
+        final SecureRandom secureRandom,
+        final boolean requireOidcSafe
+    ) throws JOSEException {
         final List<JwtIssuer.AlgJwkPair> algAndJwks = new ArrayList<>();
         for (final String signatureAlgorithm : signatureAlgorithms) {
-            algAndJwks.add(new JwtIssuer.AlgJwkPair(signatureAlgorithm, JwtTestCase.randomJwk(signatureAlgorithm, requireOidcSafe)));
+            algAndJwks.add(
+                new JwtIssuer.AlgJwkPair(signatureAlgorithm, JwtTestCase.randomJwk(signatureAlgorithm, secureRandom, requireOidcSafe))
+            );
         }
         return algAndJwks;
     }
 
-    public static JWK randomJwk(final String signatureAlgorithm, final boolean requireOidcSafe) throws JOSEException {
+    public static JWK randomJwk(final String signatureAlgorithm, final SecureRandom secureRandom, final boolean requireOidcSafe)
+        throws JOSEException {
         final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
         if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(signatureAlgorithm)) {
-            return JwtTestCase.randomJwkHmac(jwsAlgorithm, requireOidcSafe);
+            return JwtTestCase.randomJwkHmac(jwsAlgorithm, secureRandom, requireOidcSafe);
         } else if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA.contains(signatureAlgorithm)) {
-            return JwtTestCase.randomJwkRsa(jwsAlgorithm);
+            return JwtTestCase.randomJwkRsa(jwsAlgorithm, secureRandom);
         } else if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_EC.contains(signatureAlgorithm)) {
-            return JwtTestCase.randomJwkEc(jwsAlgorithm);
+            return JwtTestCase.randomJwkEc(jwsAlgorithm, secureRandom);
         }
         throw new JOSEException(
             "Unsupported signature algorithm ["
@@ -281,13 +288,18 @@ public abstract class JwtTestCase extends ESTestCase {
         );
     }
 
-    public static OctetSequenceKey randomJwkHmac(final JWSAlgorithm jwsAlgorithm, final boolean requireOidcSafe) throws JOSEException {
+    public static OctetSequenceKey randomJwkHmac(
+        final JWSAlgorithm jwsAlgorithm,
+        final SecureRandom secureRandom,
+        final boolean requireOidcSafe
+    ) throws JOSEException {
         final int minHmacLengthBytes = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
         final int hmacLengthBytes = scaledRandomIntBetween(minHmacLengthBytes, minHmacLengthBytes * 2); // Double it: Nice to have
         if (requireOidcSafe == false && randomBoolean()) {
             // random byte => 2^8 search space per 1 byte => 8 bits per byte
             final OctetSequenceKeyGenerator jwkGenerator = new OctetSequenceKeyGenerator(hmacLengthBytes * 8);
-            return JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm).generate().toOctetSequenceKey(); // kid,alg,use,ops
+            return JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm, secureRandom).generate().toOctetSequenceKey();
+            // kid,alg,use,ops
         }
         final String passwordKey;
         if (randomBoolean()) {
@@ -304,21 +316,22 @@ public abstract class JwtTestCase extends ESTestCase {
         return JwtTestCase.randomSettingsForHmacJwkBuilder(hmacKeyBuilder, jwsAlgorithm).build(); // kid,alg,use,ops
     }
 
-    public static OctetSequenceKey randomJwkHmacOidcSafe(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
-        return JwtTestCase.randomJwkHmac(jwsAlgorithm, true);
+    public static OctetSequenceKey randomJwkHmacOidcSafe(final JWSAlgorithm jwsAlgorithm, final SecureRandom secureRandom)
+        throws JOSEException {
+        return JwtTestCase.randomJwkHmac(jwsAlgorithm, secureRandom, true);
     }
 
-    public static RSAKey randomJwkRsa(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
+    public static RSAKey randomJwkRsa(final JWSAlgorithm jwsAlgorithm, final SecureRandom secureRandom) throws JOSEException {
         final int rsaLengthBits = rarely() ? 3072 : 2048;
         final RSAKeyGenerator jwkGenerator = new RSAKeyGenerator(rsaLengthBits, false);
-        JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm); // options: kid, alg, use, ops
+        JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm, secureRandom); // options: kid, alg, use, ops
         return jwkGenerator.generate();
     }
 
-    public static ECKey randomJwkEc(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
+    public static ECKey randomJwkEc(final JWSAlgorithm jwsAlgorithm, final SecureRandom secureRandom) throws JOSEException {
         final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(jwsAlgorithm));
         final ECKeyGenerator jwkGenerator = new ECKeyGenerator(ecCurve);
-        JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm); // options: kid, alg, use, ops
+        JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm, secureRandom); // options: kid, alg, use, ops
         return jwkGenerator.generate();
     }
 
@@ -329,7 +342,8 @@ public abstract class JwtTestCase extends ESTestCase {
 
     public static JWKGenerator<? extends JWK> randomSettingsForJwkGenerator(
         final JWKGenerator<? extends JWK> jwkGenerator,
-        final JWSAlgorithm jwsAlgorithm
+        final JWSAlgorithm jwsAlgorithm,
+        final SecureRandom secureRandom
     ) {
         if (randomBoolean()) {
             jwkGenerator.keyID(UUID.randomUUID().toString());
@@ -343,6 +357,7 @@ public abstract class JwtTestCase extends ESTestCase {
         if (randomBoolean()) {
             jwkGenerator.keyOperations(Set.of(KeyOperation.SIGN, KeyOperation.VERIFY));
         }
+        jwkGenerator.secureRandom(secureRandom);
         return jwkGenerator;
     }
 

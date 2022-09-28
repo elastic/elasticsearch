@@ -11,6 +11,7 @@ import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 import com.nimbusds.openid.connect.sdk.Nonce;
 
+import org.apache.kerby.kerberos.kerb.crypto.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -44,6 +45,7 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -206,8 +208,10 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         // Allow algorithm repeats, to cover testing of multiple JWKs for same algorithm
         final JwtIssuer jwtIssuer = new JwtIssuer(issuer, audiences, principalClaimName, users, createHttpsServer);
         final List<String> algorithms = randomOfMinMaxNonUnique(algsCount, algsCount, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
+        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        secureRandom.setSeed(Random.makeBytes(32));
         final boolean areHmacJwksOidcSafe = randomBoolean();
-        final List<JwtIssuer.AlgJwkPair> algAndJwks = JwtRealmTestCase.randomJwks(algorithms, areHmacJwksOidcSafe);
+        final List<JwtIssuer.AlgJwkPair> algAndJwks = JwtRealmTestCase.randomJwks(algorithms, secureRandom, areHmacJwksOidcSafe);
         jwtIssuer.setJwks(algAndJwks, areHmacJwksOidcSafe);
         return jwtIssuer;
     }

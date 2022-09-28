@@ -10,10 +10,12 @@ import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.kerby.kerberos.kerb.crypto.util.Random;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.junit.Assert;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
@@ -27,8 +29,10 @@ import static org.hamcrest.Matchers.nullValue;
 public class JwtAuthenticationTokenTests extends JwtTestCase {
 
     public void testJwtAuthenticationTokenParse() throws Exception {
+        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        secureRandom.setSeed(Random.makeBytes(32));
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
-        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, randomBoolean());
+        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, secureRandom, randomBoolean());
 
         final SecureString jwt = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm); // bespoke JWT, not tied to any JWT realm
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());
@@ -66,7 +70,9 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         final String principalClaimValue = randomAlphaOfLengthBetween(8, 32);
 
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
-        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, randomBoolean());
+        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        secureRandom.setSeed(Random.makeBytes(32));
+        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, secureRandom, randomBoolean());
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(

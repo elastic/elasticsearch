@@ -69,7 +69,7 @@ dependencies {
 
   // Dependencies for oidc
   api "com.nimbusds:oauth2-oidc-sdk:9.3.1"
-  api "com.nimbusds:nimbus-jose-jwt:9.8.1"
+  api "com.nimbusds:nimbus-jose-jwt:9.25"
   api "com.nimbusds:lang-tag:1.4.4"
   api "com.sun.mail:jakarta.mail:1.6.3"
   api "net.jcip:jcip-annotations:1.0"
@@ -92,7 +92,7 @@ dependencies {
   testImplementation('org.apache.kerby:kerb-crypto:1.1.1')
   testImplementation('org.apache.kerby:kerb-util:1.1.1')
   testImplementation('org.apache.kerby:token-provider:1.1.1')
-  testImplementation('com.nimbusds:nimbus-jose-jwt:9.8.1')
+  testImplementation('com.nimbusds:nimbus-jose-jwt:9.25')
   testImplementation('net.jcip:jcip-annotations:1.0')
   testImplementation('org.apache.kerby:kerb-admin:1.1.1')
   testImplementation('org.apache.kerby:kerb-server:1.1.1')

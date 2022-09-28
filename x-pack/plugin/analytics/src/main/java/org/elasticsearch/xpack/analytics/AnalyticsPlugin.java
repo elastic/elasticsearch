@@ -124,8 +124,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 RateAggregationBuilder.NAME,
                 RateAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER)
-            )
-                .addResultReader(InternalRate::new)
+            ).addResultReader(InternalRate::new)
                 .addResultReader(InternalResetTrackingRate.NAME, InternalResetTrackingRate::new)
                 .setAggregatorRegistrar(RateAggregationBuilder::registerAggregators),
             new AggregationSpec(

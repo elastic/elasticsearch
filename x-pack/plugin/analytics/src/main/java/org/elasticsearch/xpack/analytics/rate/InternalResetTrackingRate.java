@@ -74,8 +74,10 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         // TODO do we need to handle 0-length input lists?
-        List<InternalResetTrackingRate> toReduce
-            = aggregations.stream().map(r -> (InternalResetTrackingRate) r).sorted(Comparator.comparingLong(o -> o.startTime)).toList();
+        List<InternalResetTrackingRate> toReduce = aggregations.stream()
+            .map(r -> (InternalResetTrackingRate) r)
+            .sorted(Comparator.comparingLong(o -> o.startTime))
+            .toList();
         double resetComp = toReduce.get(0).resetCompensation;
         double startValue = toReduce.get(0).startValue;
         double endValue = toReduce.get(0).endValue;

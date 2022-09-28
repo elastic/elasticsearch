@@ -50,7 +50,7 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
         );
         InternalAggregation reduced = rates.get(0).reduce(rates, null);
         assertThat(reduced, instanceOf(Rate.class));
-        assertThat(((Rate)reduced).getValue(), equalTo(0.01));
+        assertThat(((Rate) reduced).getValue(), equalTo(0.01));
     }
 
     @Override

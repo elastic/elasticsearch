@@ -37,7 +37,7 @@ public enum TimeSeriesValuesSourceType implements ValuesSourceType {
             if (script != null) {
                 throw new AggregationExecutionException("Cannot use scripts for time-series counters");
             }
-            if (fieldContext.indexFieldData() instanceof IndexNumericFieldData fieldData) {
+            if (fieldContext.indexFieldData()instanceof IndexNumericFieldData fieldData) {
                 return new ValuesSource.Numeric.FieldData(fieldData);
             }
             throw new IllegalArgumentException(
@@ -46,7 +46,12 @@ public enum TimeSeriesValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, AggregationContext context) {
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
             throw new AggregationExecutionException("Cannot replace missing values for time-series counters");
         }
     };

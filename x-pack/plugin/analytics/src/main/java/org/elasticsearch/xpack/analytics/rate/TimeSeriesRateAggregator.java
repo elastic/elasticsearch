@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
@@ -26,7 +25,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
 public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleValue {
 
@@ -138,7 +136,8 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
             endValues.get(owningBucketOrd),
             startTimes.get(owningBucketOrd),
             endTimes.get(owningBucketOrd),
-            resetCompensations.get(owningBucketOrd));
+            resetCompensations.get(owningBucketOrd)
+        );
     }
 
     @Override

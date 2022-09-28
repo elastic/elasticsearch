@@ -12,7 +12,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -20,7 +19,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -31,7 +29,6 @@ import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -39,7 +36,6 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.core.IsEqual.equalTo;
 
 public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
@@ -59,26 +55,13 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         tsBuilder.subAggregation(builder);
         Consumer<InternalTimeSeries> verifier = r -> {
             assertThat(r.getBuckets(), hasSize(2));
-            assertThat(
-                ((Rate)r.getBucketByKey("{dim=1}").getAggregations().asList().get(0)).getValue(),
-                closeTo(59.0 / 3000.0, 0.00001)
-            );
-            assertThat(
-                ((Rate)r.getBucketByKey("{dim=2}").getAggregations().asList().get(0)).getValue(),
-                closeTo(206.0 / 4000.0, 0.00001)
-            );
+            assertThat(((Rate) r.getBucketByKey("{dim=1}").getAggregations().asList().get(0)).getValue(), closeTo(59.0 / 3000.0, 0.00001));
+            assertThat(((Rate) r.getBucketByKey("{dim=2}").getAggregations().asList().get(0)).getValue(), closeTo(206.0 / 4000.0, 0.00001));
         };
-        testCase(
-            tsBuilder,
-            new MatchAllDocsQuery(),
-            iw -> {
-                iw.addDocuments(docs(1000, "1", 15, 37, 60, /*reset*/ 14));
-                iw.addDocuments(docs(1000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
-            },
-            verifier,
-            timeStampField(),
-            counterField("counter_field")
-        );
+        testCase(tsBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocuments(docs(1000, "1", 15, 37, 60, /*reset*/ 14));
+            iw.addDocuments(docs(1000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
+        }, verifier, timeStampField(), counterField("counter_field"));
     }
 
     public void testNestedWithinDateHistogram() throws IOException {
@@ -113,17 +96,10 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             }
         };
 
-        testCase(
-            tsBuilder,
-            new MatchAllDocsQuery(),
-            iw -> {
-                iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
-                iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
-            },
-            verifier,
-            timeStampField(),
-            counterField("counter_field")
-        );
+        testCase(tsBuilder, new MatchAllDocsQuery(), iw -> {
+            iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
+            iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
+        }, verifier, timeStampField(), counterField("counter_field"));
     }
 
     // tests to add:

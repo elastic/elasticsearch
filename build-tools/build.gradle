@@ -123,6 +123,8 @@ dependencies {
     api buildLibs.commmons.io
     implementation buildLibs.asm.tree
     implementation buildLibs.asm
+    implementation buildLibs.jackson.core
+    implementation buildLibs.jackson.databind
 
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()

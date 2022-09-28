@@ -40,6 +40,7 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
         when:
         def result = gradleRunner(":pluginProperties").build()
         def props = getPluginProperties()
+//        Path propsFile = file("build/generated-named-components/named_components.json").toPath();
 
         then:
         result.task(":pluginProperties").outcome == TaskOutcome.SUCCESS
@@ -54,6 +55,9 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
         props.get("extended.plugins") == ""
         props.get("has.native.controller") == "false"
         props.size() == 8
+
+
+//        propsFile.toFile().exists() == true;
     }
 
 

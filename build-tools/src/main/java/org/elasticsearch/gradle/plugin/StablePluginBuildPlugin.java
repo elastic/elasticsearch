@@ -8,10 +8,13 @@
 
 package org.elasticsearch.gradle.plugin;
 
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSet;
 
 public class StablePluginBuildPlugin implements Plugin<Project> {
 
@@ -27,5 +30,16 @@ public class StablePluginBuildPlugin implements Plugin<Project> {
                 .file("generated-descriptor/" + GeneratePluginPropertiesTask.STABLE_PROPERTIES_FILENAME);
             task.getOutputFile().set(file);
         });
+
+        final var pluginNamedComponents = project.getTasks().register("pluginNamedComponents", GenerateNamedComponentsTask.class, t -> {
+            SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            t.setPluginClasses(mainSourceSet.getOutput().getClassesDirs());
+            //it has to be compile classpath ?? otherwise libraries which are provided in runtime by es server won't be visible
+            // and we want to scan them too
+            t.setClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
+        });
+
+        final var pluginExtension = project.getExtensions().getByType(PluginPropertiesExtension.class);
+        pluginExtension.getBundleSpec().from(pluginNamedComponents); // TODO would this work?
     }
 }

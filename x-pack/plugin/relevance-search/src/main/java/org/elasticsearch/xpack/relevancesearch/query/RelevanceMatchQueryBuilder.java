@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMatchQueryBuilder> {
@@ -83,8 +84,8 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     @Override
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
         // TODO add field retrieval (probably a holder class that gets populated with field mapping)
-        String[] fields = new String[] { "title" };
-        final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fields);
+        List<String> fields = QueryFieldsResolver.getQueryFields(context);
+        final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fields.toArray(new String[fields.size()]));
 
         final Query resultQuery = builder.toQuery(context);
 

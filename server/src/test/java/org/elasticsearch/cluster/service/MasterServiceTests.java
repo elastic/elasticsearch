@@ -1126,7 +1126,13 @@ public class MasterServiceTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool,
                 new TaskManager(settings, threadPool, emptySet())
-            )
+            ) {
+                @Override
+                protected boolean publicationMayFail() {
+                    // checking logging even during unexpected failures
+                    return true;
+                }
+            }
         ) {
             final DiscoveryNode localNode = new DiscoveryNode(
                 "node1",

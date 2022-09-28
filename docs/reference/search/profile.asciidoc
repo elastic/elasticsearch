@@ -955,8 +955,7 @@ overall time, the breakdown is inclusive of all children times.
 [[profiling-fetch]]
 ===== Profiling Fetch
 
-
-All shards the fetched documents will have a `fetch` section in the profile.
+All shards that fetched documents will have a `fetch` section in the profile.
 Let's execute a small search and have a look a the fetch profile:
 
 [source,console]
@@ -1047,6 +1046,101 @@ per hit. In that case the true cost of `_source` phase is hidden in the
 loading stored fields by setting
 `"_source": false, "stored_fields": ["_none_"]`.
 
+[[profiling-dfs]]
+===== Profiling DFS
+
+The dfs phase collects term statistics to achieve more accurate search results
+prior to the query phase. To profile the dfs phase use a `_search` request with
+the url parameter `search_type` set as `dfs_and_then_query` and add a top-level
+`profile` parameter. Note that for the dfs phase to run an index must have
+multiple shards.
+
+As an example, let's first setup an index with multiple shards and index
+a pair of documents with different values on a keyword field.
+
+[source,console]
+--------------------------------------------------
+PUT my-dfs-index
+{
+  "settings": {
+    "number_of_shards": 2, <1>
+    "number_of_replicas": 1
+  },
+  "mappings": {
+      "properties": {
+        "my-keyword": { "type": "keyword" }
+      }
+    }
+}
+
+POST _bulk
+{ "index" : { "_index" : "my-dfs-index", "_id" : "1" } }
+{ "my-keyword" : "a" }
+{ "index" : { "_index" : "my-dfs-index", "_id" : "2" } }
+{ "my-keyword" : "b" }
+--------------------------------------------------
+<1> The `my-dfs-index` is created with multiple shards.
+
+With an index setup, we can now profile the dfs phase of a
+search query. As an example we use a term query.
+
+[source,console]
+--------------------------------------------------
+GET /my-dfs-index/_search?search_type=dfs_query_then_fetch&pretty <1>
+{
+  "profile": true, <2>
+  "query": {
+    "term": {
+      "my-keyword": {
+        "value": "a"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+<1> The `search_type` url parameter is set to `dfs_query_then_fetch` to
+ensure the dfs phase is run.
+<2> The `profile` parameter is set to `true`.
+
+In the response, we see a very verbose profile which includes a dfs section
+for each shard along with profile output for the rest of search phases.
+One of the `dfs` sections for a shard looks like the following:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "dfs" : {
+        "statistics" : {
+            "type" : "statistics",
+            "description" : "collect term statistics",
+            "time_in_nanos" : 236955,
+            "breakdown" : {
+                "term_statistics" : 4815,
+                "collection_statistics" : 27081,
+                "collection_statistics_count" : 1,
+                "create_weight" : 153278,
+                "term_statistics_count" : 1,
+                "rewrite_count" : 0,
+                "create_weight_count" : 1,
+                "rewrite" : 0
+            }
+        }
+    }
+    ...
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+In the `dfs.statistics` portion of this response we see a `time_in_nanos`
+which is the total time it took to collect term statistics for this
+shard. We also see a further breakdown of times where `create_weight`
+is called to generate the collection of term statistics, and the specific
+call order is `create_weight -> collection_statistics -> term_statistics`.
+`Rewrite` is only used for queries that utilize rescore and thus, isn't
+called as part of this example.
+
 [[profiling-considerations]]
 ===== Profiling Considerations
 
@@ -1070,7 +1164,7 @@ have a drastic effect compared to other components in the profiled query.
 responses on the coordinating node, or additional work such as building global
 ordinals (an internal data structure used to speed up search).
 - Profiling statistics are currently not available for suggestions,
-highlighting, `dfs_query_then_fetch`.
+highlighting
 - Profiling of the reduce phase of aggregation is currently not available.
 - The Profiler is instrumenting internals that can change from version to
 version. The resulting json should be considered mostly unstable, especially

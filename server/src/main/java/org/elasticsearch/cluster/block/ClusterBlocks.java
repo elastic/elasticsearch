@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
@@ -26,6 +27,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
@@ -73,15 +75,14 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
         Set<ClusterBlock> global,
         Map<String, Set<ClusterBlock>> indicesBlocks
     ) {
-
         EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders = new EnumMap<>(ClusterBlockLevel.class);
         for (final ClusterBlockLevel level : ClusterBlockLevel.values()) {
             Predicate<ClusterBlock> containsLevel = block -> block.contains(level);
-            Set<ClusterBlock> newGlobal = unmodifiableSet(global.stream().filter(containsLevel).collect(toSet()));
+            Set<ClusterBlock> newGlobal = global.stream().filter(containsLevel).collect(Collectors.toUnmodifiableSet());
 
-            Map<String, Set<ClusterBlock>> indicesBuilder = new HashMap<>();
+            Map<String, Set<ClusterBlock>> indicesBuilder = Maps.newMapWithExpectedSize(indicesBlocks.size());
             for (Map.Entry<String, Set<ClusterBlock>> entry : indicesBlocks.entrySet()) {
-                indicesBuilder.put(entry.getKey(), unmodifiableSet(entry.getValue().stream().filter(containsLevel).collect(toSet())));
+                indicesBuilder.put(entry.getKey(), entry.getValue().stream().filter(containsLevel).collect(Collectors.toUnmodifiableSet()));
             }
             levelHolders.put(level, new ImmutableLevelHolder(newGlobal, Map.copyOf(indicesBuilder)));
         }

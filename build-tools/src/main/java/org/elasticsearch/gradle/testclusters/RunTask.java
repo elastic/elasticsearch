@@ -49,8 +49,10 @@ public class RunTask extends DefaultTestClustersTask {
 
     private Boolean useHttps = false;
 
+    private Boolean useTransportHttps = false;
+
     private final Path tlsBasePath = Path.of(
-        new File(getProject().getProjectDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
+        new File(getProject().getRootDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
     );
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
@@ -109,6 +111,17 @@ public class RunTask extends DefaultTestClustersTask {
         return useHttps;
     }
 
+    @Option(option = "transport-https", description = "Helper option to enable HTTPS on transport port")
+    public void setUseTransportHttps(boolean useTransportHttps) {
+        this.useTransportHttps = useTransportHttps;
+    }
+
+    @Input
+    @Optional
+    public Boolean getUseTransportHttps() {
+        return useTransportHttps;
+    }
+
     @Override
     public void beforeStart() {
         int httpPort = 9200;
@@ -151,7 +164,7 @@ public class RunTask extends DefaultTestClustersTask {
                     node.setting("xpack.security.http.ssl.keystore.path", "https.keystore");
                     node.setting("xpack.security.http.ssl.certificate_authorities", "https.ca");
                 }
-                if (findConfiguredSettingsByPrefix("xpack.security.transport.ssl", node).isEmpty()) {
+                if (useTransportHttps) {
                     node.setting("xpack.security.transport.ssl.enabled", "true");
                     node.setting("xpack.security.transport.ssl.client_authentication", "required");
                     node.extraConfigFile("transport.keystore", tlsBasePath.resolve(transportCertificate).toFile());

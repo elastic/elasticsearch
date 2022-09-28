@@ -48,7 +48,7 @@ import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.regular
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.these;
 
 /**
- * This indicator reports the cluster is disk health aka if the cluster has enough available space to function.
+ * This indicator reports the clusters' disk health aka if the cluster has enough available space to function.
  * Indicator will report YELLOW status when:
  * - a data node's disk usage is above the high watermark and it's not relocating any of its shards.
  * - a non data node's disk usage is above the high watermark.

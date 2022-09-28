@@ -42,11 +42,11 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
 
     public static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";
     public static final String STABLE_PROPERTIES_FILENAME = "stable-plugin-descriptor.properties";
+    private static final String DESCRIPTION = "Generates Elasticsearch Plugin descriptor file";
 
     @Inject
     public GeneratePluginPropertiesTask(ProjectLayout projectLayout) {
-        // TODO I cannot tell if this is stable or not..
-        setDescription("Generate " + PROPERTIES_FILENAME + " or " + STABLE_PROPERTIES_FILENAME);
+        setDescription(DESCRIPTION);
     }
 
     @Input

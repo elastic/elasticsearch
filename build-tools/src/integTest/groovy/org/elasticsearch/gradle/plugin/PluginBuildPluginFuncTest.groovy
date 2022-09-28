@@ -157,11 +157,7 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     Map<String, String> getPluginProperties() {
-        return getPluginProperties("build/generated-descriptor/plugin-descriptor.properties")
-    }
-
-    Map<String, String> getPluginProperties(String fileName) {
-        Path propsFile = file(fileName).toPath();
+        Path propsFile = file("build/generated-descriptor/plugin-descriptor.properties").toPath();
         Properties rawProps = new Properties()
         try (var inputStream = Files.newInputStream(propsFile)) {
             rawProps.load(inputStream)

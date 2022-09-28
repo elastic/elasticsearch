@@ -13,7 +13,7 @@ import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Provider;
 
-public class StableBuildPlugin implements Plugin<Project> {
+public class StablePluginBuildPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {

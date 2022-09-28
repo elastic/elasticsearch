@@ -16,7 +16,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.stream.Collectors
 
-class StableBuildPluginFuncTest extends AbstractGradleFuncTest {
+class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
@@ -26,7 +26,7 @@ class StableBuildPluginFuncTest extends AbstractGradleFuncTest {
     def "can build stable plugin properties"() {
         given:
         buildFile << """plugins {
-                id 'elasticsearch.stable_esplugin'
+                id 'elasticsearch.stable-esplugin'
             }
 
             version = '1.2.3'
@@ -39,7 +39,7 @@ class StableBuildPluginFuncTest extends AbstractGradleFuncTest {
 
         when:
         def result = gradleRunner(":pluginProperties").build()
-        def props = getPluginProperties("build/generated-descriptor/stable-plugin-descriptor.properties")
+        def props = getPluginProperties()
 
         then:
         result.task(":pluginProperties").outcome == TaskOutcome.SUCCESS
@@ -57,8 +57,8 @@ class StableBuildPluginFuncTest extends AbstractGradleFuncTest {
     }
 
 
-    Map<String, String> getPluginProperties(String fileName) {
-        Path propsFile = file(fileName).toPath();
+    Map<String, String> getPluginProperties() {
+        Path propsFile = file("build/generated-descriptor/stable-plugin-descriptor.properties").toPath();
         Properties rawProps = new Properties()
         try (var inputStream = Files.newInputStream(propsFile)) {
             rawProps.load(inputStream)

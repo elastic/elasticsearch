@@ -711,6 +711,7 @@ public class AllocationService {
      */
     public record CommandsResult(
         RoutingExplanations explanations, // Explanation for the reroute actions
-        ClusterState clusterState         // Resulting cluster state, should be removed in 9
+        ClusterState clusterState         // Resulting cluster state, to be removed when REST compatibility with
+                                          // {@link org.elasticsearch.Version#V_8_6_0} / {@link RestApiVersion#V_8} no longer needed
     ) {}
 }

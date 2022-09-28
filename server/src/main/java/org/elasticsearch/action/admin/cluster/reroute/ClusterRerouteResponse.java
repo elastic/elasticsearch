@@ -33,7 +33,7 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
         + "and will be removed in a future version. Specify ?metric=none to adopt the future behaviour.";
 
     /**
-     * To be removed in 9
+     * To be removed when REST compatibility with {@link org.elasticsearch.Version#V_8_6_0} / {@link RestApiVersion#V_8} no longer needed
      */
     private final ClusterState state;
     private final RoutingExplanations explanations;
@@ -71,8 +71,7 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
     @Override
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
         if (Objects.equals(params.param("metric"), "none") == false) {
-            // this entire branch needs to be removed in 9
-            if (builder.getRestApiVersion().major > RestApiVersion.V_7.major) {
+            if (builder.getRestApiVersion() != RestApiVersion.V_7) {
                 deprecationLogger.critical(DeprecationCategory.API, "reroute_cluster_state", STATE_FIELD_DEPRECATION_MESSAGE);
             }
             builder.startObject("state");

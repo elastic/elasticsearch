@@ -12,35 +12,32 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 
 /**
  * Reserved cluster error state task executor
  * <p>
  * We use this task executor to record any errors while updating and reserving the cluster state
  */
-record ReservedStateErrorTaskExecutor() implements ClusterStateTaskExecutor<ReservedStateErrorTask> {
+class ReservedStateErrorTaskExecutor extends SimpleBatchedExecutor<ReservedStateErrorTask> {
+
     private static final Logger logger = LogManager.getLogger(ReservedStateErrorTaskExecutor.class);
 
     @Override
-    public ClusterState execute(BatchExecutionContext<ReservedStateErrorTask> batchExecutionContext) {
-        var updatedState = batchExecutionContext.initialState();
-
-        for (final var taskContext : batchExecutionContext.taskContexts()) {
-            final var task = taskContext.getTask();
-            if (task.shouldUpdate(updatedState)) {
-                try (var ignored = taskContext.captureResponseHeaders()) {
-                    updatedState = task.execute(updatedState);
-                }
-            }
-            // if the task didn't run, it still 'succeeded', it just didn't have any effect
-            taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
+    public ClusterState executeTask(ReservedStateErrorTask task, ClusterState clusterState) {
+        if (task.shouldUpdate(clusterState)) {
+            return task.execute(clusterState);
         }
-        return updatedState;
+        return clusterState;
     }
 
     @Override
-    public void clusterStatePublished(ClusterState newClusterState) {
+    public void taskSucceeded(ReservedStateErrorTask task) {
+        task.listener().onResponse(ActionResponse.Empty.INSTANCE);
+    }
+
+    @Override
+    public void clusterStatePublished() {
         logger.debug("Wrote new error state in reserved cluster state metadata");
     }
 }

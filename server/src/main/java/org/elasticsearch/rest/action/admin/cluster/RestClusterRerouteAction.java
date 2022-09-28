@@ -14,14 +14,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -31,15 +28,11 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestClusterRerouteAction extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
-
     private static final ObjectParser<ClusterRerouteRequest, Void> PARSER = new ObjectParser<>("cluster_reroute");
     static {
         PARSER.declareField(
@@ -77,14 +70,6 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.hasParam("metric") == false || Objects.equals(request.param("metric"), "none") == false) {
-            deprecationLogger.critical(
-                DeprecationCategory.API,
-                "reroute_cluster_state",
-                "[state] field is deprecated in a reroute response and will be removed."
-            );
-        }
-
         ClusterRerouteRequest clusterRerouteRequest = createRequest(request);
         settingsFilter.addFilterSettingParams(request);
         if (clusterRerouteRequest.explain()) {

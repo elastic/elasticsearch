@@ -13,6 +13,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,6 +29,11 @@ import java.util.Objects;
  */
 public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXContentObject {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
+
+    /**
+     * To bre removed in 9
+     */
     private final ClusterState state;
     private final RoutingExplanations explanations;
 
@@ -61,10 +70,19 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
     @Override
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
         if (Objects.equals(params.param("metric"), "none") == false) {
+            // this entire branch needs to be removed in 9
+            if (builder.getRestApiVersion().major > RestApiVersion.V_7.major) {
+                deprecationLogger.critical(
+                    DeprecationCategory.API,
+                    "reroute_cluster_state",
+                    "[state] field is deprecated in a reroute response and will be removed."
+                );
+            }
             builder.startObject("state");
             state.toXContent(builder, params);
             builder.endObject();
         }
+
         if (params.paramAsBoolean("explain", false)) {
             explanations.toXContent(builder, ToXContent.EMPTY_PARAMS);
         }

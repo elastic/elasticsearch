@@ -711,6 +711,6 @@ public class AllocationService {
      */
     public record CommandsResult(
         RoutingExplanations explanations, // Explanation for the reroute actions
-        ClusterState clusterState         // Resulting cluster state
+        ClusterState clusterState         // Resulting cluster state, should be removed in 9
     ) {}
 }

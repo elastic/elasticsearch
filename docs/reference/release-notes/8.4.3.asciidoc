@@ -11,7 +11,7 @@ Also see <<breaking-changes-8.4,Breaking changes in 8.4>>.
 
 Infra/Core::
 * Fix another potential race in the file settings watcher {es-pull}90302[#90302] (issue: {es-issue}89500[#89500])
-* Fix repeated error save loops in File Settings Service {es-pull}90271[#90271] (issue: {es-issue}90222[#90222])
+* Fix file permission errors to avoid repeated error save loops on Windows {es-pull}90271[#90271] (issue: {es-issue}90222[#90222])
 
 [[regression-8.4.3]]
 [float]

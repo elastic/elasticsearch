@@ -52,6 +52,12 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
     }
 
     @Override
+    public synchronized RecoveryState reset() {
+        remoteTranslogSet = false;
+        return this;
+    }
+
+    @Override
     public synchronized void validateCurrentStage(Stage expected) {
         if (remoteTranslogSet == false) {
             super.validateCurrentStage(expected);

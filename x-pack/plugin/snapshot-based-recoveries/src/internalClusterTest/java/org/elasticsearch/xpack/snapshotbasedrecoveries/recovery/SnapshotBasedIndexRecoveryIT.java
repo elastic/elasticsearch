@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -81,18 +82,22 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE;
@@ -122,6 +127,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     public static class TestRepositoryPlugin extends Plugin implements RepositoryPlugin {
         public static final String FAULTY_TYPE = "faultyrepo";
         public static final String INSTRUMENTED_TYPE = "instrumentedrepo";
+        public static final String BLOCKING_TYPE = "blockingrepo";
 
         @Override
         public Map<String, Repository.Factory> getRepositories(
@@ -135,7 +141,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 FAULTY_TYPE,
                 metadata -> new FaultyRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings),
                 INSTRUMENTED_TYPE,
-                metadata -> new InstrumentedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                metadata -> new InstrumentedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings),
+                BLOCKING_TYPE,
+                metadata -> new BlockingRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
             );
         }
     }
@@ -234,6 +242,47 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 }
             };
         }
+    }
+
+    public static class BlockingRepo extends FsRepository {
+        public static final BiFunction<String, InputStream, InputStream> IDENTITY = (blobName, inputStream) -> inputStream;
+        static final AtomicReference<BiFunction<String, InputStream, InputStream>> delegateSupplierRef = new AtomicReference<>(IDENTITY);
+
+        public BlockingRepo(
+            RepositoryMetadata metadata,
+            Environment environment,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
+            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+        }
+
+        static void setReadDelegate(BiFunction<String, InputStream, InputStream> delegate) {
+            delegateSupplierRef.set(delegate);
+        }
+
+        static void clearDelegate() {
+            delegateSupplierRef.set(IDENTITY);
+        }
+
+        @Override
+        public BlobContainer shardContainer(IndexId indexId, int shardId) {
+            return new FilterBlobContainer(super.shardContainer(indexId, shardId)) {
+                @Override
+                protected BlobContainer wrapChild(BlobContainer child) {
+                    return child;
+                }
+
+                @Override
+                public InputStream readBlob(String blobName) throws IOException {
+                    BiFunction<String, InputStream, InputStream> delegateSupplier = delegateSupplierRef.get();
+                    return delegateSupplier.apply(blobName, super.readBlob(blobName));
+                }
+            };
+        }
+
     }
 
     public void testPeerRecoveryUsesSnapshots() throws Exception {
@@ -1198,6 +1247,131 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 assertPeerRecoveryUsedSnapshots(indexRecoveredFromSnapshot2, sourceNode, targetNode);
             }
         );
+    }
+
+    public void testFailureDoesNotOverAccount() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(25))
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), 1)
+            .build();
+
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(3, settings);
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+                .build()
+        );
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(300, 1000);
+        indexDocs(indexName, 0, numDocs);
+        // Flush to ensure that index_commit_seq_nos(replica) == index_commit_seq_nos(primary),
+        // since the primary flushes the index before taking the snapshot.
+        flush(indexName);
+
+        String repoName = "repo";
+        createRepo(repoName, TestRepositoryPlugin.BLOCKING_TYPE);
+        createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String primaryNodeId = clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
+        String primaryNodeName = clusterState.nodes().resolveNode(primaryNodeId).getName();
+        String replicaNodeId = clusterState.routingTable().index(indexName).shard(0).replicaShards().get(0).currentNodeId();
+        String replicaNodeName = clusterState.nodes().resolveNode(replicaNodeId).getName();
+
+        String newReplicaNodeName = dataNodes.stream()
+            .filter(nodeName -> nodeName.equals(primaryNodeName) == false)
+            .filter(nodeName -> nodeName.equals(replicaNodeName) == false)
+            .findFirst()
+            .orElseThrow();
+
+        MockTransportService sourceMockTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            replicaNodeName
+        );
+
+        MockTransportService targetMockTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            newReplicaNodeName
+        );
+
+        final CountDownLatch firstDownloadStartLatch = new CountDownLatch(1);
+        final CountDownLatch blockLatch = new CountDownLatch(1);
+
+        BlockingRepo.setReadDelegate((blobName, inputStream) -> {
+            if (blobName.startsWith("__") == false) {
+                return inputStream;
+            }
+
+            BlockingRepo.clearDelegate();
+
+            return new FilterInputStream(inputStream) {
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    firstDownloadStartLatch.countDown();
+                    try {
+                        blockLatch.await();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return super.read(b, off, len);
+                }
+            };
+        });
+
+        Set<Transport.Connection> connectionRefs = Collections.synchronizedSet(new HashSet<>());
+        sourceMockTransportService.addSendBehavior(targetMockTransportService, (connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
+                connectionRefs.add(connection);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        assertThat(internalCluster().stopNode(primaryNodeName), is(equalTo(true)));
+
+        firstDownloadStartLatch.await();
+        Thread.sleep(30_000);
+        logger.info("--> connections {}", connectionRefs);
+        assertThat(connectionRefs, is(not(empty())));
+        connectionRefs.forEach(Transport.Connection::close);
+
+        final var firstChunkSent = new CountDownLatch(1);
+        final var waitUntilDownloadFinishes = new CountDownLatch(1);
+
+        targetMockTransportService.addRequestHandlingBehavior(
+            PeerRecoveryTargetService.Actions.FILE_CHUNK,
+            (handler, request, channel, task) -> {
+                firstChunkSent.countDown();
+                waitUntilDownloadFinishes.await();
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        firstChunkSent.await();
+        blockLatch.countDown();
+        Thread.sleep(3000);
+        waitUntilDownloadFinishes.countDown();
+
+        ensureGreen(indexName);
+
+        ClusterState clusterStateAfterPrimaryFailOver = client().admin().cluster().prepareState().get().getState();
+        IndexShardRoutingTable shardRoutingTableAfterFailOver = clusterStateAfterPrimaryFailOver.routingTable().index(indexName).shard(0);
+
+        String primaryNodeIdAfterFailOver = shardRoutingTableAfterFailOver.primaryShard().currentNodeId();
+        String primaryNodeNameAfterFailOver = clusterStateAfterPrimaryFailOver.nodes().resolveNode(primaryNodeIdAfterFailOver).getName();
+
+        String replicaNodeIdAfterFailOver = shardRoutingTableAfterFailOver.replicaShards().get(0).currentNodeId();
+        String replicaNodeNameAfterFailOver = clusterStateAfterPrimaryFailOver.nodes().resolveNode(replicaNodeIdAfterFailOver).getName();
+
+        RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
+        assertPeerRecoveryWasSuccessful(recoveryState, primaryNodeNameAfterFailOver, replicaNodeNameAfterFailOver);
+        assertDocumentsAreEqual(indexName, numDocs);
     }
 
     private void executeRecoveryWithSnapshotFileDownloadThrottled(SnapshotBasedRecoveryThrottlingTestCase testCase) throws Exception {

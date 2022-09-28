@@ -68,7 +68,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
     private final SnapshotFilesProvider snapshotFilesProvider;
-    private final MultiFileWriter multiFileWriter;
+    private volatile MultiFileWriter multiFileWriter;
     private final RecoveryRequestTracker requestTracker = new RecoveryRequestTracker();
     private final Store store;
     private final PeerRecoveryTargetService.RecoveryListener listener;
@@ -126,6 +126,18 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // make sure the store is not released until we are done.
         store.incRef();
         indexShard.recoveryStats().incCurrentAsTarget();
+    }
+
+    private void refreshMultiFileWriter() {
+        multiFileWriter.close();
+        final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
+        this.multiFileWriter = new MultiFileWriter(
+            indexShard.store(),
+            indexShard.recoveryState().getIndex(),
+            tempFilePrefix,
+            logger,
+            this::ensureRefCount
+        );
     }
 
     /**
@@ -454,9 +466,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ActionListener<Void> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            multiFileWriter.deleteTempFiles();
             indexShard.resetRecoveryStage();
             indexShard.prepareForIndexRecovery();
+            refreshMultiFileWriter();
             final RecoveryState.Index index = state().getIndex();
             for (int i = 0; i < phase1ExistingFileNames.size(); i++) {
                 index.addFileDetail(phase1ExistingFileNames.get(i), phase1ExistingFileSizes.get(i), true);

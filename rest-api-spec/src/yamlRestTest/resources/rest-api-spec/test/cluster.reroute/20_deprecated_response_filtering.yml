@@ -5,7 +5,7 @@
   - do:
       cluster.reroute: {}
       allowed_warnings:
-        - "[state] field is deprecated in a reroute response and will be removed."
+        - "The [state] field in the response to the reroute API is deprecated and will be removed in a future version. Specify ?metric=none to adopt the future behaviour."
   - is_false: state.metadata
 ---
 "If requested return metadata and produce deprecation warning":
@@ -15,7 +15,7 @@
       cluster.reroute:
         metric: metadata
       allowed_warnings:
-        - "[state] field is deprecated in a reroute response and will be removed."
+        - "The [state] field in the response to the reroute API is deprecated and will be removed in a future version. Specify ?metric=none to adopt the future behaviour."
   - is_true: state.metadata
   - is_false: state.nodes
 

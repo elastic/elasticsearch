@@ -74,7 +74,8 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
                 deprecationLogger.critical(
                     DeprecationCategory.API,
                     "reroute_cluster_state",
-                    "[state] field is deprecated in a reroute response and will be removed."
+                    "The [state] field in the response to the reroute API is deprecated and will be removed in a future version. "
+                        + "Specify ?metric=none to adopt the future behaviour."
                 );
             }
             builder.startObject("state");

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Tuple;
 
@@ -16,6 +18,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -29,6 +32,8 @@ public class CompoundProcessor implements Processor {
     public static final String ON_FAILURE_PROCESSOR_TYPE_FIELD = "on_failure_processor_type";
     public static final String ON_FAILURE_PROCESSOR_TAG_FIELD = "on_failure_processor_tag";
     public static final String ON_FAILURE_PIPELINE_FIELD = "on_failure_pipeline";
+
+    private static final Logger logger = LogManager.getLogger(CompoundProcessor.class);
 
     private final boolean ignoreFailure;
     private final List<Processor> processors;
@@ -132,25 +137,43 @@ public class CompoundProcessor implements Processor {
         final Processor processor = processorWithMetric.v1();
         final IngestMetric metric = processorWithMetric.v2();
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        /*
+         * Our assumption is that the listener passed to the processor is only ever called once. However, there is no way to enforce
+         * that in all processors and all of the code that they call. If the listener is called more than once it causes problems
+         * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
+         * is only executed once.
+         */
+        final AtomicBoolean listenerHasBeenCalled = new AtomicBoolean(false);
         metric.preIngest();
+        final AtomicBoolean postIngestHasBeenCalled = new AtomicBoolean(false);
         try {
             processor.execute(ingestDocument, (result, e) -> {
-                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
-                metric.postIngest(ingestTimeInNanos);
-
-                if (e != null) {
-                    executeOnFailure(currentProcessor, ingestDocument, handler, processor, metric, e);
+                if (listenerHasBeenCalled.getAndSet(true)) {
+                    logger.warn("A listener was unexpectedly called more than once", new RuntimeException());
+                    assert false : "A listener was unexpectedly called more than once";
                 } else {
-                    if (result != null) {
-                        innerExecute(currentProcessor + 1, result, handler);
+                    long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                    metric.postIngest(ingestTimeInNanos);
+                    postIngestHasBeenCalled.set(true);
+                    if (e != null) {
+                        executeOnFailure(currentProcessor, ingestDocument, handler, processor, metric, e);
                     } else {
-                        handler.accept(null, null);
+                        if (result != null) {
+                            innerExecute(currentProcessor + 1, result, handler);
+                        } else {
+                            handler.accept(null, null);
+                        }
                     }
                 }
             });
         } catch (Exception e) {
             long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
-            metric.postIngest(ingestTimeInNanos);
+            if (postIngestHasBeenCalled.get()) {
+                logger.warn("Preventing postIngest from being called more than once", new RuntimeException());
+                assert false : "Attempt to call postIngest more than once";
+            } else {
+                metric.postIngest(ingestTimeInNanos);
+            }
             executeOnFailure(currentProcessor, ingestDocument, handler, processor, metric, e);
         }
     }

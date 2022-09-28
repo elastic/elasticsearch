@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -21,6 +22,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 
 import java.util.Collections;
 import java.util.List;
@@ -57,7 +59,12 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        // Query Specs to be registered here to implement relevance_search
-        return Collections.emptyList();
+        return Collections.singletonList(
+            new QuerySpec<QueryBuilder>(
+                RelevanceMatchQueryBuilder.NAME,
+                RelevanceMatchQueryBuilder::new,
+                RelevanceMatchQueryBuilder::fromXContent
+            )
+        );
     }
 }

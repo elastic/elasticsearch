@@ -211,7 +211,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
     @Override
     protected synchronized void doStop() {
-        // TODO drain queues before terminating the executor?
         ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
     }
 
@@ -434,6 +433,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     }
                 );
             } catch (Exception e) {
+                assert publicationMayFail() : e;
                 handleException(summary, publicationStartTime, newClusterState, e);
             }
         } finally {
@@ -484,7 +484,6 @@ public class MasterService extends AbstractLifecycleComponent {
             ),
             e
         );
-        // TODO: do we want to call updateTask.onFailure here?
     }
 
     private ClusterState patchVersions(ClusterState previousClusterState, ClusterState newClusterState) {
@@ -1432,7 +1431,7 @@ public class MasterService extends AbstractLifecycleComponent {
          * @param e is a {@link FailedToCommitClusterStateException} to cause things like {@link TransportMasterNodeAction} to retry after
          *         submitting a task to a master which shut down.
          */
-        // TODO maybe should be a NodeClosedException instead, but this doesn't trigger retries today.
+        // Should really be a NodeClosedException instead, but this exception type doesn't trigger retries today.
         void onRejection(FailedToCommitClusterStateException e);
     }
 
@@ -1594,7 +1593,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 for (int i = 0; i < items; i++) {
                     final var entry = queue.poll();
                     assert entry != null;
-                    entry.onRejection(e); // TODO test to verify FTCCSE here
+                    entry.onRejection(e);
                 }
             }
 

@@ -87,14 +87,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         );
     }
 
-    private static final Settings BALANCED_ALLOCATOR_BY_DEFAULT = Settings.builder()
-        .put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), BALANCED_ALLOCATOR)
-        .build();
-
-    private static final Settings DESIRED_BALANCE_ALLOCATOR_BY_DEFAULT = Settings.builder()
-        .put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), DESIRED_BALANCE_ALLOCATOR)
-        .build();
-
     private static ShardsAllocator createShardsAllocator(Settings settings) {
         return switch (randomFrom(BALANCED_ALLOCATOR, DESIRED_BALANCE_ALLOCATOR)) {
             case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);

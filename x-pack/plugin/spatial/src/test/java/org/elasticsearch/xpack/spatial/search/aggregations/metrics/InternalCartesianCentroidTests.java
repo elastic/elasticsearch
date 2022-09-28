@@ -94,6 +94,13 @@ public class InternalCartesianCentroidTests extends InternalAggregationTestCase<
         assertEquals(sampled.count(), samplingContext.scaleUp(reduced.count()), 0);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90474")
+    @Override
+    public void testEqualsAndHashcode() {
+        // TODO: When this issue is fixed, remove this method and set the parent method back to final
+        super.testEqualsAndHashcode();
+    }
+
     public void testReduceMaxCount() {
         InternalCartesianCentroid maxValueCentroid = new InternalCartesianCentroid(
             "agg",

@@ -168,11 +168,9 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 if (node.canContainData()) {
                     dataNodes.add(node);
                 } else if (node.isMasterNode()) {
-                    masterNodes.putIfAbsent(healthStatus, new HashSet<>());
-                    masterNodes.get(healthStatus).add(node);
+                    masterNodes.computeIfAbsent(healthStatus, ignored -> new HashSet<>()).add(node);
                 } else {
-                    otherNodes.putIfAbsent(healthStatus, new HashSet<>());
-                    otherNodes.get(healthStatus).add(node);
+                    otherNodes.computeIfAbsent(healthStatus, ignored -> new HashSet<>()).add(node);
                 }
             }
             indicesAtRisk = getIndicesForNodes(dataNodes, clusterState);

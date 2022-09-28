@@ -1,0 +1,92 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1 you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.gradle.plugin.scanner
+
+import spock.lang.Specification
+
+import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleClass
+import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleInterface
+import org.elasticsearch.gradle.plugin.scanner.test_classes.ImplementingExtensible
+import org.elasticsearch.gradle.plugin.scanner.test_classes.SubClass
+import org.elasticsearch.gradle.plugin.scanner.test_classes.TestExtensible
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.Type
+
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+
+class AnnotatedHierarchyVisitorSpec extends Specification {
+    Set<String> foundClasses
+    AnnotatedHierarchyVisitor visitor
+
+    def setup() {
+        foundClasses = new HashSet<>()
+        visitor =
+            new AnnotatedHierarchyVisitor(
+                Type.getDescriptor(TestExtensible.class), (className) -> {
+                foundClasses.add(className)
+                return null
+            }
+            )
+    }
+
+    def "empty result when no classes annotated"() {
+        when:
+        performScan(visitor, AnnotatedHierarchyVisitorSpec.class)
+
+        then:
+        foundClasses.empty
+    }
+
+    def "single class found when only one is annotated"() {
+        when:
+        performScan(visitor, ExtensibleClass.class)
+
+        then:
+        foundClasses == [classNameToPath(ExtensibleClass.class)] as Set
+    }
+
+    def "class extending an extensible is also found"() {
+        when:
+        performScan(visitor, ExtensibleClass.class, SubClass.class)
+
+        then:
+        foundClasses == [classNameToPath(ExtensibleClass.class)] as Set
+        visitor.getClassHierarchy() == [(classNameToPath(ExtensibleClass.class)) : [classNameToPath(SubClass.class)] as Set]
+    }
+
+    def "interface extending an extensible is also found"() {
+        when:
+        performScan(visitor, ImplementingExtensible.class, ExtensibleInterface.class)
+
+        then:
+        foundClasses == [classNameToPath(ExtensibleInterface.class)] as Set
+        visitor.getClassHierarchy() ==
+            [(classNameToPath(ExtensibleInterface.class)) : [classNameToPath(ImplementingExtensible.class)] as Set]
+    }
+
+    private String classNameToPath(Class<?> clazz) {
+        return clazz.getCanonicalName().replace(".", "/")
+    }
+
+    private void performScan(AnnotatedHierarchyVisitor classVisitor, Class<?>... classes) throws IOException, URISyntaxException {
+        Path mainPath = Paths.get(AnnotatedHierarchyVisitorSpec.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+
+        for (Class<?> clazz : classes) {
+            String className = classNameToPath(clazz) + ".class"
+            Path path = mainPath.resolve(className)
+            try (InputStream fileInputStream = Files.newInputStream(path)) {
+                ClassReader cr = new ClassReader(fileInputStream)
+                cr.accept(classVisitor, 0)
+            }
+        }
+    }
+
+}

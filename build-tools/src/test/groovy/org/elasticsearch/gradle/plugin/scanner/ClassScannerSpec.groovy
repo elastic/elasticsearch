@@ -6,36 +6,37 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.plugin.scanner;
-
-import junit.framework.TestCase;
+package org.elasticsearch.gradle.plugin.scanner
 
 
-import org.elasticsearch.gradle.plugin.scanner.test_classes.TestExtensible;
-import org.hamcrest.Matchers;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.Type;
+import spock.lang.Specification
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.stream.Stream;
+import org.elasticsearch.gradle.plugin.scanner.test_classes.TestExtensible
+import org.hamcrest.Matchers
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.Type
 
-import static org.hamcrest.MatcherAssert.assertThat;
+import java.nio.file.Paths
+import java.util.stream.Stream
 
-public class ClassScannerTests extends TestCase {
+import static org.hamcrest.MatcherAssert.assertThat
 
-    public void testExtensibleInHierarchy() throws IOException {
-        ClassScanner reader = new ClassScanner(Type.getDescriptor(TestExtensible.class), (classname, map) -> {
-            map.put(classname, classname);
-            return null;
-        });
-        Stream<ClassReader> classReaderStream = ofClassPath();
+class ClassScannerSpec extends Specification {
+    def "class and interface hierarchy is scanned"() {
+        given:
+        def reader = new ClassScanner(
+            Type.getDescriptor(TestExtensible.class), (classname, map) -> {
+            map.put(classname, classname)
+            return null
+        }
+        )
+        Stream<ClassReader> classReaderStream = ofClassPath()
+
+        when:
         reader.visit(classReaderStream);
-        Map<String, String> extensibleClasses = reader.getFoundClasses();
+        Map<String, String> extensibleClasses = reader.getFoundClasses()
 
+        then:
         assertThat(
             extensibleClasses,
             Matchers.allOf(
@@ -55,10 +56,11 @@ public class ClassScannerTests extends TestCase {
         );
     }
 
-    public static Stream<ClassReader> ofClassPath() throws IOException {
+    static Stream<ClassReader> ofClassPath() throws IOException {
         String classpath = System.getProperty("java.class.path");
         return ofClassPath(classpath);
     }
+
     static Stream<ClassReader> ofClassPath(String classpath) {
         if (classpath != null && classpath.equals("") == false) {// todo when do we set cp to "" ?
             String[] pathelements = classpath.split(":");

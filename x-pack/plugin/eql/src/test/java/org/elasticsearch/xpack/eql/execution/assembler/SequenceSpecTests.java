@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -38,6 +39,8 @@ import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -56,6 +59,8 @@ public class SequenceSpecTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
     private static final String QUERIES_FILENAME = "sequences.series-spec";
+
+    private static final String KEY_FIELD_NAME = "key";
 
     private final List<Map<Integer, Tuple<String, String>>> events;
     private final List<List<String>> matches;
@@ -95,7 +100,7 @@ public class SequenceSpecTests extends ESTestCase {
     static class KeyExtractor extends EmptyHitExtractor {
         @Override
         public String extract(SearchHit hit) {
-            return hit.getId();
+            return hit.getFields().get(KEY_FIELD_NAME).getValues().get(0).toString();
         }
     }
 
@@ -180,8 +185,10 @@ public class SequenceSpecTests extends ESTestCase {
 
             for (Entry<Integer, Tuple<String, String>> entry : events.entrySet()) {
                 Tuple<String, String> value = entry.getValue();
+                Map<String, DocumentField> documentFields = new HashMap<>();
+                documentFields.put(KEY_FIELD_NAME, new DocumentField(KEY_FIELD_NAME, Collections.singletonList(value.v1())));
                 // save the timestamp both as docId (int) and as id (string)
-                SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString(), null, null);
+                SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString(), documentFields, null);
                 hits.add(searchHit);
             }
         }

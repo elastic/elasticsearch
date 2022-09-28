@@ -250,7 +250,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                     new HashMap<>();
                                 buildShardLevelInfo(
                                     clusterService.state().routingTable(),
-                                    stats,
+                                    adjustShardStats(stats),
                                     shardSizeByIdentifierBuilder,
                                     shardDataSetSizeBuilder,
                                     dataPathByShardRoutingBuilder,
@@ -428,6 +428,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     // allow tests to adjust the node stats on receipt
     List<NodeStats> adjustNodesStats(List<NodeStats> nodeStats) {
         return nodeStats;
+    }
+
+    ShardStats[] adjustShardStats(ShardStats[] shardStats) {
+        return shardStats;
     }
 
     void refreshAsync(ActionListener<ClusterInfo> future) {

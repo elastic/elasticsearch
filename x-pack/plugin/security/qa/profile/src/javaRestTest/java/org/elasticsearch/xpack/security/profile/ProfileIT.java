@@ -83,7 +83,7 @@ public class ProfileIT extends ESRestTestCase {
         return Settings.builder()
             .put(
                 ThreadContext.PREFIX + ".Authorization",
-                basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()))
+                basicAuthHeaderValue("test-admin", new SecureString("x-pack-test-password".toCharArray()))
             )
             .build();
     }
@@ -338,6 +338,27 @@ public class ProfileIT extends ESRestTestCase {
     }
 
     public void testXpackUsageOutput() throws IOException {
+        // Profile 1 that has not activated for more than 30 days
+        final String uid = randomAlphaOfLength(20);
+        final String source = SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, uid, Instant.now().minus(31, ChronoUnit.DAYS).toEpochMilli());
+        final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
+        indexRequest.setJsonEntity(source);
+        indexRequest.addParameter("refresh", "wait_for");
+        indexRequest.setOptions(
+            expectWarnings(
+                "this request accesses system indices: [.security-profile-8], but in a future major version, "
+                    + "direct access to system indices will be prevented by default"
+            )
+        );
+        assertOK(adminClient().performRequest(indexRequest));
+
+        // Profile 2 is disabled
+        final Map<String, Object> racUserProfile = doActivateProfile();
+        doSetEnabled((String) racUserProfile.get("uid"), false);
+
+        // Profile 3 is enabled and recently activated
+        doActivateProfile("test-admin", "x-pack-test-password");
+
         final Request xpackUsageRequest = new Request("GET", "_xpack/usage");
         xpackUsageRequest.addParameter("filter_path", "security");
         final Response xpackUsageResponse = adminClient().performRequest(xpackUsageRequest);
@@ -354,6 +375,8 @@ public class ProfileIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         final List<String> otherDomainRealms = (List<String>) castToMap(domainsUsage.get("other_domain")).get("realms");
         assertThat(otherDomainRealms, containsInAnyOrder("saml1", "ad1"));
+
+        assertThat(castToMap(xpackUsageView.get("security.user_profile")), equalTo(Map.of("total", 3, "enabled", 2, "recent", 1)));
     }
 
     public void testActivateGracePeriodIsPerNode() throws IOException {

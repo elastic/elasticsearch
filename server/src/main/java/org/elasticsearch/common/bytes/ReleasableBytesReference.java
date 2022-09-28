@@ -105,6 +105,12 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     }
 
     @Override
+    public int getIntLE(int index) {
+        assert hasReferences();
+        return delegate.getIntLE(index);
+    }
+
+    @Override
     public int indexOf(byte marker, int from) {
         assert hasReferences();
         return delegate.indexOf(marker, from);

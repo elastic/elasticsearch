@@ -99,12 +99,14 @@ using metrics.
     metric is specified. Supported metrics are:
 +
 --
+    * `bulk`
     * `completion`
     * `docs`
     * `fielddata`
     * `flush`
     * `get`
     * `indexing`
+    * `mappings`
     * `merge`
     * `query_cache`
     * `recovery`
@@ -112,6 +114,7 @@ using metrics.
     * `request_cache`
     * `search`
     * `segments`
+    * `shard_stats`
     * `store`
     * `translog`
     * `warmer`
@@ -960,7 +963,7 @@ Time in milliseconds
 recovery operations were delayed due to throttling.
 =======
 
-`shards_stats`::
+`shard_stats`::
 (object)
 Contains statistics about all shards assigned to the node.
 +
@@ -971,6 +974,29 @@ Contains statistics about all shards assigned to the node.
 (integer)
 The total number of shards assigned to the node.
 =======
+
+`mappings`::
+(object)
+Contains statistics about the mappings for the node.
+This is not shown for the `shards` level, since mappings may be
+shared across the shards of an index on a node.
++
+.Properties of `mappings`
+[%collapsible%open]
+=======
+`total_count`::
+(integer)
+Number of mappings, including <<runtime,runtime>> and <<object,object>> fields.
+
+`total_estimated_overhead`::
+(<<byte-units,byte value>>)
+Estimated heap overhead of mappings on this node, which allows for 1kiB of heap for every mapped field.
+
+`total_estimated_overhead_in_bytes`::
+(integer)
+Estimated heap overhead, in bytes, of mappings on this node, which allows for 1kiB of heap for every mapped field.
+=======
+
 ======
 
 [[cluster-nodes-stats-api-response-body-os]]
@@ -1826,7 +1852,7 @@ The total number of kilobytes written for the device since starting {es}.
 
 `io_time_in_millis` (Linux only)::
 (integer)
-The total time in milliseconds spent performing I/O operations for the device 
+The total time in milliseconds spent performing I/O operations for the device
 since starting {es}.
 ========
 
@@ -1857,7 +1883,7 @@ since starting {es}.
 
 `io_time_in_millis` (Linux only)::
     (integer)
-    The total time in milliseconds spent performing I/O operations across all 
+    The total time in milliseconds spent performing I/O operations across all
     devices used by {es} since starting {es}.
 =======
 ======

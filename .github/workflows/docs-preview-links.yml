@@ -6,9 +6,6 @@ on:
     paths:
       - '**.asciidoc'
 
-permissions:
-  contents: read
-
 jobs:
   doc-preview:
     permissions:

@@ -1,0 +1,11 @@
+pr: 90460
+summary: Deprecate 'remove_binary' default of false for ingest attachment processor
+area: Ingest Node
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate 'remove_binary' default of false for ingest attachment processor
+  area: Ingest Node
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

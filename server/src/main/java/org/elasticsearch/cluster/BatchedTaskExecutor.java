@@ -11,8 +11,8 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.core.Tuple;
 
 /**
- * A basic implementation for batch executors that simply need to execute the tasks in the batch iteratively,
- * producing a cluster state after each task. Each task execution returns a result of type {@code TaskResult}.
+ * A basic implementation for batch executors that simply need to execute the tasks in the batch iteratively.
+ * Executing each task in the batch produces a cluster state and a result of type {@code TaskResult}.
  * This allows executing the tasks in the batch as a series of executions, each taking an input cluster state
  * and producing a new cluster state that serves as the input of the next task in the batch.
  */

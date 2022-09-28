@@ -74,6 +74,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
         try {
             final IndicesAccessControl indicesAccessControl = getIndicesAccessControl();
+            assert indicesAccessControl.isGranted();
 
             ShardId shardId = ShardUtils.extractShardId(reader);
             if (shardId == null) {

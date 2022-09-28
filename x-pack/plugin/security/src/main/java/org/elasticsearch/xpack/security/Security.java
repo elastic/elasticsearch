@@ -1623,6 +1623,7 @@ public class Security extends Plugin
                 if (indicesAccessControl == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
+                assert indicesAccessControl.isGranted();
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;

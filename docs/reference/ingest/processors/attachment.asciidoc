@@ -68,6 +68,7 @@ PUT my-index-000001/_doc/my_id?pipeline=attachment
 }
 GET my-index-000001/_doc/my_id
 ----
+// TEST[warning:The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change.]
 
 The document's `attachment` object contains extracted properties for the file:
 
@@ -147,6 +148,7 @@ PUT _ingest/pipeline/attachment
   ]
 }
 ----
+// TEST[warning:The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change.]
 
 NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines
@@ -173,6 +175,7 @@ PUT _ingest/pipeline/cbor-attachment
   ]
 }
 ----
+// TEST[warning:The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change.]
 
 The following Python script passes CBOR data to an HTTP indexing request that
 includes the `cbor-attachment` pipeline. The HTTP request headers use a
@@ -233,6 +236,7 @@ PUT my-index-000001/_doc/my_id?pipeline=attachment
 }
 GET my-index-000001/_doc/my_id
 --------------------------------------------------
+// TEST[warning:The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change.]
 
 Returns this:
 
@@ -281,6 +285,7 @@ PUT my-index-000001/_doc/my_id_2?pipeline=attachment
 }
 GET my-index-000001/_doc/my_id_2
 --------------------------------------------------
+// TEST[warning:The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change.]
 
 Returns this:
 
@@ -374,6 +379,7 @@ PUT my-index-000001/_doc/my_id?pipeline=attachment
 }
 GET my-index-000001/_doc/my_id
 --------------------------------------------------
+// TEST[warning:The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change.]
 
 Returns this:
 

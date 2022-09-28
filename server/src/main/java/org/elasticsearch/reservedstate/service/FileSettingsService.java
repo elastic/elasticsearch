@@ -70,7 +70,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private WatchKey configDirWatchKey;
 
     private volatile boolean active = false;
-    private boolean initialState = true;
+    private volatile boolean initialState = true;
 
     public static final String OPERATOR_DIRECTORY = "operator";
 
@@ -234,8 +234,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
          *  - any changes to files inside the operator directory if it exists, filtering for settings.json
          */
         try {
-            this.watchService = operatorSettingsDir.getParent().getFileSystem().newWatchService();
-            if (Files.exists(operatorSettingsDir)) {
+            Path settingsDirPath = operatorSettingsDir();
+            this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
+            if (Files.exists(settingsDirPath)) {
                 Path settingsFilePath = operatorSettingsFile();
                 if (Files.exists(settingsFilePath)) {
                     logger.debug("found initial operator settings file [{}], applying...", settingsFilePath);
@@ -251,14 +252,14 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                         }
                     }
                 }
-                settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, operatorSettingsDir);
+                settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDirPath);
             } else {
-                logger.debug("operator settings directory [{}] not found, will watch for its creation...", operatorSettingsDir);
+                logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDirPath);
             }
             // We watch the config directory always, even if initially we had an operator directory
             // it can be deleted and created later. The config directory never goes away, we only
             // register it once for watching.
-            configDirWatchKey = enableSettingsWatcher(configDirWatchKey, operatorSettingsDir.getParent());
+            configDirWatchKey = enableSettingsWatcher(configDirWatchKey, settingsDirPath.getParent());
         } catch (Exception e) {
             if (watchService != null) {
                 try {
@@ -276,7 +277,6 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
         watcherThread = new Thread(this::watcherThread, "elasticsearch[file-settings-watcher]");
         watcherThread.start();
-
     }
 
     private void watcherThread() {
@@ -299,7 +299,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                  * After we get an indication that something has changed, we check the timestamp, file id,
                  * real path of our desired file. We don't actually care what changed, we just re-check ourselves.
                  */
-                if (Files.exists(operatorSettingsDir)) {
+                Path settingsPath = operatorSettingsDir();
+                if (Files.exists(settingsPath)) {
                     try {
                         Path path = operatorSettingsFile();
 
@@ -314,7 +315,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                         // if the file name maps to the same native file system file id. Symlinks
                         // are one potential cause of inconsistency here, since their handling by
                         // the WatchService is platform dependent.
-                        settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, operatorSettingsDir);
+                        settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsPath);
 
                         if (watchedFileChanged(path)) {
                             try {
@@ -349,7 +350,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             } catch (IOException e) {
                 logger.warn("encountered exception while closing watch service", e);
             } catch (InterruptedException interruptedException) {
-                logger.warn("interrupted while closing the watch service", interruptedException);
+                logger.info("interrupted while closing the watch service", interruptedException);
             } finally {
                 watcherThread = null;
                 watchService = null;

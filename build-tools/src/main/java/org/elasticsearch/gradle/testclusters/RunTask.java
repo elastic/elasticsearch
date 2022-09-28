@@ -49,7 +49,7 @@ public class RunTask extends DefaultTestClustersTask {
 
     private Boolean useHttps = false;
 
-    private Boolean useTransportHttps = false;
+    private Boolean useTransportTls = false;
 
     private final Path tlsBasePath = Path.of(
         new File(getProject().getRootDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
@@ -111,15 +111,15 @@ public class RunTask extends DefaultTestClustersTask {
         return useHttps;
     }
 
-    @Option(option = "transport-https", description = "Helper option to enable HTTPS on transport port")
-    public void setUseTransportHttps(boolean useTransportHttps) {
-        this.useTransportHttps = useTransportHttps;
+    @Option(option = "transport-tls", description = "Helper option to enable TLS on transport port")
+    public void setUseTransportTls(boolean useTransportTls) {
+        this.useTransportTls = useTransportTls;
     }
 
     @Input
     @Optional
-    public Boolean getUseTransportHttps() {
-        return useTransportHttps;
+    public Boolean getUseTransportTls() {
+        return useTransportTls;
     }
 
     @Override
@@ -164,7 +164,7 @@ public class RunTask extends DefaultTestClustersTask {
                     node.setting("xpack.security.http.ssl.keystore.path", "https.keystore");
                     node.setting("xpack.security.http.ssl.certificate_authorities", "https.ca");
                 }
-                if (useTransportHttps) {
+                if (useTransportTls) {
                     node.setting("xpack.security.transport.ssl.enabled", "true");
                     node.setting("xpack.security.transport.ssl.client_authentication", "required");
                     node.extraConfigFile("transport.keystore", tlsBasePath.resolve(transportCertificate).toFile());

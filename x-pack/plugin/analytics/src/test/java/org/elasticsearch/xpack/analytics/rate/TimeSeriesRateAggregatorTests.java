@@ -39,6 +39,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.core.IsEqual.equalTo;
 
 public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 

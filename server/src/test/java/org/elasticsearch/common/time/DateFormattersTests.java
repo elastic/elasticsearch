@@ -576,6 +576,7 @@ public class DateFormattersTests extends ESTestCase {
         assertDateMathEquals("1500", "1500-01-01T23:59:59.999", "uuuu");
         assertDateMathEquals("2022", "2022-01-01T23:59:59.999", "uuuu");
         assertDateMathEquals("2022", "2022-01-01T23:59:59.999", "yyyy");
+        // cannot reliably default week based years due to locale changing. See JavaDateFormatter javadocs
         assertDateMathEquals("2022", "2022-01-03T23:59:59.999", "YYYY", Locale.ROOT);
     }
 

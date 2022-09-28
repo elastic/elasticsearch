@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 
 import java.time.Instant;
@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AssignmentStatsTests extends AbstractBWCWireSerializationTestCase<AssignmentStats> {
+public class AssignmentStatsTests extends AbstractWireSerializingTestCase<AssignmentStats> {
 
     public static AssignmentStats randomDeploymentStats() {
         List<AssignmentStats.NodeStats> nodeStatsList = new ArrayList<>();
@@ -207,10 +207,5 @@ public class AssignmentStatsTests extends AbstractBWCWireSerializationTestCase<A
     @Override
     protected AssignmentStats createTestInstance() {
         return randomDeploymentStats();
-    }
-
-    @Override
-    protected AssignmentStats mutateInstanceForVersion(AssignmentStats instance, Version version) {
-        return instance;
     }
 }

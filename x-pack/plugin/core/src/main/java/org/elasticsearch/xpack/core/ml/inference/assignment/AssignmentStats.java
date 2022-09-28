@@ -32,7 +32,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         private final DiscoveryNode node;
         private final Long inferenceCount;
         private final Double avgInferenceTime;
-        private final Double avgResponseTime;
+        private final Double avgInferenceTimeExcludingCacheHit;
         private final Instant lastAccess;
         private final Integer pendingCount;
         private final int errorCount;
@@ -135,7 +135,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             this.node = node;
             this.inferenceCount = inferenceCount;
             this.avgInferenceTime = avgInferenceTime;
-            this.avgResponseTime = avgResponseTime;
+            this.avgInferenceTimeExcludingCacheHit = avgResponseTime;
             this.lastAccess = lastAccess;
             this.pendingCount = pendingCount;
             this.errorCount = errorCount;
@@ -192,10 +192,10 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 this.cacheHitCount = null;
                 this.cacheHitCountLastPeriod = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-                this.avgResponseTime = in.readOptionalDouble();
+            if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+                this.avgInferenceTimeExcludingCacheHit = in.readOptionalDouble();
             } else {
-                this.avgResponseTime = null;
+                this.avgInferenceTimeExcludingCacheHit = null;
             }
 
         }
@@ -216,8 +216,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             return Optional.ofNullable(avgInferenceTime);
         }
 
-        public Optional<Double> getAvgResponseTime() {
-            return Optional.ofNullable(avgResponseTime);
+        public Optional<Double> getAvgInferenceTimeExcludingCacheHit() {
+            return Optional.ofNullable(avgInferenceTimeExcludingCacheHit);
         }
 
         public Instant getLastAccess() {
@@ -289,8 +289,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 if (avgInferenceTime != null) {
                     builder.field("average_inference_time_ms", avgInferenceTime);
                 }
-                if (avgResponseTime != null) {
-                    builder.field("average_response_time_ms", avgResponseTime);
+                if (avgInferenceTimeExcludingCacheHit != null) {
+                    builder.field("average_inference_time_ms_excluding_cache_hits", avgInferenceTimeExcludingCacheHit);
                 }
             }
             if (cacheHitCount != null) {
@@ -358,8 +358,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 out.writeOptionalVLong(cacheHitCount);
                 out.writeOptionalVLong(cacheHitCountLastPeriod);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
-                out.writeOptionalDouble(avgResponseTime);
+            if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+                out.writeOptionalDouble(avgInferenceTimeExcludingCacheHit);
             }
         }
 
@@ -370,7 +370,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             AssignmentStats.NodeStats that = (AssignmentStats.NodeStats) o;
             return Objects.equals(inferenceCount, that.inferenceCount)
                 && Objects.equals(that.avgInferenceTime, avgInferenceTime)
-                && Objects.equals(that.avgResponseTime, avgResponseTime)
+                && Objects.equals(that.avgInferenceTimeExcludingCacheHit, avgInferenceTimeExcludingCacheHit)
                 && Objects.equals(node, that.node)
                 && Objects.equals(lastAccess, that.lastAccess)
                 && Objects.equals(pendingCount, that.pendingCount)
@@ -394,7 +394,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 node,
                 inferenceCount,
                 avgInferenceTime,
-                avgResponseTime,
+                avgInferenceTimeExcludingCacheHit,
                 lastAccess,
                 pendingCount,
                 errorCount,

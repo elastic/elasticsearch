@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
@@ -101,7 +102,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
             CartesianPoint expectedCentroid = new CartesianPoint(0, 0);
             CartesianPoint[] singleValues = new CartesianPoint[numUniqueCartesianPoints];
             for (int i = 0; i < singleValues.length; i++) {
-                Point point = ShapeTestUtils.randomPoint(false);
+                Point point = ESTestCase.randomValueOtherThanMany(this::extremePoint, () -> ShapeTestUtils.randomPoint(false));
                 singleValues[i] = new CartesianPoint(point.getX(), point.getY());
             }
             for (int i = 0; i < numDocs; i++) {
@@ -158,12 +159,37 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
             assertEquals("my_agg", result.getName());
             SpatialPoint centroid = result.centroid();
             assertNotNull(centroid);
-            double xTolerance = Math.abs(expectedCentroid.getX() / 1e6);
-            double yTolerance = Math.abs(expectedCentroid.getY() / 1e6);
+            double xTolerance = tolerance(expectedCentroid.getX(), centroid.getX());
+            double yTolerance = tolerance(expectedCentroid.getY(), centroid.getY());
             assertEquals(expectedCentroid.getX(), centroid.getX(), xTolerance);
             assertEquals(expectedCentroid.getY(), centroid.getY(), yTolerance);
             assertTrue(AggregationInspectionHelper.hasValue(result));
         }
+    }
+
+    /**
+     * Due to cartesian ranging from very large numbers to very small, we need different ways of calculating accuracy for the extremes
+     */
+    private double tolerance(double a, double b) {
+        double coordinate = (Math.abs(a) + Math.abs(b)) / 2;
+        if (coordinate < 1.0) {
+            // When dealing with small numbers, we use the same tolerance as in the geo case
+            return 1e-6D;
+        } else {
+            // For large numbers we use a tolerance based on a faction of the expected value
+            return coordinate / 1e6D;
+        }
+    }
+
+    /**
+     * Since cartesian centroid is stored in Float values, and calculations perform averages over many,
+     * We cannot support points at the very edge of the range.
+     * TODO: Consider whether this should be implemented in ShapeTestUtils itself for more tests
+     */
+    private boolean extremePoint(Point point) {
+        double max = Float.MAX_VALUE / 100;
+        double min = -Float.MAX_VALUE / 100;
+        return point.getLon() > max || point.getLon() < min || point.getLat() > max || point.getLat() < min;
     }
 
     @Override

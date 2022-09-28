@@ -238,6 +238,10 @@ public class SecuritySystemIndices {
                             builder.startObject("allow_restricted_indices");
                             builder.field("type", "boolean");
                             builder.endObject();
+
+                            builder.startObject("target_clusters");
+                            builder.field("type", "keyword");
+                            builder.endObject();
                         }
                         builder.endObject();
                     }

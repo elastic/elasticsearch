@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RelocationFailureInfo;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -40,35 +40,34 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-        final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+        final int maxRetries = SETTING_ALLOCATION_MAX_RETRY.get(allocation.metadata().getIndexSafe(shardRouting.index()).getSettings());
+
+        final var unassignedInfo = shardRouting.unassignedInfo();
         final int numFailedAllocations = unassignedInfo == null ? 0 : unassignedInfo.getNumFailedAllocations();
         if (numFailedAllocations > 0) {
-            return decisionWithFailures(shardRouting, allocation, unassignedInfo, numFailedAllocations);
+            final var decision = numFailedAllocations >= maxRetries ? Decision.NO : Decision.YES;
+            return allocation.debugDecision() ? debugDecision(decision, unassignedInfo, numFailedAllocations, maxRetries) : decision;
         }
+
+        final var relocationFailureInfo = shardRouting.relocationFailureInfo();
+        final int numFailedRelocations = relocationFailureInfo == null ? 0 : relocationFailureInfo.failedRelocations();
+        if (numFailedRelocations > 0) {
+            final var decision = numFailedRelocations >= maxRetries ? Decision.NO : Decision.YES;
+            return allocation.debugDecision() ? debugDecision(decision, relocationFailureInfo, numFailedRelocations, maxRetries) : decision;
+        }
+
         return YES_NO_FAILURES;
     }
 
-    private static Decision decisionWithFailures(
-        ShardRouting shardRouting,
-        RoutingAllocation allocation,
-        UnassignedInfo unassignedInfo,
-        int numFailedAllocations
-    ) {
-        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        final int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexMetadata.getSettings());
-        final Decision res = numFailedAllocations >= maxRetry ? Decision.NO : Decision.YES;
-        return allocation.debugDecision() ? debugDecision(res, unassignedInfo, numFailedAllocations, maxRetry) : res;
-    }
-
-    private static Decision debugDecision(Decision decision, UnassignedInfo unassignedInfo, int numFailedAllocations, int maxRetry) {
+    private static Decision debugDecision(Decision decision, UnassignedInfo info, int numFailedAllocations, int maxRetries) {
         if (decision.type() == Decision.Type.NO) {
             return Decision.single(
                 Decision.Type.NO,
                 NAME,
-                "shard has exceeded the maximum number of retries [%d] on "
-                    + "failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",
-                maxRetry,
-                unassignedInfo.toString()
+                "shard has exceeded the maximum number of retries [%d] on failed allocation attempts - "
+                    + "manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",
+                maxRetries,
+                info.toString()
             );
         } else {
             return Decision.single(
@@ -76,7 +75,28 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
                 NAME,
                 "shard has failed allocating [%d] times but [%d] retries are allowed",
                 numFailedAllocations,
-                maxRetry
+                maxRetries
+            );
+        }
+    }
+
+    private static Decision debugDecision(Decision decision, RelocationFailureInfo info, int numFailedRelocations, int maxRetries) {
+        if (decision.type() == Decision.Type.NO) {
+            return Decision.single(
+                Decision.Type.NO,
+                NAME,
+                "shard has exceeded the maximum number of retries [%d] on failed relocation attempts - "
+                    + "manually call [/_cluster/reroute?retry_failed=true] to retry, [%s]",
+                maxRetries,
+                info.toString()
+            );
+        } else {
+            return Decision.single(
+                Decision.Type.YES,
+                NAME,
+                "shard has failed relocating [%d] times but [%d] retries are allowed",
+                numFailedRelocations,
+                maxRetries
             );
         }
     }

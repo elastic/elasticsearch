@@ -75,7 +75,6 @@ import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
@@ -478,7 +477,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         prepareSourceIndex(sourceIndex);
-        Exception exception = expectThrows(RollupActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
+        Exception exception = expectThrows(ActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("does not contain any metric fields"));
     }
 
@@ -496,7 +495,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("no such index [missing-index]"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90197")
     public void testCannotRollupWhileOtherRollupInProgress() throws Exception {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
@@ -525,6 +523,13 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             }
         };
         client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, rollupIndex, config), rollupListener);
+        assertBusy(() -> {
+            try {
+                assertEquals(client().admin().indices().prepareGetIndex().addIndices(rollupIndex).get().getIndices().length, 1);
+            } catch (IndexNotFoundException e) {
+                fail("rollup index has not been created");
+            }
+        });
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)

@@ -130,7 +130,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
         );
         assertThat(
             ex.getMessage(),
-            containsString("No persistent cluster settings matching [cluster.routing.allocation.disk.bla.*] were " + "found on this node")
+            containsString("No persistent cluster settings matching [cluster.routing.allocation.disk.bla.*] were found on this node")
         );
     }
 

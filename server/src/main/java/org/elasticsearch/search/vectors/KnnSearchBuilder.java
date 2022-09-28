@@ -43,7 +43,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     static final ParseField BOOST_FIELD = AbstractQueryBuilder.BOOST_FIELD;
 
     private static final ConstructingObjectParser<KnnSearchBuilder, Void> STRICT_PARSER = createParser(true);
-    private static final ConstructingObjectParser<KnnSearchBuilder, Void> ML_SEARCH_PARSER = createParser(false);
+    private static final ConstructingObjectParser<KnnSearchBuilder, Void> SEMANTIC_SEARCH_PARSER = createParser(false);
 
 
     private static ConstructingObjectParser<KnnSearchBuilder, Void> createParser(boolean includeVectorField) {
@@ -85,7 +85,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     // For use in semantic search where the input vector
     // is computed by a model
     public static KnnSearchBuilder fromXContentWithoutVectorField(XContentParser parser) throws IOException {
-        return ML_SEARCH_PARSER.parse(parser, null);
+        return SEMANTIC_SEARCH_PARSER.parse(parser, null);
     }
 
     final String field;

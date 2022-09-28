@@ -22,15 +22,15 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
-public class DenseSearchActionRequestTests extends AbstractWireSerializingTestCase<DenseSearchAction.Request> {
+public class SemanticSearchActionRequestTests extends AbstractWireSerializingTestCase<SemanticSearchAction.Request> {
     @Override
-    protected Writeable.Reader<DenseSearchAction.Request> instanceReader() {
-        return DenseSearchAction.Request::new;
+    protected Writeable.Reader<SemanticSearchAction.Request> instanceReader() {
+        return SemanticSearchAction.Request::new;
     }
 
     @Override
-    protected DenseSearchAction.Request createTestInstance() {
-        return new DenseSearchAction.Request(
+    protected SemanticSearchAction.Request createTestInstance() {
+        return new SemanticSearchAction.Request(
             generateRandomStringArray(1, 5, false),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
@@ -58,7 +58,7 @@ public class DenseSearchActionRequestTests extends AbstractWireSerializingTestCa
         var validAction = createTestInstance();
         assertNull(validAction.validate());
 
-        var action = new DenseSearchAction.Request(null, null, null, null, null, null, null, null, null, null, null, null);
+        var action = new SemanticSearchAction.Request(null, null, null, null, null, null, null, null, null, null, null, null);
         var validation = action.validate();
         assertNotNull(validation);
         assertThat(validation.validationErrors(), hasSize(3));

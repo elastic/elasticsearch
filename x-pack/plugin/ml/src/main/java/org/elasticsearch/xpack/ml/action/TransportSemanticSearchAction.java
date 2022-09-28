@@ -21,36 +21,36 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.DenseSearchAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.action.SemanticSearchAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 
-public class TransportDenseSearchAction extends HandledTransportAction<DenseSearchAction.Request, DenseSearchAction.Response> {
+public class TransportSemanticSearchAction extends HandledTransportAction<SemanticSearchAction.Request, SemanticSearchAction.Response> {
 
     private final Client client;
     private final ClusterService clusterService;
 
     @Inject
-    public TransportDenseSearchAction(
+    public TransportSemanticSearchAction(
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
         ClusterService clusterService
     ) {
-        super(DenseSearchAction.NAME, transportService, actionFilters, DenseSearchAction.Request::new);
+        super(SemanticSearchAction.NAME, transportService, actionFilters, SemanticSearchAction.Request::new);
         this.client = client;
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(Task task, DenseSearchAction.Request request, ActionListener<DenseSearchAction.Response> listener) {
+    protected void doExecute(Task task, SemanticSearchAction.Request request, ActionListener<SemanticSearchAction.Response> listener) {
 
         var parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
 
         if (request.getKnnSearchBuilder() == null) {
             listener.onFailure(
                 new IllegalArgumentException(
-                    "missing required [" + DenseSearchAction.Request.KNN.getPreferredName() + "] section in search body"
+                    "missing required [" + SemanticSearchAction.Request.KNN.getPreferredName() + "] section in search body"
                 )
             );
             return;
@@ -65,7 +65,7 @@ public class TransportDenseSearchAction extends HandledTransportAction<DenseSear
 
                     searchRequestBuilder.execute(ActionListener.wrap(searchResponse -> {
                         listener.onResponse(
-                            new DenseSearchAction.Response(
+                            new SemanticSearchAction.Response(
                                 searchResponse.getTook(),
                                 TimeValue.timeValueMillis(inferenceResults.getTookMillis()),
                                 searchResponse
@@ -90,7 +90,7 @@ public class TransportDenseSearchAction extends HandledTransportAction<DenseSear
     private SearchRequestBuilder buildSearch(
         ParentTaskAssigningClient client,
         TextEmbeddingResults inferenceResults,
-        DenseSearchAction.Request request
+        SemanticSearchAction.Request request
     ) {
         var searchBuilder = client.unwrap().prepareSearch();
         searchBuilder.setIndices(request.getIndices());
@@ -124,7 +124,7 @@ public class TransportDenseSearchAction extends HandledTransportAction<DenseSear
         return searchBuilder;
     }
 
-    private InferTrainedModelDeploymentAction.Request toInferenceRequest(DenseSearchAction.Request request) {
+    private InferTrainedModelDeploymentAction.Request toInferenceRequest(SemanticSearchAction.Request request) {
         return new InferTrainedModelDeploymentAction.Request(
             request.getDeploymentId(),
             request.getEmbeddingConfig(),

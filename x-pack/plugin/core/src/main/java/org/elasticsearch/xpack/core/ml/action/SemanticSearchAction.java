@@ -36,14 +36,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class DenseSearchAction extends ActionType<DenseSearchAction.Response> {
+public class SemanticSearchAction extends ActionType<SemanticSearchAction.Response> {
 
     public static final String NAME = "cluster:monitor/xpack/ml/dense_search";
 
-    public static final DenseSearchAction INSTANCE = new DenseSearchAction(NAME);
+    public static final SemanticSearchAction INSTANCE = new SemanticSearchAction(NAME);
 
-    private DenseSearchAction(String name) {
-        super(name, DenseSearchAction.Response::new);
+    private SemanticSearchAction(String name) {
+        super(name, SemanticSearchAction.Response::new);
     }
 
     public static class Request extends ActionRequest {

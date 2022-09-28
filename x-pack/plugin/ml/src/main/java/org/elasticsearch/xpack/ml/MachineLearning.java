@@ -111,7 +111,6 @@ import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAssignmentAction;
-import org.elasticsearch.xpack.core.ml.action.DenseSearchAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
@@ -161,6 +160,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartActio
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.SemanticSearchAction;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -211,7 +211,6 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAssignmentAction;
-import org.elasticsearch.xpack.ml.action.TransportDenseSearchAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
@@ -262,6 +261,7 @@ import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelDefinitionPartA
 import org.elasticsearch.xpack.ml.action.TransportPutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.ml.action.TransportResetJobAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportSemanticSearchAction;
 import org.elasticsearch.xpack.ml.action.TransportSetResetModeAction;
 import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
@@ -410,11 +410,11 @@ import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.ml.rest.inference.RestMlSearchAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelAliasAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestPutTrainedModelVocabularyAction;
+import org.elasticsearch.xpack.ml.rest.inference.RestSemanticSearchAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestStartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestStopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestUpdateTrainedModelDeploymentAction;
@@ -1317,7 +1317,7 @@ public class MachineLearning extends Plugin
             new RestPutTrainedModelVocabularyAction(),
             new RestInferTrainedModelAction(),
             new RestClearDeploymentCacheAction(),
-            new RestMlSearchAction(),
+            new RestSemanticSearchAction(),
             // CAT Handlers
             new RestCatJobsAction(),
             new RestCatTrainedModelsAction(),
@@ -1424,7 +1424,7 @@ public class MachineLearning extends Plugin
                 TransportUpdateTrainedModelAssignmentStateAction.class
             ),
             new ActionHandler<>(ClearDeploymentCacheAction.INSTANCE, TransportClearDeploymentCacheAction.class),
-            new ActionHandler<>(DenseSearchAction.INSTANCE, TransportDenseSearchAction.class),
+            new ActionHandler<>(SemanticSearchAction.INSTANCE, TransportSemanticSearchAction.class),
             usageAction,
             infoAction
         );

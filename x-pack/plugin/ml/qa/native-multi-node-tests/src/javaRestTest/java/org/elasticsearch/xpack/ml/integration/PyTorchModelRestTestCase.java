@@ -262,7 +262,7 @@ public class PyTorchModelRestTestCase extends ESRestTestCase {
     }
 
     protected Response mlSearch(String index, String query, String deploymentId, String denseVectorFieldName) throws IOException {
-        Request request = new Request("GET", index + "/_ml_search?error_trace=true");
+        Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
 
         request.setJsonEntity("""
             {

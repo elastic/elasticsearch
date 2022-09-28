@@ -819,20 +819,27 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          */
         List<SyntheticSourceInvalidExample> invalidExample() throws IOException;
     }
-
-    protected abstract SyntheticSourceSupport syntheticSourceSupport();
+    
+    protected abstract SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed);
 
     public final void testSyntheticSource() throws IOException {
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example(5);
+        assertSyntheticSource(syntheticSourceSupport(false).example(5));
+    }
+
+    public final void testSyntheticSourceIgnoreMalformed() throws IOException {
+        assertSyntheticSource(syntheticSourceSupport(true).example(5));
+    }
+
+    private void assertSyntheticSource(SyntheticSourceExample example) throws IOException {
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
-            syntheticSourceExample.mapping().accept(b);
+            example.mapping().accept(b);
             b.endObject();
         }));
         String expected = Strings.toString(
-            JsonXContent.contentBuilder().startObject().field("field", syntheticSourceExample.result).endObject()
+            JsonXContent.contentBuilder().startObject().field("field", example.result).endObject()
         );
-        assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
+        assertThat(syntheticSource(mapper, b -> b.field("field", example.inputValue)), equalTo(expected));
     }
 
     protected boolean supportsEmptyInputArray() {
@@ -841,7 +848,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceMany() throws IOException {
         int maxValues = randomBoolean() ? 1 : 5;
-        SyntheticSourceSupport support = syntheticSourceSupport();
+        SyntheticSourceSupport support = syntheticSourceSupport(rarely());
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
             support.example(maxValues).mapping().accept(b);
@@ -900,7 +907,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSourceInObject() throws IOException {
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example(5);
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(rarely()).example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("obj").startObject("properties").startObject("field");
             syntheticSourceExample.mapping().accept(b);
@@ -922,7 +929,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticEmptyList() throws IOException {
         assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example(5);
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(rarely()).example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
@@ -946,7 +953,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     private void assertNoDocValueLoader(CheckedConsumer<XContentBuilder, IOException> doc) throws IOException {
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example(5);
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(rarely()).example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
@@ -970,13 +977,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSourceInvalid() throws IOException {
-        List<SyntheticSourceInvalidExample> examples = new ArrayList<>(syntheticSourceSupport().invalidExample());
+        List<SyntheticSourceInvalidExample> examples = new ArrayList<>(syntheticSourceSupport(rarely()).invalidExample());
         if (supportsCopyTo()) {
             examples.add(
                 new SyntheticSourceInvalidExample(
                     matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
                     b -> {
-                        syntheticSourceSupport().example(5).mapping().accept(b);
+                        syntheticSourceSupport(rarely()).example(5).mapping().accept(b);
                         b.field("copy_to", "bar");
                     }
                 )

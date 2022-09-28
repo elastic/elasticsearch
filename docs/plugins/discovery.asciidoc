@@ -15,6 +15,10 @@ The core discovery plugins are:
 The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API]
 to identify the addresses of seed hosts.
 
+<<discovery-azure-arm>>::
+
+The Azure ARM discovery plugin uses the Azure ARM API for unicast discovery.
+
 <<discovery-azure-classic,Azure Classic discovery>>::
 
 The Azure Classic discovery plugin uses the Azure Classic API to identify the
@@ -26,6 +30,8 @@ The Google Compute Engine discovery plugin uses the GCE API to identify the
 addresses of seed hosts.
 
 include::discovery-ec2.asciidoc[]
+
+include::discovery-azure-arm.asciidoc[]
 
 include::discovery-azure-classic.asciidoc[]
 

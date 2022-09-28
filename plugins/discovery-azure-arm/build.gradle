@@ -1,0 +1,283 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description 'The Azure ARM Discovery plugin allows to use Azure Resources Management API for the unicast discovery mechanism'
+  classname 'org.elasticsearch.discovery.azure.arm.AzureArmDiscoveryPlugin'
+}
+
+def localVersions = versions + [
+  'azure'               : '2.19.0',
+  'azureCore'           : '1.32.0',
+  'azureCoreManagement' : '1.8.0',
+  'azureIdentity'       : '1.6.0',
+
+  'azureJackson'        : '2.13.3',
+  'azureJacksonDatabind': '2.13.2.2',
+  'azureCoreHttpNetty'  : '1.12.5',
+
+  'jakartaActivation'   : '1.2.1',
+  'jakartaXMLBind'      : '2.3.2',
+  'stax2API'            : '4.2.1',
+  'woodstox'            : '6.2.7',
+
+  'reactorNetty'        : '1.0.15',
+  'reactorCore'         : '3.4.22',
+  'reactiveStreams'     : '1.0.4',
+]
+
+dependencies {
+  api "com.azure.resourcemanager:azure-resourcemanager-compute:${localVersions.azure}"
+  api "com.azure.resourcemanager:azure-resourcemanager-resources:${localVersions.azure}"
+  api "com.azure.resourcemanager:azure-resourcemanager-storage:${localVersions.azure}"
+  api "com.azure.resourcemanager:azure-resourcemanager-network:${localVersions.azure}"
+  api "com.azure.resourcemanager:azure-resourcemanager-msi:${localVersions.azure}"
+  api "com.azure.resourcemanager:azure-resourcemanager-authorization:${localVersions.azure}"
+
+  api "com.azure:azure-core:${localVersions.azureCore}"
+  api "com.azure:azure-core-management:${localVersions.azureCoreManagement}"
+  api "com.azure:azure-identity:${localVersions.azureIdentity}"
+
+
+  api "com.fasterxml.jackson.core:jackson-core:${localVersions.azureJackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${localVersions.azureJackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${localVersions.azureJackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${localVersions.azureJackson}"
+  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${localVersions.azureJackson}"
+  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${localVersions.azureJackson}"
+  api "jakarta.activation:jakarta.activation-api:${localVersions.jakartaActivation}"
+  api "jakarta.xml.bind:jakarta.xml.bind-api:${localVersions.jakartaXMLBind}"
+  api "org.codehaus.woodstox:stax2-api:${localVersions.stax2API}"
+  api "com.fasterxml.woodstox:woodstox-core:${localVersions.woodstox}"
+
+  api "io.projectreactor:reactor-core:${localVersions.reactorCore}"
+  api "org.reactivestreams:reactive-streams:${localVersions.reactiveStreams}"
+
+  // netty
+  api "com.azure:azure-core-http-netty:${localVersions.azureCoreHttpNetty}"
+  api "io.netty:netty-buffer:${localVersions.netty}"
+  api "io.netty:netty-codec-dns:${localVersions.netty}"
+  api "io.netty:netty-codec-http:${localVersions.netty}"
+  api "io.netty:netty-codec-http2:${localVersions.netty}"
+  api "io.netty:netty-codec-socks:${localVersions.netty}"
+  api "io.netty:netty-codec:${localVersions.netty}"
+  api "io.netty:netty-common:${localVersions.netty}"
+  api "io.netty:netty-handler-proxy:${localVersions.netty}"
+  api "io.netty:netty-handler:${localVersions.netty}"
+  api "io.netty:netty-resolver:${localVersions.netty}"
+  api "io.netty:netty-resolver-dns:${localVersions.netty}"
+  api "io.netty:netty-transport:${localVersions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${localVersions.netty}"
+
+  runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
+  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /azure-.*/, to: 'azure'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /jaxb-.*/, to: 'jaxb'
+  mapping from: /stax-.*/, to: 'stax'
+  mapping from: /reactive-streams.*/, to: 'reactive-streams'
+}
+
+tasks.named("thirdPartyAudit").configure {
+
+  ignoreMissingClasses(
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+    'com.aayushatharva.brotli4j.encoder.Encoders',
+    'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
+    'com.github.luben.zstd.Zstd',
+    'com.google.protobuf.ExtensionRegistry',
+    'com.google.protobuf.ExtensionRegistryLite',
+    'com.google.protobuf.MessageLite',
+    'com.google.protobuf.MessageLite$Builder',
+    'com.google.protobuf.MessageLiteOrBuilder',
+    'com.google.protobuf.nano.CodedOutputByteBufferNano',
+    'com.google.protobuf.nano.MessageNano',
+    'com.google.protobuf.Parser',
+    'com.jcraft.jzlib.Deflater',
+    'com.jcraft.jzlib.Inflater',
+    'com.jcraft.jzlib.JZlib',
+    'com.jcraft.jzlib.JZlib$WrapperType',
+    'com.microsoft.aad.msal4j.AuthorizationCodeParameters',
+    'com.microsoft.aad.msal4j.AuthorizationCodeParameters$AuthorizationCodeParametersBuilder',
+    'com.microsoft.aad.msal4j.ClaimsRequest',
+    'com.microsoft.aad.msal4j.ClientCredentialFactory',
+    'com.microsoft.aad.msal4j.ClientCredentialParameters',
+    'com.microsoft.aad.msal4j.ClientCredentialParameters$ClientCredentialParametersBuilder',
+    'com.microsoft.aad.msal4j.ConfidentialClientApplication',
+    'com.microsoft.aad.msal4j.ConfidentialClientApplication$Builder',
+    'com.microsoft.aad.msal4j.DeviceCode',
+    'com.microsoft.aad.msal4j.DeviceCodeFlowParameters',
+    'com.microsoft.aad.msal4j.DeviceCodeFlowParameters$DeviceCodeFlowParametersBuilder',
+    'com.microsoft.aad.msal4jextensions.persistence.linux.ISecurityLibrary',
+    'com.microsoft.aad.msal4jextensions.persistence.mac.KeyChainAccessor',
+    'com.microsoft.aad.msal4jextensions.PersistenceSettings',
+    'com.microsoft.aad.msal4jextensions.PersistenceSettings$Builder',
+    'com.microsoft.aad.msal4jextensions.PersistenceTokenCacheAccessAspect',
+    'com.microsoft.aad.msal4j.HttpMethod',
+    'com.microsoft.aad.msal4j.HttpRequest',
+    'com.microsoft.aad.msal4j.HttpResponse',
+    'com.microsoft.aad.msal4j.IAccount',
+    'com.microsoft.aad.msal4j.IAuthenticationResult',
+    'com.microsoft.aad.msal4j.IHttpClient',
+    'com.microsoft.aad.msal4j.IHttpResponse',
+    'com.microsoft.aad.msal4j.InteractiveRequestParameters',
+    'com.microsoft.aad.msal4j.InteractiveRequestParameters$InteractiveRequestParametersBuilder',
+    'com.microsoft.aad.msal4j.ITokenCacheAccessAspect',
+    'com.microsoft.aad.msal4j.ITokenCacheAccessContext',
+    'com.microsoft.aad.msal4j.OnBehalfOfParameters',
+    'com.microsoft.aad.msal4j.OnBehalfOfParameters$OnBehalfOfParametersBuilder',
+    'com.microsoft.aad.msal4j.Prompt',
+    'com.microsoft.aad.msal4j.PublicClientApplication',
+    'com.microsoft.aad.msal4j.PublicClientApplication$Builder',
+    'com.microsoft.aad.msal4j.RefreshTokenParameters',
+    'com.microsoft.aad.msal4j.RefreshTokenParameters$RefreshTokenParametersBuilder',
+    'com.microsoft.aad.msal4j.RequestedClaimAdditionalInfo',
+    'com.microsoft.aad.msal4j.SilentParameters',
+    'com.microsoft.aad.msal4j.SilentParameters$SilentParametersBuilder',
+    'com.microsoft.aad.msal4j.UserAssertion',
+    'com.microsoft.aad.msal4j.UserNamePasswordParameters',
+    'com.microsoft.aad.msal4j.UserNamePasswordParameters$UserNamePasswordParametersBuilder',
+    'com.ning.compress.BufferRecycler',
+    'com.ning.compress.lzf.ChunkDecoder',
+    'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
+    'com.ning.compress.lzf.LZFEncoder',
+    'com.ning.compress.lzf.util.ChunkDecoderFactory',
+    'com.ning.compress.lzf.util.ChunkEncoderFactory',
+    'com.sun.jna.platform.win32.Crypt32Util',
+    'com.sun.jna.platform.win32.Kernel32',
+    'com.sun.jna.platform.win32.Kernel32Util',
+    'com.sun.jna.platform.win32.WinBase$FILETIME',
+    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+    'io.micrometer.core.instrument.Clock',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.search.Search',
+    'io.micrometer.core.instrument.Tag',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
+    'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCallback',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
+    'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.Library',
+    'io.netty.internal.tcnative.ResultCallback',
+    'io.netty.internal.tcnative.SessionTicketKey',
+    'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.netty.internal.tcnative.SSL',
+    'io.netty.internal.tcnative.SSLContext',
+    'io.netty.internal.tcnative.SSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
+    'kotlin.collections.ArraysKt',
+    'kotlin.jvm.functions.Function0',
+    'kotlin.jvm.functions.Function1',
+    'kotlin.jvm.internal.FunctionReference',
+    'kotlin.jvm.internal.Intrinsics',
+    'kotlin.jvm.internal.markers.KMappedMarker',
+    'kotlin.jvm.internal.Reflection',
+    'kotlin.jvm.JvmClassMappingKt',
+    'kotlin.reflect.KClass',
+    'kotlin.reflect.KDeclarationContainer',
+    'kotlin.sequences.Sequence',
+    'lzma.sdk.lzma.Encoder',
+    'org.apache.commons.logging.Log',
+    'org.apache.commons.logging.LogFactory',
+    'org.apache.log4j.Level',
+    'org.apache.log4j.Logger',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.conscrypt.AllocatedBuffer',
+    'org.conscrypt.BufferAllocator',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.HandshakeListener',
+    'org.eclipse.jetty.alpn.ALPN',
+    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
+    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
+    'org.eclipse.jetty.npn.NextProtoNego',
+    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
+    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
+    'org.jboss.marshalling.ByteInput',
+    'org.jboss.marshalling.ByteOutput',
+    'org.jboss.marshalling.Marshaller',
+    'org.jboss.marshalling.MarshallerFactory',
+    'org.jboss.marshalling.MarshallingConfiguration',
+    'org.jboss.marshalling.Unmarshaller',
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
+    'org.slf4j.ext.EventData',
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+    'reactor.netty.ByteBufFlux',
+    'reactor.netty.ByteBufMono',
+    'reactor.netty.channel.ChannelOperations',
+    'reactor.netty.Connection',
+    'reactor.netty.ConnectionObserver',
+    'reactor.netty.DisposableChannel',
+    'reactor.netty.http.client.HttpClient',
+    'reactor.netty.http.client.HttpClient$RequestSender',
+    'reactor.netty.http.client.HttpClient$ResponseReceiver',
+    'reactor.netty.http.client.HttpClientConfig',
+    'reactor.netty.http.client.HttpClientRequest',
+    'reactor.netty.http.client.HttpClientResponse',
+    'reactor.netty.NettyInbound',
+    'reactor.netty.NettyOutbound',
+    'reactor.netty.resources.ConnectionProvider',
+    'reactor.netty.resources.ConnectionProvider$Builder',
+    'reactor.netty.transport.AddressUtils',
+    'reactor.netty.transport.ProxyProvider$AddressSpec',
+    'reactor.netty.transport.ProxyProvider$Builder',
+    'reactor.netty.transport.ProxyProvider$Proxy',
+    'reactor.netty.transport.ProxyProvider$TypeSpec'
+  )
+  ignoreViolations(
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+    'io.netty.util.internal.PlatformDependent0',
+    'io.netty.util.internal.PlatformDependent0$1',
+    'io.netty.util.internal.PlatformDependent0$2',
+    'io.netty.util.internal.PlatformDependent0$3',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+    'javax.activation.MailcapCommandMap',
+    'javax.activation.MimetypesFileTypeMap',
+    'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException'
+  )
+}

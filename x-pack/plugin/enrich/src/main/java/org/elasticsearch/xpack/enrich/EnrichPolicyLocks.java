@@ -13,6 +13,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 
 /**
  * A coordination object that allows multiple distinct polices to be executed concurrently, but also makes sure that a single
@@ -59,6 +60,11 @@ public class EnrichPolicyLocks {
     private final AtomicLong policyRunCounter = new AtomicLong(0L);
 
     /**
+     * A counter that is used to track how many policy executions are actively in progress.
+     */
+    private final AtomicLong inflightCounter = new AtomicLong(0L);
+
+    /**
      * Locks a policy to prevent concurrent execution. If the policy is currently executing, this method will immediately
      * throw without waiting. This method only blocks if another thread is currently capturing the current policy execution state.
      * @param policyName The policy name to lock for execution
@@ -75,6 +81,7 @@ public class EnrichPolicyLocks {
                     "Could not obtain lock because policy execution for [" + policyName + "] is already in progress."
                 );
             }
+            inflightCounter.incrementAndGet();
             policyRunCounter.incrementAndGet();
         } finally {
             currentStateLock.readLock().unlock();
@@ -100,6 +107,26 @@ public class EnrichPolicyLocks {
     }
 
     /**
+     * Locks all policy operations and ensures no policies are executing before running the given callable. If the lock cannot
+     * be immediately obtained, or if there are policy executions in progress, the block is not executed and no result will be
+     * returned.
+     * @return null if the block was not executed for any reason or a value of type T returned from the provided callable.
+     */
+    <T> T attemptMaintenance(Supplier<T> block) {
+        if (currentStateLock.writeLock().tryLock()) {
+            try {
+                long inflightPolicies = inflightCounter.getAcquire();
+                if (inflightPolicies == 0) {
+                    return block.get();
+                }
+            } finally {
+                currentStateLock.writeLock().unlock();
+            }
+        }
+        return null;
+    }
+
+    /**
      * Checks if the current execution state matches that of the given execution state. Used to ensure that over a period of time
      * no changes to the policy execution state have occurred.
      * @param previousState The previous state to check the current state against
@@ -119,6 +146,7 @@ public class EnrichPolicyLocks {
         try {
             policyLocks.remove(policyName);
         } finally {
+            inflightCounter.decrementAndGet();
             currentStateLock.readLock().unlock();
         }
     }

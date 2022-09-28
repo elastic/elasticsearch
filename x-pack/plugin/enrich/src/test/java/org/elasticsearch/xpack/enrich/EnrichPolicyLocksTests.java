@@ -9,8 +9,13 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class EnrichPolicyLocksTests extends ESTestCase {
 
@@ -36,6 +41,58 @@ public class EnrichPolicyLocksTests extends ESTestCase {
             exception2.getMessage(),
             is(equalTo("Could not obtain lock because policy execution for [policy2]" + " is already in progress."))
         );
+    }
+
+    public void testMaintenanceLocking() throws Exception {
+        // Maintenance on fresh locks object returns value without issue.
+        final EnrichPolicyLocks locks = new EnrichPolicyLocks();
+        Long value = locks.attemptMaintenance(() -> 1L);
+        assertThat(value, equalTo(1L));
+
+        // Maintenance on a held policy lock returns no value and no code run.
+        locks.lockPolicy("test-policy");
+        value = locks.attemptMaintenance(() -> 2L);
+        assertThat(value, is(nullValue()));
+        // Maintenance on an unheld policy lock returns value without issue.
+        locks.releasePolicy("test-policy");
+        value = locks.attemptMaintenance(() -> 3L);
+        assertThat(value, equalTo(3L));
+
+        // Hold the maintenance lock on another thread with a latch.
+        final AtomicLong maintenanceResult = new AtomicLong(0L);
+        Thread maintenanceThread = new Thread(() -> {
+            Long result;
+            do {
+                result = locks.attemptMaintenance(maintenanceResult::incrementAndGet);
+            } while (result == null);
+        });
+
+        // Attempt to lock on the policy in another thread.
+        final CountDownLatch policyIsExecuting = new CountDownLatch(1);
+        final CountDownLatch policyFinishExecuting = new CountDownLatch(1);
+        Thread policyExecutionThread = new Thread(() -> {
+            locks.lockPolicy("test-policy");
+            try {
+                policyIsExecuting.countDown();
+                policyFinishExecuting.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } finally {
+                locks.releasePolicy("test-policy");
+            }
+        });
+
+        // Ensure that maintenance does not advance while the policy is executing
+        policyExecutionThread.start(); // Start policy
+        policyIsExecuting.await(); // Wait for policy to be locked
+        maintenanceThread.start(); // start maintenance while policy is "executing"
+        assertBusy(() -> assertThat(maintenanceResult.get(), equalTo(0L))); // Ensure no maintenance progress
+        policyFinishExecuting.countDown(); // Finish the policy execution
+        policyExecutionThread.join(TimeUnit.SECONDS.toMillis(30)); // Close out the policy thread
+        assertThat(policyExecutionThread.isAlive(), is(false));
+        maintenanceThread.join(TimeUnit.SECONDS.toMillis(30)); // Close out the maintenance thread
+        assertThat(maintenanceThread.isAlive(), is(false));
+        assertThat(maintenanceResult.get(), equalTo(1L)); // Ensure maintenance completed
     }
 
     public void testSafePoint() {

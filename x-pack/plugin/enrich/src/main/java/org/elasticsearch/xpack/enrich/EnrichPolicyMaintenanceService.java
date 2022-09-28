@@ -10,27 +10,27 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 
@@ -133,68 +133,67 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     }
 
     void cleanUpEnrichIndices() {
-        final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
-        GetIndexRequest indices = new GetIndexRequest().indices(EnrichPolicy.ENRICH_INDEX_NAME_BASE + "*")
-            .indicesOptions(IndicesOptions.lenientExpand());
-        // Check that no enrich policies are being executed
-        final EnrichPolicyLocks.EnrichPolicyExecutionState executionState = enrichPolicyLocks.captureExecutionState();
-        if (executionState.isAnyPolicyInFlight() == false) {
-            client.admin().indices().getIndex(indices, new ActionListener<>() {
-                @Override
-                public void onResponse(GetIndexResponse getIndexResponse) {
-                    // Ensure that no enrich policy executions started while we were retrieving the snapshot of index data
-                    // If executions were kicked off, we can't be sure that the indices we are about to process are a
-                    // stable state of the system (they could be new indices created by a policy that hasn't been published yet).
-                    if (enrichPolicyLocks.isSameState(executionState)) {
-                        String[] removeIndices = Arrays.stream(getIndexResponse.getIndices())
-                            .filter(indexName -> shouldRemoveIndex(getIndexResponse, policies, indexName))
-                            .toArray(String[]::new);
-                        deleteIndices(removeIndices);
-                    } else {
-                        logger.debug("Skipping enrich index cleanup since enrich policy was executed while gathering indices");
-                        concludeMaintenance();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Failed to get indices during enrich index maintenance task", e);
-                    concludeMaintenance();
-                }
-            });
+        // Determine the indices to remove ONLY while there are no policies in flight and no new policy executions can be kicked off.
+        String[] removeIndices = enrichPolicyLocks.attemptMaintenance(() -> {
+            ClusterState clusterState = clusterService.state();
+            final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterState);
+            return clusterState.metadata()
+                .indices()
+                .values()
+                .stream()
+                .filter(metadata -> metadata.getIndex().getName().startsWith(EnrichPolicy.ENRICH_INDEX_NAME_BASE))
+                .filter(metadata -> shouldRemoveIndex(metadata, policies))
+                .map(IndexMetadata::getIndex)
+                .map(Index::getName)
+                .toArray(String[]::new);
+        });
+        if (removeIndices != null) {
+            deleteIndices(removeIndices);
         } else {
+            logger.debug("Skipping enrich index cleanup since enrich policy was executed while gathering indices");
             concludeMaintenance();
         }
     }
 
-    private boolean shouldRemoveIndex(GetIndexResponse getIndexResponse, Map<String, EnrichPolicy> policies, String indexName) {
+    private boolean shouldRemoveIndex(IndexMetadata indexMetadata, Map<String, EnrichPolicy> policies) {
         // Find the policy on the index
-        logger.debug("Checking if should remove enrich index [{}]", indexName);
-        MappingMetadata mappingMetadata = getIndexResponse.getMappings().get(indexName);
+        logger.debug("Checking if should remove enrich index [{}]", indexMetadata.getIndex().getName());
+        MappingMetadata mappingMetadata = indexMetadata.mapping();
         Map<String, Object> mapping = mappingMetadata.getSourceAsMap();
         String policyName = ObjectPath.eval(MAPPING_POLICY_FIELD_PATH, mapping);
         // Check if index has a corresponding policy
         if (policyName == null || policies.containsKey(policyName) == false) {
             // No corresponding policy. Index should be marked for removal.
-            logger.debug("Enrich index [{}] does not correspond to any existing policy. Found policy name [{}]", indexName, policyName);
+            logger.debug(
+                "Enrich index [{}] does not correspond to any existing policy. Found policy name [{}]",
+                indexMetadata.getIndex().getName(),
+                policyName
+            );
             return true;
         }
         // Check if index is currently linked to an alias
         final String aliasName = EnrichPolicy.getBaseName(policyName);
-        List<AliasMetadata> aliasMetadata = getIndexResponse.aliases().get(indexName);
-        if (aliasMetadata == null) {
-            logger.debug("Enrich index [{}] is not marked as a live index since it has no alias information", indexName);
+        Map<String, AliasMetadata> aliasMetadata = indexMetadata.getAliases();
+        if (aliasMetadata == null || aliasMetadata.isEmpty()) {
+            logger.debug(
+                "Enrich index [{}] is not marked as a live index since it has no alias information",
+                indexMetadata.getIndex().getName()
+            );
             return true;
         }
-        boolean hasAlias = aliasMetadata.stream().anyMatch((am -> am.getAlias().equals(aliasName)));
+        boolean hasAlias = aliasMetadata.containsKey(aliasName);
         // Index is not currently published to the enrich alias. Should be marked for removal.
         if (hasAlias == false) {
-            logger.debug("Enrich index [{}] is not marked as a live index since it lacks the alias [{}]", indexName, aliasName);
+            logger.debug(
+                "Enrich index [{}] is not marked as a live index since it lacks the alias [{}]",
+                indexMetadata.getIndex().getName(),
+                aliasName
+            );
             return true;
         }
         logger.debug(
             "Enrich index [{}] was spared since it is associated with the valid policy [{}] and references alias [{}]",
-            indexName,
+            indexMetadata.getIndex().getName(),
             policyName,
             aliasName
         );

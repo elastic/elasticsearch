@@ -1,0 +1,5 @@
+pr: 90487
+summary: Run enrich maintenance tasks using current cluster state
+area: Ingest Node
+type: enhancement
+issues: []

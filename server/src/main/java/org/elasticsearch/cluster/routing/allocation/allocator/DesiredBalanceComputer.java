@@ -50,7 +50,7 @@ public class DesiredBalanceComputer {
         Predicate<DesiredBalanceInput> isFresh
     ) {
 
-        logger.trace("starting to recompute desired balance for [{}]", desiredBalanceInput.index());
+        logger.debug("Recomputing desired balance for [{}]", desiredBalanceInput.index());
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
@@ -229,17 +229,18 @@ public class DesiredBalanceComputer {
             // TODO maybe expose interim desired balances computed here
 
             if (hasChanges == false) {
-                logger.trace("desired balance computation converged after {} iterations", i);
+                logger.debug("Desired balance computation converged after {} iterations", i);
                 break;
             }
             if (isFresh.test(desiredBalanceInput) == false) {
                 // we run at least one iteration, but if another reroute happened meanwhile
                 // then publish the interim state and restart the calculation
-                logger.trace("newer cluster state received, publishing incomplete desired balance and restarting computation");
+                logger.debug("Newer cluster state received, publishing incomplete desired balance and restarting computation");
                 break;
             }
             if (i > 0 && i % 100 == 0) {
-                logger.warn("desired balance computation is still not converged after {} iterations", i);
+                // TODO this warning should be time based, iteration count should be proportional to the number of shards
+                logger.warn("Desired balance computation is still not converged after {} iterations", i);
             }
         }
 

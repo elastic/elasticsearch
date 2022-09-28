@@ -56,7 +56,7 @@ public class DesiredBalanceReconciler {
 
     void run() {
 
-        logger.trace("starting to reconcile current allocation with desired balance {}", desiredBalance);
+        logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
 
         if (routingNodes.size() == 0) {
             // no data nodes, so fail allocation to report red health
@@ -85,7 +85,7 @@ public class DesiredBalanceReconciler {
         logger.trace("Reconciler#balance");
         balance();
 
-        logger.trace("done");
+        logger.debug("Reconciliation is complete");
     }
 
     private boolean allocateUnassignedInvariant() {
@@ -190,11 +190,6 @@ public class DesiredBalanceReconciler {
         int primaryLength = primary.length;
         ArrayUtil.timSort(primary, comparator);
 
-        // TODO this should be removed before merging the feature branch
-        if (logger.isTraceEnabled()) {
-            allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
-        }
-
         do {
             nextShard: for (int i = 0; i < primaryLength; i++) {
                 final var shard = primary[i];
@@ -260,12 +255,7 @@ public class DesiredBalanceReconciler {
                                 case THROTTLE -> isThrottled = true;
                                 case NO -> {
                                     if (logger.isTraceEnabled()) {
-                                        logger.trace(
-                                            "Unexpected NO decision [{}] for shard [{}] on assigned node [{}]",
-                                            decision,
-                                            shard.shardId(),
-                                            desiredNodeId
-                                        );
+                                        logger.trace("Couldn't assign shard [{}] to [{}]", shard.shardId(), desiredNodeId);
                                     }
                                 }
                             }
@@ -274,7 +264,7 @@ public class DesiredBalanceReconciler {
                 }
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("No eligible node found to assign shard [{}] amongst [{}]", shard, assignment);
+                    logger.trace("No eligible node found to assign shard [{}] amongst [{}] and fallback nodes", shard, assignment);
                 }
 
                 final UnassignedInfo.AllocationStatus allocationStatus;

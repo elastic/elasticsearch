@@ -202,11 +202,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     private boolean setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
         boolean hasChanges = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance);
         if (logger.isTraceEnabled()) {
-            if (hasChanges) {
-                logger.trace("desired balance changed: {}\n{}", newDesiredBalance, diff(currentDesiredBalance, newDesiredBalance));
-            } else {
-                logger.trace("desired balance unchanged: {}", newDesiredBalance);
-            }
+            var diff = hasChanges ? diff(currentDesiredBalance, newDesiredBalance) : "No changes";
+            logger.trace("Desired balance updated: {}. {}", newDesiredBalance, diff);
+        } else {
+            logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
         }
         currentDesiredBalance = newDesiredBalance;
         return hasChanges;

@@ -120,7 +120,14 @@ public interface IndexAbstraction {
          * A data stream typically has multiple backing indices, the latest of which
          * is the target for index requests.
          */
-        DATA_STREAM("data_stream");
+        DATA_STREAM("data_stream"),
+
+        /**
+         * An index abstraction that referes to an engine.
+         * An engine is used to search one or many concrete indices using a predefined
+         * search relevance configuration.
+         */
+        SEARCH_ENGINE("search_engine");
 
         private final String displayName;
 
@@ -471,6 +478,70 @@ public interface IndexAbstraction {
         @Override
         public int hashCode() {
             return Objects.hash(dataStream);
+        }
+    }
+
+    class SearchEngine implements IndexAbstraction {
+
+        private final org.elasticsearch.cluster.metadata.SearchEngine searchEngine;
+
+        public SearchEngine(org.elasticsearch.cluster.metadata.SearchEngine searchEngine) {
+            this.searchEngine = searchEngine;
+        }
+
+        @Override
+        public Type getType() {
+            return Type.SEARCH_ENGINE;
+        }
+
+        @Override
+        public String getName() {
+            return searchEngine.getName();
+        }
+
+        @Override
+        public List<Index> getIndices() {
+            return searchEngine.getIndices();
+        }
+
+        @Override
+        public Index getWriteIndex() {
+            // Search engines are read-only and does not have a write-index.
+            // Documents are written directly to backing indices.
+            return null;
+        }
+
+        @Override
+        public DataStream getParentDataStream() {
+            // Search engines can't be part of a data stream.
+            return null;
+        }
+
+        @Override
+        public boolean isHidden() {
+            return searchEngine.isHidden();
+        }
+
+        @Override
+        public boolean isSystem() {
+            return searchEngine.isSystem();
+        }
+
+        public org.elasticsearch.cluster.metadata.SearchEngine getSearchEngine() {
+            return searchEngine;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SearchEngine that = (SearchEngine) o;
+            return searchEngine.equals(that.searchEngine);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(searchEngine);
         }
     }
 

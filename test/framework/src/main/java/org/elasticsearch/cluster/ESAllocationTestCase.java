@@ -47,7 +47,6 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
-import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 public abstract class ESAllocationTestCase extends ESTestCase {

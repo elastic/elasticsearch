@@ -66,7 +66,8 @@ public abstract class BatchedTaskExecutor<Task extends ClusterStateTaskListener,
                 var task = taskContext.getTask();
                 Tuple<ClusterState, TaskResult> result = executeTask(task, clusterState);
                 clusterState = result.v1();
-                taskContext.success(() -> taskSucceeded(task, result.v2()));
+                final var taskResult = result.v2();
+                taskContext.success(() -> taskSucceeded(task, taskResult));
             } catch (Exception e) {
                 taskContext.onFailure(e);
             }

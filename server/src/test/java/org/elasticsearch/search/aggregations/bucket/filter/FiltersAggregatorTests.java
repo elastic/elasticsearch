@@ -119,9 +119,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
         builder.otherBucketKey("other");
-        InternalFilters response = searchAndReduce(
-            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, new KeywordFieldType("field"))
-        );
+        InternalFilters response = searchAndReduce(new AggTestConfig(indexSearcher, builder, new KeywordFieldType("field")));
         assertEquals(response.getBuckets().size(), numFilters);
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
             assertEquals(filter.getDocCount(), 0);
@@ -217,9 +215,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", keys);
         builder.otherBucket(true);
         builder.otherBucketKey("other");
-        final InternalFilters filters = searchAndReduce(
-            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, new KeywordFieldType("field"))
-        );
+        final InternalFilters filters = searchAndReduce(new AggTestConfig(indexSearcher, builder, new KeywordFieldType("field")));
         assertEquals(filters.getBuckets().size(), 7);
         assertEquals(filters.getBucketByKey("foobar").getDocCount(), 2);
         assertEquals(filters.getBucketByKey("foo").getDocCount(), 2);
@@ -274,9 +270,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             builder.otherBucket(true);
             builder.otherBucketKey("other");
 
-            final InternalFilters response = searchAndReduce(
-                new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), builder, new KeywordFieldType("field"))
-            );
+            final InternalFilters response = searchAndReduce(new AggTestConfig(indexSearcher, builder, new KeywordFieldType("field")));
             List<InternalFilters.InternalBucket> buckets = response.getBuckets();
             assertEquals(buckets.size(), filters.length + 1);
 

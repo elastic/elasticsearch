@@ -204,11 +204,8 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     var e = expectThrows(
                         RuntimeException.class,
                         () -> searchAndReduce(
-                            new AggTestConfig(
-                                indexSearcher,
-                                new TermQuery(new Term("join_field", "parent_type")),
-                                aggregationBuilder,
-                                withJoinFields(fieldType, fieldType2)
+                            new AggTestConfig(indexSearcher, aggregationBuilder, withJoinFields(fieldType, fieldType2)).withQuery(
+                                new TermQuery(new Term("join_field", "parent_type"))
                             )
                         )
                     );
@@ -236,11 +233,8 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     var fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
                     var fieldType2 = new KeywordFieldMapper.KeywordFieldType("string_field", false, true, Map.of());
                     InternalChildren result = searchAndReduce(
-                        new AggTestConfig(
-                            indexSearcher,
-                            new TermQuery(new Term("join_field", "parent_type")),
-                            aggregationBuilder,
-                            withJoinFields(fieldType, fieldType2)
+                        new AggTestConfig(indexSearcher, aggregationBuilder, withJoinFields(fieldType, fieldType2)).withQuery(
+                            new TermQuery(new Term("join_field", "parent_type"))
                         )
                     );
 
@@ -311,7 +305,9 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalChildren result = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType)));
+        InternalChildren result = searchAndReduce(
+            new AggTestConfig(indexSearcher, aggregationBuilder, withJoinFields(fieldType)).withQuery(query)
+        );
         verify.accept(result);
     }
 

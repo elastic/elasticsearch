@@ -880,7 +880,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
             CompositeAggregation result = null;
             try {
-                result = searchAndReduce(new AggTestConfig(searcher, query, aggBuilder, fieldTypes));
+                result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldTypes).withQuery(query));
             } catch (IOException e) {
                 listener.onFailure(e);
             }

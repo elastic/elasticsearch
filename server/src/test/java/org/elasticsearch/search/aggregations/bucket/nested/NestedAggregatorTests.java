@@ -379,7 +379,9 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
                 InternalNested nested = searchAndReduce(
-                    new AggTestConfig(newSearcher(indexReader, false, true), new ConstantScoreQuery(bq.build()), nestedBuilder, fieldType)
+                    new AggTestConfig(newSearcher(indexReader, false, true), nestedBuilder, fieldType).withQuery(
+                        new ConstantScoreQuery(bq.build())
+                    )
                 );
 
                 assertEquals(NESTED_AGG, nested.getName());
@@ -652,12 +654,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("value");
 
                 Filter filter = searchAndReduce(
-                    new AggTestConfig(
-                        newSearcher(indexReader, false, true),
-                        Queries.newNonNestedFilter(),
-                        filterAggregationBuilder,
-                        fieldType1,
-                        fieldType2
+                    new AggTestConfig(newSearcher(indexReader, false, true), filterAggregationBuilder, fieldType1, fieldType2).withQuery(
+                        Queries.newNonNestedFilter()
                     )
                 );
 

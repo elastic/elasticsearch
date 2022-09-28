@@ -218,6 +218,7 @@ dependencies {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
+    implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
   }
   api localGroovy()
   api gradleApi()
@@ -287,6 +288,7 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
+
 }
 
 tasks.named('test').configure {

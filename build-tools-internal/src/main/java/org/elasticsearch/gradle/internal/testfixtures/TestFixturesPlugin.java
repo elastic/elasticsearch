@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import javax.inject.Inject;
@@ -109,8 +110,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
             composeExtension.getUseComposeFiles().addAll(Collections.singletonList(DOCKER_COMPOSE_YML));
             composeExtension.getRemoveContainers().set(true);
-            composeExtension.getExecutable()
-                .set(project.file("/usr/local/bin/docker-compose").exists() ? "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose");
+            composeExtension.getExecutable().set(dockerSupport.get().getDockerAvailability().dockerComposePath());
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions

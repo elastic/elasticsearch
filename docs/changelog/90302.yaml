@@ -1,5 +1,5 @@
 pr: 90302
-summary: Fix another potential race in the file settings watcher
+summary: Fix potential race condition in the file settings watcher on Windows
 area: Infra/Core
 type: bug
 issues: [89500]

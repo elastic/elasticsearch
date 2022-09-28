@@ -10,14 +10,18 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.core.Tuple;
 
+/**
+ * A {@link BatchedTaskExecutor} for tasks that do not return any value as a result of their execution, other than the next cluster state.
+ */
 public abstract class BatchedSimpleTaskExecutor<Task extends ClusterStateTaskListener> extends BatchedTaskExecutor<Task, Void> {
+
     @Override
-    public Tuple<ClusterState, Void> executeTask(Task task, ClusterState clusterState) throws Exception {
+    public final Tuple<ClusterState, Void> executeTask(Task task, ClusterState clusterState) throws Exception {
         return Tuple.tuple(executeSimpleTask(task, clusterState), null);
     }
 
     @Override
-    public void taskSucceeded(Task task, Void unused) {
+    public final void taskSucceeded(Task task, Void unused) {
         taskSucceeded(task);
     }
 

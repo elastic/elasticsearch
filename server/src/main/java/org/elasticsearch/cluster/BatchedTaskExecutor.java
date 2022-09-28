@@ -12,9 +12,9 @@ import org.elasticsearch.core.Tuple;
 
 /**
  * A basic implementation for batch executors that simply need to execute the tasks in the batch iteratively,
- * producing a cluster state after each task. This allows executing the tasks in the batch as a
- * series of executions, each taking an input cluster state and producing a new cluster state that serves as the
- * input of the next task in the batch.
+ * producing a cluster state after each task. Each task execution returns a result of type {@code TaskResult}.
+ * This allows executing the tasks in the batch as a series of executions, each taking an input cluster state
+ * and producing a new cluster state that serves as the input of the next task in the batch.
  */
 public abstract class BatchedTaskExecutor<Task extends ClusterStateTaskListener, TaskResult> implements ClusterStateTaskExecutor<Task> {
 
@@ -23,7 +23,9 @@ public abstract class BatchedTaskExecutor<Task extends ClusterStateTaskListener,
      *
      * @param task The task to be executed.
      * @param clusterState    The cluster state on which the task should be executed.
-     * @return The resulting cluster state after executing this task.
+     * @return A tuple consisting of the resulting cluster state after executing this task, and the result of the task execution.
+     * The returned cluster state serves as the cluster state on which the next task in the batch will run. The returned
+     * task result is provided to the {@link BatchedTaskExecutor#taskSucceeded} implementation.
      */
     public abstract Tuple<ClusterState, TaskResult> executeTask(Task task, ClusterState clusterState) throws Exception;
 
@@ -44,6 +46,7 @@ public abstract class BatchedTaskExecutor<Task extends ClusterStateTaskListener,
      * task in the batch.
      *
      * @param task The task that successfully finished execution.
+     * @param taskResult The result returned from the successful execution of the task.
      */
     public abstract void taskSucceeded(Task task, TaskResult taskResult);
 

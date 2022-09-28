@@ -8,13 +8,15 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.core.Tuple;
+
 /**
  * A basic implementation for batch executors that simply need to execute the tasks in the batch iteratively,
  * producing a cluster state after each task. This allows executing the tasks in the batch as a
  * series of executions, each taking an input cluster state and producing a new cluster state that serves as the
  * input of the next task in the batch.
  */
-public abstract class SimpleBatchedExecutor<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor<T> {
+public abstract class BatchedTaskExecutor<Task extends ClusterStateTaskListener, TaskResult> implements ClusterStateTaskExecutor<Task> {
 
     /**
      * Executes the provided task from the batch.
@@ -23,7 +25,7 @@ public abstract class SimpleBatchedExecutor<T extends ClusterStateTaskListener> 
      * @param clusterState    The cluster state on which the task should be executed.
      * @return The resulting cluster state after executing this task.
      */
-    public abstract ClusterState executeTask(T task, ClusterState clusterState) throws Exception;
+    public abstract Tuple<ClusterState, TaskResult> executeTask(Task task, ClusterState clusterState) throws Exception;
 
     /**
      * Called once all tasks in the batch have finished execution. It should return a cluster state that reflects
@@ -43,7 +45,7 @@ public abstract class SimpleBatchedExecutor<T extends ClusterStateTaskListener> 
      *
      * @param task The task that successfully finished execution.
      */
-    public abstract void taskSucceeded(T task);
+    public abstract void taskSucceeded(Task task, TaskResult taskResult);
 
     @Override
     public final void clusterStatePublished(ClusterState newClusterState) {
@@ -56,14 +58,15 @@ public abstract class SimpleBatchedExecutor<T extends ClusterStateTaskListener> 
     public void clusterStatePublished() {}
 
     @Override
-    public final ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception {
+    public final ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) throws Exception {
         var initState = batchExecutionContext.initialState();
         var clusterState = initState;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             try (var ignored = taskContext.captureResponseHeaders()) {
                 var task = taskContext.getTask();
-                clusterState = executeTask(task, clusterState);
-                taskContext.success(() -> taskSucceeded(task));
+                Tuple<ClusterState, TaskResult> result = executeTask(task, clusterState);
+                clusterState = result.v1();
+                taskContext.success(() -> taskSucceeded(task, result.v2()));
             } catch (Exception e) {
                 taskContext.onFailure(e);
             }

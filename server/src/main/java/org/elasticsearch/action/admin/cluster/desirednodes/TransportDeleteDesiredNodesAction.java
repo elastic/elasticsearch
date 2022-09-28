@@ -12,11 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.BatchedSimpleTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
@@ -80,9 +80,9 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
         }
     }
 
-    private static class DeleteDesiredNodesExecutor extends SimpleBatchedExecutor<DeleteDesiredNodesTask> {
+    private static class DeleteDesiredNodesExecutor extends BatchedSimpleTaskExecutor<DeleteDesiredNodesTask> {
         @Override
-        public ClusterState executeTask(DeleteDesiredNodesTask task, ClusterState clusterState) {
+        public ClusterState executeSimpleTask(DeleteDesiredNodesTask task, ClusterState clusterState) {
             return clusterState;
         }
 

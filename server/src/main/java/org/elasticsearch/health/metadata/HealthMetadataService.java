@@ -11,6 +11,7 @@ package org.elasticsearch.health.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.BatchedSimpleTaskExecutor;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -18,7 +19,6 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -176,10 +176,10 @@ public class HealthMetadataService {
 
         abstract ClusterState execute(ClusterState currentState);
 
-        static class Executor extends SimpleBatchedExecutor<UpsertHealthMetadataTask> {
+        static class Executor extends BatchedSimpleTaskExecutor<UpsertHealthMetadataTask> {
 
             @Override
-            public ClusterState executeTask(UpsertHealthMetadataTask task, ClusterState clusterState) {
+            public ClusterState executeSimpleTask(UpsertHealthMetadataTask task, ClusterState clusterState) {
                 return task.execute(clusterState);
             }
 

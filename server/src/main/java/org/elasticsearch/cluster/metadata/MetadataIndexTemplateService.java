@@ -18,11 +18,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.BatchedSimpleTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -126,17 +126,18 @@ public class MetadataIndexTemplateService {
     /**
      * This is the cluster state task executor for all template-based actions.
      */
-    private static final ClusterStateTaskExecutor<TemplateClusterStateUpdateTask> TEMPLATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
-        @Override
-        public ClusterState executeTask(TemplateClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
-            return task.execute(clusterState);
-        }
+    private static final ClusterStateTaskExecutor<TemplateClusterStateUpdateTask> TEMPLATE_TASK_EXECUTOR =
+        new BatchedSimpleTaskExecutor<>() {
+            @Override
+            public ClusterState executeSimpleTask(TemplateClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+                return task.execute(clusterState);
+            }
 
-        @Override
-        public void taskSucceeded(TemplateClusterStateUpdateTask task) {
-            task.listener.onResponse(AcknowledgedResponse.TRUE);
-        }
-    };
+            @Override
+            public void taskSucceeded(TemplateClusterStateUpdateTask task) {
+                task.listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        };
 
     /**
      * A specialized cluster state update task that always takes a listener handling an

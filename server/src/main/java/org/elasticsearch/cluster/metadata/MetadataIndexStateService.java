@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.BatchedTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -537,35 +538,24 @@ public class MetadataIndexStateService {
         }
     }
 
-    private static class FinalizeBlocksExecutor implements ClusterStateTaskExecutor<FinalizeBlocksTask> {
+    private static class FinalizeBlocksExecutor extends BatchedTaskExecutor<FinalizeBlocksTask, List<AddBlockResult>> {
 
         @Override
-        public ClusterState execute(BatchExecutionContext<FinalizeBlocksTask> batchExecutionContext) throws Exception {
-            ClusterState state = batchExecutionContext.initialState();
+        public Tuple<ClusterState, List<AddBlockResult>> executeTask(FinalizeBlocksTask task, ClusterState clusterState) throws Exception {
+            final Tuple<ClusterState, List<AddBlockResult>> finalizeResult = finalizeBlock(
+                clusterState,
+                task.blockedIndices,
+                task.verifyResults,
+                task.request.getBlock()
+            );
+            assert finalizeResult.v2().size() == task.verifyResults.size();
+            return finalizeResult;
+        }
 
-            for (final var taskContext : batchExecutionContext.taskContexts()) {
-                try {
-                    final var task = taskContext.getTask();
-                    final Tuple<ClusterState, List<AddBlockResult>> finalizeResult = finalizeBlock(
-                        state,
-                        task.blockedIndices,
-                        task.verifyResults,
-                        task.request.getBlock()
-                    );
-                    state = finalizeResult.v1();
-                    final List<AddBlockResult> indices = finalizeResult.v2();
-                    assert indices.size() == task.verifyResults.size();
-
-                    taskContext.success(() -> {
-                        final boolean acknowledged = indices.stream().noneMatch(AddBlockResult::hasFailures);
-                        task.listener().onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
-                    });
-                } catch (Exception e) {
-                    taskContext.onFailure(e);
-                }
-            }
-
-            return state;
+        @Override
+        public void taskSucceeded(FinalizeBlocksTask task, List<AddBlockResult> indices) {
+            final boolean acknowledged = indices.stream().noneMatch(AddBlockResult::hasFailures);
+            task.listener().onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
         }
     }
 

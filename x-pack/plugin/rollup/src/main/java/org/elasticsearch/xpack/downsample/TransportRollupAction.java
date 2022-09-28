@@ -25,11 +25,11 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.BatchedSimpleTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -94,17 +94,18 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     /**
      * This is the cluster state task executor for cluster state update actions.
      */
-    private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
-        @Override
-        public ClusterState executeTask(RollupClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
-            return task.execute(clusterState);
-        }
+    private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR =
+        new BatchedSimpleTaskExecutor<>() {
+            @Override
+            public ClusterState executeSimpleTask(RollupClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+                return task.execute(clusterState);
+            }
 
-        @Override
-        public void taskSucceeded(RollupClusterStateUpdateTask task) {
-            task.listener.onResponse(AcknowledgedResponse.TRUE);
-        }
-    };
+            @Override
+            public void taskSucceeded(RollupClusterStateUpdateTask task) {
+                task.listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        };
 
     @Inject
     public TransportRollupAction(

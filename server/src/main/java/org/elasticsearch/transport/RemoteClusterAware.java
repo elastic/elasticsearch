@@ -115,7 +115,7 @@ public abstract class RemoteClusterAware {
         );
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             remoteClusterSettings = new ArrayList<>(remoteClusterSettings); // temporarily make it mutable to append a setting
-            remoteClusterSettings.add(RemoteConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION);
+            remoteClusterSettings.add(RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION);
             remoteClusterSettings = Collections.unmodifiableList(remoteClusterSettings); // immutable again
         }
         clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);

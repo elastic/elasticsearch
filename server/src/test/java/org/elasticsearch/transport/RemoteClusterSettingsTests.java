@@ -75,7 +75,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         assumeTrue("Skipped test because CCx2 feature flag is not enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final String alias = randomAlphaOfLength(8);
         assertThat(
-            RemoteConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).get(Settings.EMPTY),
+            RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).get(Settings.EMPTY),
             equalTo("")
         );
     }
@@ -93,8 +93,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
             .put("cluster.remote.cluster3.authorization", (String) null)
             .build();
         try {
-            RemoteConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings)
-                .forEach(setting -> setting.get(settings));
+            RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
         } catch (Throwable t) {
             fail("Cluster Settings must be able to accept a null, empty, or non-empty string. Exception: " + t.getMessage());
         }

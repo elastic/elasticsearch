@@ -90,7 +90,6 @@ public class RemoteClusterSettingsTests extends ESTestCase {
         // simple validation
         Settings settings = Settings.builder()
             .put("cluster.remote.cluster1.authorization", "apikey")
-            .put("cluster.remote.cluster2.authorization", "")
             .put("cluster.remote.cluster3.authorization", (String) null)
             .build();
         try {

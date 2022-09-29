@@ -381,7 +381,6 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         new DiscoveryNode("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2), Version.CURRENT),
                                         5,
                                         42.0,
-                                        42.0,
                                         0,
                                         1,
                                         3L,
@@ -399,7 +398,6 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                     AssignmentStats.NodeStats.forStartedState(
                                         new DiscoveryNode("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3), Version.CURRENT),
                                         4,
-                                        50.0,
                                         50.0,
                                         0,
                                         1,

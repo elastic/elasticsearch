@@ -28,8 +28,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
 
     @Override
     protected Response createTestInstance() {
-        // int listSize = randomInt(10);
-        int listSize = 1;
+        int listSize = randomInt(10);
         List<Response.TrainedModelStats> trainedModelStats = Stream.generate(() -> randomAlphaOfLength(10))
             .limit(listSize)
             .map(
@@ -124,7 +123,6 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getNode(),
                                                     nodeStats.getInferenceCount().orElse(null),
                                                     nodeStats.getAvgInferenceTime().orElse(null),
-                                                    null,
                                                     nodeStats.getLastAccess(),
                                                     nodeStats.getPendingCount(),
                                                     0,
@@ -180,7 +178,6 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getNode(),
                                                     nodeStats.getInferenceCount().orElse(null),
                                                     nodeStats.getAvgInferenceTime().orElse(null),
-                                                    null,
                                                     nodeStats.getLastAccess(),
                                                     nodeStats.getPendingCount(),
                                                     nodeStats.getErrorCount(),
@@ -236,7 +233,6 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getNode(),
                                                     nodeStats.getInferenceCount().orElse(null),
                                                     nodeStats.getAvgInferenceTime().orElse(null),
-                                                    null,
                                                     nodeStats.getLastAccess(),
                                                     nodeStats.getPendingCount(),
                                                     nodeStats.getErrorCount(),
@@ -251,62 +247,6 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getThroughputLastPeriod(),
                                                     nodeStats.getAvgInferenceTimeLastPeriod(),
                                                     null
-                                                )
-                                            )
-                                            .toList()
-                                    )
-                            )
-                        )
-                        .toList(),
-                    instance.getResources().count(),
-                    RESULTS_FIELD
-                )
-            );
-        } else if (version.before(Version.V_8_5_0)) {
-            return new Response(
-                new QueryPage<>(
-                    instance.getResources()
-                        .results()
-                        .stream()
-                        .map(
-                            stats -> new Response.TrainedModelStats(
-                                stats.getModelId(),
-                                stats.getModelSizeStats(),
-                                stats.getIngestStats(),
-                                stats.getPipelineCount(),
-                                stats.getInferenceStats(),
-                                stats.getDeploymentStats() == null
-                                    ? null
-                                    : new AssignmentStats(
-                                        stats.getDeploymentStats().getModelId(),
-                                        stats.getDeploymentStats().getThreadsPerAllocation(),
-                                        stats.getDeploymentStats().getNumberOfAllocations(),
-                                        stats.getDeploymentStats().getQueueCapacity(),
-                                        stats.getDeploymentStats().getCacheSize(),
-                                        stats.getDeploymentStats().getStartTime(),
-                                        stats.getDeploymentStats()
-                                            .getNodeStats()
-                                            .stream()
-                                            .map(
-                                                nodeStats -> new AssignmentStats.NodeStats(
-                                                    nodeStats.getNode(),
-                                                    nodeStats.getInferenceCount().orElse(null),
-                                                    nodeStats.getAvgInferenceTime().orElse(null),
-                                                    null,
-                                                    nodeStats.getLastAccess(),
-                                                    nodeStats.getPendingCount(),
-                                                    nodeStats.getErrorCount(),
-                                                    nodeStats.getCacheHitCount().orElse(null),
-                                                    nodeStats.getRejectedExecutionCount(),
-                                                    nodeStats.getTimeoutCount(),
-                                                    nodeStats.getRoutingState(),
-                                                    nodeStats.getStartTime(),
-                                                    nodeStats.getThreadsPerAllocation(),
-                                                    nodeStats.getNumberOfAllocations(),
-                                                    nodeStats.getPeakThroughput(),
-                                                    nodeStats.getThroughputLastPeriod(),
-                                                    nodeStats.getAvgInferenceTimeLastPeriod(),
-                                                    nodeStats.getCacheHitCountLastPeriod().orElse(null)
                                                 )
                                             )
                                             .toList()

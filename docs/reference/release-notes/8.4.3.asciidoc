@@ -13,6 +13,9 @@ Infra/Core::
 * Fix potential race condition in the file settings watcher on Windows {es-pull}90302[#90302] (issue: {es-issue}89500[#89500])
 * Fix file permission errors to avoid repeated error save loops on Windows {es-pull}90271[#90271] (issue: {es-issue}90222[#90222])
 
+Ingest Node::
+* Preventing serialization errors in the nodes stats API {es-pull}90319[#90319] (issue: {es-issue}77973[#77973])
+
 [[regression-8.4.3]]
 [float]
 === Regressions

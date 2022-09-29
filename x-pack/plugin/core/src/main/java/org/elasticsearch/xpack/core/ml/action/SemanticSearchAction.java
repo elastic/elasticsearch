@@ -38,7 +38,7 @@ import java.util.Objects;
 
 public class SemanticSearchAction extends ActionType<SemanticSearchAction.Response> {
 
-    public static final String NAME = "cluster:monitor/xpack/ml/dense_search";
+    public static final String NAME = "indices:semanticsearch_search"; // TODO what should this be called?
 
     public static final SemanticSearchAction INSTANCE = new SemanticSearchAction(NAME);
 
@@ -49,7 +49,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
     public static class Request extends ActionRequest {
 
         public static final ParseField QUERY_STRING = new ParseField("query_string");
-        public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField KNN = new ParseField("knn");
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME);
@@ -57,7 +56,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         static {
             PARSER.declareString(Request.Builder::setDeploymentId, InferTrainedModelDeploymentAction.Request.DEPLOYMENT_ID);
             PARSER.declareString(Request.Builder::setQueryString, QUERY_STRING);
-            PARSER.declareString(Request.Builder::setTimeout, TIMEOUT);
+            PARSER.declareString(Request.Builder::setTimeout, SearchSourceBuilder.TIMEOUT_FIELD);
             PARSER.declareObject(
                 Request.Builder::setUpdate,
                 (p, c) -> TextEmbeddingConfigUpdate.fromXContentStrict(p),
@@ -322,7 +321,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             }
 
             void setTimeout(String timeout) {
-                setTimeout(TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()));
+                setTimeout(TimeValue.parseTimeValue(timeout, SearchSourceBuilder.TIMEOUT_FIELD.getPreferredName()));
             }
 
             void setUpdate(TextEmbeddingConfigUpdate update) {

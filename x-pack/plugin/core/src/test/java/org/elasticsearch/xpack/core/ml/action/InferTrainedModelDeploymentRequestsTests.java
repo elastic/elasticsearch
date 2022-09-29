@@ -80,13 +80,12 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractBWCWireSer
         InferTrainedModelDeploymentAction.Request instance,
         Version version
     ) {
-        if (version.before(Version.V_8_5_0)) {
-            // remove textInput
+        if (version.before(Version.V_8_6_0)) {
             instance = new InferTrainedModelDeploymentAction.Request(
                 instance.getDeploymentId(),
                 instance.getUpdate(),
                 instance.getDocs(),
-                null,
+                null, // remove textInput
                 instance.getInferenceTimeout()
             );
         }

@@ -13,6 +13,9 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.Map;
 
+/**
+ * Input is either a string or a document map
+ */
 public class NlpInferenceInput {
 
     private final String inputText;

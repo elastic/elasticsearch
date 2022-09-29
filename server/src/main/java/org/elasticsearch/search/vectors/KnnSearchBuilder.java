@@ -160,7 +160,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     }
 
     /**
-     * Set the
+     * Set the query vector
      */
     public KnnSearchBuilder queryVector(float[] queryVector) {
         this.queryVector = queryVector;

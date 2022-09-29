@@ -55,7 +55,6 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(zonedDateTime, notNullValue());
     }
 
-
     private void assertDateMathEquals(String text, String expected, String pattern) {
         Locale locale = randomLocale(random());
         assertDateMathEquals(text, expected, pattern, locale);
@@ -63,8 +62,9 @@ public class DateFormattersTests extends ESTestCase {
 
     private void assertDateMathEquals(String text, String expected, String pattern, Locale locale) {
         long gotMillisJava = dateMathToMillis(text, DateFormatter.forPattern(pattern), locale);
-        long expectedMillis = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time")
-            .withLocale(locale).parse(expected)).toInstant().toEpochMilli();
+        long expectedMillis = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time").withLocale(locale).parse(expected))
+            .toInstant()
+            .toEpochMilli();
 
         assertThat(gotMillisJava, equalTo(expectedMillis));
     }
@@ -572,7 +572,7 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "1234567890", 1234567890999L);
     }
 
-    public void testYearWithoutMonthRoundUp(){
+    public void testYearWithoutMonthRoundUp() {
         assertDateMathEquals("1500", "1500-01-01T23:59:59.999", "uuuu");
         assertDateMathEquals("2022", "2022-01-01T23:59:59.999", "uuuu");
         assertDateMathEquals("2022", "2022-01-01T23:59:59.999", "yyyy");
@@ -735,9 +735,13 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testCompositeDateMathParsing() {
         // in all these examples the second pattern will be used
-        assertDateMathEquals("2014-06-06T12:01:02.123", "2014-06-06T12:01:02.123","yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertDateMathEquals("2014-06-06T12:01:02.123", "2014-06-06T12:01:02.123","strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
-        assertDateMathEquals("2014-06-06T12:01:02.123", "2014-06-06T12:01:02.123","yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "2014-06-06T12:01:02.123", "strict_date_time_no_millis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals(
+            "2014-06-06T12:01:02.123",
+            "2014-06-06T12:01:02.123",
+            "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS"
+        );
     }
 
     public void testExceptionWhenCompositeParsingFailsDateMath() {

@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -210,7 +211,7 @@ public class DesiredBalanceComputer {
             }
 
             logger.trace("running delegate allocator");
-            delegateAllocator.allocate(routingAllocation);
+            delegateAllocator.allocate(routingAllocation, ActionListener.noop());
             assert routingNodes.unassigned().size() == 0; // any unassigned shards should now be ignored
 
             hasChanges = false;

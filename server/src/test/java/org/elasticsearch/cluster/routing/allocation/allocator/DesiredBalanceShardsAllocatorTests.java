@@ -119,13 +119,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         final var threadPool = deterministicTaskQueue.getThreadPool();
         final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 final var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
                 while (unassignedIterator.hasNext()) {
                     unassignedIterator.next();
                     unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
                 }
+                listener.onResponse(null);
             }
 
             @Override
@@ -247,13 +248,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var clusterService = ClusterServiceUtils.createClusterService(createInitialClusterState(), threadPool);
         var allocator = new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 final var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
                 while (unassignedIterator.hasNext()) {
                     var indexName = unassignedIterator.next().getIndexName();
                     unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
                 }
+                listener.onResponse(null);
 
                 try {
                     assertTrue("Should have submitted the second input in time", secondInputSubmitted.await(10, TimeUnit.SECONDS));
@@ -368,7 +370,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var rerouteServiceSupplier = new SetOnce<RerouteService>();
         var allocator = new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 final var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
                 var madeProgress = false;
@@ -381,6 +383,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                         unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
                     }
                 }
+                listener.onResponse(null);
             }
 
             @Override
@@ -436,7 +439,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var clusterService = ClusterServiceUtils.createClusterService(createInitialClusterState(), threadPool);
         var allocator = new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 final var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
                 var madeProgress = false;
@@ -449,6 +452,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                         unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
                     }
                 }
+                listener.onResponse(null);
             }
 
             @Override

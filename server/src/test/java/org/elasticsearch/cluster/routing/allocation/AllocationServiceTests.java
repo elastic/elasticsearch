@@ -118,10 +118,11 @@ public class AllocationServiceTests extends ESTestCase {
             ),
             new ShardsAllocator() {
                 @Override
-                public void allocate(RoutingAllocation allocation) {
+                public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                     // all primaries are handled by existing shards allocators in these tests; even the invalid allocator prevents shards
                     // from falling through to here
                     assertThat(allocation.routingNodes().unassigned().getNumPrimaries(), equalTo(0));
+                    listener.onResponse(null);
                 }
 
                 @Override

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -65,8 +66,9 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             true,
             new AllocationService(null, new TestGatewayAllocator(), new ShardsAllocator() {
                 @Override
-                public void allocate(RoutingAllocation allocation) {
+                public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                     // no-op
+                    listener.onResponse(null);
                 }
 
                 @Override

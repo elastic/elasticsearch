@@ -74,8 +74,7 @@ public class MetadataUpdateSettingsService {
         this.shardLimitValidator = shardLimitValidator;
         this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
             @Override
-            public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateSettingsTask task, ClusterState clusterState)
-                throws Exception {
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateSettingsTask task, ClusterState clusterState) {
                 return Tuple.tuple(task.execute(clusterState), task.getAckListener());
             }
 

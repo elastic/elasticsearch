@@ -11,9 +11,9 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.core.Tuple;
 
 /**
- * A basic batch executor implementation for tasks that implement {@link ClusterStateAckListener}, where the tasks in the
- * batch are executed iteratively, producing a cluster state after each task. This allows executing the tasks in the batch
- * as a series of executions, each taking an input cluster state and producing a new cluster state that serves as the
+ * A basic batch executor implementation for tasks that can listen for acks themselves by providing a {@link ClusterStateAckListener}.
+ * The tasks in the batch are executed iteratively, producing a cluster state after each task. This allows executing the tasks
+ * in the batch as a series of executions, each taking an input cluster state and producing a new cluster state that serves as the
  * input of the next task in the batch.
  */
 public abstract class SimpleBatchedAckListenerTaskExecutor<Task extends ClusterStateTaskListener>

@@ -6,7 +6,7 @@ out of space, elasticsearch takes action to redistribute your data within the no
 disk space. If elasticsearch cannot create enough available space then you will need to intervene in one of two ways:
 
 . <<increase-capacity-data-node, Increase the disk capacity of your cluster>>
-. <<decrease-disk-usage-data-node, Reduce the disk usage by decreasing your data volumes>>
+. <<decrease-disk-usage-data-node, Reduce the disk usage by decreasing your data volume>>
 
 [[increase-capacity-data-node]]
 === Increase disk capacity of data nodes

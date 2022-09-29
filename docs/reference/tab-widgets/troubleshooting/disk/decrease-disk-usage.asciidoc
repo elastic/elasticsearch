@@ -1,13 +1,43 @@
 // tag::cloud[]
-In order to decrease the disk usage in your cluster:
+In order to decrease the disk usage in your cluster without losing any data is to reduce the replicas of indices.:
+Reducing the replicas of an index can potentially reduce search performance and make the index less resilient to data
+loss. However, it can quickly give the cluster breathing room until a more permanent solution is in place.
 
+**Use {kib}**
+
+//tag::kibana-api-ex[]
 . Log in to the {ess-console}[{ecloud} console].
 +
 
 . On the **Elasticsearch Service** panel, click the name of your deployment.
 +
 
-Reduce the number of replicas
+NOTE: If the name of your deployment is disabled your {kib} instances might be
+unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
+If your deployment doesn't include {kib}, all you need to do is
+{cloud}/ec-access-kibana.html[enable it first].
++
+. Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
+and go to **Stack Management > Index Management**.
+
+. In the list of all your indices, click the `Replicas` column twice to sort the indices based on their number of
+replicas starting with the one that has the most. Go through the indices and pick one by one the index with the
+least importance and higher number of replicas.
+
+. For each index you chose, click on its name, then on the panel that appears click `Edit settings` and reduce the
+value of the `index.number_of_replicas` to the desired value.
+
+[role="screenshot"]
+image::images/troubleshooting/disk/reduce_replicas.png[Reducing replicas,align="center"]
+
+. Continue this process until the cluster is healthy again.
+
+NOTE: After removing these replicas you need to consider if you still have enough replicas to ensure your search
+performance and reliability requirements. If not, at your earliest convenience (i) consider using
+<<overview-index-lifecycle-management, Index Lifecycle Management>> to manage more efficiently the
+retention of your timeseries data, or (ii) reduce the amount of data you have by disabling the `source` or removing
+less necessary data, or (iii) increase your disk capacity.
+
 // end::cloud[]
 
 // tag::self-managed[]

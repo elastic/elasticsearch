@@ -228,6 +228,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return List.of();
     }
 
+    /**
+     * Deprecated - this will be made private in a future update
+     */
+    @Deprecated
     protected <A extends Aggregator> A createAggregator(
         AggregationBuilder aggregationBuilder,
         IndexSearcher searcher,
@@ -236,6 +240,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return createAggregator(aggregationBuilder, createAggregationContext(searcher, new MatchAllDocsQuery(), fieldTypes));
     }
 
+    /**
+     * Deprecated - this will be made private in a future update
+     */
+    @Deprecated
     protected <A extends Aggregator> A createAggregator(AggregationBuilder builder, AggregationContext context) throws IOException {
         QueryRewriteContext rewriteContext = new QueryRewriteContext(
             parserConfig(),
@@ -253,7 +261,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * While {@linkplain AggregationContext} is {@link Releasable} the caller is
      * not responsible for releasing it. Instead, it is released automatically in
      * in {@link #cleanupReleasables()}.
+     *
+     * Deprecated - this will be made private in a future update
      */
+    @Deprecated
     protected AggregationContext createAggregationContext(IndexSearcher indexSearcher, Query query, MappedFieldType... fieldTypes)
         throws IOException {
         return createAggregationContext(
@@ -273,7 +284,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * While {@linkplain AggregationContext} is {@link Releasable} the caller is
      * not responsible for releasing it. Instead, it is released automatically in
      * in {@link #cleanupReleasables()}.
+     *
+     * Deprecated - this will be made private in a future update
      */
+    @Deprecated
     protected AggregationContext createAggregationContext(
         IndexSearcher indexSearcher,
         IndexSettings indexSettings,

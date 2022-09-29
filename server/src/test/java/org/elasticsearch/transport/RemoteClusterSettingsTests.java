@@ -72,7 +72,6 @@ public class RemoteClusterSettingsTests extends ESTestCase {
     }
 
     public void testCredentialsDefault() {
-        assumeTrue("Skipped test because CCx2 feature flag is not enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         final String alias = randomAlphaOfLength(8);
         assertThat(
             RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).get(Settings.EMPTY),
@@ -86,7 +85,6 @@ public class RemoteClusterSettingsTests extends ESTestCase {
     }
 
     public void testRemoteClusterEmptyOrNullApiKey() {
-        assumeTrue("Skipped test because CCx2 feature flag is not enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
         // simple validation
         Settings settings = Settings.builder()
             .put("cluster.remote.cluster1.authorization", "apikey")

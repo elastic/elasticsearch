@@ -576,7 +576,9 @@ public interface AuthorizationEngine {
             } else {
                 assert indicesAccessControl != null;
                 String[] indices = RequestInfo.indices(requestInfo.getRequest());
-                if (indices == null) {
+                if (indices == null
+                    || indices.length == 0
+                    || IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER.equals(indices[indices.length - 1])) {
                     return null;
                 }
                 Set<String> deniedIndices = Arrays.asList(indices)

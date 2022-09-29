@@ -32,6 +32,11 @@ fix problems that an {es} deployment might encounter.
 * <<start-slm,Start snapshot lifecycle management>>
 
 [discrete]
+[[troubleshooting-capacity]]
+=== Capacity
+* <<fix-data-node-out-of-disk, Data nodes out of disk space>>
+
+[discrete]
 [[troubleshooting-snapshot]]
 === Snapshot and restore
 * <<restore-from-snapshot,Restore data from snapshot>>
@@ -89,6 +94,8 @@ include::troubleshooting/data/increase-shard-limit.asciidoc[]
 include::troubleshooting/data/increase-cluster-shard-limit.asciidoc[]
 
 include::troubleshooting/corruption-issues.asciidoc[]
+
+include::troubleshooting/disk/fix-data-node-out-of-disk.asciidoc[]
 
 include::troubleshooting/data/start-ilm.asciidoc[]
 

@@ -1,0 +1,15 @@
+// tag::cloud[]
+In order to increase the data node capacity in your cluster:
+
+. Log in to the {ess-console}[{ecloud} console].
++
+
+. On the **Elasticsearch Service** panel, click the name of your deployment.
++
+
+Enable autoscaling
+// end::cloud[]
+
+// tag::self-managed[]
+Manually add nodes or extend
+// end::self-managed[]

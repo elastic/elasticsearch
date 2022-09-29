@@ -1,0 +1,15 @@
+// tag::cloud[]
+In order to decrease the disk usage in your cluster:
+
+. Log in to the {ess-console}[{ecloud} console].
++
+
+. On the **Elasticsearch Service** panel, click the name of your deployment.
++
+
+Reduce the number of replicas
+// end::cloud[]
+
+// tag::self-managed[]
+Reduce the number of replicas
+// end::self-managed[]

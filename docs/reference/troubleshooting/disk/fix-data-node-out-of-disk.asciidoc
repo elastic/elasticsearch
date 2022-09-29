@@ -1,0 +1,13 @@
+[[fix-data-node-out-of-disk]]
+== Fix data node out of disk
+
+Elasticsearch is using data nodes to distribute your data inside the cluster. If one or more of these nodes are running
+out of space, elasticsearch takes action to redistribute your data within the nodes so all nodes have enough available
+disk space. If elasticsearch cannot create enough available space then you will need to intervene in one of two ways:
+
+. Increase the disk capacity of your cluster
+. Reduce the disk usage by decreasing your data volumes
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/disk/increase-data-node-capacity-widget.asciidoc[]
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/disk/decrease-disk-usage-widget.asciidoc[]

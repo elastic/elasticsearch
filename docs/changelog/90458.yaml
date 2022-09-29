@@ -1,0 +1,6 @@
+pr: 90458
+summary: Fix date rounding for date math parsing
+area: Infra/Core
+type: bug
+issues:
+ - 90187

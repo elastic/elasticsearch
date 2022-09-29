@@ -1,5 +1,7 @@
 setup:
-
+  - skip:
+      version: " - 8.5.99"
+      reason: awaits backports
   - do:
       indices.create:
         index: dates_year_only

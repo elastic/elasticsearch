@@ -422,20 +422,25 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     public void testTwoJobsWithDifferentRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "regression_two_jobs_with_different_randomize_seed_source";
-        indexData(sourceIndex, 100, 0);
+        indexData(sourceIndex, 30, 0);
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
 
         String firstJobId = "regression_two_jobs_with_different_randomize_seed_1";
         String firstJobDestIndex = firstJobId + "_dest";
 
-        BoostedTreeParams boostedTreeParams = BoostedTreeParams.builder().setLambda(1.0).setFeatureBagFraction(1.0).setMaxTrees(2).build();
+        BoostedTreeParams boostedTreeParams = BoostedTreeParams.builder()
+            .setLambda(1.0)
+            .setGamma(10.0)
+            .setFeatureBagFraction(0.5)
+            .setMaxTrees(2)
+            .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(
             firstJobId,
             sourceIndex,
             firstJobDestIndex,
             null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 100.0, null, null, null, null, null)
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 100.0, 0L, null, null, null, null)
         );
         putAnalytics(firstJob);
         startAnalytics(firstJobId);
@@ -455,7 +460,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             sourceIndex,
             secondJobDestIndex,
             null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 100.0, null, null, null, null, null)
+            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 100.0, 10L, null, null, null, null)
         );
 
         putAnalytics(secondJob);

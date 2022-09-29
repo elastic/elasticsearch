@@ -92,6 +92,9 @@ public class CompositeRolesStore {
     );
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
 
+    // TODO
+    private static final Set<String> LOCAL_CLUSTER_KEY = newHashSet("");
+
     private final RoleProviders roleProviders;
     private final NativePrivilegeStore privilegeStore;
     private final FieldPermissionsCache fieldPermissionsCache;
@@ -412,17 +415,15 @@ public class CompositeRolesStore {
             return;
         }
 
-        Set<String> clusterPrivileges = new HashSet<>();
+        final Set<String> clusterPrivileges = new HashSet<>();
         final List<ConfigurableClusterPrivilege> configurableClusterPrivileges = new ArrayList<>();
-        Set<String> runAs = new HashSet<>();
-        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
-        final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
-
-        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteRestrictedIndicesPrivilegesMap = new HashMap<>();
-        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteIndicesPrivilegesMap = new HashMap<>();
+        final Set<String> runAs = new HashSet<>();
+        // Outer map keyed by target cluster expressions, inner map by index name expressions
+        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> indicesPrivilegesMapByCluster = new HashMap<>();
+        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> restrictedIndicesPrivilegesMapByCluster = new HashMap<>();
 
         // Keyed by application + resource
-        Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
+        final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
 
         List<String> roleNames = new ArrayList<>(roleDescriptors.size());
         for (RoleDescriptor descriptor : roleDescriptors) {
@@ -436,31 +437,17 @@ public class CompositeRolesStore {
             if (descriptor.getRunAs() != null) {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
             }
-            final IndicesPrivileges[] indicesPrivileges = descriptor.getIndicesPrivileges();
-            final Map<Boolean, List<IndicesPrivileges>> partitioned = Arrays.stream(indicesPrivileges)
-                .collect(Collectors.partitioningBy(IndicesPrivileges::hasTargetClusters));
-            final List<IndicesPrivileges> local = partitioned.get(false);
-            if (local != null && false == local.isEmpty()) {
-                MergeableIndicesPrivilege.collatePrivilegesByIndices(
-                    local.toArray(new IndicesPrivileges[0]),
-                    true,
-                    restrictedIndicesPrivilegesMap
-                );
-                MergeableIndicesPrivilege.collatePrivilegesByIndices(local.toArray(new IndicesPrivileges[0]), false, indicesPrivilegesMap);
-            }
-            final List<IndicesPrivileges> remote = partitioned.get(true);
-            if (remote != null && false == remote.isEmpty()) {
-                MergeableIndicesPrivilege.collatePrivilegesByTargetClustersAndIndices(
-                    remote.toArray(new IndicesPrivileges[0]),
-                    true,
-                    remoteIndicesPrivilegesMap
-                );
-                MergeableIndicesPrivilege.collatePrivilegesByTargetClustersAndIndices(
-                    remote.toArray(new IndicesPrivileges[0]),
-                    false,
-                    remoteIndicesPrivilegesMap
-                );
-            }
+
+            MergeableIndicesPrivilege.collatePrivilegesByTargetClustersAndIndices(
+                descriptor.getIndicesPrivileges(),
+                true,
+                restrictedIndicesPrivilegesMapByCluster
+            );
+            MergeableIndicesPrivilege.collatePrivilegesByTargetClustersAndIndices(
+                descriptor.getIndicesPrivileges(),
+                false,
+                indicesPrivilegesMapByCluster
+            );
 
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
                 Tuple<String, Set<String>> key = new Tuple<>(appPrivilege.getApplication(), newHashSet(appPrivilege.getResources()));
@@ -479,35 +466,53 @@ public class CompositeRolesStore {
         final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
-        indicesPrivilegesMap.forEach(
-            (key, privilege) -> builder.add(
-                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                privilege.query,
-                IndexPrivilege.get(privilege.privileges),
-                false,
-                privilege.indices.toArray(Strings.EMPTY_ARRAY)
-            )
-        );
-        restrictedIndicesPrivilegesMap.forEach(
-            (key, privilege) -> builder.add(
-                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                privilege.query,
-                IndexPrivilege.get(privilege.privileges),
-                true,
-                privilege.indices.toArray(Strings.EMPTY_ARRAY)
-            )
-        );
-        remoteIndicesPrivilegesMap.forEach((targetClusters, indicesPrivilegesMapForCluster) -> {
-            indicesPrivilegesMapForCluster.forEach(
-                (key, privilege) -> builder.add(
-                    targetClusters,
-                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                    privilege.query,
-                    IndexPrivilege.get(privilege.privileges),
-                    false,
-                    privilege.indices.toArray(Strings.EMPTY_ARRAY)
-                )
-            );
+        indicesPrivilegesMapByCluster.forEach((targetClusters, indicesPrivilegesMapForCluster) -> {
+            if (targetClusters.equals(LOCAL_CLUSTER_KEY)) {
+                indicesPrivilegesMapForCluster.forEach(
+                    (key, privilege) -> builder.add(
+                        fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                        privilege.query,
+                        IndexPrivilege.get(privilege.privileges),
+                        false,
+                        privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                    )
+                );
+            } else {
+                indicesPrivilegesMapForCluster.forEach(
+                    (key, privilege) -> builder.add(
+                        targetClusters,
+                        fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                        privilege.query,
+                        IndexPrivilege.get(privilege.privileges),
+                        false,
+                        privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                    )
+                );
+            }
+        });
+        restrictedIndicesPrivilegesMapByCluster.forEach((targetClusters, indicesPrivilegesMapForCluster) -> {
+            if (targetClusters.equals(LOCAL_CLUSTER_KEY)) {
+                indicesPrivilegesMapForCluster.forEach(
+                    (key, privilege) -> builder.add(
+                        fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                        privilege.query,
+                        IndexPrivilege.get(privilege.privileges),
+                        true,
+                        privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                    )
+                );
+            } else {
+                indicesPrivilegesMapForCluster.forEach(
+                    (key, privilege) -> builder.add(
+                        targetClusters,
+                        fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                        privilege.query,
+                        IndexPrivilege.get(privilege.privileges),
+                        true,
+                        privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                    )
+                );
+            }
         });
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());
@@ -612,22 +617,23 @@ public class CompositeRolesStore {
         }
 
         private static void collatePrivilegesByTargetClustersAndIndices(
-            IndicesPrivileges[] indicesPrivileges,
-            boolean allowsRestrictedIndices,
-            Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteIndicesPrivilegesMap
+            final IndicesPrivileges[] indicesPrivileges,
+            final boolean allowsRestrictedIndices,
+            final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteIndicesPrivilegesMap
         ) {
-            Arrays.stream(indicesPrivileges)
-                .collect(Collectors.groupingBy(it -> newHashSet(it.getTargetClusters())))
-                .forEach((targetClusters, indicesForTargetClusters) -> {
-                    if (false == remoteIndicesPrivilegesMap.containsKey(targetClusters)) {
-                        remoteIndicesPrivilegesMap.put(targetClusters, new HashMap<>());
-                    }
-                    collatePrivilegesByIndices(
-                        indicesForTargetClusters.toArray(new IndicesPrivileges[0]),
-                        allowsRestrictedIndices,
-                        remoteIndicesPrivilegesMap.get(targetClusters)
-                    );
-                });
+            Arrays.stream(indicesPrivileges).collect(Collectors.groupingBy(it -> {
+                final String[] targetClusters = it.getTargetClusters();
+                return targetClusters == null ? LOCAL_CLUSTER_KEY : newHashSet(targetClusters);
+            })).forEach((targetClusters, indicesForTargetClusters) -> {
+                if (false == remoteIndicesPrivilegesMap.containsKey(targetClusters)) {
+                    remoteIndicesPrivilegesMap.put(targetClusters, new HashMap<>());
+                }
+                collatePrivilegesByIndices(
+                    indicesForTargetClusters.toArray(new IndicesPrivileges[0]),
+                    allowsRestrictedIndices,
+                    remoteIndicesPrivilegesMap.get(targetClusters)
+                );
+            });
         }
 
         private static void collatePrivilegesByIndices(

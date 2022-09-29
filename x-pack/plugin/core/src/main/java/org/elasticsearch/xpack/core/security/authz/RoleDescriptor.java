@@ -803,6 +803,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             this.allowRestrictedIndices = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
                 this.targetClusters = in.readOptionalStringArray();
+                // TODO doesn't belong here
+                assert this.targetClusters == null || Arrays.stream(this.targetClusters).noneMatch(it -> it.equals(""));
             }
         }
 
@@ -877,10 +879,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         @Nullable
         public String[] getTargetClusters() {
             return targetClusters;
-        }
-
-        public boolean hasTargetClusters() {
-            return targetClusters != null;
         }
 
         @Override

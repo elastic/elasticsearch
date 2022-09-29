@@ -47,7 +47,7 @@ public interface Role {
     IndicesPermission indices();
 
     default List<RemoteIndicesPermission> remoteIndices() {
-        throw new UnsupportedOperationException("remote index not supported");
+        throw new UnsupportedOperationException("remote indices not supported");
     }
 
     default List<RemoteIndicesPermission> remoteIndices(final String targetCluster) {
@@ -194,7 +194,6 @@ public interface Role {
         private final List<IndicesPermissionGroupDefinition> groups = new ArrayList<>();
         private final List<Tuple<Set<String>, IndicesPermissionGroupDefinition>> remoteGroups = new ArrayList<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
-        // TODO this is annoying
         private final RestrictedIndices restrictedIndices;
 
         private Builder(RestrictedIndices restrictedIndices, String[] names) {
@@ -300,7 +299,6 @@ public interface Role {
                 remoteIndices = new ArrayList<>();
                 for (var entry : remoteGroups) {
                     IndicesPermissionGroupDefinition group = entry.v2();
-                    // TODO restricted indices is wrong
                     IndicesPermission.Builder indicesBuilder = new IndicesPermission.Builder(restrictedIndices);
                     indicesBuilder.addGroup(
                         group.privilege,

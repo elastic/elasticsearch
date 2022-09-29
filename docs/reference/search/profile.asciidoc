@@ -1052,8 +1052,8 @@ loading stored fields by setting
 The dfs phase collects term statistics to achieve more accurate search results
 prior to the query phase. To profile the dfs phase use a `_search` request with
 the url parameter `search_type` set as `dfs_and_then_query` and add a top-level
-`profile` parameter. Note that for the dfs phase to run an index must have
-multiple shards.
+`profile` parameter set to `true`. Note that for the dfs phase to run an index
+must have multiple shards.
 
 As an example, let's first setup an index with multiple shards and index
 a pair of documents with different values on a keyword field.
@@ -1073,10 +1073,10 @@ PUT my-dfs-index
     }
 }
 
-POST _bulk
-{ "index" : { "_index" : "my-dfs-index", "_id" : "1" } }
+POST my-dfs-index/_bulk?refresh=true
+{ "index" : { "_id" : "1" } }
 { "my-keyword" : "a" }
-{ "index" : { "_index" : "my-dfs-index", "_id" : "2" } }
+{ "index" : { "_id" : "2" } }
 { "my-keyword" : "b" }
 --------------------------------------------------
 <1> The `my-dfs-index` is created with multiple shards.
@@ -1103,8 +1103,8 @@ GET /my-dfs-index/_search?search_type=dfs_query_then_fetch&pretty <1>
 ensure the dfs phase is run.
 <2> The `profile` parameter is set to `true`.
 
-In the response, we see a very verbose profile which includes a dfs section
-for each shard along with profile output for the rest of search phases.
+In the response, we see a very verbose profile which includes a `dfs` section
+for each shard along with profile output for the rest of the search phases.
 One of the `dfs` sections for a shard looks like the following:
 
 [source,js]
@@ -1140,6 +1140,123 @@ is called to generate the collection of term statistics, and the specific
 call order is `create_weight -> collection_statistics -> term_statistics`.
 `Rewrite` is only used for queries that utilize rescore and thus, isn't
 called as part of this example.
+
+[[profiling-knn]]
+===== Profiling kNN
+
+A k-nearest neighbor (kNN) search runs as part of the dfs phase. To
+profile a kNN search query add a top-level `profile` parameter set to
+`true`.
+
+As an example, let's first setup an index with several dense vectors.
+
+[source,console]
+--------------------------------------------------
+PUT my-knn-index
+{
+  "mappings": {
+    "properties": {
+      "my-vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "similarity": "l2_norm"
+      }
+    }
+  }
+}
+
+POST my-knn-index/_bulk?refresh=true
+{ "index": { "_id": "1" } }
+{ "my-vector": [1, 5, -20] }
+{ "index": { "_id": "2" } }
+{ "my-vector": [42, 8, -15] }
+{ "index": { "_id": "3" } }
+{ "my-vector": [15, 11, 23] }
+--------------------------------------------------
+
+With an index setup, we can now profile a kNN search query.
+
+[source,console]
+--------------------------------------------------
+POST my-knn-index/_search
+{
+  "profile": true, <1>
+  "knn": {
+    "field": "my-vector",
+    "query_vector": [-5, 9, -12],
+    "k": 3,
+    "num_candidates": 100
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+<1> The `profile` parameter is set to `true`.
+
+In the response, we see a very verbose profile which includes a `knn` section
+as part of the `dfs` section for each shard along with profile output for the
+rest of the search phases.
+
+One of the `dfs.knn` sections for a shard looks like the following:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "dfs" : {
+        ...
+        "knn" : {
+            "query" : [
+                {
+                    "type" : "DocAndScoreQuery",
+                    "description" : "DocAndScore[100]",
+                    "time_in_nanos" : 444414,
+                    "breakdown" : {
+                      "set_min_competitive_score_count" : 0,
+                      "match_count" : 0,
+                      "shallow_advance_count" : 0,
+                      "set_min_competitive_score" : 0,
+                      "next_doc" : 1688,
+                      "match" : 0,
+                      "next_doc_count" : 3,
+                      "score_count" : 3,
+                      "compute_max_score_count" : 0,
+                      "compute_max_score" : 0,
+                      "advance" : 4153,
+                      "advance_count" : 1,
+                      "score" : 2099,
+                      "build_scorer_count" : 2,
+                      "create_weight" : 128879,
+                      "shallow_advance" : 0,
+                      "create_weight_count" : 1,
+                      "build_scorer" : 307595
+                    }
+                }
+            ],
+            "rewrite_time" : 1275732, <1>
+            "collector" : [
+                {
+                    "name" : "SimpleTopScoreDocCollector",
+                    "reason" : "search_top_hits",
+                    "time_in_nanos" : 17163
+                }
+            ]
+        }
+    }
+    ...
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The rewrite time is especially important as this
+is where the kNN search query is actually evaluated.
+
+In the `dfs.knn` portion of the response we can see the output
+the of timings for <<query-section, query>>, <<rewrite-section, rewrite>>,
+and <<collectors-section, collector>>. The `rewrite_time`
+contains the amount of time where the kNN search query is evaluated which
+is notably different from other types of queries, so this is the
+most important timing when figuring out how long a kNN search query takes.
 
 [[profiling-considerations]]
 ===== Profiling Considerations

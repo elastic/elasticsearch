@@ -322,6 +322,6 @@ public final class ShardPath {
 
     @Override
     public String toString() {
-        return "ShardPath{" + "path=" + path + ", shard=" + shardId + '}';
+        return "ShardPath{path=" + path + ", shard=" + shardId + '}';
     }
 }

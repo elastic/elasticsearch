@@ -725,7 +725,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertThat("Index " + index + " should have index metadata", indexMetadata, notNullValue());
         assertThat("Index " + index + " should not have resize source index", indexMetadata.getResizeSourceIndex(), nullValue());
         assertThat(
-            "Index " + index + " should not have resize source UUID setting",
+            "Index " + index + " should not have resize source name setting",
             IndexMetadata.INDEX_RESIZE_SOURCE_UUID.exists(indexMetadata.getSettings()),
             equalTo(false)
         );

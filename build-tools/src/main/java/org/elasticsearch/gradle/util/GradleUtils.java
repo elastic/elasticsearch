@@ -219,4 +219,15 @@ public abstract class GradleUtils {
     public static String projectPath(String taskPath) {
         return taskPath.lastIndexOf(':') == 0 ? ":" : taskPath.substring(0, taskPath.lastIndexOf(':'));
     }
+
+    /**
+     * Determine if the given {@link Project} is part of a composite included build. Returns {@code false} for any projects that belong
+     * to the root "outer" build of a composite.
+     *
+     * @param project the current project
+     * @return true if the project is an included build
+     */
+    public static boolean isIncludedBuild(Project project) {
+        return project.getGradle().getParent() == null;
+    }
 }

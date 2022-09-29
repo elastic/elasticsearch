@@ -9,7 +9,9 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +28,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+
+import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
@@ -87,8 +92,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         } else {
             this.shardDataSetSizes = Map.of();
         }
-        // TODO conditional read
-        this.dataPath = null;// in.readImmutableMap(ShardRouting::new, StreamInput::readString);
+        if (in.getVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
+            this.dataPath = in.readImmutableMap(NodeAndShard::new, StreamInput::readString);
+        } else {
+            this.dataPath = in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
+        }
         if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
         } else {
@@ -104,11 +112,29 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         if (out.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
             out.writeMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), StreamOutput::writeLong);
         }
-        // TODO conditional write
-        out.writeMap(this.dataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+        if (out.getVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
+            out.writeMap(this.dataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+        } else {
+            out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
+        }
         if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             out.writeMap(this.reservedSpace);
         }
+    }
+
+    /**
+     * This creates a fake ShardRouting from limited info available in NodeAndShard.
+     * This will not be the same as real shard, however this is fine as ClusterInfo is only written
+     * in TransportClusterAllocationExplainAction when handling an allocation explain request with includeDiskInfo during upgrade
+     * that is later presented to the user and is not used by any code.
+     */
+    private static ShardRouting createFakeShardRoutingFromNodeAndShard(NodeAndShard nodeAndShard) {
+        return newUnassigned(
+            nodeAndShard.shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(REINITIALIZED, "fake")
+        ).initialize(nodeAndShard.nodeId, null, 0L).moveToStarted(0L);
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

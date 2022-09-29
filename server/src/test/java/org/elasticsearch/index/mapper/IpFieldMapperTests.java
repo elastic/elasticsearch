@@ -21,11 +21,14 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -61,6 +64,14 @@ public class IpFieldMapperTests extends MapperTestCase {
         }));
         assertExistsQuery(mapperService);
         assertParseMinimalWarnings();
+    }
+
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
     }
 
     public void testDefaults() throws Exception {
@@ -306,28 +317,45 @@ public class IpFieldMapperTests extends MapperTestCase {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport() {
             private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
+            private final boolean ignoreMalformed = rarely();
 
             @Override
             public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
-                    Tuple<String, InetAddress> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), NetworkAddress.format(v.v2()), this::mapping);
+                    Tuple<Object, Object> v = generateValue();
+                    if (v.v2()instanceof InetAddress a) {
+                        return new SyntheticSourceExample(v.v1(), NetworkAddress.format(a), this::mapping);
+                    }
+                    return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
                 }
-                List<Tuple<String, InetAddress>> values = randomList(1, maxValues, this::generateValue);
-                List<String> in = values.stream().map(Tuple::v1).toList();
-                List<String> outList = values.stream()
-                    .map(v -> new BytesRef(InetAddressPoint.encode(v.v2())))
+                List<Tuple<Object, Object>> values = randomList(1, maxValues, this::generateValue);
+                List<Object> in = values.stream().map(Tuple::v1).toList();
+                List<Object> outList = values.stream()
+                    .filter(v -> v.v2() instanceof InetAddress)
+                    .map(v -> new BytesRef(InetAddressPoint.encode((InetAddress) v.v2())))
                     .collect(Collectors.toSet())
                     .stream()
                     .sorted()
                     .map(v -> InetAddressPoint.decode(v.bytes))
                     .map(NetworkAddress::format)
-                    .toList();
+                    .collect(Collectors.toCollection(ArrayList::new));
+                values.stream().filter(v -> false == v.v2() instanceof InetAddress).map(v -> v.v2()).forEach(outList::add);
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
                 return new SyntheticSourceExample(in, out, this::mapping);
             }
 
-            private Tuple<String, InetAddress> generateValue() {
+            private Tuple<Object, Object> generateValue() {
+                if (ignoreMalformed && randomBoolean()) {
+                    List<Supplier<Object>> choices = List.of(
+                        () -> randomAlphaOfLength(3),
+                        ESTestCase::randomInt,
+                        ESTestCase::randomLong,
+                        ESTestCase::randomFloat,
+                        ESTestCase::randomDouble
+                    );
+                    Object v = randomFrom(choices).get();
+                    return Tuple.tuple(v, v);
+                }
                 if (nullValue != null && randomBoolean()) {
                     return Tuple.tuple(null, nullValue);
                 }
@@ -346,6 +374,9 @@ public class IpFieldMapperTests extends MapperTestCase {
                 if (rarely()) {
                     b.field("store", false);
                 }
+                if (ignoreMalformed) {
+                    b.field("ignore_malformed", true);
+                }
             }
 
             @Override
@@ -354,10 +385,6 @@ public class IpFieldMapperTests extends MapperTestCase {
                     new SyntheticSourceInvalidExample(
                         equalTo("field [field] of type [ip] doesn't support synthetic source because it doesn't have doc values"),
                         b -> b.field("type", "ip").field("doc_values", false)
-                    ),
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [ip] doesn't support synthetic source because it ignores malformed ips"),
-                        b -> b.field("type", "ip").field("ignore_malformed", true)
                     )
                 );
             }

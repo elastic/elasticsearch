@@ -10,9 +10,11 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -23,10 +25,11 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetSettingsResponse extends ActionResponse implements ToXContentObject {
+public class GetSettingsResponse extends ActionResponse implements ToXContentObject, ChunkedToXContent {
 
     private final Map<String, Settings> indexToSettings;
     private final Map<String, Settings> indexToDefaultSettings;
@@ -44,23 +47,10 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     /**
      * Returns a map of index name to {@link Settings} object.  The returned {@link Settings}
-     * objects contain only those settings explicitly set on a given index.  Any settings
-     * taking effect as defaults must be accessed via {@link #getIndexToDefaultSettings()}.
+     * objects contain only those settings explicitly set on a given index.
      */
     public Map<String, Settings> getIndexToSettings() {
         return indexToSettings;
-    }
-
-    /**
-     * If the originating {@link GetSettingsRequest} object was configured to include
-     * defaults, this will contain a mapping of index name to {@link Settings} objects.
-     * The returned {@link Settings} objects will contain only those settings taking
-     * effect as defaults.  Any settings explicitly set on the index will be available
-     * via {@link #getIndexToSettings()}.
-     * See also {@link GetSettingsRequest#includeDefaults(boolean)}
-     */
-    public Map<String, Settings> getIndexToDefaultSettings() {
-        return indexToDefaultSettings;
     }
 
     /**
@@ -154,7 +144,10 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, baos);
-            toXContent(builder, ToXContent.EMPTY_PARAMS, false);
+            var iterator = toXContentChunked(false);
+            while (iterator.hasNext()) {
+                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+            }
             return Strings.toString(builder);
         } catch (IOException e) {
             throw new IllegalStateException(e); // should not be possible here
@@ -162,30 +155,33 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, indexToDefaultSettings.isEmpty());
+    public Iterator<? extends ToXContent> toXContentChunked() {
+        final boolean omitEmptySettings = indexToDefaultSettings.isEmpty();
+        return toXContentChunked(omitEmptySettings);
     }
 
-    private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean omitEmptySettings) throws IOException {
-        builder.startObject();
-        for (Map.Entry<String, Settings> cursor : getIndexToSettings().entrySet()) {
-            // no settings, jump over it to shorten the response data
-            if (omitEmptySettings && cursor.getValue().isEmpty()) {
-                continue;
-            }
-            builder.startObject(cursor.getKey());
-            builder.startObject("settings");
-            cursor.getValue().toXContent(builder, params);
-            builder.endObject();
-            if (indexToDefaultSettings.isEmpty() == false) {
-                builder.startObject("defaults");
-                indexToDefaultSettings.get(cursor.getKey()).toXContent(builder, params);
-                builder.endObject();
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-        return builder;
+    private Iterator<ToXContent> toXContentChunked(boolean omitEmptySettings) {
+        final boolean indexToDefaultSettingsEmpty = indexToDefaultSettings.isEmpty();
+        return Iterators.concat(
+            Iterators.single((builder, params) -> builder.startObject()),
+            getIndexToSettings().entrySet()
+                .stream()
+                .filter(entry -> omitEmptySettings == false || entry.getValue().isEmpty() == false)
+                .map(entry -> (ToXContent) (builder, params) -> {
+                    builder.startObject(entry.getKey());
+                    builder.startObject("settings");
+                    entry.getValue().toXContent(builder, params);
+                    builder.endObject();
+                    if (indexToDefaultSettingsEmpty == false) {
+                        builder.startObject("defaults");
+                        indexToDefaultSettings.get(entry.getKey()).toXContent(builder, params);
+                        builder.endObject();
+                    }
+                    return builder.endObject();
+                })
+                .iterator(),
+            Iterators.single((builder, params) -> builder.endObject())
+        );
     }
 
     @Override

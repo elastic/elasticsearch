@@ -17,7 +17,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
-import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -26,7 +25,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -157,10 +155,9 @@ public class SimpleRole implements Role {
         String action,
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> aliasAndIndexLookup,
-        FieldPermissionsCache fieldPermissionsCache,
-        Optional<ParentIndexActionAuthorization> parentAuthorization
+        FieldPermissionsCache fieldPermissionsCache
     ) {
-        return indices.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache, parentAuthorization);
+        return indices.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
     }
 
     @Override

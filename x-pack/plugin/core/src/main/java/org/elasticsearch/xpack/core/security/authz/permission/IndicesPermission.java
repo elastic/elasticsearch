@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -35,7 +34,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
@@ -367,8 +365,7 @@ public final class IndicesPermission {
         String action,
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> lookup,
-        FieldPermissionsCache fieldPermissionsCache,
-        Optional<ParentIndexActionAuthorization> parentAuthorization
+        FieldPermissionsCache fieldPermissionsCache
     ) {
         // Short circuit if the indicesPermission allows all access to every index
         if (Arrays.stream(groups).anyMatch(Group::isTotal)) {
@@ -384,13 +381,7 @@ public final class IndicesPermission {
             totalResourceCount += resource.size();
         }
 
-        final boolean overallGranted;
-        if (parentAuthorization.isPresent() && parentAuthorization.get().granted()) {
-            overallGranted = true;
-        } else {
-            overallGranted = isActionGranted(action, resources);
-        }
-
+        final boolean overallGranted = isActionGranted(action, resources);
         final Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = buildIndicesAccessControl(
             action,
             resources,

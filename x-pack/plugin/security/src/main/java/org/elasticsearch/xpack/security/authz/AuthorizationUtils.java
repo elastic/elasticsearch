@@ -183,10 +183,15 @@ public final class AuthorizationUtils {
         }
 
         final Role role = RBACEngine.maybeGetRBACEngineRole(parentContext.getAuthorizationInfo());
+        if (role == null) {
+            // If role is null, it means a custom authorization engine is in use, hence we cannot do the optimization here.
+            return;
+        }
+
+        // We can't safely pre-authorize actions if DLS or FLS is configured without passing IAC as well with the authorization result.
         // For simplicity, we only pre-authorize actions when FLS and DLS are not configured, otherwise we would have to compute and send
         // indices access control as well, which we want to avoid with this optimization.
-        // If role is null, it means a custom authorization engine is in use, hence we cannot do the optimization here.
-        if (role == null || role.hasFieldOrDocumentLevelSecurity()) {
+        if (role.hasFieldOrDocumentLevelSecurity()) {
             return;
         }
 
@@ -245,7 +250,7 @@ public final class AuthorizationUtils {
                     );
                 }
             } else {
-                logger.info("Pre-authorizing child action [" + childAction + "] of parent action [" + parentContext.getAction() + "]");
+                logger.debug("Pre-authorizing child action [" + childAction + "] of parent action [" + parentContext.getAction() + "]");
                 new ParentIndexActionAuthorization(
                     Version.CURRENT,
                     parentContext.getAction(),

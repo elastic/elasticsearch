@@ -89,7 +89,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -341,10 +340,12 @@ public class RBACEngine implements AuthorizationEngine {
                     )
                 );
             }
-        } else if (isChildActionAuthorizedByParent(requestInfo, authorizationInfo)) {
+        } else if (isChildActionAuthorizedByParentOnLocalNode(requestInfo, authorizationInfo)) {
             listener.onResponse(
                 new IndexAuthorizationResult(true, requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl())
             );
+        } else if (isChildActionPreAuthorizedByParentOnRemoteNode(requestInfo, authorizationInfo)) {
+            listener.onResponse(new IndexAuthorizationResult(true, null));
         } else if (request instanceof IndicesRequest.Replaceable && ((IndicesRequest.Replaceable) request).allowsRemoteIndices()) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
@@ -361,8 +362,7 @@ public class RBACEngine implements AuthorizationEngine {
                             action,
                             authorizationInfo,
                             Sets.newHashSet(resolvedIndices.getLocal()),
-                            aliasOrIndexLookup,
-                            requestInfo.getParentAuthorization()
+                            aliasOrIndexLookup
                         )
                     );
                 }
@@ -388,8 +388,7 @@ public class RBACEngine implements AuthorizationEngine {
                                     action,
                                     authorizationInfo,
                                     Sets.newHashSet(resolvedIndices.getLocal()),
-                                    aliasOrIndexLookup,
-                                    requestInfo.getParentAuthorization()
+                                    aliasOrIndexLookup
                                 )
                             );
                         }
@@ -403,7 +402,26 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
-    private static boolean isChildActionAuthorizedByParent(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
+    private static boolean isChildActionPreAuthorizedByParentOnRemoteNode(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
+        Role role = maybeGetRBACEngineRole(authorizationInfo);
+        if (role.hasFieldOrDocumentLevelSecurity()) {
+            // We can't safely pre-authorize actions if DLS or FLS is configured without passing IAC as well with authorization result.
+            return false;
+        }
+
+        if (requestInfo.getParentAuthorization().isEmpty()) {
+            return false;
+        }
+
+        ParentIndexActionAuthorization parentAuthorization = requestInfo.getParentAuthorization().get();
+        if (requestInfo.getAction().startsWith(parentAuthorization.action()) == false) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    private static boolean isChildActionAuthorizedByParentOnLocalNode(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
         final AuthorizationContext parent = requestInfo.getOriginatingAuthorizationContext();
         if (parent == null) {
             return false;
@@ -818,17 +836,10 @@ public class RBACEngine implements AuthorizationEngine {
         String action,
         AuthorizationInfo authorizationInfo,
         Set<String> indices,
-        Map<String, IndexAbstraction> aliasAndIndexLookup,
-        Optional<ParentIndexActionAuthorization> parentAuthorization
+        Map<String, IndexAbstraction> aliasAndIndexLookup
     ) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
-        final IndicesAccessControl accessControl = role.authorize(
-            action,
-            indices,
-            aliasAndIndexLookup,
-            fieldPermissionsCache,
-            parentAuthorization
-        );
+        final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
         return new IndexAuthorizationResult(true, accessControl);
     }
 

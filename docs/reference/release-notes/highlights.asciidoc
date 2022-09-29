@@ -33,7 +33,7 @@ from 250ms to 30ms.
 === Minimum conditions for the rollover API and ILM actions
 The rollover API and ILM actions now support minimum conditions for rollover.
 
-Minimum conditions prevent rollover from occuring until they are met. That is, an index
+Minimum conditions prevent rollover from occurring until they are met. That is, an index
 will rollover once one or more max conditions are satisfied and all min conditions are satisfied.
 
 As an example, the following ILM policy would roll an index over if it is at least 7 days old or
@@ -124,6 +124,18 @@ aggregations. While synthetic `_source` doesn't recreate the exact structure of
 the original documents, it's good enough for features like reindexing data.
 
 {es-pull}85649[#85649]
+
+[discrete]
+[[errors_with_cross_fields_query_type]]
+=== Errors with the `cross_fields` query type
+The {es} 8.4.2 release introduced a bug that may fail queries using the
+`cross_fields` type at search time with an error message containing
+`totalTermFreq must be at least docFreq`. If you run queries that use
+the
+{ref}/query-dsl-multi-match-query.html#type-cross-fields[`cross_fields` type],
+we strongly recommend upgrading to 8.4.3 to avoid hitting this bug.
+
+{es-pull}90314[#90314]
 
 // end::notable-highlights[]
 

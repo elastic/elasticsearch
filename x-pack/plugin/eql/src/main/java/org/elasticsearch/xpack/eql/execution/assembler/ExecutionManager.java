@@ -130,7 +130,7 @@ public class ExecutionManager {
                     tsExtractor,
                     tbExtractor,
                     itbExtractor,
-                    i == 0 && descending,
+                    i == indexOfFirstPositive(missing) && descending,
                     missing[i]
                 );
                 criteria.add(criterion);
@@ -145,7 +145,14 @@ public class ExecutionManager {
         }
 
         int completionStage = criteria.size() - 1;
-        SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit, session.circuitBreaker());
+        SequenceMatcher matcher = new SequenceMatcher(
+            completionStage,
+            descending,
+            maxSpan,
+            limit,
+            toMissing(criteria.subList(0, criteria.size() - 1)), // no need for "until" here
+            session.circuitBreaker()
+        );
 
         TumblingWindow w = new TumblingWindow(
             new PITAwareQueryClient(session),
@@ -214,6 +221,23 @@ public class ExecutionManager {
         }
 
         return new SampleIterator(new PITAwareQueryClient(session), criteria, cfg.fetchSize(), limit, session.circuitBreaker());
+    }
+
+    private int indexOfFirstPositive(boolean[] missing) {
+        for (int i = 0; i < missing.length; i++) {
+            if (missing[i] == false) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("Invalid sequence query: at least one event has to be positive");
+    }
+
+    private boolean[] toMissing(List<SequenceCriterion> criteria) {
+        boolean[] result = new boolean[criteria.size()];
+        for (int i = 0; i < criteria.size(); i++) {
+            result[i] = criteria.get(i).missing();
+        }
+        return result;
     }
 
     private HitExtractor timestampExtractor(HitExtractor hitExtractor) {

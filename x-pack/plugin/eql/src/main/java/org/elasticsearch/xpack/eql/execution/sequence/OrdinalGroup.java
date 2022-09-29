@@ -132,6 +132,28 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal>, Accountable {
             public Ordinal next() {
                 return extractor.apply(iter.next());
             }
+
+        };
+    }
+
+    public Iterator<E> entriesIterator() {
+        return new Iterator<>() {
+            final Iterator<E> iter = elements.iterator();
+
+            @Override
+            public boolean hasNext() {
+                return iter.hasNext();
+            }
+
+            @Override
+            public E next() {
+                return iter.next();
+            }
+
+            @Override
+            public void remove() {
+                iter.remove();
+            }
         };
     }
 

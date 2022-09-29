@@ -33,7 +33,9 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.runAfter;
@@ -110,7 +112,7 @@ public class TumblingWindow implements Executable {
         this.maxStages = criteria.size();
         this.matcher = matcher;
 
-        SequenceCriterion baseRequest = criteria.get(0);
+        SequenceCriterion baseRequest = criteria.get(matcher.firstPositiveStage());
         this.windowSize = baseRequest.queryRequest().searchSource().size();
         this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
@@ -121,7 +123,7 @@ public class TumblingWindow implements Executable {
         log.trace("Starting sequence window w/ fetch size [{}]", windowSize);
         startTime = System.currentTimeMillis();
         // clear the memory at the end of the algorithm
-        tumbleWindow(0, runAfter(listener, () -> {
+        tumbleWindow(matcher.firstPositiveStage(), runAfter(listener, () -> {
             matcher.clear();
             client.close(listener.delegateFailure((l, r) -> {}));
         }));
@@ -131,9 +133,9 @@ public class TumblingWindow implements Executable {
      * Move the window while preserving the same base.
      */
     private void tumbleWindow(int currentStage, ActionListener<Payload> listener) {
-        if (currentStage > 0 && matcher.hasCandidates() == false) {
+        if (currentStage > matcher.firstPositiveStage() && matcher.hasCandidates() == false) {
             if (restartWindowFromTailQuery) {
-                currentStage = 0;
+                currentStage = matcher.firstPositiveStage();
             } else {
                 // if there are no in-flight sequences (from previous stages)
                 // no need to look for more results
@@ -146,7 +148,7 @@ public class TumblingWindow implements Executable {
         // finished all queries in this window, run a trim
         // for descending queries clean everything
         if (restartWindowFromTailQuery) {
-            if (currentStage == 0) {
+            if (currentStage == matcher.firstPositiveStage()) {
                 matcher.trim(null);
             }
         } else {
@@ -180,7 +182,7 @@ public class TumblingWindow implements Executable {
 
         // add key constraints
         if (hasKeys) {
-            addKeyConstraints(stage - 1, base.queryRequest());
+            addKeyConstraints(matcher.previousPositiveStage(stage), base.queryRequest());
         }
 
         log.trace("{}", matcher);
@@ -246,7 +248,7 @@ public class TumblingWindow implements Executable {
         boolean windowCompleted = hits.size() < windowSize;
 
         // there are still queries
-        if (nextStage < maxStages) {
+        if (nextStage < maxStages) { // TODO < lastPositive?
             boolean descendingQuery = base.descending();
             Runnable next = null;
 
@@ -269,7 +271,7 @@ public class TumblingWindow implements Executable {
                     if (info != null) {
                         // DESC means starting the window
                         restartWindowFromTailQuery = false;
-                        next = () -> advance(1, listener);
+                        next = () -> advance(matcher.firstPositiveStage() + 1, listener);
                     }
                     // if there are no new results, no need to check the window
                     else {
@@ -278,7 +280,7 @@ public class TumblingWindow implements Executable {
                 }
                 // for ASC queries continue if there are still matches available
                 else {
-                    if (matcher.hasFollowingCandidates(baseStage)) {
+                    if (matcher.hasFollowingCandidates(matcher.previousPositiveStage(nextStage))) {
                         next = () -> rebaseWindow(nextStage, listener);
                     }
                     // otherwise bail-out, unless it's a DESC sequence that hasn't completed yet
@@ -287,7 +289,7 @@ public class TumblingWindow implements Executable {
                         if (restartWindowFromTailQuery == false) {
                             shouldTerminate = true;
                         } else {
-                            next = () -> tumbleWindow(0, listener);
+                            next = () -> tumbleWindow(matcher.firstPositiveStage(), listener);
                         }
                     }
                 }
@@ -301,7 +303,7 @@ public class TumblingWindow implements Executable {
             else {
                 // DESC means starting the window
                 if (descendingQuery) {
-                    next = () -> advance(1, listener);
+                    next = () -> advance(matcher.firstPositiveStage() + 1, listener);
                 }
                 // ASC to continue
                 else {
@@ -310,7 +312,7 @@ public class TumblingWindow implements Executable {
             }
 
             // until check for HEAD queries
-            if (until != null && info != null && info.baseStage == 0) {
+            if (until != null && info != null && info.baseStage == matcher.firstPositiveStage()) {
                 untilCriterion(info, listener, next);
             } else {
                 next.run();
@@ -321,7 +323,7 @@ public class TumblingWindow implements Executable {
             // no more results either
             if (windowCompleted) {
                 if (restartWindowFromTailQuery) {
-                    tumbleWindow(0, listener);
+                    tumbleWindow(matcher.firstPositiveStage(), listener);
                 } else {
                     payload(listener);
                 }
@@ -511,7 +513,7 @@ public class TumblingWindow implements Executable {
                 until.queryRequest().from(from).nextAfter(from);
             }
             // reset all sub queries
-            for (int i = 2; i < maxStages; i++) {
+            for (int i = matcher.firstPositiveStage() + 1; i < maxStages; i++) { // TODO double-check!
                 BoxedQueryRequest subRequest = criteria.get(i).queryRequest();
                 subRequest.from(null);
             }
@@ -548,7 +550,7 @@ public class TumblingWindow implements Executable {
 
         // get results through search (to keep using PIT)
         client.fetchHits(hits(completed), ActionListeners.map(listener, listOfHits -> {
-            if (criteria.get(0).descending()) {
+            if (criteria.get(matcher.firstPositiveStage()).descending()) {
                 Collections.reverse(completed);
             }
             SequencePayload payload = new SequencePayload(completed, listOfHits, false, timeTook());
@@ -605,7 +607,12 @@ public class TumblingWindow implements Executable {
 
                 @Override
                 public List<HitReference> next() {
-                    return delegate.next().hits();
+                    return addMissingEvents();
+                }
+
+                private List<HitReference> addMissingEvents() {
+                    // TODO replace nulls with markers!
+                    return delegate.next().hits().stream().filter(Objects::nonNull).collect(Collectors.toList());
                 }
             };
         };

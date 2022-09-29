@@ -96,6 +96,10 @@ public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
         return new Ordinal((Timestamp) ts, tbreaker, timebreakerValue);
     }
 
+    public boolean missing() {
+        return missing;
+    }
+
     @Override
     public String toString() {
         return "[" + stage + "][" + descending + "]";

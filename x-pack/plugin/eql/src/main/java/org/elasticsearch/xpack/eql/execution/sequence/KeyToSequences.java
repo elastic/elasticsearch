@@ -34,8 +34,11 @@ public class KeyToSequences implements Accountable {
         // created lazily
         private UntilGroup until;
 
+        private final MissingEventGroup[] missingEventGroups;
+
         SequenceEntry(int stages) {
             this.groups = new SequenceGroup[stages];
+            this.missingEventGroups = new MissingEventGroup[stages + 1];
         }
 
         void add(int stage, Sequence sequence) {
@@ -65,6 +68,13 @@ public class KeyToSequences implements Accountable {
             }
             size += RamUsageEstimator.sizeOf(groups);
             return size;
+        }
+
+        public void addMissingEvent(int stage, Match event) {
+            if (missingEventGroups[stage] == null) {
+                missingEventGroups[stage] = new MissingEventGroup();
+            }
+            missingEventGroups[stage].add(event);
         }
     }
 
@@ -141,6 +151,28 @@ public class KeyToSequences implements Accountable {
                 }
             }
         }
+    }
+
+    void addMissingEvent(int stage, SequenceKey key, Match event) {
+        SequenceEntry entry = keyToSequences.computeIfAbsent(key, k -> new SequenceEntry(listSize));
+        entry.addMissingEvent(stage, event);
+    }
+
+    MissingEventGroup[] missingEventsFor(SequenceKey key) {
+        SequenceEntry entry = keyToSequences.get(key);
+        if (entry == null) {
+            return new MissingEventGroup[listSize];
+        }
+        return entry.missingEventGroups;
+    }
+
+    public MissingEventGroup[] missingBetweenStages(SequenceKey key, int prevStage, int stage) {
+        MissingEventGroup[] result = new MissingEventGroup[stage - prevStage];
+        SequenceEntry entry = keyToSequences.get(key);
+        for (int i = 0; i < stage - prevStage - 1; i++) {
+            result[i] = entry.missingEventGroups[prevStage + 1 + i];
+        }
+        return result;
     }
 
     public void clear() {

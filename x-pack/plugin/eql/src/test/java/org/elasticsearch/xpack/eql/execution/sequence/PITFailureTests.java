@@ -58,6 +58,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 
 public class PITFailureTests extends ESTestCase {
 
@@ -126,7 +127,7 @@ public class PITFailureTests extends ESTestCase {
                 )
             );
 
-            SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, cb);
+            SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, booleanArrayOf(1, false), cb);
             TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
             window.execute(
                 wrap(

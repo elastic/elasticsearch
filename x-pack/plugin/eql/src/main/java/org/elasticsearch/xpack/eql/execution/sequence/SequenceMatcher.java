@@ -39,6 +39,7 @@ public class SequenceMatcher {
         long ignored = 0;
         long rejectionMaxspan = 0;
         long rejectionUntil = 0;
+        long rejectionMissing = 0;
 
         @Override
         public String toString() {
@@ -72,11 +73,13 @@ public class SequenceMatcher {
     // Set of completed sequences - separate to avoid polluting the other stages
     // It is a set since matches are ordered at insertion time based on the ordinal of the first entry
     private final Set<Sequence> completed;
+    private final Set<Sequence> toCheckForMissing;
     private final long maxSpanInNanos;
 
     private final boolean descending;
 
     private final Limit limit;
+    private final boolean[] missingEvents;
     private final CircuitBreaker circuitBreaker;
 
     private final Stats stats = new Stats();
@@ -88,7 +91,14 @@ public class SequenceMatcher {
     private long prevRamBytesUsedCompleted = 0;
 
     @SuppressWarnings("rawtypes")
-    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit, CircuitBreaker circuitBreaker) {
+    public SequenceMatcher(
+        int stages,
+        boolean descending,
+        TimeValue maxSpan,
+        Limit limit,
+        boolean[] missingEvents,
+        CircuitBreaker circuitBreaker
+    ) {
         this.numberOfStages = stages;
         this.completionStage = stages - 1;
 
@@ -96,18 +106,20 @@ public class SequenceMatcher {
         this.stageToKeys = new StageToKeys(completionStage);
         this.keyToSequences = new KeyToSequences(completionStage);
         this.completed = new TreeSet<>();
+        this.toCheckForMissing = new TreeSet<>();
 
         this.maxSpanInNanos = maxSpan.nanos();
 
         this.limit = limit;
+        this.missingEvents = missingEvents;
         this.circuitBreaker = circuitBreaker;
     }
 
     private void trackSequence(Sequence sequence) {
         SequenceKey key = sequence.key();
 
-        stageToKeys.add(0, key);
-        keyToSequences.add(0, sequence);
+        stageToKeys.add(firstPositiveStage(), key);
+        keyToSequences.add(firstPositiveStage(), sequence);
 
         stats.seen++;
     }
@@ -121,9 +133,11 @@ public class SequenceMatcher {
             KeyAndOrdinal ko = tuple.v1();
             HitReference hit = tuple.v2();
 
-            if (stage == 0) {
+            if (isFirstPositiveStage(stage)) {
                 Sequence seq = new Sequence(ko.key, numberOfStages, ko.ordinal, hit);
                 trackSequence(seq);
+            } else if (missingEvents[stage]) {
+                addMissing(stage, ko.key, ko.ordinal, hit);
             } else {
                 match(stage, ko.key, ko.ordinal, hit);
 
@@ -149,6 +163,21 @@ public class SequenceMatcher {
         return matched;
     }
 
+    private boolean exceedsMaxSpan(Sequence sequence, Ordinal ordinal) {
+        return maxSpanInNanos > 0 && ordinal.timestamp().delta(sequence.startOrdinal().timestamp()) > maxSpanInNanos;
+    }
+
+    private void addMissing(int stage, SequenceKey key, Ordinal ordinal, HitReference hit) {
+        stats.seen++;
+        if (firstPositiveStage() < stage && stage < lastPositiveStage()) { // missing events in between
+            if (keyToSequences.groupIfPresent(previousPositiveStage(stage), key) != null) {
+                keyToSequences.addMissingEvent(stage, key, new Match(ordinal, hit));
+            }
+        } else {
+            throw new IllegalArgumentException("Error managing leading/trailing missing event in sequence");
+        }
+    }
+
     private boolean tailLimitReached() {
         return limit != null && limit.limit() < 0 && limit.absLimit() <= completed.size();
     }
@@ -160,7 +189,7 @@ public class SequenceMatcher {
     private void match(int stage, SequenceKey key, Ordinal ordinal, HitReference hit) {
         stats.seen++;
 
-        int previousStage = stage - 1;
+        int previousStage = previousPositiveStage(stage);
         // check key presence to avoid creating a collection
         SequenceGroup group = keyToSequences.groupIfPresent(previousStage, key);
         if (group == null || group.isEmpty()) {
@@ -186,7 +215,7 @@ public class SequenceMatcher {
         //
 
         // maxspan
-        if (maxSpanInNanos > 0 && ordinal.timestamp().delta(sequence.startOrdinal().timestamp()) > maxSpanInNanos) {
+        if (exceedsMaxSpan(sequence, ordinal)) {
             stats.rejectionMaxspan++;
             return;
         }
@@ -204,10 +233,25 @@ public class SequenceMatcher {
             }
         }
 
+        // handle missing events
+        MissingEventGroup[] missingGroups = keyToSequences.missingBetweenStages(key, previousStage, stage);
+        for (MissingEventGroup missingGroup : missingGroups) {
+            if (missingGroup != null) {
+                Match nearestMissing = missingGroup.before(ordinal);
+                if (nearestMissing != null) {
+                    // check if Missing matches
+                    if (nearestMissing.ordinal().between(sequence.ordinal(), ordinal)) {
+                        stats.rejectionMissing++;
+                        return;
+                    }
+                }
+            }
+        }
+
         sequence.putMatch(stage, ordinal, hit);
 
         // bump the stages
-        if (stage == completionStage) {
+        if (stage == lastPositiveStage()) {
             // when dealing with descending queries
             // avoid duplicate matching (since the ASC query can return previously seen results)
             if (descending) {
@@ -218,7 +262,11 @@ public class SequenceMatcher {
                 }
             }
 
-            completed.add(sequence);
+            if (firstPositiveStage() > 0 || lastPositiveStage() < completionStage) {
+                toCheckForMissing.add(sequence);
+            } else {
+                completed.add(sequence);
+            }
             // update the bool lazily
             // only consider positive limits / negative ones imply tail which means having to go
             // through the whole page of results before selecting the last ones
@@ -228,6 +276,37 @@ public class SequenceMatcher {
             stageToKeys.add(stage, key);
             keyToSequences.add(stage, sequence);
         }
+    }
+
+    int previousPositiveStage(int stage) {
+        for (int i = stage - 1; i >= 0; i--) {
+            if (missingEvents[i] == false) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private boolean isFirstPositiveStage(int stage) {
+        return stage == firstPositiveStage();
+    }
+
+    int firstPositiveStage() {
+        for (int i = 0; i < missingEvents.length; i++) {
+            if (missingEvents[i] == false) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int lastPositiveStage() {
+        for (int i = missingEvents.length - 1; i >= 0; i--) {
+            if (missingEvents[i] == false) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /**

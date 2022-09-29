@@ -418,16 +418,14 @@ public class CompositeRolesStore {
         final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
         final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
 
+        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteRestrictedIndicesPrivilegesMap = new HashMap<>();
+        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteIndicesPrivilegesMap = new HashMap<>();
+
         // Keyed by application + resource
         Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
 
-        // TODO initialCapacity
         List<String> roleNames = new ArrayList<>(roleDescriptors.size());
         for (RoleDescriptor descriptor : roleDescriptors) {
-            if (descriptor.hasOnlyRemotePrivileges()) {
-                logger.debug("Role descriptor [{}] only has remote privileges. Skipping during local role building.", descriptor.getName());
-                continue;
-            }
             roleNames.add(descriptor.getName());
             if (descriptor.getClusterPrivileges() != null) {
                 clusterPrivileges.addAll(Arrays.asList(descriptor.getClusterPrivileges()));
@@ -438,8 +436,32 @@ public class CompositeRolesStore {
             if (descriptor.getRunAs() != null) {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
             }
-            MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), true, restrictedIndicesPrivilegesMap);
-            MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
+            final IndicesPrivileges[] indicesPrivileges = descriptor.getIndicesPrivileges();
+            final Map<Boolean, List<IndicesPrivileges>> partitioned = Arrays.stream(indicesPrivileges)
+                .collect(Collectors.partitioningBy(IndicesPrivileges::hasTargetClusters));
+            final List<IndicesPrivileges> local = partitioned.get(false);
+            if (local != null && false == local.isEmpty()) {
+                MergeableIndicesPrivilege.collatePrivilegesByIndices(
+                    local.toArray(new IndicesPrivileges[0]),
+                    true,
+                    restrictedIndicesPrivilegesMap
+                );
+                MergeableIndicesPrivilege.collatePrivilegesByIndices(local.toArray(new IndicesPrivileges[0]), false, indicesPrivilegesMap);
+            }
+            final List<IndicesPrivileges> remote = partitioned.get(true);
+            if (remote != null && false == remote.isEmpty()) {
+                MergeableIndicesPrivilege.collatePrivilegesByTargetClustersAndIndices(
+                    remote.toArray(new IndicesPrivileges[0]),
+                    true,
+                    remoteIndicesPrivilegesMap
+                );
+                MergeableIndicesPrivilege.collatePrivilegesByTargetClustersAndIndices(
+                    remote.toArray(new IndicesPrivileges[0]),
+                    false,
+                    remoteIndicesPrivilegesMap
+                );
+            }
+
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
                 Tuple<String, Set<String>> key = new Tuple<>(appPrivilege.getApplication(), newHashSet(appPrivilege.getResources()));
                 applicationPrivilegesMap.compute(key, (k, v) -> {
@@ -475,7 +497,18 @@ public class CompositeRolesStore {
                 privilege.indices.toArray(Strings.EMPTY_ARRAY)
             )
         );
-
+        remoteIndicesPrivilegesMap.forEach((targetClusters, indicesPrivilegesMapForCluster) -> {
+            indicesPrivilegesMapForCluster.forEach(
+                (key, privilege) -> builder.add(
+                    targetClusters,
+                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                    privilege.query,
+                    IndexPrivilege.get(privilege.privileges),
+                    false,
+                    privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                )
+            );
+        });
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());
         } else {
@@ -578,16 +611,31 @@ public class CompositeRolesStore {
             }
         }
 
+        private static void collatePrivilegesByTargetClustersAndIndices(
+            IndicesPrivileges[] indicesPrivileges,
+            boolean allowsRestrictedIndices,
+            Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteIndicesPrivilegesMap
+        ) {
+            Arrays.stream(indicesPrivileges)
+                .collect(Collectors.groupingBy(it -> newHashSet(it.getTargetClusters())))
+                .forEach((targetClusters, indicesForTargetClusters) -> {
+                    if (false == remoteIndicesPrivilegesMap.containsKey(targetClusters)) {
+                        remoteIndicesPrivilegesMap.put(targetClusters, new HashMap<>());
+                    }
+                    collatePrivilegesByIndices(
+                        indicesForTargetClusters.toArray(new IndicesPrivileges[0]),
+                        allowsRestrictedIndices,
+                        remoteIndicesPrivilegesMap.get(targetClusters)
+                    );
+                });
+        }
+
         private static void collatePrivilegesByIndices(
             IndicesPrivileges[] indicesPrivileges,
             boolean allowsRestrictedIndices,
             Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
         ) {
             for (final IndicesPrivileges indicesPrivilege : indicesPrivileges) {
-                if (indicesPrivilege.hasTargetClusters()) {
-                    logger.debug("Index privilege has remote target clusters. Skipping during local role building.");
-                    continue;
-                }
                 // if a index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
                 // merging
                 final boolean isExplicitDenial = indicesPrivileges.length == 1

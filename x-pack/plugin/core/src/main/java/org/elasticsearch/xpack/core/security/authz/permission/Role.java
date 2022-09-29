@@ -46,6 +46,14 @@ public interface Role {
 
     IndicesPermission indices();
 
+    default List<RemoteIndicesPermission> remoteIndices() {
+        throw new UnsupportedOperationException("remote index not supported");
+    }
+
+    default List<RemoteIndicesPermission> remoteIndices(final String targetCluster) {
+        return remoteIndices().stream().filter(it -> it.checkTargetCluster(targetCluster)).toList();
+    }
+
     ApplicationPermission application();
 
     RunAsPermission runAs();
@@ -184,7 +192,9 @@ public interface Role {
         private ClusterPermission cluster = ClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private final List<IndicesPermissionGroupDefinition> groups = new ArrayList<>();
+        private final List<Tuple<Set<String>, IndicesPermissionGroupDefinition>> remoteGroups = new ArrayList<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
+        // TODO this is annoying
         private final RestrictedIndices restrictedIndices;
 
         private Builder(RestrictedIndices restrictedIndices, String[] names) {
@@ -244,6 +254,23 @@ public interface Role {
             return this;
         }
 
+        public Builder add(
+            Set<String> targetClusters,
+            FieldPermissions fieldPermissions,
+            Set<BytesReference> query,
+            IndexPrivilege privilege,
+            boolean allowRestrictedIndices,
+            String... indices
+        ) {
+            remoteGroups.add(
+                new Tuple<>(
+                    targetClusters,
+                    new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices)
+                )
+            );
+            return this;
+        }
+
         public Builder addApplicationPrivilege(ApplicationPrivilege privilege, Set<String> resources) {
             applicationPrivs.add(new Tuple<>(privilege, resources));
             return this;
@@ -266,10 +293,29 @@ public interface Role {
                 }
                 indices = indicesBuilder.build();
             }
+            final List<RemoteIndicesPermission> remoteIndices;
+            if (remoteGroups.isEmpty()) {
+                remoteIndices = null;
+            } else {
+                remoteIndices = new ArrayList<>();
+                for (var entry : remoteGroups) {
+                    IndicesPermissionGroupDefinition group = entry.v2();
+                    // TODO restricted indices is wrong
+                    IndicesPermission.Builder indicesBuilder = new IndicesPermission.Builder(restrictedIndices);
+                    indicesBuilder.addGroup(
+                        group.privilege,
+                        group.fieldPermissions,
+                        group.query,
+                        group.allowRestrictedIndices,
+                        group.indices
+                    );
+                    remoteIndices.add(new RemoteIndicesPermission(entry.v1().toArray(new String[0]), indicesBuilder.build()));
+                }
+            }
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
                 ? ApplicationPermission.NONE
                 : new ApplicationPermission(applicationPrivs);
-            return new SimpleRole(names, cluster, indices, applicationPermission, runAs);
+            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices);
         }
 
         static List<IndicesPermissionGroupDefinition> convertFromIndicesPrivileges(

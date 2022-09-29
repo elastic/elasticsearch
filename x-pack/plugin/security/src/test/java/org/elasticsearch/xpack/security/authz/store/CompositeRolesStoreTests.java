@@ -1000,6 +1000,144 @@ public class CompositeRolesStoreTests extends ESTestCase {
         role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
     }
 
+    public void testMergingRolesWithTargetClusters() {
+        final TransportRequest request1 = mock(TransportRequest.class);
+        final TransportRequest request2 = mock(TransportRequest.class);
+        final TransportRequest request3 = mock(TransportRequest.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+
+        ConfigurableClusterPrivilege ccp1 = new MockConfigurableClusterPrivilege() {
+            @Override
+            public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+                builder.add(
+                    this,
+                    ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    req -> req == request1
+                );
+                return builder;
+            }
+        };
+        RoleDescriptor role1 = new RoleDescriptor(
+            "r1",
+            new String[] { "monitor" },
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("abc-*", "xyz-*").privileges("read").build(),
+                IndicesPrivileges.builder().indices("ind-1-*").privileges("all").build(),
+                IndicesPrivileges.builder().indices("ind-1-*").privileges("all").targetClusters("remote-*", "remote").build(),
+                IndicesPrivileges.builder().indices("remote-ind-1-*", "ind-1-*").privileges("all").targetClusters("remote-*").build(), },
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("app1")
+                    .resources("user/*")
+                    .privileges("read", "write")
+                    .build(),
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("app1")
+                    .resources("settings/*")
+                    .privileges("read")
+                    .build() },
+            new ConfigurableClusterPrivilege[] { ccp1 },
+            new String[] { "app-user-1" },
+            null,
+            null
+        );
+
+        ConfigurableClusterPrivilege ccp2 = new MockConfigurableClusterPrivilege() {
+            @Override
+            public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+                builder.add(
+                    this,
+                    ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    req -> req == request2
+                );
+                return builder;
+            }
+        };
+        RoleDescriptor role2 = new RoleDescriptor(
+            "r2",
+            new String[] { "manage_saml" },
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("abc-*", "ind-2-*").privileges("all").build() },
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder().application("app2a").resources("*").privileges("all").build(),
+                RoleDescriptor.ApplicationResourcePrivileges.builder().application("app2b").resources("*").privileges("read").build() },
+            new ConfigurableClusterPrivilege[] { ccp2 },
+            new String[] { "app-user-2" },
+            null,
+            null
+        );
+
+        FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        PlainActionFuture<Role> future = new PlainActionFuture<>();
+        final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        doAnswer(inv -> {
+            assertEquals(3, inv.getArguments().length);
+            @SuppressWarnings("unchecked")
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener = (ActionListener<
+                Collection<ApplicationPrivilegeDescriptor>>) inv.getArguments()[2];
+            Set<ApplicationPrivilegeDescriptor> set = new HashSet<>();
+            Arrays.asList("app1", "app2a", "app2b")
+                .forEach(
+                    app -> Arrays.asList("read", "write", "all")
+                        .forEach(
+                            perm -> set.add(new ApplicationPrivilegeDescriptor(app, perm, Collections.emptySet(), Collections.emptyMap()))
+                        )
+                );
+            listener.onResponse(set);
+            return null;
+        }).when(privilegeStore).getPrivileges(anyCollection(), anyCollection(), anyActionListener());
+        CompositeRolesStore.buildRoleFromDescriptors(
+            Sets.newHashSet(role1, role2),
+            cache,
+            privilegeStore,
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            future
+        );
+        Role role = future.actionGet();
+
+        assertThat(role.cluster().check(ClusterStateAction.NAME, randomFrom(request1, request2, request3), authentication), equalTo(true));
+        assertThat(
+            role.cluster().check(SamlAuthenticateAction.NAME, randomFrom(request1, request2, request3), authentication),
+            equalTo(true)
+        );
+        assertThat(
+            role.cluster().check(ClusterUpdateSettingsAction.NAME, randomFrom(request1, request2, request3), authentication),
+            equalTo(false)
+        );
+
+        assertThat(role.cluster().check(PutUserAction.NAME, randomFrom(request1, request2), authentication), equalTo(true));
+        assertThat(role.cluster().check(PutUserAction.NAME, request3, authentication), equalTo(false));
+
+        final Predicate<IndexAbstraction> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
+        assertThat(allowedRead.test(mockIndexAbstraction("abc-123")), equalTo(true));
+        assertThat(allowedRead.test(mockIndexAbstraction("xyz-000")), equalTo(true));
+        assertThat(allowedRead.test(mockIndexAbstraction("ind-1-a")), equalTo(true));
+        assertThat(allowedRead.test(mockIndexAbstraction("ind-2-a")), equalTo(true));
+        assertThat(allowedRead.test(mockIndexAbstraction("foo")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("abc")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("xyz")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("remote-ind-1-1")), equalTo(false));
+
+        assertThat(role.remoteIndices("remote"), not(empty()));
+        assertThat(role.remoteIndices("remote-a"), not(empty()));
+        assertThat(role.remoteIndices("foo"), empty());
+
+        final Predicate<IndexAbstraction> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
+        assertThat(allowedWrite.test(mockIndexAbstraction("abc-123")), equalTo(true));
+        assertThat(allowedWrite.test(mockIndexAbstraction("xyz-000")), equalTo(false));
+        assertThat(allowedWrite.test(mockIndexAbstraction("ind-1-a")), equalTo(true));
+        assertThat(allowedWrite.test(mockIndexAbstraction("ind-2-a")), equalTo(true));
+        assertThat(allowedWrite.test(mockIndexAbstraction("foo")), equalTo(false));
+        assertThat(allowedWrite.test(mockIndexAbstraction("abc")), equalTo(false));
+        assertThat(allowedWrite.test(mockIndexAbstraction("xyz")), equalTo(false));
+        assertThat(allowedWrite.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
+
+        role.application().grants(new ApplicationPrivilege("app1", "app1-read", "write"), "user/joe");
+        role.application().grants(new ApplicationPrivilege("app1", "app1-read", "read"), "settings/hostname");
+        role.application().grants(new ApplicationPrivilege("app2a", "app2a-all", "all"), "user/joe");
+        role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
+    }
+
     public void testCustomRolesProviderFailures() throws Exception {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());

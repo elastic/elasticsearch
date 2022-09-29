@@ -176,15 +176,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return Arrays.stream(indicesPrivileges).anyMatch(ip -> ip.isUsingDocumentLevelSecurity() || ip.isUsingFieldLevelSecurity());
     }
 
-    // TODO
-    public boolean hasOnlyRemotePrivileges() {
-        return clusterPrivileges == null
-            && configurableClusterPrivileges == null
-            && applicationPrivileges == null
-            && runAs == null
-            && (indicesPrivileges != null && Arrays.stream(indicesPrivileges).allMatch(IndicesPrivileges::hasTargetClusters));
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("Role[");
@@ -798,6 +789,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         // users. Setting this flag eliminates this special status, and any index name pattern in the permission will cover restricted
         // indices as well.
         private boolean allowRestrictedIndices = false;
+        // TODO remoteClusters?
         private String[] targetClusters = null;
 
         private IndicesPrivileges() {}

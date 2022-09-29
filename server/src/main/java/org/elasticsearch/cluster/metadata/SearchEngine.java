@@ -33,12 +33,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SearchEngine, Void> PARSER = new ConstructingObjectParser<>(
         "search_engine",
-        args -> new SearchEngine(
-            (String) args[0],
-            (List<Index>) args[1],
-            (boolean) args[2],
-            (boolean) args[3]
-        )
+        args -> new SearchEngine((String) args[0], (List<Index>) args[1], (boolean) args[2], (boolean) args[3])
     );
 
     static {
@@ -69,12 +64,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     }
 
     public SearchEngine(StreamInput in) throws IOException {
-        this(
-            in.readString(),
-            in.readList(Index::new),
-            in.readBoolean(),
-            in.readBoolean()
-        );
+        this(in.readString(), in.readList(Index::new), in.readBoolean(), in.readBoolean());
     }
 
     public String getName() {

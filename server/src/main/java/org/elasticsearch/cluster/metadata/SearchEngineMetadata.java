@@ -129,11 +129,7 @@ public class SearchEngineMetadata implements Metadata.Custom {
         final Diff<Map<String, SearchEngine>> searchEnginesDiff;
 
         SearchEngineMetadataDiff(SearchEngineMetadata before, SearchEngineMetadata after) {
-            this.searchEnginesDiff = DiffableUtils.diff(
-                before.searchEngines,
-                after.searchEngines,
-                DiffableUtils.getStringKeySerializer()
-            );
+            this.searchEnginesDiff = DiffableUtils.diff(before.searchEngines, after.searchEngines, DiffableUtils.getStringKeySerializer());
         }
 
         SearchEngineMetadataDiff(StreamInput in) throws IOException {
@@ -147,9 +143,7 @@ public class SearchEngineMetadata implements Metadata.Custom {
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            return new SearchEngineMetadata(
-                searchEnginesDiff.apply(((SearchEngineMetadata) part).searchEngines)
-            );
+            return new SearchEngineMetadata(searchEnginesDiff.apply(((SearchEngineMetadata) part).searchEngines));
         }
 
         @Override

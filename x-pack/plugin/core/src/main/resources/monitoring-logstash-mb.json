@@ -146,10 +146,10 @@
                               "type": "nested",
                               "properties": {
                                 "name": {
-                                    "type": "keyword"
+                                  "type": "keyword"
                                 },
                                 "value": {
-                                    "type": "long"
+                                  "type": "long"
                                 }
                               }
                             }

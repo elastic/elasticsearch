@@ -54,7 +54,7 @@ public class DesiredBalanceComputer {
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
-        final var ignoredShards = new HashSet<>(desiredBalanceInput.ignoredShards());
+        final var ignoredShards = desiredBalanceInput.ignoredShards();
         final var changes = routingAllocation.changes();
         final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         final var unassignedPrimaries = new HashSet<ShardId>();

@@ -8,10 +8,9 @@
 
 package org.elasticsearch.gradle.plugin.scanner
 
-
 import spock.lang.Specification
 
-import org.elasticsearch.gradle.plugin.scanner.test_classes.TestExtensible
+import org.elasticsearch.plugin.api.Extensible
 import org.hamcrest.Matchers
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.Type
@@ -25,7 +24,7 @@ class ClassScannerSpec extends Specification {
     def "class and interface hierarchy is scanned"() {
         given:
         def reader = new ClassScanner(
-            Type.getDescriptor(TestExtensible.class), (classname, map) -> {
+            Type.getDescriptor(Extensible.class), (classname, map) -> {
             map.put(classname, classname)
             return null
         }

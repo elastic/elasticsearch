@@ -14,7 +14,7 @@ import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleClass
 import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleInterface
 import org.elasticsearch.gradle.plugin.scanner.test_classes.ImplementingExtensible
 import org.elasticsearch.gradle.plugin.scanner.test_classes.SubClass
-import org.elasticsearch.gradle.plugin.scanner.test_classes.TestExtensible
+import org.elasticsearch.plugin.api.Extensible
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.Type
 
@@ -30,7 +30,7 @@ class AnnotatedHierarchyVisitorSpec extends Specification {
         foundClasses = new HashSet<>()
         visitor =
             new AnnotatedHierarchyVisitor(
-                Type.getDescriptor(TestExtensible.class), (className) -> {
+                Type.getDescriptor(Extensible.class), (className) -> {
                 foundClasses.add(className)
                 return null
             }

@@ -17,6 +17,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
 import java.util.zip.ZipFile;
@@ -28,6 +29,18 @@ import java.util.zip.ZipFile;
  */
 public class ClassReaders {
     // TODO javadoc on closing a stream
+
+    public static Stream<ClassReader> ofDirWithJars(String path)  {
+        if (path == null) {
+            return Stream.empty();
+        }
+        Path dir = Paths.get(path);
+        try {
+            return ofPaths(Files.list(dir));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
     public static Stream<ClassReader> ofPaths(Stream<Path> list) {
         return list.filter(Files::exists).flatMap(p -> {

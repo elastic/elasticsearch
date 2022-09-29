@@ -8,5 +8,7 @@
 
 package org.elasticsearch.gradle.plugin.scanner.test_classes;
 
-@TestExtensible
+import org.elasticsearch.plugin.api.Extensible;
+
+@Extensible
 public class ExtensibleClass {}

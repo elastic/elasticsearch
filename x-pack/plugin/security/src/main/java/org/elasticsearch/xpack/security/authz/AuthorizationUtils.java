@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -213,11 +214,32 @@ public final class AuthorizationUtils {
         }
 
         try {
-            new ParentIndexActionAuthorization(
-                Version.CURRENT,
-                parentContext.getAction(),
-                parentContext.getIndicesAccessControl().isGranted()
-            ).writeToThreadContext(threadContext);
+            Optional<ParentIndexActionAuthorization> existingParentAuthorization = Optional.ofNullable(ParentIndexActionAuthorization.readFromThreadContext(threadContext));
+            if(existingParentAuthorization.isPresent()){
+                if(existingParentAuthorization.get().action().equals(parentContext.getAction())) {
+                    // Single request can fan-out a child action to multiple nodes in the cluster, e.g. node1 and node2.
+                    // Sending a child action to node1 would have already put parent authorization in the thread context.
+                    // To avoid attempting to pre-authorize the same parent action twice we simply return here
+                    // since pre-authorization is already set in the context.
+                    return;
+                } else {
+                    throw new AssertionError(
+                        "Pre-authorization of parent action ["
+                            + existingParentAuthorization.get().action()
+                            + "] found while attempting to pre-authorize child action ["
+                            + childAction
+                            + "] of parent ["
+                            + parentContext.getAction()
+                            + "]"
+                    );
+                }
+            } else {
+                new ParentIndexActionAuthorization(
+                    Version.CURRENT,
+                    parentContext.getAction(),
+                    parentContext.getIndicesAccessControl().isGranted()
+                ).writeToThreadContext(threadContext);
+            }
         } catch (Exception e) {
             logger.error("Failed to write authorization to thread context.", e);
             throw internalError(
@@ -228,7 +250,6 @@ public final class AuthorizationUtils {
                     + "] to the context"
             );
         }
-
     }
 
     @Nullable

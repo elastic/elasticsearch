@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -125,20 +126,28 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     && securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
                         // re-write the authentication since we want the authentication version to match the version of the connection
                         securityContext.executeAfterRewritingAuthentication(original -> {
-                            maybePreAuthorizeChildAction(connection.getNode(), action, request);
-                            sendWithUser(
-                                connection,
-                                action,
-                                request,
-                                options,
-                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
-                                sender
-                            );
+                            // We need to store the thread context here as we pollute the context with pre-authorization
+                            // which we only want to keep for a single transport request.
+                            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
+                                maybePreAuthorizeChildAction(connection.getNode(), action, request);
+                                sendWithUser(
+                                    connection,
+                                    action,
+                                    request,
+                                    options,
+                                    new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                                    sender
+                                );
+                            };
                         }, minVersion);
-                    } else {
+                } else {
+                    // We need to store the thread context here as we pollute the context with pre-authorization
+                    // which we only want to keep for a single transport request.
+                    try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
                         maybePreAuthorizeChildAction(connection.getNode(), action, request);
                         sendWithUser(connection, action, request, options, handler, sender);
-                    }
+                    };
+                }
             }
         };
     }

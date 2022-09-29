@@ -189,6 +189,7 @@ public final class ClientHelper {
     public static final String SEARCHABLE_SNAPSHOTS_ORIGIN = "searchable_snapshots";
     public static final String LOGSTASH_MANAGEMENT_ORIGIN = "logstash_management";
     public static final String FLEET_ORIGIN = "fleet";
+    public static final String RELEVANCE_SETTINGS_ORIGIN = "relevance_settings";
 
     private ClientHelper() {}
 

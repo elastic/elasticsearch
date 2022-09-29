@@ -19,12 +19,15 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -43,9 +46,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, SearchPlugin {
+public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin, SearchPlugin {
 
     private static final Logger logger = LogManager.getLogger(RelevanceSearchPlugin.class);
+    private RelevanceSearchTaskExecutor relevanceSearchTaskExecutor;
 
     public RelevanceSearchPlugin() {
         logger.info("Relevance Search Plugin loaded");
@@ -102,7 +106,18 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         AllocationDeciders allocationDeciders
     ) {
         relevanceSettingsService.set(new RelevanceSettingsService(client));
+        relevanceSearchTaskExecutor = new RelevanceSearchTaskExecutor(client, clusterService, threadPool);
+        return List.of(relevanceSettingsService.get(), relevanceSearchTaskExecutor);
+    }
 
-        return Collections.singletonList(relevanceSettingsService.get());
+    @Override
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
+    ) {
+        return List.of(relevanceSearchTaskExecutor);
     }
 }

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -48,9 +50,11 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,7 +67,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,20 +94,16 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     /**
      * This is the cluster state task executor for cluster state update actions.
      */
-    private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR = batchExecutionContext -> {
-        ClusterState state = batchExecutionContext.initialState();
-        for (final var taskContext : batchExecutionContext.taskContexts()) {
-            try {
-                final var task = taskContext.getTask();
-                try (var ignored = taskContext.captureResponseHeaders()) {
-                    state = task.execute(state);
-                }
-                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
-            } catch (Exception e) {
-                taskContext.onFailure(e);
-            }
+    private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
+        @Override
+        public ClusterState executeTask(RollupClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+            return task.execute(clusterState);
         }
-        return state;
+
+        @Override
+        public void taskSucceeded(RollupClusterStateUpdateTask task) {
+            task.listener.onResponse(AcknowledgedResponse.TRUE);
+        }
     };
 
     @Inject
@@ -206,14 +205,19 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndexName + "]"));
 
             // 2. Extract rollup config from index mappings
+            final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
+            final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+
+            // Validate downsampling interval
+            validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
+
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
             final List<String> labelFields = new ArrayList<>();
-            final TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(
-                indicesService,
-                sourceIndexMappings,
-                sourceIndexMetadata
-            ).build(request.getDownsampleConfig().getTimestampField());
+            final TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(mapperService).build(
+                request.getDownsampleConfig().getTimestampField()
+            );
             MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
                 if (helper.isTimeSeriesDimension(field, mapping)) {
                     dimensionFields.add(field);
@@ -224,7 +228,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
             });
 
-            RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
+            ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (dimensionFields.isEmpty()) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
             }
@@ -236,10 +240,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 listener.onFailure(validationException);
                 return;
             }
-
-            final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(sourceIndexMetadata);
-            final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
 
             final String mapping;
             try {
@@ -474,6 +474,59 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         }
     }
 
+    private static void validateDownsamplingInterval(MapperService mapperService, DownsampleConfig config) {
+        MappedFieldType timestampFieldType = mapperService.fieldType(config.getTimestampField());
+        assert timestampFieldType != null : "Cannot find timestamp field [" + config.getTimestampField() + "] in the mapping";
+        ActionRequestValidationException e = new ActionRequestValidationException();
+
+        Map<String, String> meta = timestampFieldType.meta();
+        if (meta.isEmpty() == false) {
+            String interval = meta.get(config.getIntervalType());
+            if (interval != null) {
+                DateHistogramInterval sourceIndexInterval = new DateHistogramInterval(interval);
+                DateHistogramInterval targetIndexInterval = config.getInterval();
+                long sourceMillis = sourceIndexInterval.estimateMillis();
+                long targetMillis = targetIndexInterval.estimateMillis();
+                if (sourceMillis >= targetMillis) {
+                    // Downsampling interval must be greater than source interval
+                    e.addValidationError(
+                        "Source index is a downsampled index. Downsampling interval ["
+                            + targetIndexInterval
+                            + "] must be greater than the source index interval ["
+                            + sourceIndexInterval
+                            + "]"
+                    );
+                } else if (targetMillis % sourceMillis != 0) {
+                    // Downsampling interval must be a multiple of the source interval
+                    e.addValidationError(
+                        "Source index is a downsampled index. Downsampling interval ["
+                            + targetIndexInterval
+                            + "] must be a multiple of the source index interval ["
+                            + sourceIndexInterval
+                            + "]"
+                    );
+                }
+            }
+
+            // Validate that timezones match
+            String sourceTimezone = meta.get(DownsampleConfig.TIME_ZONE);
+            if (sourceTimezone != null && sourceTimezone.equals(config.getTimeZone()) == false) {
+                e.addValidationError(
+                    "Source index is a downsampled index. Downsampling timezone ["
+                        + config.getTimeZone()
+                        + "] cannot be different than the source index timezone ["
+                        + sourceTimezone
+                        + "]"
+                );
+            }
+
+            if (e.validationErrors().isEmpty() == false) {
+                throw e;
+            }
+
+        }
+    }
+
     /**
      * Copy index settings from the source index to the rollup index. Settings that
      * have already been set in the rollup index will not be overridden.
@@ -538,32 +591,33 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         DownsampleAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        /*
+         * When creating the rollup index, we copy the index.number_of_shards from source index,
+         * and we set the index.number_of_replicas to 0, to avoid replicating the index being built.
+         * Also, we set the index.refresh_interval to -1.
+         * We will set the correct number of replicas and refresh the index later.
+         *
+         * We should note that there is a risk of losing a node during the rollup process. In this
+         * case rollup will fail.
+         */
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+            .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED);
+        if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
+            builder.put(
+                MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
+                sourceIndexMetadata.getSettings().get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
+            );
+        }
+
         CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
             "rollup",
             rollupIndexName,
             rollupIndexName
-        ).settings(
-            /*
-             * When creating the rollup index, we copy the index.number_of_shards from source index,
-             * and we set the index.number_of_replicas to 0, to avoid replicating the index being built.
-             * Also, we set the index.refresh_interval to -1.
-             * We will set the correct number of replicas and refresh the index later.
-             *
-             * We should note that there is a risk of losing a node during the rollup process. In this
-             * case rollup will fail.
-             */
-            Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
-                .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED)
-                .put(
-                    MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
-                    sourceIndexMetadata.getSettings().get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
-                )
-                .build()
-        ).mappings(mapping);
+        ).settings(builder.build()).mappings(mapping);
         clusterService.submitStateUpdateTask("create-rollup-index [" + rollupIndexName + "]", new RollupClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

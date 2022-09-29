@@ -488,24 +488,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         );
     }
 
-    public ShardRouting asBeforeRelocation() {
-        assert state == ShardRoutingState.RELOCATING : this;
-        assert assignedToNode() : this;
-        assert relocatingNodeId != null : this;
-        return new ShardRouting(
-            shardId,
-            currentNodeId,
-            null,
-            primary,
-            ShardRoutingState.STARTED,
-            recoverySource,
-            null,
-            RelocationFailureInfo.NO_FAILURES,
-            AllocationId.cancelRelocation(allocationId),
-            UNAVAILABLE_EXPECTED_SHARD_SIZE
-        );
-    }
-
     /**
      * Removes relocation source of a non-primary shard. The shard state must be <code>INITIALIZING</code>.
      * This allows the non-primary shard to continue recovery from the primary even though its non-primary

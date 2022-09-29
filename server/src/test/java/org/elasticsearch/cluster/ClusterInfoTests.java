@@ -7,9 +7,6 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -81,13 +78,12 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         return builder;
     }
 
-    private static Map<ShardRouting, String> randomRoutingToDataPath() {
+    private static Map<ClusterInfo.NodeAndShard, String> randomRoutingToDataPath() {
         int numEntries = randomIntBetween(0, 128);
-        Map<ShardRouting, String> builder = new HashMap<>(numEntries);
+        Map<ClusterInfo.NodeAndShard, String> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             ShardId shardId = new ShardId(randomAlphaOfLength(32), randomAlphaOfLength(32), randomIntBetween(0, Integer.MAX_VALUE));
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, null, randomBoolean(), ShardRoutingState.UNASSIGNED);
-            builder.put(shardRouting, randomAlphaOfLength(32));
+            builder.put(new ClusterInfo.NodeAndShard(randomAlphaOfLength(10), shardId), randomAlphaOfLength(32));
         }
         return builder;
     }
@@ -96,13 +92,12 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         int numEntries = randomIntBetween(0, 128);
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
-            final ClusterInfo.NodeAndPath key = new ClusterInfo.NodeAndPath(randomAlphaOfLength(10), randomAlphaOfLength(10));
             final ClusterInfo.ReservedSpace.Builder valueBuilder = new ClusterInfo.ReservedSpace.Builder();
             for (int j = between(0, 10); j > 0; j--) {
                 ShardId shardId = new ShardId(randomAlphaOfLength(32), randomAlphaOfLength(32), randomIntBetween(0, Integer.MAX_VALUE));
                 valueBuilder.add(shardId, between(0, Integer.MAX_VALUE));
             }
-            builder.put(key, valueBuilder.build());
+            builder.put(new ClusterInfo.NodeAndPath(randomAlphaOfLength(10), randomAlphaOfLength(10)), valueBuilder.build());
         }
         return builder;
     }

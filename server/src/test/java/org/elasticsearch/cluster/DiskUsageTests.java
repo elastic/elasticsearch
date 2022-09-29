@@ -31,7 +31,10 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class DiskUsageTests extends ESTestCase {
     public void testDiskUsageCalc() {
@@ -124,7 +127,7 @@ public class DiskUsageTests extends ESTestCase {
             new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats2, null, null, null) };
         Map<String, Long> shardSizes = new HashMap<>();
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
-        Map<ShardRouting, String> routingToPath = new HashMap<>();
+        Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
         InternalClusterInfoService.buildShardLevelInfo(
             RoutingTable.EMPTY_ROUTING_TABLE,
             stats,
@@ -133,23 +136,26 @@ public class DiskUsageTests extends ESTestCase {
             routingToPath,
             new HashMap<>()
         );
-        assertEquals(2, shardSizes.size());
-        assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_0)));
-        assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_1)));
-        assertEquals(100L, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(test_0)).longValue());
-        assertEquals(1000L, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(test_1)).longValue());
 
-        assertEquals(2, shardDataSetSizes.size());
-        assertTrue(shardDataSetSizes.containsKey(test_0.shardId()));
-        assertTrue(shardDataSetSizes.containsKey(test_1.shardId()));
-        assertEquals(101L, shardDataSetSizes.get(test_0.shardId()).longValue());
-        assertEquals(1001L, shardDataSetSizes.get(test_1.shardId()).longValue());
+        assertThat(
+            shardSizes,
+            allOf(
+                aMapWithSize(2),
+                hasEntry(ClusterInfo.shardIdentifierFromRouting(test_0), 100L),
+                hasEntry(ClusterInfo.shardIdentifierFromRouting(test_1), 1000L)
+            )
+        );
 
-        assertEquals(2, routingToPath.size());
-        assertTrue(routingToPath.containsKey(test_0));
-        assertTrue(routingToPath.containsKey(test_1));
-        assertEquals(test0Path.getParent().getParent().getParent().toAbsolutePath().toString(), routingToPath.get(test_0));
-        assertEquals(test1Path.getParent().getParent().getParent().toAbsolutePath().toString(), routingToPath.get(test_1));
+        assertThat(shardDataSetSizes, allOf(aMapWithSize(2), hasEntry(test_0.shardId(), 101L), hasEntry(test_1.shardId(), 1001L)));
+
+        assertThat(
+            routingToPath,
+            allOf(
+                aMapWithSize(2),
+                hasEntry(ClusterInfo.NodeAndShard.from(test_0), test0Path.getParent().getParent().getParent().toAbsolutePath().toString()),
+                hasEntry(ClusterInfo.NodeAndShard.from(test_1), test1Path.getParent().getParent().getParent().toAbsolutePath().toString())
+            )
+        );
     }
 
     public void testLeastAndMostAvailableDiskSpace() {

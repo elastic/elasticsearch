@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import io.netty.handler.ssl.SslHandshakeTimeoutException;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -22,6 +24,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
@@ -207,6 +210,45 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                 );
                 assertEquals("[][" + dummy.getAddress() + "] handshake_timeout[1ms]", ex.getMessage());
             }
+        } finally {
+            doneLatch.countDown();
+        }
+    }
+
+    public void testTlsHandshakeTimeout() throws IOException {
+        final CountDownLatch doneLatch = new CountDownLatch(1);
+        try (ServerSocket socket = new MockServerSocket()) {
+            socket.bind(getLocalEphemeral(), 1);
+            socket.setReuseAddress(true);
+            new Thread(() -> {
+                try (Socket ignored = socket.accept()) {
+                    doneLatch.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            }).start();
+            DiscoveryNode dummy = new DiscoveryNode(
+                "TEST",
+                new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
+                emptyMap(),
+                emptySet(),
+                version0
+            );
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(
+                1,
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE
+            );
+            ConnectTransportException ex = expectThrows(
+                ConnectTransportException.class,
+                () -> connectToNode(serviceA, dummy, builder.build())
+            );
+            assertEquals("[][" + dummy.getAddress() + "] connect_exception", ex.getMessage());
+            assertNotNull(ExceptionsHelper.unwrap(ex, SslHandshakeTimeoutException.class));
         } finally {
             doneLatch.countDown();
         }

@@ -200,12 +200,20 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
             assertEquals("my_agg", result.getName());
             SpatialPoint centroid = result.centroid();
             assertNotNull(centroid);
-            double xTolerance = Math.abs(expectedCentroid.getX() / 1e6);
-            double yTolerance = Math.abs(expectedCentroid.getY() / 1e6);
-            assertEquals(expectedCentroid.getX(), centroid.getX(), xTolerance);
-            assertEquals(expectedCentroid.getY(), centroid.getY(), yTolerance);
+            assertCentroid("x-value", result.count(), centroid.getX(), expectedCentroid.getX());
+            assertCentroid("y-value", result.count(), centroid.getY(), expectedCentroid.getY());
             assertTrue(AggregationInspectionHelper.hasValue(result));
         }
+    }
+
+    private void assertCentroid(String name, long count, double value, double expected) {
+        assertEquals("Centroid over " + count + " had incorrect " + name, expected, value, tolerance(expected, count));
+    }
+
+    private double tolerance(double expected, long count) {
+        double tolerance = Math.abs(expected / 1e6);
+        // Very large numbers have more floating point error, also increasing with count
+        return tolerance > 1e25 ? tolerance * count : tolerance;
     }
 
     @Override

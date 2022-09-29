@@ -23,9 +23,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 import java.util.Objects;
 
+/**
+ * Parses and builds relevance_match queries
+ */
 public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMatchQueryBuilder> {
 
     public static final String NAME = "relevance_match";
@@ -84,13 +87,15 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     @Override
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
         // TODO add field retrieval (probably a holder class that gets populated with field mapping)
-        List<String> fields = QueryFieldsResolver.getQueryFields(context);
+        Collection<String> fields = QueryFieldsResolver.getQueryFields(context);
+        if (fields.isEmpty()) {
+            throw new IllegalArgumentException("[relevance_match] query cannot find text fields in the index");
+        }
+
         final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fields.toArray(new String[fields.size()]));
 
         final Query resultQuery = builder.toQuery(context);
-
         logger.info("Result query: {}", resultQuery.toString());
-
         return resultQuery;
     }
 

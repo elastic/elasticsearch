@@ -35,26 +35,12 @@ policy is recommended to automate the management of your time series data stream
 indices.
 
 To enable downsampling, add a <<ilm-downsample,Downsample action>> and set
-<<ilm-downsample-options,`fixed_interval`>> to the frequency at which you want
-to aggregate the original time series data.
+<<ilm-downsample-options,`fixed_interval`>> to the downsampling interval at
+which you want to aggregate the original time series data.
 
-In this example, an ILM policy is configired for the `hot` data tier. A
-downsample process runs after the first document is inserted into the index, and
-then repeats hourly.
-
-////
-[source,console]
-----
-PUT /_snapshot/found-snapshots
-{
- "type": "fs",
-  "settings": {
-    "location": "my_backup_location"
-  }
-}
-----
-// TESTSETUP
-////
+In this example, an ILM policy is configired for the `hot` phase. A downsample
+process runs after the first document is inserted into the index, and then
+repeats hourly.
 
 [source,console]
 ----
@@ -86,10 +72,9 @@ for an index template are described in detail in <<set-up-a-data-stream,Set up a
 time series data stream>>.
 
 For simplicity, in the time series mapping all `time_series_metric` parameters
-are set to type `gauge`, but <<time-series-metric,other values>> such as
-`counter` and `histogram` may also be used. The `time_series_metric` values
-determine the kind of statistical representations that are used during
-downsampling.
+are set to type `gauge`, but the `counter` metric type may also be used. The
+`time_series_metric` values determine the kind of statistical representations
+that are used during downsampling.
 
 The index template includes a set of static <<time-series-dimension,time series
 dimensions>>: `host`, `namespace`, `node`, and `pod`. The time series dimensions
@@ -244,19 +229,11 @@ PUT _index_template/datastream_template
 ----
 // TEST[continued]
 
-////
-[source,console]
-----
-DELETE _index_template/*
-----
-// TEST[continued]
-////
-
 [discrete]
 [[downsampling-ilm-ingest-data]]
 ==== Ingest time series data
 
-Use a bulk API request automatically create your TSDS and index a set of ten
+Use a bulk API request to automatically create your TSDS and index a set of ten
 documents.
 
 **Important:** Before running this bulk request you need to update the

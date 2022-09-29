@@ -6,7 +6,7 @@
 
 preview::[]
 
-This is a simplified example that allows you to see quickly how <<downsampling,downsampling>> works to reduce the storage size of a sampled set of metrics. The example uses typical Kubernetes system monitoring data. To test out downsampling, follow these steps:
+This is a simplified example that allows you to see quickly how <<downsampling,downsampling>> works to reduce the storage size of a time series index. The example uses typical Kubernetes cluster monitoring data. To test out downsampling, follow these steps:
 
 . Check the <<downsampling-manual-prereqs,prerequisites>>.
 . <<downsampling-manual-create-index>>.
@@ -27,7 +27,7 @@ https://static-www.elastic.co/v3/assets/bltefdd0b53724fa2ce/bltf2fe7a300c3c59f7/
 [[downsampling-manual-create-index]]
 ==== Create a time series index
 
-This creates an index template for a basic data stream. The available parameters for an index template are described in detail in <<set-up-a-data-stream,Set up a time series data stream>>.
+This creates an index for a basic data stream. The available parameters for an index are described in detail in <<set-up-a-data-stream,Set up a time series data stream>>.
 
 The time series boundaries are set so that sampling data for the index begins at `2022-06-10T00:00:00Z` and ends at `2022-06-30T23:59:59Z`.
 
@@ -198,7 +198,7 @@ In a terminal window with {es} running, run the following curl command to load t
 //----
 ```
 curl -s -H "Content-Type: application/json" \
-   -XPOST http://localhost:9200/sample-01/_bulk?pretty \
+   -XPOST http://<elasticsearch-node>/sample-01/_bulk?pretty \
    --data-binary @sample-k8s-metrics.json
 ```
 //----

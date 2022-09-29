@@ -156,7 +156,7 @@ supported.
 
 * The downsampling configuration is extracted from the time series data stream
 <<tsds-create-mappings-component-template,index mapping>>. The only additional
-required setting is the downsampling `time_interval`.
+required setting is the downsampling `fixed_interval`.
 
 [discrete]
 [[try-out-downsampling]]

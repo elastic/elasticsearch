@@ -8,8 +8,14 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.auth.profile.internal.BasicProfileConfigFileLoader;
+import com.amazonaws.jmx.SdkMBeanRegistrySupport;
+import com.amazonaws.metrics.AwsSdkMetrics;
+import com.amazonaws.services.s3.internal.UseArnRegionResolver;
 import com.amazonaws.util.json.Jackson;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.client.internal.Client;
@@ -18,6 +24,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -44,6 +51,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
@@ -56,6 +64,21 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             try {
                 // kick jackson to do some static caching of declared members info
                 Jackson.jsonNodeOf("{}");
+
+                // some AWS classes emit noisy WARN logs when initialized, so we set their logging
+                // levels to ERROR if they are not explicitly configured in log4j2.properties
+                Stream.of(
+                    AwsSdkMetrics.class,
+                    BasicProfileConfigFileLoader.class,
+                    SdkMBeanRegistrySupport.class,
+                    UseArnRegionResolver.class
+                ).forEach(cl -> {
+                    final String loggerName = cl.getName();
+                    if (Loggers.isExplicitlyConfigured(loggerName) == false) {
+                        Loggers.setLevel(LogManager.getLogger(loggerName), Level.ERROR);
+                    }
+                });
+
                 // ClientConfiguration clinit has some classloader problems
                 // TODO: fix that
                 Class.forName("com.amazonaws.ClientConfiguration");

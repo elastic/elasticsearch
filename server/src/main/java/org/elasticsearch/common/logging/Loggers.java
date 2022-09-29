@@ -129,6 +129,12 @@ public class Loggers {
         }
     }
 
+    public static boolean isExplicitlyConfigured(String loggerName) {
+        final LoggerContext ctx = LoggerContext.getContext(false);
+        LoggerConfig loggerConfig = ctx.getConfiguration().getLoggerConfig(loggerName);
+        return loggerName.equals(loggerConfig.getName());
+    }
+
     public static void addAppender(final Logger logger, final Appender appender) {
         final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         final Configuration config = ctx.getConfiguration();

@@ -1,0 +1,5 @@
+pr: 90494
+summary: Fix logstash loadavg (xpack cases)
+area: Monitoring
+type: bug
+issues: []

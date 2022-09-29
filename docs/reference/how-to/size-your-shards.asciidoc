@@ -315,6 +315,8 @@ searches and aggregations. 0.5GB of extra heap will suffice for many reasonable
 workloads, and you may need even less if your workload is very light while heavy
 workloads may require more.
 
+==== Example
+
 As an example, consider the outputs above for a data node. The heap of the node
 will need at least:
 

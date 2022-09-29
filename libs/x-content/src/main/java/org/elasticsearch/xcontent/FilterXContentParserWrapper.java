@@ -20,6 +20,10 @@ public class FilterXContentParserWrapper extends FilterXContentParser {
 
     @Override
     protected final XContentParser delegate() {
+        XContentParser delegate = this.delegate;
+        while (delegate instanceof FilterXContentParser) {
+            delegate = ((FilterXContentParser) delegate).delegate();
+        }
         return delegate;
     }
 }

@@ -621,19 +621,15 @@ public class CompositeRolesStore {
             final boolean allowsRestrictedIndices,
             final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteIndicesPrivilegesMap
         ) {
-            Arrays.stream(indicesPrivileges).collect(Collectors.groupingBy(it -> {
-                final String[] targetClusters = it.getTargetClusters();
-                return targetClusters == null ? LOCAL_CLUSTER_KEY : newHashSet(targetClusters);
-            })).forEach((targetClusters, indicesForTargetClusters) -> {
+            for (var indicesPrivilege : indicesPrivileges) {
+                final var targetClusters = indicesPrivilege.getTargetClusters() == null
+                    ? LOCAL_CLUSTER_KEY
+                    : newHashSet(indicesPrivilege.getTargetClusters());
                 if (false == remoteIndicesPrivilegesMap.containsKey(targetClusters)) {
                     remoteIndicesPrivilegesMap.put(targetClusters, new HashMap<>());
                 }
-                collatePrivilegesByIndices(
-                    indicesForTargetClusters.toArray(new IndicesPrivileges[0]),
-                    allowsRestrictedIndices,
-                    remoteIndicesPrivilegesMap.get(targetClusters)
-                );
-            });
+                collatePrivilegesByIndices(indicesPrivilege, allowsRestrictedIndices, remoteIndicesPrivilegesMap.get(targetClusters));
+            }
         }
 
         private static void collatePrivilegesByIndices(
@@ -646,33 +642,44 @@ public class CompositeRolesStore {
                 // merging
                 final boolean isExplicitDenial = indicesPrivileges.length == 1
                     && "none".equalsIgnoreCase(indicesPrivilege.getPrivileges()[0]);
-                if (isExplicitDenial || (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices)) {
+                if (isExplicitDenial) {
                     continue;
                 }
-                final Set<String> key = newHashSet(indicesPrivilege.getIndices());
-                indicesPrivilegesMap.compute(key, (k, value) -> {
-                    if (value == null) {
-                        return new MergeableIndicesPrivilege(
+                collatePrivilegesByIndices(indicesPrivilege, allowsRestrictedIndices, indicesPrivilegesMap);
+            }
+        }
+
+        private static void collatePrivilegesByIndices(
+            IndicesPrivileges indicesPrivilege,
+            boolean allowsRestrictedIndices,
+            Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
+        ) {
+            if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
+                return;
+            }
+            final Set<String> key = newHashSet(indicesPrivilege.getIndices());
+            indicesPrivilegesMap.compute(key, (k, value) -> {
+                if (value == null) {
+                    return new MergeableIndicesPrivilege(
+                        indicesPrivilege.getIndices(),
+                        indicesPrivilege.getPrivileges(),
+                        indicesPrivilege.getGrantedFields(),
+                        indicesPrivilege.getDeniedFields(),
+                        indicesPrivilege.getQuery()
+                    );
+                } else {
+                    value.merge(
+                        new MergeableIndicesPrivilege(
                             indicesPrivilege.getIndices(),
                             indicesPrivilege.getPrivileges(),
                             indicesPrivilege.getGrantedFields(),
                             indicesPrivilege.getDeniedFields(),
                             indicesPrivilege.getQuery()
-                        );
-                    } else {
-                        value.merge(
-                            new MergeableIndicesPrivilege(
-                                indicesPrivilege.getIndices(),
-                                indicesPrivilege.getPrivileges(),
-                                indicesPrivilege.getGrantedFields(),
-                                indicesPrivilege.getDeniedFields(),
-                                indicesPrivilege.getQuery()
-                            )
-                        );
-                        return value;
-                    }
-                });
-            }
+                        )
+                    );
+                    return value;
+                }
+            });
         }
     }
 

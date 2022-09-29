@@ -58,7 +58,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
         var lastAccess = Instant.now();
         var inferenceCount = randomNonNegativeLong();
         Double avgInferenceTime = randomDoubleBetween(0.0, 100.0, true);
-        Double avgResponseTime = randomDoubleBetween(0.0, 100.0, true);
+        Double avgInferenceTimeExcludingCacheHit = randomDoubleBetween(0.0, 100.0, true);
         Double avgInferenceTimeLastPeriod = randomDoubleBetween(0.0, 100.0, true);
 
         var noInferenceCallsOnNodeYet = randomBoolean();
@@ -66,14 +66,14 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             lastAccess = null;
             inferenceCount = 0;
             avgInferenceTime = null;
-            avgResponseTime = null;
+            avgInferenceTimeExcludingCacheHit = null;
             avgInferenceTimeLastPeriod = null;
         }
         return AssignmentStats.NodeStats.forStartedState(
             node,
             inferenceCount,
             avgInferenceTime,
-            avgResponseTime,
+            avgInferenceTimeExcludingCacheHit,
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
             randomLongBetween(0, 100),

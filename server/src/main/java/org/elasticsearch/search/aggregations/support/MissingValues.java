@@ -117,7 +117,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final long missing) {
+    public static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final long missing) {
         return new AbstractSortedNumericDocValues() {
 
             private int count;

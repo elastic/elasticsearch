@@ -10,9 +10,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -52,6 +57,12 @@ public abstract class IgnoreMalformedStoredValues {
                 };
             case VALUE_BOOLEAN -> new StoredField(name, new byte[] { parser.booleanValue() ? (byte) 't' : (byte) 'f' });
             case VALUE_EMBEDDED_OBJECT -> new StoredField(name, encode(parser.binaryValue()));
+            case START_OBJECT, START_ARRAY -> {
+                try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
+                    builder.copyCurrentStructure(parser);
+                    yield new StoredField(name, encode(builder));
+                }
+            }
             default -> throw new IllegalArgumentException("synthetic _source doesn't support malformed objects");
         };
     }
@@ -139,6 +150,9 @@ public abstract class IgnoreMalformedStoredValues {
                 case 'b':
                     b.value(r.bytes, r.offset + 1, r.length - 1);
                     return;
+                case 'c':
+                    decodeAndWriteXContent(b, XContentType.CBOR, r);
+                    return;
                 case 'd':
                     if (r.length < 5) {
                         throw new IllegalArgumentException("Can't decode " + r);
@@ -155,14 +169,30 @@ public abstract class IgnoreMalformedStoredValues {
                 case 'i':
                     b.value(new BigInteger(r.bytes, r.offset + 1, r.length - 1));
                     return;
+                case 'j':
+                    decodeAndWriteXContent(b, XContentType.JSON, r);
+                    return;
+                case 's':
+                    decodeAndWriteXContent(b, XContentType.SMILE, r);
+                    return;
                 case 't':
                     if (r.length != 1) {
                         throw new IllegalArgumentException("Can't decode " + r);
                     }
                     b.value(true);
                     return;
+                case 'y':
+                    decodeAndWriteXContent(b, XContentType.YAML, r);
+                    return;
                 default:
                     throw new IllegalArgumentException("Can't decode " + r);
+            }
+        }
+
+        private void decodeAndWriteXContent(XContentBuilder b, XContentType type, BytesRef r) throws IOException {
+            BytesReference ref = new BytesArray(r.bytes, r.offset + 1, r.length - 1);
+            try (XContentParser parser = type.xContent().createParser(XContentParserConfiguration.EMPTY, ref.streamInput())) {
+                b.copyCurrentStructure(parser);
             }
         }
     }
@@ -192,6 +222,28 @@ public abstract class IgnoreMalformedStoredValues {
         byte[] encoded = new byte[1 + b.length];
         encoded[0] = 'b';
         System.arraycopy(b, 0, encoded, 1, b.length);
+        return encoded;
+    }
+
+    private static byte[] encode(XContentBuilder builder) throws IOException {
+        BytesReference b = BytesReference.bytes(builder);
+        byte[] encoded = new byte[1 + b.length()];
+        encoded[0] = switch (builder.contentType()) {
+            case JSON -> 'j';
+            case SMILE -> 's';
+            case YAML -> 'y';
+            case CBOR -> 'c';
+            default -> throw new IllegalArgumentException("unsupported type " + builder.contentType());
+        };
+
+        int position = 1;
+        BytesRefIterator itr = b.iterator();
+        BytesRef ref;
+        while ((ref = itr.next()) != null) {
+            System.arraycopy(ref.bytes, ref.offset, encoded, position, ref.length);
+            position += ref.length;
+        }
+        assert position == encoded.length;
         return encoded;
     }
 }

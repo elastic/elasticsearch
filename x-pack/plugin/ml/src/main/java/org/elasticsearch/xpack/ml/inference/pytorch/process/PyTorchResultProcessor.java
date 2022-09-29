@@ -35,6 +35,7 @@ public class PyTorchResultProcessor {
 
     public record ResultStats(
         LongSummaryStatistics timingStats,
+        LongSummaryStatistics timingStatsExcludingCacheHits,
         int errorCount,
         long cacheHitCount,
         int numberOfPendingResults,
@@ -51,6 +52,7 @@ public class PyTorchResultProcessor {
     private final Consumer<ThreadSettings> threadSettingsConsumer;
     private volatile boolean isStopping;
     private final LongSummaryStatistics timingStats;
+    private final LongSummaryStatistics timingStatsExcludingCacheHits;
     private int errorCount;
     private long cacheHitCount;
     private long peakThroughput;
@@ -71,6 +73,7 @@ public class PyTorchResultProcessor {
     PyTorchResultProcessor(String deploymentId, Consumer<ThreadSettings> threadSettingsConsumer, LongSupplier currentTimeSupplier) {
         this.deploymentId = Objects.requireNonNull(deploymentId);
         this.timingStats = new LongSummaryStatistics();
+        this.timingStatsExcludingCacheHits = new LongSummaryStatistics();
         this.lastPeriodSummaryStats = new LongSummaryStatistics();
         this.threadSettingsConsumer = Objects.requireNonNull(threadSettingsConsumer);
         this.currentTimeMsSupplier = currentTimeSupplier;
@@ -157,7 +160,7 @@ public class PyTorchResultProcessor {
         }
 
         logger.trace(() -> format("[%s] Parsed inference result with id [%s]", deploymentId, result.requestId()));
-        processResult(inferenceResult, timeMs, Boolean.TRUE.equals(result.isCacheHit()));
+        updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for inference [%s]", deploymentId, result.requestId()));
@@ -235,7 +238,8 @@ public class PyTorchResultProcessor {
         }
 
         return new ResultStats(
-            new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum()),
+            cloneSummaryStats(timingStats),
+            cloneSummaryStats(timingStatsExcludingCacheHits),
             errorCount,
             cacheHitCount,
             pendingResults.size(),
@@ -245,7 +249,11 @@ public class PyTorchResultProcessor {
         );
     }
 
-    private synchronized void processResult(PyTorchInferenceResult result, long timeMs, boolean isCacheHit) {
+    private LongSummaryStatistics cloneSummaryStats(LongSummaryStatistics stats) {
+        return new LongSummaryStatistics(stats.getCount(), stats.getMin(), stats.getMax(), stats.getSum());
+    }
+
+    private synchronized void updateStats(long timeMs, boolean isCacheHit) {
         timingStats.accept(timeMs);
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();
@@ -278,6 +286,9 @@ public class PyTorchResultProcessor {
         if (isCacheHit) {
             cacheHitCount++;
             lastPeriodCacheHitCount++;
+        } else {
+            // don't include cache hits when recording inference time
+            timingStatsExcludingCacheHits.accept(timeMs);
         }
     }
 

@@ -129,6 +129,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     private void refreshMultiFileWriter() {
+        // Sometimes we need to clear the downloaded data and start from scratch
+        // i.e. when we're recovering from a snapshot that's physically different to the
+        // source node index files. In that case we create a new MultiFileWriter using a
+        // different tempFilePrefix and close the previous writer that would take care of
+        // cleaning itself once all the outstanding writes finish.
         multiFileWriter.close();
         final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
         this.multiFileWriter = new MultiFileWriter(

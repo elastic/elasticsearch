@@ -53,8 +53,7 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
 
     @Override
     public synchronized RecoveryState reset() {
-        remoteTranslogSet = false;
-        super.setStage(Stage.INIT);
+        setStage(Stage.INIT);
         return this;
     }
 

@@ -196,7 +196,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     public synchronized RecoveryState setStage(Stage stage) {
         switch (stage) {
             case INIT -> {
-                // TODO: forbid this transition
                 // reinitializing stop remove all state except for start time
                 this.stage = Stage.INIT;
                 getIndex().reset();
@@ -231,6 +230,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return this;
     }
 
+    /**
+     * Resets the stage to the initial state and clears all index, verify index and translog information keeping the original timing
+     * information
+     */
     public RecoveryState reset() {
         return new RecoveryState(shardId, primary, recoverySource, sourceNode, targetNode, new Index(), timer);
     }

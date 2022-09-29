@@ -34,7 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesStatsAction extends BaseRestHandler {
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestNodesStatsAction.class);
-    private static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in nodes stats requests is deprecated.";
+    private static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in nodes stats requests is deprecated.";
 
     @Override
     public List<Route> routes() {

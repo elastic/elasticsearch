@@ -62,12 +62,12 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         if (queryProfileShardResult != null) {
-            builder.startObject();
             builder.field(KNN.getPreferredName());
             queryProfileShardResult.toXContent(builder, params);
-            builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 

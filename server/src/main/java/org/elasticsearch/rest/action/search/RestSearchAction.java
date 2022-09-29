@@ -57,7 +57,7 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 public class RestSearchAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in search requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in search requests is deprecated.";
 
     /**
      * Indicates whether hits.total should be rendered as an integer or an object
@@ -362,7 +362,7 @@ public class RestSearchAction extends BaseRestHandler {
         ActionRequestValidationException validationException = null;
         if (request.indices().length > 0) {
             validationException = addValidationError(
-                "[indices] cannot be used with point in time. Do " + "not specify any index with point in time.",
+                "[indices] cannot be used with point in time. Do not specify any index with point in time.",
                 validationException
             );
         }
@@ -440,7 +440,7 @@ public class RestSearchAction extends BaseRestHandler {
     private static void checkSearchType(RestRequest restRequest, SearchRequest searchRequest) {
         if (restRequest.hasParam("search_type") && searchRequest.hasKnnSearch()) {
             throw new IllegalArgumentException(
-                "cannot set [search_type] when using [knn] search, since the search type " + "is determined automatically"
+                "cannot set [search_type] when using [knn] search, since the search type is determined automatically"
             );
         }
     }

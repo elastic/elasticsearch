@@ -1255,7 +1255,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         );
     }
 
-    public void testFailureDoesNotOverAccount() throws Exception {
+    public void testNodeDisconnectsDoNotOverAccountRecoveredBytes() throws Exception {
         // This test reproduces a rare (but possible scenario) where a shard is recovering using
         // snapshots, using logically equivalent index files, but half-way the connection between
         // the source and the target drops.
@@ -1380,6 +1380,15 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
             assertThat(fileDetail.length(), is(equalTo(fileDetail.recovered())));
         }
+        IndexShard shard = internalCluster().getInstance(IndicesService.class, newReplicaNodeName)
+            .indexServiceSafe(resolveIndex(indexName))
+            .getShard(0);
+
+        // Ensure that leftovers are eventually cleaned
+        assertBusy(() -> {
+            String[] indexFiles = shard.store().directory().listAll();
+            assertThat(Arrays.toString(indexFiles), Arrays.stream(indexFiles).noneMatch(file -> file.startsWith("recovery.")), is(true));
+        });
     }
 
     private void executeRecoveryWithSnapshotFileDownloadThrottled(SnapshotBasedRecoveryThrottlingTestCase testCase) throws Exception {

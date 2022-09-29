@@ -578,7 +578,7 @@ public interface AuthorizationEngine {
                 String[] indices = RequestInfo.indices(requestInfo.getRequest());
                 if (indices == null
                     || indices.length == 0
-                    || IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER.equals(indices[indices.length - 1])) {
+                    || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
                     return null;
                 }
                 Set<String> deniedIndices = Arrays.asList(indices)

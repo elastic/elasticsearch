@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -125,20 +126,16 @@ public class MetadataIndexTemplateService {
     /**
      * This is the cluster state task executor for all template-based actions.
      */
-    private static final ClusterStateTaskExecutor<TemplateClusterStateUpdateTask> TEMPLATE_TASK_EXECUTOR = batchExecutionContext -> {
-        ClusterState state = batchExecutionContext.initialState();
-        for (final var taskContext : batchExecutionContext.taskContexts()) {
-            try {
-                final var task = taskContext.getTask();
-                try (var ignored = taskContext.captureResponseHeaders()) {
-                    state = task.execute(state);
-                }
-                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
-            } catch (Exception e) {
-                taskContext.onFailure(e);
-            }
+    private static final ClusterStateTaskExecutor<TemplateClusterStateUpdateTask> TEMPLATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
+        @Override
+        public ClusterState executeTask(TemplateClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+            return task.execute(clusterState);
         }
-        return state;
+
+        @Override
+        public void taskSucceeded(TemplateClusterStateUpdateTask task) {
+            task.listener.onResponse(AcknowledgedResponse.TRUE);
+        }
     };
 
     /**

@@ -97,12 +97,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private final VerifyIndex verifyIndex;
     private final Timer timer;
 
-    private RecoverySource recoverySource;
-    private ShardId shardId;
+    private final RecoverySource recoverySource;
+    private final ShardId shardId;
     @Nullable
-    private DiscoveryNode sourceNode;
-    private DiscoveryNode targetNode;
-    private boolean primary;
+    private final DiscoveryNode sourceNode;
+    private final DiscoveryNode targetNode;
+    private final boolean primary;
 
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
         this(shardRouting, targetNode, sourceNode, new Index());
@@ -126,7 +126,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         timer.start();
     }
 
-    public RecoveryState(StreamInput in) throws IOException {
+    private RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
         stage = Stage.fromId(in.readByte());
         shardId = new ShardId(in);
@@ -278,26 +278,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(timer.time()));
 
         if (recoverySource.getType() == RecoverySource.Type.PEER) {
-            builder.startObject(Fields.SOURCE);
-            builder.field(Fields.ID, sourceNode.getId());
-            builder.field(Fields.HOST, sourceNode.getHostName());
-            builder.field(Fields.TRANSPORT_ADDRESS, sourceNode.getAddress().toString());
-            builder.field(Fields.IP, sourceNode.getHostAddress());
-            builder.field(Fields.NAME, sourceNode.getName());
-            builder.endObject();
+            toXContentNode(Fields.SOURCE, builder, sourceNode);
         } else {
             builder.startObject(Fields.SOURCE);
             recoverySource.addAdditionalFields(builder, params);
             builder.endObject();
         }
 
-        builder.startObject(Fields.TARGET);
-        builder.field(Fields.ID, targetNode.getId());
-        builder.field(Fields.HOST, targetNode.getHostName());
-        builder.field(Fields.TRANSPORT_ADDRESS, targetNode.getAddress().toString());
-        builder.field(Fields.IP, targetNode.getHostAddress());
-        builder.field(Fields.NAME, targetNode.getName());
-        builder.endObject();
+        toXContentNode(Fields.TARGET, builder, targetNode);
 
         builder.startObject(Fields.INDEX);
         index.toXContent(builder, params);
@@ -312,6 +300,16 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.endObject();
 
         return builder;
+    }
+
+    private static void toXContentNode(String fieldName, XContentBuilder builder, DiscoveryNode node) throws IOException {
+        builder.startObject(fieldName);
+        builder.field(Fields.ID, node.getId());
+        builder.field(Fields.HOST, node.getHostName());
+        builder.field(Fields.TRANSPORT_ADDRESS, node.getAddress().toString());
+        builder.field(Fields.IP, node.getHostAddress());
+        builder.field(Fields.NAME, node.getName());
+        builder.endObject();
     }
 
     static final class Fields {
@@ -594,10 +592,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class FileDetail implements ToXContentObject, Writeable {
-        private String name;
-        private long length;
+        private final String name;
+        private final long length;
         private long recovered;
-        private boolean reused;
+        private final boolean reused;
         private long recoveredFromSnapshot;
 
         public FileDetail(String name, long length, boolean reused) {
@@ -741,17 +739,15 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class RecoveryFilesDetails implements ToXContentFragment, Writeable {
-        protected final Map<String, FileDetail> fileDetails = new HashMap<>();
+        protected final Map<String, FileDetail> fileDetails;
         protected boolean complete;
 
-        public RecoveryFilesDetails() {}
+        public RecoveryFilesDetails() {
+            fileDetails = new HashMap<>();
+        }
 
         RecoveryFilesDetails(StreamInput in) throws IOException {
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                FileDetail file = new FileDetail(in);
-                fileDetails.put(file.name, file);
-            }
+            fileDetails = in.readMapValues(FileDetail::new, FileDetail::name);
             if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 complete = in.readBoolean();
             } else {
@@ -765,11 +761,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            final FileDetail[] files = values().toArray(new FileDetail[0]);
-            out.writeVInt(files.length);
-            for (FileDetail file : files) {
-                file.writeTo(out);
-            }
+            out.writeCollection(values());
             if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 out.writeBoolean(complete);
             }
@@ -778,11 +770,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (params.paramAsBoolean("detailed", false)) {
-                builder.startArray(Fields.DETAILS);
-                for (FileDetail file : values()) {
-                    file.toXContent(builder, params);
-                }
-                builder.endArray();
+                builder.xContentList(Fields.DETAILS, values(), params);
             }
 
             return builder;

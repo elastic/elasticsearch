@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -55,8 +57,11 @@ public class MetadataDeleteIndexService {
         this.clusterService = clusterService;
         executor = new SimpleBatchedAckListenerTaskExecutor<>() {
             @Override
-            public ClusterState executeTask(DeleteIndexClusterStateUpdateRequest task, ClusterState clusterState) {
-                return deleteIndices(clusterState, Sets.newHashSet(task.indices()));
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                DeleteIndexClusterStateUpdateRequest task,
+                ClusterState clusterState
+            ) {
+                return Tuple.tuple(deleteIndices(clusterState, Sets.newHashSet(task.indices())), task);
             }
 
             @Override

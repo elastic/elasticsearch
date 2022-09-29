@@ -8,13 +8,15 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.core.Tuple;
+
 /**
  * A basic batch executor implementation for tasks that implement {@link ClusterStateAckListener}, where the tasks in the
  * batch are executed iteratively, producing a cluster state after each task. This allows executing the tasks in the batch
  * as a series of executions, each taking an input cluster state and producing a new cluster state that serves as the
  * input of the next task in the batch.
  */
-public abstract class SimpleBatchedAckListenerTaskExecutor<Task extends ClusterStateAckListener & ClusterStateTaskListener>
+public abstract class SimpleBatchedAckListenerTaskExecutor<Task extends ClusterStateTaskListener>
     implements
         ClusterStateTaskExecutor<Task> {
 
@@ -23,9 +25,11 @@ public abstract class SimpleBatchedAckListenerTaskExecutor<Task extends ClusterS
      *
      * @param task The task to be executed.
      * @param clusterState    The cluster state on which the task should be executed.
-     * @return The resulting cluster state after executing this task.
+     * @return A tuple consisting of the resulting cluster state after executing this task, and a {@link ClusterStateAckListener}.
+     * The listener is completed if the publication succeeds and the nodes ack the state update. The returned cluster state
+     * serves as the cluster state on which the next task in the batch will run.
      */
-    public abstract ClusterState executeTask(Task task, ClusterState clusterState) throws Exception;
+    public abstract Tuple<ClusterState, ClusterStateAckListener> executeTask(Task task, ClusterState clusterState) throws Exception;
 
     /**
      * Called once all tasks in the batch have finished execution. It should return a cluster state that reflects
@@ -56,8 +60,9 @@ public abstract class SimpleBatchedAckListenerTaskExecutor<Task extends ClusterS
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             try (var ignored = taskContext.captureResponseHeaders()) {
                 var task = taskContext.getTask();
-                clusterState = executeTask(task, clusterState);
-                taskContext.success(task);
+                final var result = executeTask(task, clusterState);
+                clusterState = result.v1();
+                taskContext.success(result.v2());
             } catch (Exception e) {
                 taskContext.onFailure(e);
             }

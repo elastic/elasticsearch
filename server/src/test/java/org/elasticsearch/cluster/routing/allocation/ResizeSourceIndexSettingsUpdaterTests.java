@@ -110,6 +110,10 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
         if (isShrink) {
             targetSettings.put(IndexMetadata.INDEX_SHRINK_INITIAL_RECOVERY_KEY, resizeNode.getId());
         }
+        final boolean hasLifecyclePolicy = randomBoolean();
+        if (hasLifecyclePolicy) {
+            targetSettings.put(IndexMetadata.LIFECYCLE_NAME, "policy");
+        }
 
         clusterState = ClusterState.builder(clusterState)
             .metadata(
@@ -155,7 +159,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndex);
             assertThat(
                 IndexMetadata.INDEX_RESIZE_SOURCE_NAME.exists(targetIndexMetadata.getSettings()),
-                is(targetIndexRoutingTable.allPrimaryShardsActive() == false)
+                is(hasLifecyclePolicy || (targetIndexRoutingTable.allPrimaryShardsActive() == false))
             );
             assertThat(
                 IndexMetadata.INDEX_RESIZE_SOURCE_UUID.exists(targetIndexMetadata.getSettings()),
@@ -171,7 +175,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
 
         {
             IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndex);
-            assertThat(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.exists(targetIndexMetadata.getSettings()), is(false));
+            assertThat(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.exists(targetIndexMetadata.getSettings()), is(hasLifecyclePolicy));
             assertThat(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.exists(targetIndexMetadata.getSettings()), is(false));
             assertThat(targetIndexMetadata.getSettings().hasValue(IndexMetadata.INDEX_SHRINK_INITIAL_RECOVERY_KEY), is(false));
             IndexRoutingTable targetRoutingTable = clusterState.routingTable().index(targetIndex);

@@ -224,9 +224,11 @@ GET _cat/shards?v=true
 [[field-count-recommendation]]
 ==== The heap of nodes should suffice for the fields, plus overheads
 
-The different index field mappings have overhead for the heap of the nodes.
-The heap of the nodes should suffice for the field mappings, and also allow
-some additional leeway for other overheads (e.g., related to the workload).
+Mapped fields consume some heap memory on each node, and require extra 
+heap on data nodes.
+Ensure each node has enough heap for mappings, and also allow
+extra space for overheads associated with its workload. The following sections
+show how to determine these heap requirements.
 
 ===== Mapping metadata in the cluster state
 

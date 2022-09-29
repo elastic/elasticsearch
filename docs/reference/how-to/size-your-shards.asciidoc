@@ -222,16 +222,53 @@ GET _cat/shards?v=true
 
 [discrete]
 [[field-count-recommendation]]
-==== The heap of data nodes should suffice for the fields of indices, plus overheads
+==== The heap of nodes should suffice for the fields, plus overheads
 
-Each mapped field of an index held by a data node has heap overhead. The heap of
-a data node should suffice for its fields' heap overhead, plus other overheads.
-You can use the <<cluster-nodes-stats,Nodes stats API>> to get two relevant metrics:
+The different index field mappings have overhead for the heap of the nodes.
+The heap of the nodes should suffice for the field mappings, and also allow
+some additional leeway for other overheads (e.g., related to the workload).
 
-* The number of field mappings of indices and an estimation of their heap overhead
-per node.
+===== Field information in the cluster state
+
+Each node in the cluster has a copy of the <<cluster-state-api-desc,cluster state>>.
+The cluster state includes information about the field mappings for
+each index. This information has heap overhead. You can use the
+<<cluster-stats,Cluster stats API>> to get the heap overhead of the total size of
+all mappings after deduplication and compression.
+
+[source,console]
+----
+GET _cluster/stats?human&filter_path=indices.mappings.total_deduplicated_mapping_size*
+----
+// TEST[setup:node]
+
+This will show you information like in this example output:
+
+[source,console-result]
+----
+{
+  "indices": {
+    "mappings": {
+      "total_deduplicated_mapping_size": "1gb",
+      "total_deduplicated_mapping_size_in_bytes": 1073741824
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"total_deduplicated_mapping_size": "1gb"/"total_deduplicated_mapping_size": $body.$_path/]
+// TESTRESPONSE[s/"total_deduplicated_mapping_size_in_bytes": 1073741824/"total_deduplicated_mapping_size_in_bytes": $body.$_path/]
+
+===== Getting the max heap and any additional field overhead per node
+
+You can use the <<cluster-nodes-stats,Nodes stats API>> to get two relevant metrics
+for each node:
 
 * The maximum amount of available heap memory per node.
+
+* Any additional estimated heap overhead for the fields per node. This is specific to
+data nodes, where apart from the cluster state field information mentioned above,
+there is additional heap overhead for each mapped field of an index held by the data
+node. For nodes which are not data nodes, this field may be zero.
 
 [source,console]
 ----
@@ -270,27 +307,35 @@ For each node, this will show you information like in this example output:
 // TESTRESPONSE[s/"heap_max": "4gb"/"heap_max": $body.$_path/]
 // TESTRESPONSE[s/"heap_max_in_bytes": 4294967296/"heap_max_in_bytes": $body.$_path/]
 
-Apart from the field mappings, you must additionally allow enough heap for
-{es}'s baseline usage as well as your workload such as indexing, searches and
-aggregations. 0.5GB of extra heap will suffice for many reasonable workloads,
-and you may need even less if your workload is very light while heavy workloads
-may require more.
+===== Finally consider additional heap overheads
 
-In the example above, the estimated field mappings overhead is 1GB. Therefore,
-the data node would need an additional 0.5GB of heap for its workload and other
-overheads. Its 4GB heap max size is thus sufficient for the total required
-heap of 1.5GB.
+Apart from the two field overhead metrics above, you must additionally allow
+enough heap for {es}'s baseline usage as well as your workload such as indexing,
+searches and aggregations. 0.5GB of extra heap will suffice for many reasonable
+workloads, and you may need even less if your workload is very light while heavy
+workloads may require more.
 
-If the heap max size for a data node is not sufficient, consider
+As an example, consider the outputs above for a data node. The heap of the node
+will need at least:
+
+* 1 GB for the cluster state field information.
+
+* 1 GB for the additional estimated heap overhead for the fields of the data node.
+
+* 0.5 GB of extra heap for other overheads.
+
+Since the node has a 4GB heap max size in the example, it is thus sufficient
+for the total required heap of 2.5GB.
+
+If the heap max size for a node is not sufficient, consider
 <<avoid-unnecessary-fields,avoiding unnecessary fields>>,
 or scaling up the cluster, or redistributing index shards.
 
-Note that this rule defines the absolute maximum number of indices that a data
-node can manage, but does not guarantee the performance of searches or indexing
-involving this many indices. You must also ensure that your data nodes have
-adequate resources for your workload and that your overall sharding strategy
-meets all your performance requirements. See also <<single-thread-per-shard>>
-and <<each-shard-has-overhead>>.
+Note that the above rules do not necessarily guarantee the performance of
+searches or indexing involving a very high number of indices. You must also
+ensure that your data nodes have adequate resources for your workload and
+that your overall sharding strategy meets all your performance requirements.
+See also <<single-thread-per-shard>> and <<each-shard-has-overhead>>.
 
 [discrete]
 [[avoid-node-hotspots]]

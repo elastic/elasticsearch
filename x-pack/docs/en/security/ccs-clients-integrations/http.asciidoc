@@ -85,7 +85,7 @@ specific clients, refer to:
 
 * {java-api-client}/_basic_authentication.html[Java]
 * {jsclient-current}/auth-reference.html[JavaScript]
-* {es-dotnet-client}/configuration.html[.NET]
+* {es-dotnet-client}/configuration-options.html[.NET]
 * https://metacpan.org/pod/Search::Elasticsearch::Cxn::HTTPTiny#CONFIGURATION[Perl]
 * {es-php-client}/connecting.html[PHP]
 * https://elasticsearch-py.readthedocs.io/en/master/#ssl-and-authentication[Python]

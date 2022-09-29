@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -440,7 +441,7 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
-        if (Arrays.equals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
+        if (Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
             // Special placeholder for no indices.
             // We probably can short circuit this, but it's safer not to and just fall through to the regular authorization
             return false;

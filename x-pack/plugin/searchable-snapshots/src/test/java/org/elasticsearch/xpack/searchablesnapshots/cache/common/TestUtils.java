@@ -273,7 +273,7 @@ public final class TestUtils {
         }
 
         @Override
-        public void writeBlob(
+        public void writeMetadataBlob(
             String blobName,
             boolean failIfAlreadyExists,
             boolean atomic,

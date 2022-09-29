@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,6 +41,8 @@ public class AnalyticsBuilder {
     private final AnalyticsProcessConfig config;
     private final List<Path> filesToDelete;
     private boolean performMemoryUsageEstimationOnly;
+
+    private static final Logger logger = LogManager.getLogger(AnalyticsBuilder.class);
 
     public AnalyticsBuilder(
         Supplier<Path> tempDirPathSupplier,
@@ -86,8 +90,8 @@ public class AnalyticsBuilder {
             OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile), StandardCharsets.UTF_8);
             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()
         ) {
-
             config.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+            logger.info(Strings.toString(jsonBuilder));
             osw.write(Strings.toString(jsonBuilder));
         }
 

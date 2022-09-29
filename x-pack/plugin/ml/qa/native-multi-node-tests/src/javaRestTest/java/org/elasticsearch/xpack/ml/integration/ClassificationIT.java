@@ -779,6 +779,74 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(secondRunTrainingRowsIds, equalTo(firstRunTrainingRowsIds));
     }
 
+    public void testTwoJobsWithDifferentRandomizeSeedUseSameTrainingSet() throws Exception {
+        String sourceIndex = "classification_two_jobs_with_different_randomize_seed_source";
+        String dependentVariable = KEYWORD_FIELD;
+        String predictedClassField = dependentVariable + "_prediction";
+
+        createIndex(sourceIndex, false);
+        indexData(sourceIndex, 30, 0, dependentVariable);
+
+        String firstJobId = "classification_two_jobs_with_different_randomize_seed_1";
+        String firstJobDestIndex = firstJobId + "_dest";
+
+        BoostedTreeParams boostedTreeParams = BoostedTreeParams.builder()
+            .setLambda(1.0)
+            .setGamma(1.0)
+            .setEta(1.0)
+            .setFeatureBagFraction(0.5)
+            .setMaxTrees(2)
+            .build();
+
+        DataFrameAnalyticsConfig firstJob = buildAnalytics(
+            firstJobId,
+            sourceIndex,
+            firstJobDestIndex,
+            null,
+            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 100.0, null, null, null)
+        );
+        putAnalytics(firstJob);
+        startAnalytics(firstJobId);
+        waitUntilAnalyticsIsStopped(firstJobId);
+
+        Accuracy.Result firstJobAccuracyResult = evaluateAccuracy(
+            KEYWORD_FIELD,
+            KEYWORD_FIELD_VALUES,
+            "ml." + predictedClassField,
+            firstJobDestIndex
+        );
+
+        String secondJobId = "classification_two_jobs_with_different_randomize_seed_2";
+        String secondJobDestIndex = secondJobId + "_dest";
+
+        DataFrameAnalyticsConfig secondJob = buildAnalytics(
+            secondJobId,
+            sourceIndex,
+            secondJobDestIndex,
+            null,
+            new Classification(dependentVariable, boostedTreeParams, null, null, 1, 100.0, null, null, null)
+        );
+
+        putAnalytics(secondJob);
+        startAnalytics(secondJobId);
+        waitUntilAnalyticsIsStopped(secondJobId);
+        Accuracy.Result secondJobAccuracyResult = evaluateAccuracy(
+            KEYWORD_FIELD,
+            KEYWORD_FIELD_VALUES,
+            "ml." + predictedClassField,
+            secondJobDestIndex
+        );
+
+        // Now we compare they both used the same training rows
+        Set<String> firstRunTrainingRowsIds = getTrainingRowsIds(firstJobDestIndex);
+        Set<String> secondRunTrainingRowsIds = getTrainingRowsIds(secondJobDestIndex);
+
+        assertThat(secondRunTrainingRowsIds, equalTo(firstRunTrainingRowsIds));
+
+        // assertThat(firstJobAccuracyResult.getOverallAccuracy() != secondJobAccuracyResult.getOverallAccuracy());
+
+    }
+
     public void testSetUpgradeMode_ExistingTaskGetsUnassigned() throws Exception {
         initialize("classification_set_upgrade_mode");
         indexData(sourceIndex, 300, 0, KEYWORD_FIELD);
@@ -1334,6 +1402,29 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 assertThat(klass.getValue(), allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
             }
         }
+    }
+
+    private <T> Accuracy.Result evaluateAccuracy(
+        String dependentVariable,
+        List<T> dependentVariableValues,
+        String predictedClassField,
+        String destinationIndex
+    ) {
+        List<String> dependentVariableValuesAsStrings = dependentVariableValues.stream().map(String::valueOf).collect(toList());
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            destinationIndex,
+            new org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification(
+                dependentVariable,
+                predictedClassField,
+                null,
+                Arrays.asList(new Accuracy())
+            )
+        );
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Classification.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
+
+        Accuracy.Result accuracyResult = (Accuracy.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        return accuracyResult;
     }
 
     private String stateDocId() {

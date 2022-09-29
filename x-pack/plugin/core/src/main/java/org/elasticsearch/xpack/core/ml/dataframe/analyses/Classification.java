@@ -74,7 +74,6 @@ public class Classification implements DataFrameAnalysis {
 
     private static final Logger logger = LogManager.getLogger(Classification.class);
 
-
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<Classification, Void> createParser(boolean lenient) {
         ConstructingObjectParser<Classification, Void> parser = new ConstructingObjectParser<>(
@@ -214,8 +213,6 @@ public class Classification implements DataFrameAnalysis {
         this.featureProcessors = featureProcessors == null ? Collections.emptyList() : Collections.unmodifiableList(featureProcessors);
         // Early stopping is true by default
         this.earlyStoppingEnabled = earlyStoppingEnabled == null ? true : earlyStoppingEnabled;
-
-        logger.info("Classification randomize seed:" + this.randomizeSeed );
     }
 
     public Classification(String dependentVariable) {

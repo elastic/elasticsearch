@@ -1,0 +1,5 @@
+pr: 90529
+summary: Output a consistent format when generating error json
+area: Infra/REST API
+type: bug
+issues: []

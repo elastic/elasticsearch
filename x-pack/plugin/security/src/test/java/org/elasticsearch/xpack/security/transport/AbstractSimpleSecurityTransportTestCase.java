@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -121,7 +122,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("connect_exception"));
             assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
-            Throwable cause = e.getCause();
+            Throwable cause = ExceptionsHelper.unwrap(e, IOException.class);
             assertThat(cause, instanceOf(IOException.class));
         }
 

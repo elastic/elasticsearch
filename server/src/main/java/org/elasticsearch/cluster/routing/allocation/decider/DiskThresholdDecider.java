@@ -162,9 +162,11 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (subtractShardsMovingAway) {
             for (ShardRouting routing : node.relocating()) {
                 String actualPath = clusterInfo.getDataPath(routing);
+                // This branch is needed as the map key contains some information that might have changed (eg shard status)
+                // It could be removed once https://github.com/elastic/elasticsearch/issues/90109 is fixed
                 if (actualPath == null) {
                     // we might know the path of this shard from before when it was relocating
-                    actualPath = clusterInfo.getDataPath(routing.cancelRelocation());
+                    actualPath = clusterInfo.getDataPath(routing.asBeforeRelocation());
                 }
                 if (dataPath.equals(actualPath)) {
                     totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, null, metadata, routingTable);

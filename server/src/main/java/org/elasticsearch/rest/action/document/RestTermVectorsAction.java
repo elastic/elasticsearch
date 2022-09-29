@@ -32,7 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in term vector requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in term vector requests is deprecated.";
 
     @Override
     public List<Route> routes() {

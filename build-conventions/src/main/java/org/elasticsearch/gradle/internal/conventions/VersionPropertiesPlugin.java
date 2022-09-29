@@ -10,6 +10,8 @@ package org.elasticsearch.gradle.internal.conventions;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.initialization.IncludedBuild;
+import org.gradle.api.invocation.Gradle;
 import org.gradle.api.provider.Provider;
 
 import java.io.File;
@@ -18,13 +20,7 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        File workspaceDir;
-        if (project.getGradle().getIncludedBuilds().isEmpty()) {
-            // This is an included build, use the parent directory as workspace root
-            workspaceDir = project.getRootDir().getParentFile();
-        } else {
-            workspaceDir = project.getRootDir();
-        }
+        File workspaceDir = locateElasticsearchWorkspace(project.getGradle());
 
         // Register the service if not done yet
         File infoPath = new File(workspaceDir, "build-tools-internal");
@@ -33,5 +29,22 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
             spec.getParameters().getInfoPath().set(infoPath);
         });
         project.getExtensions().add("versions", serviceProvider.get().getProperties());
+    }
+
+    private static File locateElasticsearchWorkspace(Gradle project) {
+        if (project.getParent() == null) {
+            // See if "elasticsearch" is one of the included builds, if so use that project directory
+            for (IncludedBuild includedBuild : project.getIncludedBuilds()) {
+                if (includedBuild.getName().equals("elasticsearch")) {
+                    return includedBuild.getProjectDir();
+                }
+            }
+
+            // Otherwise assume this project is the root elasticsearch workspace
+            return project.getRootProject().getRootDir();
+        } else {
+            // We're an included build, so keep looking
+            return locateElasticsearchWorkspace(project.getParent());
+        }
     }
 }

@@ -53,26 +53,25 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
             // can still be an unresolved date math expression
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(bulkShardRequest.index());
             // TODO replace if condition with assertion
-            if (indexAccessControl != null) {
-                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+            if (indexAccessControl != null
+                && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
+                    || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())
+                && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) // the feature usage checker is a "last-ditch"
+                                                                                      // verification, it doesn't have practical importance
+            ) {
                 for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
                     boolean found = false;
                     if (bulkItemRequest.request() instanceof UpdateRequest) {
-                        boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                        boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                        // the feature usage checker is a "last-ditch" verification, it doesn't have practical importance
-                        if ((fls || dls) && isDlsLicensed) {
-                            found = true;
-                            logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
-                            bulkItemRequest.abort(
-                                bulkItemRequest.index(),
-                                new ElasticsearchSecurityException(
-                                    "Can't execute a bulk "
-                                        + "item request with update requests embedded if field or document level security is enabled",
-                                    RestStatus.BAD_REQUEST
-                                )
-                            );
-                        }
+                        found = true;
+                        logger.trace("aborting bulk item update request for index [{}]", bulkShardRequest.index());
+                        bulkItemRequest.abort(
+                            bulkItemRequest.index(),
+                            new ElasticsearchSecurityException(
+                                "Can't execute a bulk "
+                                    + "item request with update requests embedded if field or document level security is enabled",
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
                     }
                     if (found == false) {
                         logger.trace(

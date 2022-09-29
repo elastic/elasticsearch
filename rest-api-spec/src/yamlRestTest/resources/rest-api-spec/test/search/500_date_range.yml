@@ -112,7 +112,7 @@ setup:
           query:
             match:
               date:
-                query: 2022
+                query: "1500"
 
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }

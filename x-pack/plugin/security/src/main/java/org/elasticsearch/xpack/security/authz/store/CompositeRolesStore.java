@@ -479,7 +479,7 @@ public class CompositeRolesStore {
                 );
             } else {
                 indicesPrivilegesMapForCluster.forEach(
-                    (key, privilege) -> builder.add(
+                    (key, privilege) -> builder.addRemoteGroup(
                         targetClusters,
                         fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                         privilege.query,
@@ -503,7 +503,7 @@ public class CompositeRolesStore {
                 );
             } else {
                 indicesPrivilegesMapForCluster.forEach(
-                    (key, privilege) -> builder.add(
+                    (key, privilege) -> builder.addRemoteGroup(
                         targetClusters,
                         fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                         privilege.query,

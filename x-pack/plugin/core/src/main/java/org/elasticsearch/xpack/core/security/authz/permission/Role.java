@@ -253,7 +253,7 @@ public interface Role {
             return this;
         }
 
-        public Builder add(
+        public Builder addRemoteGroup(
             Set<String> targetClusters,
             FieldPermissions fieldPermissions,
             Set<BytesReference> query,

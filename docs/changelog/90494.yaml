@@ -10,6 +10,7 @@ highlight:
 
     The type has been corrected to `half_float`. You can force a rollover to see the change immediately or wait for the next ILM rollover.
 
-    ```
+    [source,console]
+    ----
     POST .monitoring-logstash-8-mb/_rollover
-    ```
+    ----

@@ -8,7 +8,7 @@ is different from Groovy which uses the
 {wikipedia}/Multiple_dispatch[runtime types] of the
 parameters and Java which uses the compile time types of the parameters.
 
-The consequence of this that Painless doesn't support overloaded methods like
+The consequence of this is that Painless doesn't support overloaded methods like
 Java, leading to some trouble when it allows classes from the Java
 standard library. For example, in Java and Groovy, `Matcher` has two methods:
 `group(int)` and `group(String)`. Painless can't allow both of these methods

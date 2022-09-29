@@ -303,7 +303,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     private static void toXContentNode(String fieldName, XContentBuilder builder, DiscoveryNode node) throws IOException {
-        builder.field(fieldName);
+        builder.startObject(fieldName);
         builder.field(Fields.ID, node.getId());
         builder.field(Fields.HOST, node.getHostName());
         builder.field(Fields.TRANSPORT_ADDRESS, node.getAddress().toString());

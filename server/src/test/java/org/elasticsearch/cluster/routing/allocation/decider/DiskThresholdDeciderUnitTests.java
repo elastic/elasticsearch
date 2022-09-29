@@ -223,7 +223,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Decision decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.NO, decision.type());
 
-        double usedPercentage = 100.0 * (totalBytes - freeBytes) / totalBytes;
+        double usedPercentage = 100.0 - (100.0 * freeBytes / totalBytes);
 
         assertThat(
             decision.getExplanation(),

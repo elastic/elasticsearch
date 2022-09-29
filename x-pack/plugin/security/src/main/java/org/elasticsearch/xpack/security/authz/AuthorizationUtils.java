@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
@@ -181,6 +182,14 @@ public final class AuthorizationUtils {
             return;
         }
 
+        final Role role = RBACEngine.maybeGetRBACEngineRole(parentContext.getAuthorizationInfo());
+        // For simplicity, we only pre-authorize actions when FLS and DLS are not configured, otherwise we would have to compute and send
+        // indices access control as well, which we want to avoid with this optimization.
+        // If role is null, it means a custom authorization engine is in use, hence we cannot do the optimization here.
+        if (role == null || role.hasFieldOrDocumentLevelSecurity()) {
+            return;
+        }
+
         if (childAction.startsWith(parentContext.getAction()) == false) {
             // Parent action is not a true parent
             // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]')
@@ -214,9 +223,11 @@ public final class AuthorizationUtils {
         }
 
         try {
-            Optional<ParentIndexActionAuthorization> existingParentAuthorization = Optional.ofNullable(ParentIndexActionAuthorization.readFromThreadContext(threadContext));
-            if(existingParentAuthorization.isPresent()){
-                if(existingParentAuthorization.get().action().equals(parentContext.getAction())) {
+            Optional<ParentIndexActionAuthorization> existingParentAuthorization = Optional.ofNullable(
+                ParentIndexActionAuthorization.readFromThreadContext(threadContext)
+            );
+            if (existingParentAuthorization.isPresent()) {
+                if (existingParentAuthorization.get().action().equals(parentContext.getAction())) {
                     // Single request can fan-out a child action to multiple nodes in the cluster, e.g. node1 and node2.
                     // Sending a child action to node1 would have already put parent authorization in the thread context.
                     // To avoid attempting to pre-authorize the same parent action twice we simply return here
@@ -234,6 +245,7 @@ public final class AuthorizationUtils {
                     );
                 }
             } else {
+                logger.info("Pre-authorizing child action [" + childAction + "] of parent action [" + parentContext.getAction() + "]");
                 new ParentIndexActionAuthorization(
                     Version.CURRENT,
                     parentContext.getAction(),

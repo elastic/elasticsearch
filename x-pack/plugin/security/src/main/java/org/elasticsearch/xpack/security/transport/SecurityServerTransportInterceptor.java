@@ -34,7 +34,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -138,16 +137,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                     new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
                                     sender
                                 );
-                            };
+                            }
                         }, minVersion);
-                } else {
-                    // We need to store the thread context here as we pollute the context with pre-authorization
-                    // which we only want to keep for a single transport request.
-                    try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
-                        maybePreAuthorizeChildAction(connection.getNode(), action, request);
-                        sendWithUser(connection, action, request, options, handler, sender);
-                    };
-                }
+                    } else {
+                        // We need to store the thread context here as we pollute the context with pre-authorization
+                        // which we only want to keep for a single transport request.
+                        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
+                            maybePreAuthorizeChildAction(connection.getNode(), action, request);
+                            sendWithUser(connection, action, request, options, handler, sender);
+                        }
+                    }
             }
         };
     }

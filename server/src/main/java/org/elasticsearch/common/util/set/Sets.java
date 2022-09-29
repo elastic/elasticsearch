@@ -26,6 +26,9 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 public final class Sets {
     private Sets() {}
@@ -225,5 +228,26 @@ public final class Sets {
             right = set1;
         }
         return left.stream().filter(right::contains).collect(Collectors.toSet());
+    }
+
+    /**
+     * Creates a copy of the given set and adds extra element.
+     *
+     * @param set     set to copy
+     * @param element element to add
+     */
+    public static <E> Set<E> addToCopy(Set<E> set, E element) {
+        return Stream.concat(set.stream(), Stream.of(element)).collect(toUnmodifiableSet());
+    }
+
+    /**
+     * Creates a copy of the given set and adds extra elements.
+     *
+     * @param set      set to copy
+     * @param elements elements to add
+     */
+    @SuppressWarnings("unchecked")
+    public static <E> Set<E> addToCopy(Set<E> set, E... elements) {
+        return Stream.concat(set.stream(), Stream.of(elements)).collect(toUnmodifiableSet());
     }
 }

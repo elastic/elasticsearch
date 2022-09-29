@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.common.util.CollectionUtils.addToCopy;
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;

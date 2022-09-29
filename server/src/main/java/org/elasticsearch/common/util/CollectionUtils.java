@@ -18,7 +18,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.ListIterator;
@@ -210,31 +209,6 @@ public class CollectionUtils {
         final E[] array = collection.toArray((E[]) new Object[size]);
         array[size - 1] = element;
         return Collections.unmodifiableList(Arrays.asList(array));
-    }
-
-    /**
-     * Creates a copy of the given set and adds extra element.
-     *
-     * @param set     set to copy
-     * @param element element to add
-     */
-    public static <E> Set<E> addToCopy(Set<E> set, E element) {
-        var copy = new HashSet<E>(set);
-        copy.add(element);
-        return Collections.unmodifiableSet(copy);
-    }
-
-    /**
-     * Creates a copy of the given set and adds extra elements.
-     *
-     * @param set      set to copy
-     * @param elements elements to add
-     */
-    @SuppressWarnings("unchecked")
-    public static <E> Set<E> addToCopy(Set<E> set, E... elements) {
-        var copy = new HashSet<>(set);
-        copy.addAll(Arrays.asList(elements));
-        return Collections.unmodifiableSet(copy);
     }
 
     /**

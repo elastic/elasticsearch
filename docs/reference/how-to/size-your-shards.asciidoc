@@ -230,6 +230,7 @@ Ensure each node has enough heap for mappings, and also allow
 extra space for overheads associated with its workload. The following sections
 show how to determine these heap requirements.
 
+[discrete]
 ===== Mapping metadata in the cluster state
 
 Each node in the cluster has a copy of the <<cluster-state-api-desc,cluster state>>.
@@ -260,6 +261,7 @@ This will show you information like in this example output:
 // TESTRESPONSE[s/"total_deduplicated_mapping_size": "1gb"/"total_deduplicated_mapping_size": $body.$_path/]
 // TESTRESPONSE[s/"total_deduplicated_mapping_size_in_bytes": 1073741824/"total_deduplicated_mapping_size_in_bytes": $body.$_path/]
 
+[discrete]
 ===== Getting the max heap and any additional field overhead per node
 
 You can use the <<cluster-nodes-stats,Nodes stats API>> to get two relevant metrics
@@ -309,6 +311,7 @@ For each node, this will show you information like in this example output:
 // TESTRESPONSE[s/"heap_max": "4gb"/"heap_max": $body.$_path/]
 // TESTRESPONSE[s/"heap_max_in_bytes": 4294967296/"heap_max_in_bytes": $body.$_path/]
 
+[discrete]
 ===== Consider additional heap overheads
 
 Apart from the two field overhead metrics above, you must additionally allow
@@ -317,7 +320,8 @@ searches and aggregations. 0.5GB of extra heap will suffice for many reasonable
 workloads, and you may need even less if your workload is very light while heavy
 workloads may require more.
 
-==== Example
+[discrete]
+===== Example
 
 As an example, consider the outputs above for a data node. The heap of the node
 will need at least:

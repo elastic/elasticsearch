@@ -7,7 +7,22 @@ In order to increase the data node capacity in your cluster:
 . On the **Elasticsearch Service** panel, click the name of your deployment.
 +
 
-Enable autoscaling
+NOTE: If the name of your deployment is disabled your {kib} instances might be
+unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
+If your deployment doesn't include {kib}, all you need to do is
+{cloud}/ec-access-kibana.html[enable it first].
+
+. Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
+and go to **Manage this deployment**.
+
+. If autoscaling is available but not enabled you will see a banner like the one below. Click the button
+`Enable autoscaling` to allow elasticsearch to scale to fit your needs.
+
+[role="screenshot"]
+image::images/troubleshooting/disk/autoscaling_banner.png[Autoscaling banner,align="center"]
+
+. If autoscaling has succeeded the cluster should return to `healthy` status. If the autoscaling failed ...
+
 // end::cloud[]
 
 // tag::self-managed[]

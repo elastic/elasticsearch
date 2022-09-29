@@ -131,7 +131,11 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             inferenceTimeout = in.readOptionalTimeValue();
             knnSearchBuilder = new KnnSearchBuilder(in);
             embeddingConfig = in.readOptionalWriteable(TextEmbeddingConfigUpdate::new);
-            filters = in.readNamedWriteableList(QueryBuilder.class);
+            if (in.readBoolean()) {
+                filters = in.readNamedWriteableList(QueryBuilder.class);
+            } else {
+                filters = null;
+            }
             fetchSource = in.readOptionalWriteable(FetchSourceContext::readFrom);
             fields = in.readOptionalList(FieldAndFormat::new);
             docValueFields = in.readOptionalList(FieldAndFormat::new);
@@ -176,7 +180,12 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             out.writeOptionalTimeValue(inferenceTimeout);
             knnSearchBuilder.writeTo(out);
             out.writeOptionalWriteable(embeddingConfig);
-            out.writeNamedWriteableList(filters);
+            if (filters != null) {
+                out.writeBoolean(true);
+                out.writeNamedWriteableList(filters);
+            } else {
+                out.writeBoolean(false);
+            }
             out.writeOptionalWriteable(fetchSource);
             out.writeOptionalCollection(fields);
             out.writeOptionalCollection(docValueFields);

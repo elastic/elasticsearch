@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class PyTorchModelRestTestCase extends ESRestTestCase {
+public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
 
     protected static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(
         "x_pack_rest_user",

@@ -45,7 +45,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     private static final ConstructingObjectParser<KnnSearchBuilder, Void> STRICT_PARSER = createParser(true);
     private static final ConstructingObjectParser<KnnSearchBuilder, Void> SEMANTIC_SEARCH_PARSER = createParser(false);
 
-
     private static ConstructingObjectParser<KnnSearchBuilder, Void> createParser(boolean includeVectorField) {
         ConstructingObjectParser<KnnSearchBuilder, Void> parser = new ConstructingObjectParser<>("knn", args -> {
             if (includeVectorField) {

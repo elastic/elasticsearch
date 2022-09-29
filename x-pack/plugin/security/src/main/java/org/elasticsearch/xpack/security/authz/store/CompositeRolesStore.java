@@ -621,65 +621,47 @@ public class CompositeRolesStore {
             final boolean allowsRestrictedIndices,
             final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteIndicesPrivilegesMap
         ) {
-            for (var indicesPrivilege : indicesPrivileges) {
+            // if an index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
+            // merging
+            final boolean isExplicitDenial = indicesPrivileges.length == 1
+                && "none".equalsIgnoreCase(indicesPrivileges[0].getPrivileges()[0]);
+            if (isExplicitDenial) {
+                return;
+            }
+            for (final IndicesPrivileges indicesPrivilege : indicesPrivileges) {
+                if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
+                    continue;
+                }
                 final var targetClusters = indicesPrivilege.getTargetClusters() == null
                     ? LOCAL_CLUSTER_KEY
                     : newHashSet(indicesPrivilege.getTargetClusters());
                 if (false == remoteIndicesPrivilegesMap.containsKey(targetClusters)) {
                     remoteIndicesPrivilegesMap.put(targetClusters, new HashMap<>());
                 }
-                collatePrivilegesByIndices(indicesPrivilege, allowsRestrictedIndices, remoteIndicesPrivilegesMap.get(targetClusters));
-            }
-        }
-
-        private static void collatePrivilegesByIndices(
-            IndicesPrivileges[] indicesPrivileges,
-            boolean allowsRestrictedIndices,
-            Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
-        ) {
-            for (final IndicesPrivileges indicesPrivilege : indicesPrivileges) {
-                // if a index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
-                // merging
-                final boolean isExplicitDenial = indicesPrivileges.length == 1
-                    && "none".equalsIgnoreCase(indicesPrivilege.getPrivileges()[0]);
-                if (isExplicitDenial) {
-                    continue;
-                }
-                collatePrivilegesByIndices(indicesPrivilege, allowsRestrictedIndices, indicesPrivilegesMap);
-            }
-        }
-
-        private static void collatePrivilegesByIndices(
-            IndicesPrivileges indicesPrivilege,
-            boolean allowsRestrictedIndices,
-            Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
-        ) {
-            if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
-                return;
-            }
-            final Set<String> key = newHashSet(indicesPrivilege.getIndices());
-            indicesPrivilegesMap.compute(key, (k, value) -> {
-                if (value == null) {
-                    return new MergeableIndicesPrivilege(
-                        indicesPrivilege.getIndices(),
-                        indicesPrivilege.getPrivileges(),
-                        indicesPrivilege.getGrantedFields(),
-                        indicesPrivilege.getDeniedFields(),
-                        indicesPrivilege.getQuery()
-                    );
-                } else {
-                    value.merge(
-                        new MergeableIndicesPrivilege(
+                final Set<String> key = newHashSet(indicesPrivilege.getIndices());
+                remoteIndicesPrivilegesMap.get(targetClusters).compute(key, (k, value) -> {
+                    if (value == null) {
+                        return new MergeableIndicesPrivilege(
                             indicesPrivilege.getIndices(),
                             indicesPrivilege.getPrivileges(),
                             indicesPrivilege.getGrantedFields(),
                             indicesPrivilege.getDeniedFields(),
                             indicesPrivilege.getQuery()
-                        )
-                    );
-                    return value;
-                }
-            });
+                        );
+                    } else {
+                        value.merge(
+                            new MergeableIndicesPrivilege(
+                                indicesPrivilege.getIndices(),
+                                indicesPrivilege.getPrivileges(),
+                                indicesPrivilege.getGrantedFields(),
+                                indicesPrivilege.getDeniedFields(),
+                                indicesPrivilege.getQuery()
+                            )
+                        );
+                        return value;
+                    }
+                });
+            }
         }
     }
 

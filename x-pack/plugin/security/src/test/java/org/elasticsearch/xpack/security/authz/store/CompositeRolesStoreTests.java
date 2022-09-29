@@ -1063,11 +1063,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     .privileges("all")
                     .targetClusters("remote-*")
                     .build(),
-                IndicesPrivileges.builder()
-                    .indices("remote-abc-*", "other-remote")
-                    .privileges("all")
-                    .targetClusters("remote1")
-                    .build(), },
+                IndicesPrivileges.builder().indices("remote-abc-*", "other-remote").privileges("all").targetClusters("remote1").build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("app2a").resources("*").privileges("all").build(),
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("app2b").resources("*").privileges("read").build() },
@@ -1149,6 +1145,48 @@ public class CompositeRolesStoreTests extends ESTestCase {
         role.application().grants(new ApplicationPrivilege("app1", "app1-read", "read"), "settings/hostname");
         role.application().grants(new ApplicationPrivilege("app2a", "app2a-all", "all"), "user/joe");
         role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
+    }
+
+    public void testMergingRolesWithOnlyTargetClusters() {
+        RoleDescriptor role1 = new RoleDescriptor(
+            "r1",
+            null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("remote-abc-*", "xyz-*").privileges("all").targetClusters("remote-*").build(),
+                IndicesPrivileges.builder()
+                    .indices("abc-*", "remote-xyz-*")
+                    .privileges("all")
+                    .targetClusters("remote1-*", "remote-*")
+                    .build(), },
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        PlainActionFuture<Role> future = new PlainActionFuture<>();
+        final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            Sets.newHashSet(role1),
+            cache,
+            privilegeStore,
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            future
+        );
+        Role role = future.actionGet();
+
+        final Predicate<IndexAbstraction> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
+        assertThat(allowedRead.test(mockIndexAbstraction("abc-123")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("xyz-000")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction(randomAlphaOfLengthBetween(2, 10))), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
+
+        assertThat(role.remoteIndices("remote1-1"), not(empty()));
+        assertThat(role.remoteIndices("remote-a"), not(empty()));
+        assertThat(role.remoteIndices(randomAlphaOfLengthBetween(2, 10)), empty());
     }
 
     public void testCustomRolesProviderFailures() throws Exception {

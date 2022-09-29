@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -383,7 +385,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     }
 
     public void testAddNewFollowingReplica() throws Exception {
-        final byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+        final BytesReference source = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
         final int numDocs = between(1, 100);
         final List<Translog.Operation> operations = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {

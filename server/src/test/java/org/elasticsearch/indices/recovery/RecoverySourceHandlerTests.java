@@ -1955,13 +1955,21 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
     private static List<Translog.Operation> generateOperations(int numOps) {
         final List<Translog.Operation> operations = new ArrayList<>(numOps);
-        final byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+        final BytesArray source = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
         final Set<Long> seqNos = new HashSet<>();
         for (int i = 0; i < numOps; i++) {
             final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, ESTestCase::randomNonNegativeLong);
             final Translog.Operation op;
             if (randomBoolean()) {
-                op = new Translog.Index("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
+                op = new Translog.Index(
+                    "id",
+                    seqNo,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    source,
+                    randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
+                    randomNonNegativeLong()
+                );
             } else if (randomBoolean()) {
                 op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
             } else {

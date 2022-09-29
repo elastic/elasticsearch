@@ -51,6 +51,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
@@ -127,7 +128,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -2857,7 +2857,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         0,
                         primary.getPendingPrimaryTerm(),
                         1,
-                        "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")),
+                        new BytesArray("{\"foo\" : \"bar\"}".getBytes(StandardCharsets.UTF_8)),
                         null,
                         -1
                     )
@@ -2870,7 +2870,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         1,
                         primary.getPendingPrimaryTerm(),
                         1,
-                        "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")),
+                        new BytesArray("{\"foo\" : \"bar}".getBytes(StandardCharsets.UTF_8)),
                         null,
                         -1
                     )
@@ -4277,7 +4277,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         0,
                         shard.getPendingPrimaryTerm(),
                         1,
-                        "{\"foo\" : \"bar\"}".getBytes(StandardCharsets.UTF_8),
+                        new BytesArray("{\"foo\" : \"bar\"}".getBytes(StandardCharsets.UTF_8)),
                         null,
                         -1
                     )
@@ -4290,7 +4290,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         0,
                         shard.getPendingPrimaryTerm(),
                         1,
-                        "{\"foo\" : \"bar}".getBytes(StandardCharsets.UTF_8),
+                        new BytesArray("{\"foo\" : \"bar}".getBytes(StandardCharsets.UTF_8)),
                         null,
                         -1
                     )

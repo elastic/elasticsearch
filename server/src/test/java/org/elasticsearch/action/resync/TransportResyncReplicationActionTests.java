@@ -186,7 +186,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     shardId,
                     42L,
                     100,
-                    new Translog.Operation[] { new Translog.Index("id", 0, primaryTerm, 0L, bytes, null, -1) }
+                    new Translog.Operation[] { new Translog.Index("id", 0, primaryTerm, bytes) }
                 );
 
                 final PlainActionFuture<ResyncReplicationResponse> listener = new PlainActionFuture<>();

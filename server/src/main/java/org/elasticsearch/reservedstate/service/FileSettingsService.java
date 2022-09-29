@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -57,6 +58,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
+    private static final int REGISTER_RETRY_COUNT = 5;
 
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
@@ -382,16 +384,37 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException {
+    // package private for testing
+    long retryDelayMillis(int failedCount) {
+        assert failedCount < 31;
+        return 10 * (1 << failedCount) + Randomness.get().nextInt(10);
+    }
+
+    // package private for testing
+    WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
         if (previousKey != null) {
             previousKey.cancel();
         }
-        return settingsDir.register(
-            watchService,
-            StandardWatchEventKinds.ENTRY_MODIFY,
-            StandardWatchEventKinds.ENTRY_CREATE,
-            StandardWatchEventKinds.ENTRY_DELETE
-        );
+        WatchKey watchKey = null;
+
+        for (int i = 0; i < REGISTER_RETRY_COUNT; i++) {
+            try {
+                watchKey = settingsDir.register(
+                    watchService,
+                    StandardWatchEventKinds.ENTRY_MODIFY,
+                    StandardWatchEventKinds.ENTRY_CREATE,
+                    StandardWatchEventKinds.ENTRY_DELETE
+                );
+                break;
+            } catch (IOException e) {
+                if (i == REGISTER_RETRY_COUNT - 1) {
+                    throw e;
+                }
+                Thread.sleep(retryDelayMillis(i));
+            }
+        }
+
+        return watchKey;
     }
 
     CountDownLatch processFileSettings(Path path, Consumer<Exception> errorHandler) {

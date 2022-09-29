@@ -241,7 +241,7 @@ public class RestNodesAction extends AbstractCatAction {
         );
         table.addCell(
             "refresh.listeners",
-            "alias:rli,refreshListeners;default:false;text-align:right;" + "desc:number of pending refresh listeners"
+            "alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners"
         );
 
         table.addCell("script.compilations", "alias:scrcc,scriptCompilations;default:false;text-align:right;desc:script compilations");

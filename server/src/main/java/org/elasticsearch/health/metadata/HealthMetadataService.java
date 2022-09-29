@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -142,7 +143,7 @@ public class HealthMetadataService {
         // We do not use the cluster state to check if this is the master node because the cluster state might not have been initialized
         if (isMaster && enabled) {
             ClusterState clusterState = clusterService.state();
-            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
+            if (clusterState.nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
                 var task = new UpdateHealthMetadata(setting, value);
                 var config = ClusterStateTaskConfig.build(Priority.NORMAL);
                 clusterService.submitStateUpdateTask("health-metadata-update", task, config, executor);
@@ -175,19 +176,15 @@ public class HealthMetadataService {
 
         abstract ClusterState execute(ClusterState currentState);
 
-        static class Executor implements ClusterStateTaskExecutor<UpsertHealthMetadataTask> {
+        static class Executor extends SimpleBatchedExecutor<UpsertHealthMetadataTask> {
 
             @Override
-            public ClusterState execute(BatchExecutionContext<UpsertHealthMetadataTask> batchExecutionContext) throws Exception {
-                ClusterState updatedState = batchExecutionContext.initialState();
-                for (TaskContext<UpsertHealthMetadataTask> taskContext : batchExecutionContext.taskContexts()) {
-                    try (var ignored = taskContext.captureResponseHeaders()) {
-                        updatedState = taskContext.getTask().execute(updatedState);
-                    }
-                    taskContext.success(() -> {});
-                }
-                return updatedState;
+            public ClusterState executeTask(UpsertHealthMetadataTask task, ClusterState clusterState) {
+                return task.execute(clusterState);
             }
+
+            @Override
+            public void taskSucceeded(UpsertHealthMetadataTask task) {}
         }
     }
 

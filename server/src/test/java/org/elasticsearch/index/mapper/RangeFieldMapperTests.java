@@ -40,6 +40,14 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));

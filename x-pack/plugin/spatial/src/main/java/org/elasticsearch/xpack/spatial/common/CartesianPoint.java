@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.spatial.common;
 
+import org.apache.lucene.geo.XYEncodingUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GenericPointParser;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
@@ -29,7 +31,7 @@ import java.util.Objects;
 /**
  * Represents a point in the cartesian space.
  */
-public class CartesianPoint implements ToXContentFragment {
+public class CartesianPoint implements SpatialPoint, ToXContentFragment {
 
     private static final String X_FIELD = "x";
     private static final String Y_FIELD = "y";
@@ -45,10 +47,31 @@ public class CartesianPoint implements ToXContentFragment {
         this.y = y;
     }
 
+    public CartesianPoint(SpatialPoint template) {
+        this(template.getX(), template.getY());
+    }
+
     public CartesianPoint reset(double x, double y) {
         this.x = x;
         this.y = y;
         return this;
+    }
+
+    public CartesianPoint resetX(double x) {
+        this.x = x;
+        return this;
+    }
+
+    public CartesianPoint resetY(double y) {
+        this.y = y;
+        return this;
+    }
+
+    public CartesianPoint resetFromEncoded(long encoded) {
+        // TODO add this method to SpatialPoint interface, allowing more code de-duplication
+        final double x = XYEncodingUtils.decode((int) (encoded >>> 32));
+        final double y = XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFF));
+        return reset(x, y);
     }
 
     public CartesianPoint resetFromString(String value, final boolean ignoreZValue) {
@@ -123,10 +146,12 @@ public class CartesianPoint implements ToXContentFragment {
         return reset(point.getX(), point.getY());
     }
 
+    @Override
     public double getX() {
         return this.x;
     }
 
+    @Override
     public double getY() {
         return this.y;
     }

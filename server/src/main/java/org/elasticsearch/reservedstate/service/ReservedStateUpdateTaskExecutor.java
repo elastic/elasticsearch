@@ -12,15 +12,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.BatchedSimpleTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.Tuple;
 
 /**
  * Reserved cluster state update task executor
  */
-public class ReservedStateUpdateTaskExecutor extends BatchedSimpleTaskExecutor<ReservedStateUpdateTask> {
+public class ReservedStateUpdateTaskExecutor extends SimpleBatchedExecutor<ReservedStateUpdateTask, Void> {
 
     private static final Logger logger = LogManager.getLogger(ReservedStateUpdateTaskExecutor.class);
 
@@ -32,12 +33,12 @@ public class ReservedStateUpdateTaskExecutor extends BatchedSimpleTaskExecutor<R
     }
 
     @Override
-    public ClusterState executeSimpleTask(ReservedStateUpdateTask task, ClusterState clusterState) {
-        return task.execute(clusterState);
+    public Tuple<ClusterState, Void> executeTask(ReservedStateUpdateTask task, ClusterState clusterState) {
+        return Tuple.tuple(task.execute(clusterState), null);
     }
 
     @Override
-    public void taskSucceeded(ReservedStateUpdateTask task) {
+    public void taskSucceeded(ReservedStateUpdateTask task, Void unused) {
         task.listener().onResponse(ActionResponse.Empty.INSTANCE);
     }
 

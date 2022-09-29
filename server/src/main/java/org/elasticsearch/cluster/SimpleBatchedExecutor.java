@@ -16,7 +16,7 @@ import org.elasticsearch.core.Tuple;
  * This allows executing the tasks in the batch as a series of executions, each taking an input cluster state
  * and producing a new cluster state that serves as the input of the next task in the batch.
  */
-public abstract class BatchedTaskExecutor<Task extends ClusterStateTaskListener, TaskResult> implements ClusterStateTaskExecutor<Task> {
+public abstract class SimpleBatchedExecutor<Task extends ClusterStateTaskListener, TaskResult> implements ClusterStateTaskExecutor<Task> {
 
     /**
      * Executes the provided task from the batch.
@@ -25,7 +25,7 @@ public abstract class BatchedTaskExecutor<Task extends ClusterStateTaskListener,
      * @param clusterState    The cluster state on which the task should be executed.
      * @return A tuple consisting of the resulting cluster state after executing this task, and the result of the task execution.
      * The returned cluster state serves as the cluster state on which the next task in the batch will run. The returned
-     * task result is provided to the {@link BatchedTaskExecutor#taskSucceeded} implementation.
+     * task result is provided to the {@link SimpleBatchedExecutor#taskSucceeded} implementation.
      */
     public abstract Tuple<ClusterState, TaskResult> executeTask(Task task, ClusterState clusterState) throws Exception;
 

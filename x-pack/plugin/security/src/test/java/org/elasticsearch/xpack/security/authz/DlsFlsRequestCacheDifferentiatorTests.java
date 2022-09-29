@@ -19,7 +19,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -69,8 +68,7 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         final DocumentPermissions documentPermissions1 = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
             {"term":{"number":1}}""")));
 
-        threadContext.putTransient(
-            AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
+        securityContext.putIndicesAccessControl(
             new IndicesAccessControl(
                 true,
                 Map.of(

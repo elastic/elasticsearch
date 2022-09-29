@@ -23,7 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -177,7 +177,8 @@ public class OptOutQueryCacheTests extends ESTestCase {
         when(indexAccessControl.getFieldPermissions()).thenReturn(new FieldPermissions());
         final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
         when(indicesAccessControl.getIndexPermissions("index")).thenReturn(indexAccessControl);
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+        when(indicesAccessControl.isGranted()).thenReturn(true);
+        new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(indicesAccessControl);
         final OptOutQueryCache cache = new OptOutQueryCache(indexMetadata.getIndex(), indicesQueryCache, threadContext);
         final Weight weight = mock(Weight.class);
         final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);

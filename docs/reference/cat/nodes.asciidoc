@@ -318,7 +318,7 @@ Number of suggest operations, such as `0`.
 `mappings.total_count`, `mtc`, `mappingsTotalCount`::
 Number of mappings, including <<runtime,runtime>> and <<object,object>> fields.
 
-`mappings.total_estimated_overhead_in_bytes`, `mteoi`, `mappingsTotalEstimatedOverheadInBytes`::
+`mappings.total_estimated_overhead_in_bytes`, `mteo`, `mappingsTotalEstimatedOverheadInBytes`::
 Estimated heap overhead, in bytes, of mappings on this node, which allows for 1KiB of heap for every mapped field.
 --
 

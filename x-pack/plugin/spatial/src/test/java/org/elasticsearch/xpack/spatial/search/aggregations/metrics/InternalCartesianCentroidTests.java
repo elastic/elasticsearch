@@ -27,6 +27,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,8 +56,8 @@ public class InternalCartesianCentroidTests extends InternalAggregationTestCase<
     protected InternalCartesianCentroid createTestInstance(String name, Map<String, Object> metadata) {
         Point point = ShapeTestUtils.randomPoint(false);
         CartesianPoint centroid = new CartesianPoint(point.getX(), point.getY());
-        // TODO: investigate need for encode/decode to prevent hashcode test failures
-
+        // Unlike InternalGeoCentroid, we do not need to encode/decode to handle hashcode test failures,
+        // but we do need to treat zero values with care. See the mutate function below for details on that
         long count = randomIntBetween(0, 1000);
         if (count == 0) {
             centroid = null;
@@ -92,13 +94,6 @@ public class InternalCartesianCentroidTests extends InternalAggregationTestCase<
         assertThat(sampled.centroid().getY(), closeTo(reduced.centroid().getY(), Math.abs(reduced.centroid().getY() / 1e10)));
         assertThat(sampled.centroid().getX(), closeTo(reduced.centroid().getX(), Math.abs(reduced.centroid().getX() / 1e10)));
         assertEquals(sampled.count(), samplingContext.scaleUp(reduced.count()), 0);
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90474")
-    @Override
-    public void testEqualsAndHashcode() {
-        // TODO: When this issue is fixed, remove this method and set the parent method back to final
-        super.testEqualsAndHashcode();
     }
 
     public void testReduceMaxCount() {
@@ -152,9 +147,9 @@ public class InternalCartesianCentroidTests extends InternalAggregationTestCase<
                 } else {
                     CartesianPoint newCentroid = new CartesianPoint(centroid);
                     if (randomBoolean()) {
-                        newCentroid.resetY(centroid.getY() / 2.0);
+                        mutateCoordinate(centroid::getY, newCentroid::resetY);
                     } else {
-                        newCentroid.resetX(centroid.getX() / 2.0);
+                        mutateCoordinate(centroid::getX, newCentroid::resetX);
                     }
                     centroid = newCentroid;
                 }
@@ -170,5 +165,18 @@ public class InternalCartesianCentroidTests extends InternalAggregationTestCase<
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalCartesianCentroid(name, centroid, count, metadata);
+    }
+
+    /**
+     * The previous mutation of dividing by 2.0 left zero values unchanged, leading to lack of mutation.
+     * Now we act differently on small values to ensure that mutation actually occurs.
+     */
+    private void mutateCoordinate(Supplier<Double> getter, Consumer<Double> setter) {
+        double coordinate = getter.get();
+        if (Math.abs(coordinate) < 1e-6) {
+            setter.accept(coordinate + 1.0);
+        } else {
+            setter.accept(coordinate / 2.0);
+        }
     }
 }

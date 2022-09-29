@@ -5,10 +5,10 @@
 <titleabbrev>Enable user profile</titleabbrev>
 ++++
 
-NOTE: The user profile feature is designed for indirect use through {kib} and
-Elastic’s {observability}, {ents}, and {elastic-sec} solutions. Direct use is
-not supported. Elastic reserves the right to change or remove this feature in
-future releases without prior notice.
+NOTE: The user profile feature is designed only for use by {kib} and
+Elastic’s {observability}, {ents}, and {elastic-sec} solutions. Individual
+users and external applications should not call this API directly. Elastic reserves
+the right to change or remove this feature in future releases without prior notice.
 
 Enables a user profile so it's visible in
 <<security-api-suggest-user-profile,user profile searches>>.

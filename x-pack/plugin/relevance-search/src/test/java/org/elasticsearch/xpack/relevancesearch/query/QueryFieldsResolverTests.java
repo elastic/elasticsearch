@@ -20,7 +20,7 @@ import java.util.Set;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class QueryFieldsResolverTest extends ESTestCase {
+public class QueryFieldsResolverTests extends ESTestCase {
 
     private static SearchExecutionContext createSearchExecutionContext(Map<String, String> fieldNamesToTypes) {
         final SearchExecutionContext context = mock(SearchExecutionContext.class);

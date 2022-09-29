@@ -529,7 +529,7 @@ public class BucketSortIT extends ESIntegTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("[bucketSort] is configured to perform nothing." + " Please set either of [sort, size, from] to use bucket_sort")
+            containsString("[bucketSort] is configured to perform nothing. Please set either of [sort, size, from] to use bucket_sort")
         );
     }
 }

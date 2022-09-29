@@ -306,7 +306,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             if (queryVector.length != dims) {
                 throw new IllegalArgumentException(
-                    "the query vector has a different dimension [" + queryVector.length + "] " + "than the index vectors [" + dims + "]"
+                    "the query vector has a different dimension [" + queryVector.length + "] than the index vectors [" + dims + "]"
                 );
             }
 
@@ -324,7 +324,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             StringBuilder errorBuilder = null;
             if (similarity == VectorSimilarity.dot_product && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
                 errorBuilder = new StringBuilder(
-                    "The [" + VectorSimilarity.dot_product.name() + "] similarity can " + "only be used with unit-length vectors."
+                    "The [" + VectorSimilarity.dot_product.name() + "] similarity can only be used with unit-length vectors."
                 );
             } else if (similarity == VectorSimilarity.cosine && Math.sqrt(squaredMagnitude) == 0.0f) {
                 errorBuilder = new StringBuilder(

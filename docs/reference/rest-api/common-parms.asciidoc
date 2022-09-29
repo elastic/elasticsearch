@@ -313,7 +313,7 @@ end::http-format[]
 
 tag::frequency[]
 The interval between checks for changes in the source indices when the
-{transform} is running continuously. The minimum value is `1s` and the maximum 
+{transform} is running continuously. The minimum value is `1s` and the maximum
 is `1h`. The default value is `1m`.
 end::frequency[]
 
@@ -701,6 +701,7 @@ currently supported:
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-geo-line,Geo line>>
+* <<search-aggregations-metrics-cartesian-centroid-aggregation,Cartesian centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-median-absolute-deviation-aggregation,Median absolute deviation>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
@@ -729,8 +730,8 @@ The following groupings are currently supported:
 * <<_histogram,Histogram>>
 * <<_terms,Terms>>
 
-The grouping properties can optionally have a `missing_bucket` property. If 
-it's `true`, documents without a value in the respective `group_by` field are 
+The grouping properties can optionally have a `missing_bucket` property. If
+it's `true`, documents without a value in the respective `group_by` field are
 included. Defaults to `false`.
 --
 end::pivot-group-by[]
@@ -1006,13 +1007,13 @@ criteria is deleted from the destination index.
 end::transform-retention[]
 
 tag::transform-retention-time[]
-Specifies that the {transform} uses a time field to set the retention policy. 
-Data is deleted if `time.field` for the retention policy exists and contains 
+Specifies that the {transform} uses a time field to set the retention policy.
+Data is deleted if `time.field` for the retention policy exists and contains
 data older than `max.age`.
 end::transform-retention-time[]
 
 tag::transform-retention-time-field[]
-The date field that is used to calculate the age of the document. Set 
+The date field that is used to calculate the age of the document. Set
 `time.field` to an existing date field.
 end::transform-retention-time-field[]
 
@@ -1066,9 +1067,9 @@ The default value is the cluster-level setting `num_transform_failure_retries`.
 end::transform-settings-num-failure-retries[]
 
 tag::transform-settings-unattended[]
-If `true`, the {transform} runs in unattended mode. In unattended mode, the 
-{transform} retries indefinitely in case of an error which means the {transform} 
-never fails. Setting the number of retries other than infinite fails in 
+If `true`, the {transform} runs in unattended mode. In unattended mode, the
+{transform} retries indefinitely in case of an error which means the {transform}
+never fails. Setting the number of retries other than infinite fails in
 validation. Defaults to `false`.
 end::transform-settings-unattended[]
 

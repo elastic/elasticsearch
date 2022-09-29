@@ -11,6 +11,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.rest.RestStatus;
@@ -19,6 +21,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
+
+import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
 
@@ -111,6 +116,34 @@ public class TransformFailureHandlerTests extends ESTestCase {
         assertNoFailure(handler, new IllegalArgumentException("expected apples not oranges"), contextListener, settings);
         assertNoFailure(handler, new RuntimeException("the s*** hit the fan"), contextListener, settings);
         assertNoFailure(handler, new NullPointerException("NPE"), contextListener, settings);
+    }
+
+    public void testClusterBlock() {
+        String transformId = randomAlphaOfLength(10);
+        SettingsConfig settings = new SettingsConfig.Builder().setNumFailureRetries(2).build();
+
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
+        MockTransformContextListener contextListener = new MockTransformContextListener();
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
+        context.setPageSize(500);
+
+        TransformFailureHandler handler = new TransformFailureHandler(auditor, context, transformId);
+
+        final ClusterBlockException clusterBlock = new ClusterBlockException(
+            Map.of("test-index", Set.of(MetadataIndexStateService.INDEX_CLOSED_BLOCK))
+        );
+
+        handler.handleIndexerFailure(clusterBlock, settings);
+        assertFalse(contextListener.getFailed());
+        assertEquals(1, contextListener.getFailureCountChangedCounter());
+
+        handler.handleIndexerFailure(clusterBlock, settings);
+        assertFalse(contextListener.getFailed());
+        assertEquals(2, contextListener.getFailureCountChangedCounter());
+
+        handler.handleIndexerFailure(clusterBlock, settings);
+        assertTrue(contextListener.getFailed());
+        assertEquals(3, contextListener.getFailureCountChangedCounter());
     }
 
     private void assertNoFailure(

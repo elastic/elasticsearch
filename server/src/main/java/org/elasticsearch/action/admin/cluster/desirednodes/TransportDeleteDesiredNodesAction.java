@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
@@ -79,13 +80,20 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
         }
     }
 
-    private static class DeleteDesiredNodesExecutor implements ClusterStateTaskExecutor<DeleteDesiredNodesTask> {
+    private static class DeleteDesiredNodesExecutor extends SimpleBatchedExecutor<DeleteDesiredNodesTask> {
         @Override
-        public ClusterState execute(BatchExecutionContext<DeleteDesiredNodesTask> batchExecutionContext) throws Exception {
-            for (final var taskContext : batchExecutionContext.taskContexts()) {
-                taskContext.success(() -> taskContext.getTask().listener().onResponse(ActionResponse.Empty.INSTANCE));
-            }
-            return batchExecutionContext.initialState().copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
+        public ClusterState executeTask(DeleteDesiredNodesTask task, ClusterState clusterState) {
+            return clusterState;
+        }
+
+        @Override
+        public void taskSucceeded(DeleteDesiredNodesTask task) {
+            task.listener().onResponse(ActionResponse.Empty.INSTANCE);
+        }
+
+        @Override
+        public ClusterState afterBatchExecution(ClusterState clusterState, boolean clusterStateChanged) {
+            return clusterState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
         }
     }
 }

@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import javax.inject.Inject;
@@ -69,6 +68,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
             project.getGradle().getSharedServices(),
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );
+        DockerSupportService.DockerAvailability dockerAvailability = dockerSupport.get().getDockerAvailability();
+        boolean isComposeAvailable = dockerAvailability.isComposeAvailable();
+        String composePath = dockerAvailability.dockerComposePath();
 
         ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
         File testfixturesDir = project.file("testfixtures_shared");
@@ -103,14 +105,14 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 );
             });
 
-            maybeSkipTask(dockerSupport, preProcessFixture);
-            maybeSkipTask(dockerSupport, postProcessFixture);
-            maybeSkipTask(dockerSupport, buildFixture);
+            maybeSkipTask(isComposeAvailable, preProcessFixture);
+            maybeSkipTask(isComposeAvailable, postProcessFixture);
+            maybeSkipTask(isComposeAvailable, buildFixture);
 
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
             composeExtension.getUseComposeFiles().addAll(Collections.singletonList(DOCKER_COMPOSE_YML));
             composeExtension.getRemoveContainers().set(true);
-            composeExtension.getExecutable().set(dockerSupport.get().getDockerAvailability().dockerComposePath());
+            composeExtension.getExecutable().set(composePath != null ? composePath : "/usr/bin/docker-compose");
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
@@ -136,12 +138,12 @@ public class TestFixturesPlugin implements Plugin<Project> {
             .all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
 
         // Skip docker compose tasks if it is unavailable
-        maybeSkipTasks(tasks, dockerSupport, Test.class);
-        maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.internal.test.RestIntegTestTask"));
-        maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.internal.test.AntFixture"));
-        maybeSkipTasks(tasks, dockerSupport, ComposeUp.class);
-        maybeSkipTasks(tasks, dockerSupport, ComposePull.class);
-        maybeSkipTasks(tasks, dockerSupport, ComposeDown.class);
+        maybeSkipTasks(tasks, isComposeAvailable, Test.class);
+        maybeSkipTasks(tasks, isComposeAvailable, getTaskClass("org.elasticsearch.gradle.internal.test.RestIntegTestTask"));
+        maybeSkipTasks(tasks, isComposeAvailable, getTaskClass("org.elasticsearch.gradle.internal.test.AntFixture"));
+        maybeSkipTasks(tasks, isComposeAvailable, ComposeUp.class);
+        maybeSkipTasks(tasks, isComposeAvailable, ComposePull.class);
+        maybeSkipTasks(tasks, isComposeAvailable, ComposeDown.class);
 
         tasks.withType(Test.class).configureEach(task -> extension.fixtures.all(fixtureProject -> {
             task.dependsOn(fixtureProject.getTasks().named("postProcessFixture"));
@@ -156,17 +158,16 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
     }
 
-    private void maybeSkipTasks(TaskContainer tasks, Provider<DockerSupportService> dockerSupport, Class<? extends DefaultTask> taskClass) {
-        tasks.withType(taskClass).configureEach(t -> maybeSkipTask(dockerSupport, t));
+    private void maybeSkipTasks(TaskContainer tasks, boolean isComposeAvailable, Class<? extends DefaultTask> taskClass) {
+        tasks.withType(taskClass).configureEach(t -> maybeSkipTask(isComposeAvailable, t));
     }
 
-    private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, TaskProvider<Task> task) {
-        task.configure(t -> maybeSkipTask(dockerSupport, t));
+    private void maybeSkipTask(boolean isComposeAvailable, TaskProvider<Task> task) {
+        task.configure(t -> maybeSkipTask(isComposeAvailable, t));
     }
 
-    private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, Task task) {
+    private void maybeSkipTask(boolean isComposeAvailable, Task task) {
         task.onlyIf(spec -> {
-            boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isComposeAvailable();
             if (isComposeAvailable == false) {
                 LOGGER.info("Task {} requires docker-compose but it is unavailable. Task will be skipped.", task.getPath());
             }

@@ -228,7 +228,7 @@ The different index field mappings have overhead for the heap of the nodes.
 The heap of the nodes should suffice for the field mappings, and also allow
 some additional leeway for other overheads (e.g., related to the workload).
 
-===== Field information in the cluster state
+===== Mapping metadata in the cluster state
 
 Each node in the cluster has a copy of the <<cluster-state-api-desc,cluster state>>.
 The cluster state includes information about the field mappings for

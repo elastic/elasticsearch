@@ -784,29 +784,33 @@ public abstract class AggregatorTestCase extends ESTestCase {
             builder.isInSortOrderExecutionRequired(),
             fieldTypes
         );
-        Aggregator aggregator = createAggregator(builder, context);
-        aggregator.preCollection();
-        searcher.search(context.query(), aggregator.asCollector());
-        aggregator.postCollection();
-        InternalAggregation r = aggregator.buildTopLevel();
-        r = r.reduce(
-            List.of(r),
-            new AggregationReduceContext.ForFinal(
-                context.bigArrays(),
-                getMockScriptService(),
-                () -> false,
-                builder,
-                context.multiBucketConsumer(),
-                builder.buildPipelineTree()
-            )
-        );
-        @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok
-        R result = (R) r;
-        assertRoundTrip(result);
-        Map<String, Map<String, Object>> debug = new HashMap<>();
-        collectDebugInfo("", aggregator, debug);
-        verify.apply(result, aggregator.getClass(), debug);
-        verifyOutputFieldNames(builder, result);
+        try {
+            Aggregator aggregator = createAggregator(builder, context);
+            aggregator.preCollection();
+            searcher.search(context.query(), aggregator.asCollector());
+            aggregator.postCollection();
+            InternalAggregation r = aggregator.buildTopLevel();
+            r = r.reduce(
+                List.of(r),
+                new AggregationReduceContext.ForFinal(
+                    context.bigArrays(),
+                    getMockScriptService(),
+                    () -> false,
+                    builder,
+                    context.multiBucketConsumer(),
+                    builder.buildPipelineTree()
+                )
+            );
+            @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok
+            R result = (R) r;
+            assertRoundTrip(result);
+            Map<String, Map<String, Object>> debug = new HashMap<>();
+            collectDebugInfo("", aggregator, debug);
+            verify.apply(result, aggregator.getClass(), debug);
+            verifyOutputFieldNames(builder, result);
+        } finally {
+            Releasables.close(context);
+        }
     }
 
     private void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {

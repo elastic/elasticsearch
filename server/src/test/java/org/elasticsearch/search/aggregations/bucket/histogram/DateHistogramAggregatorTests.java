@@ -1048,7 +1048,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant), new LongPoint(AGGREGABLE_DATE, instant))
                 );
             }
-            try (IndexReader reader = indexWriter.getReader();
+            try (
+                IndexReader reader = indexWriter.getReader();
                 AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft)
             ) {
                 Aggregator agg = createAggregator(builder, context);

@@ -1045,7 +1045,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 }
                 // TODO does this belong here?
                 if (indicesPrivileges.targetClusters != null && indicesPrivileges.targetClusters.length == 0) {
-                    throw new IllegalArgumentException("indices target clusters cannot be empty");
+                    throw new IllegalArgumentException("indices privileges must refer to at least one target cluster or omit the field");
                 }
                 return indicesPrivileges;
             }

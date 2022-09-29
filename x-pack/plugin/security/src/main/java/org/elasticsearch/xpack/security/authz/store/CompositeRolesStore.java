@@ -91,7 +91,6 @@ public class CompositeRolesStore {
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
-
     // TODO
     private static final Set<String> LOCAL_CLUSTER_KEY = newHashSet("");
 

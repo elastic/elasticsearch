@@ -1023,7 +1023,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new IndicesPrivileges[] {
                 IndicesPrivileges.builder().indices("abc-*", "xyz-*").privileges("read").build(),
                 IndicesPrivileges.builder().indices("ind-1-*").privileges("all").build(),
-                IndicesPrivileges.builder().indices("ind-1-*").privileges("all").targetClusters("remote-*", "remote").build(),
+                IndicesPrivileges.builder().indices("ind-1-*").privileges("all").targetClusters("remote-*", "remote2").build(),
                 IndicesPrivileges.builder().indices("remote-ind-1-*", "ind-1-*").privileges("all").targetClusters("remote-*").build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
@@ -1056,7 +1056,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
         RoleDescriptor role2 = new RoleDescriptor(
             "r2",
             new String[] { "manage_saml" },
-            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("abc-*", "ind-2-*").privileges("all").build() },
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("abc-*", "ind-2-*").privileges("all").build(),
+                IndicesPrivileges.builder()
+                    .indices("remote-abc-*", "other-remote", "remote-ind-2-*", "ind-2-*")
+                    .privileges("all")
+                    .targetClusters("remote-*")
+                    .build(),
+                IndicesPrivileges.builder()
+                    .indices("remote-abc-*", "other-remote")
+                    .privileges("all")
+                    .targetClusters("remote1")
+                    .build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("app2a").resources("*").privileges("all").build(),
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("app2b").resources("*").privileges("read").build() },
@@ -1116,9 +1127,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("abc")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("xyz")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
-        assertThat(allowedRead.test(mockIndexAbstraction("remote-ind-1-1")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        assertThat(role.remoteIndices("remote"), not(empty()));
+        assertThat(role.remoteIndices("remote1"), not(empty()));
+        assertThat(role.remoteIndices("remote2"), not(empty()));
         assertThat(role.remoteIndices("remote-a"), not(empty()));
         assertThat(role.remoteIndices("foo"), empty());
 

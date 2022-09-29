@@ -25,7 +25,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class PrevalidateNodeRemovalWithSearchableSnapshotTests extends BaseSearchableSnapshotsIntegTestCase {
+public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     public void testNodeRemovalFromClusterWihRedSearchableSnapshotIndex() throws Exception {
         internalCluster().startMasterOnlyNode();

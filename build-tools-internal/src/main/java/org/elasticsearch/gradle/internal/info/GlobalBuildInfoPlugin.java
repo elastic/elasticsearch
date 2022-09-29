@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
@@ -123,7 +124,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         assertMinimumCompilerVersion(minimumCompilerVersion);
 
         // Print global build info header just before task execution
-        project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
+        // Only do this if we are the root build of a composite
+        if (GradleUtils.isIncludedBuild(project) == false) {
+            project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
+        }
     }
 
     private Provider<MetadataBasedToolChainMatcher> resolveToolchainSpecFromEnv() {

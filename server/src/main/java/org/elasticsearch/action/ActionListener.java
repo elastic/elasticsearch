@@ -290,24 +290,6 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Converts a listener to a {@link BiConsumer} for compatibility with the {@link java.util.concurrent.CompletableFuture}
-     * api.
-     *
-     * @param listener that will be wrapped
-     * @param <Response> the type of the response
-     * @return a bi consumer that will complete the wrapped listener
-     */
-    static <Response> BiConsumer<Response, Exception> toBiConsumer(ActionListener<Response> listener) {
-        return (response, throwable) -> {
-            if (throwable == null) {
-                listener.onResponse(response);
-            } else {
-                listener.onFailure(throwable);
-            }
-        };
-    }
-
-    /**
      * Notifies every given listener with the response passed to {@link #onResponse(Object)}. If a listener itself throws an exception
      * the exception is forwarded to {@link #onFailure(Exception)}. If in turn {@link #onFailure(Exception)} fails all remaining
      * listeners will be processed and the caught exception will be re-thrown.

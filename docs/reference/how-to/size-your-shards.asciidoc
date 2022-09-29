@@ -307,7 +307,7 @@ For each node, this will show you information like in this example output:
 // TESTRESPONSE[s/"heap_max": "4gb"/"heap_max": $body.$_path/]
 // TESTRESPONSE[s/"heap_max_in_bytes": 4294967296/"heap_max_in_bytes": $body.$_path/]
 
-===== Finally consider additional heap overheads
+===== Consider additional heap overheads
 
 Apart from the two field overhead metrics above, you must additionally allow
 enough heap for {es}'s baseline usage as well as your workload such as indexing,

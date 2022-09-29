@@ -17,7 +17,6 @@ import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,6 +104,7 @@ public abstract class RemoteClusterAware {
         List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
+            RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION,
             RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
             SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
@@ -113,11 +113,6 @@ public abstract class RemoteClusterAware {
             ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
             ProxyConnectionStrategy.SERVER_NAME
         );
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            remoteClusterSettings = new ArrayList<>(remoteClusterSettings); // temporarily make it mutable to append a setting
-            remoteClusterSettings.add(RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION);
-            remoteClusterSettings = Collections.unmodifiableList(remoteClusterSettings); // immutable again
-        }
         clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 

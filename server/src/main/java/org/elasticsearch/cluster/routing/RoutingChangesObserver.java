@@ -33,6 +33,11 @@ public interface RoutingChangesObserver {
     default void unassignedInfoUpdated(ShardRouting unassignedShard, UnassignedInfo newUnassignedInfo) {}
 
     /**
+     * Called when a relocating shard's failure information was updated
+     */
+    default void relocationFailureInfoUpdated(ShardRouting relocatedShard, RelocationFailureInfo relocationFailureInfo) {}
+
+    /**
      * Called when a shard is failed or cancelled.
      */
     default void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {}

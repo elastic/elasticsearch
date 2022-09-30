@@ -44,20 +44,40 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
     private List<Object> storedValues = emptyList();
 
     /**
+     * Optionally loads malformed values from stored fields.
+     */
+    private final IgnoreMalformedStoredValues ignoreMalformedValues;
+
+    /**
      * Build a loader from doc values and, optionally, a stored field.
      * @param name the name of the field to load from doc values
      * @param simpleName the name to give the field in the rendered {@code _source}
      * @param storedValuesName the name of a stored field to load or null if there aren't any stored field for this field
+     * @param loadIgnoreMalformedValues should we load values skipped by {@code ignore_malfored}
      */
-    public SortedSetDocValuesSyntheticFieldLoader(String name, String simpleName, @Nullable String storedValuesName) {
+    public SortedSetDocValuesSyntheticFieldLoader(
+        String name,
+        String simpleName,
+        @Nullable String storedValuesName,
+        boolean loadIgnoreMalformedValues
+    ) {
         this.name = name;
         this.simpleName = simpleName;
         this.storedValuesName = storedValuesName;
+        this.ignoreMalformedValues = loadIgnoreMalformedValues
+            ? IgnoreMalformedStoredValues.stored(name)
+            : IgnoreMalformedStoredValues.empty();
     }
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return storedValuesName == null ? Stream.of() : Stream.of(Map.entry(storedValuesName, values -> this.storedValues = values));
+        if (storedValuesName == null) {
+            return ignoreMalformedValues.storedFieldLoaders();
+        }
+        return Stream.concat(
+            Stream.of(Map.entry(storedValuesName, values -> this.storedValues = values)),
+            ignoreMalformedValues.storedFieldLoaders()
+        );
     }
 
     @Override
@@ -87,12 +107,12 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
     @Override
     public boolean hasValue() {
-        return docValues.count() > 0 || storedValues.isEmpty() == false;
+        return docValues.count() > 0 || storedValues.isEmpty() == false || ignoreMalformedValues.count() > 0;
     }
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        int total = docValues.count() + storedValues.size();
+        int total = docValues.count() + storedValues.size() + ignoreMalformedValues.count();
         switch (total) {
             case 0:
                 return;
@@ -101,23 +121,31 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
                 if (docValues.count() > 0) {
                     assert docValues.count() == 1;
                     assert storedValues.isEmpty();
+                    assert ignoreMalformedValues.count() == 0;
                     docValues.write(b);
-                } else {
+                } else if (storedValues.isEmpty() == false) {
                     assert docValues.count() == 0;
                     assert storedValues.size() == 1;
-                    BytesRef ref = (BytesRef) storedValues.get(0);
-                    b.utf8Value(ref.bytes, ref.offset, ref.length);
+                    assert ignoreMalformedValues.count() == 0;
+                    BytesRef converted = convert((BytesRef) storedValues.get(0));
+                    b.utf8Value(converted.bytes, converted.offset, converted.length);
                     storedValues = emptyList();
+                } else {
+                    assert docValues.count() == 0;
+                    assert storedValues.isEmpty();
+                    assert ignoreMalformedValues.count() == 1;
+                    ignoreMalformedValues.write(b);
                 }
                 return;
             default:
                 b.startArray(simpleName);
                 docValues.write(b);
                 for (Object v : storedValues) {
-                    BytesRef ref = (BytesRef) v;
-                    b.utf8Value(ref.bytes, ref.offset, ref.length);
+                    BytesRef converted = convert((BytesRef) v);
+                    b.utf8Value(converted.bytes, converted.offset, converted.length);
                 }
                 storedValues = emptyList();
+                ignoreMalformedValues.write(b);
                 b.endArray();
                 return;
         }

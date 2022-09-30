@@ -87,55 +87,70 @@ The API returns the following result:
       {
         "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "relocating_node": null,
         "primary": true,
         "shard": 0,
         "state": "STARTED",
         "allocation_id": {"id":"0TvkCyF7TAmM1wHP4a42-A"},
-        "relocating_node": null
+        "relocation_failure_info" : {
+          "failed_attempts" : 0
+        }
       }
     ],
     [
       {
         "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "relocating_node": null,
         "primary": true,
         "shard": 1,
         "state": "STARTED",
         "allocation_id": {"id":"fMju3hd1QHWmWrIgFnI4Ww"},
-        "relocating_node": null
+        "relocation_failure_info" : {
+          "failed_attempts" : 0
+        }
       }
     ],
     [
       {
         "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "relocating_node": null,
         "primary": true,
         "shard": 2,
         "state": "STARTED",
         "allocation_id": {"id":"Nwl0wbMBTHCWjEEbGYGapg"},
-        "relocating_node": null
+        "relocation_failure_info" : {
+          "failed_attempts" : 0
+        }
       }
     ],
     [
       {
         "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "relocating_node": null,
         "primary": true,
         "shard": 3,
         "state": "STARTED",
         "allocation_id": {"id":"bU_KLGJISbW0RejwnwDPKw"},
-        "relocating_node": null
+        "relocation_failure_info" : {
+          "failed_attempts" : 0
+        }
       }
     ],
     [
       {
         "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "relocating_node": null,
         "primary": true,
         "shard": 4,
         "state": "STARTED",
         "allocation_id": {"id":"DMs7_giNSwmdqVukF7UydA"},
-        "relocating_node": null
+        "relocation_failure_info" : {
+          "failed_attempts" : 0
+        }
       }
     ]
   ]
@@ -171,22 +186,28 @@ The API returns the following result:
       {
         "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "relocating_node": null,
         "primary": true,
         "shard": 2,
         "state": "STARTED",
         "allocation_id": {"id":"fMju3hd1QHWmWrIgFnI4Ww"},
-        "relocating_node": null
+        "relocation_failure_info" : {
+          "failed_attempts" : 0
+        }
       }
     ],
     [
       {
         "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "relocating_node": null,
         "primary": true,
         "shard": 3,
         "state": "STARTED",
         "allocation_id": {"id":"0TvkCyF7TAmM1wHP4a42-A"},
-        "relocating_node": null
+        "relocation_failure_info" : {
+          "failed_attempts" : 0
+        }
       }
     ]
   ]

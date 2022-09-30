@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -26,11 +27,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -38,6 +41,10 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.bucket.range.InternalBinaryRange;
+import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
+import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
@@ -65,6 +72,8 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -74,6 +83,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
     private static final String DATE_FIELD = "date";
     private static final String INSTANT_FIELD = "instant";
     private static final String NUMERIC_FIELD = "numeric";
+    private static final String IP_FIELD = "ip";
 
     private static final List<ZonedDateTime> DATES_WITH_TIME = Arrays.asList(
         ZonedDateTime.of(2010, 3, 12, 1, 7, 45, 0, ZoneOffset.UTC),
@@ -903,6 +913,78 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         );
     }
 
+    public void testSubNumericRange() throws IOException {
+        assertSubNumericRange(DATES_WITH_TIME, 2);
+    }
+
+    /**
+     * Tests very few documents with a sub {@code range} agg which causes
+     * us to collect in a very tight time range and then merge many of those
+     * ranges together, thus merging unmapped {@code range} aggs with mapped
+     * ones.
+     */
+    public void testSmallSubNumericRange() throws IOException {
+        assertSubNumericRange(DATES_WITH_TIME.subList(0, 2), 1);
+    }
+
+    private void assertSubNumericRange(List<ZonedDateTime> dates, long firstBucketIpCount) throws IOException {
+        MappedFieldType dateFieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
+        MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
+
+        AutoDateHistogramAggregationBuilder b = new AutoDateHistogramAggregationBuilder("a").field(DATE_FIELD)
+            .subAggregation(new RangeAggregationBuilder("r").field(NUMERIC_FIELD).addRange(0, 2).addRange(3, 4));
+        testCase(b, new MatchAllDocsQuery(), iw -> indexSampleData(dates, iw), (InternalAutoDateHistogram h) -> {
+            InternalAutoDateHistogram.Bucket bucket = h.getBuckets().get(0);
+            InternalRange<?, ?> range = bucket.getAggregations().get("r");
+            assertMap(
+                range.getBuckets().stream().map(InternalRange.Bucket::getKeyAsString).toList(),
+                matchesList().item("0.0-2.0").item("3.0-4.0")
+            );
+            assertMap(
+                range.getBuckets().stream().map(InternalRange.Bucket::getDocCount).toList(),
+                matchesList().item(firstBucketIpCount).item(0L)
+            );
+        }, dateFieldType, numericFieldType);
+    }
+
+    public void testSubIpRange() throws IOException {
+        assertSubIpRange(DATES_WITH_TIME, 2);
+    }
+
+    /**
+     * Tests very few documents with a sub {@code ip_range} agg which causes
+     * us to collect in a very tight time range and then merge many of those
+     * ranges together, thus merging unmapped {@code ip_range} aggs with mapped
+     * ones.
+     */
+    public void testSmallSubIpRange() throws IOException {
+        assertSubIpRange(DATES_WITH_TIME.subList(0, 2), 1);
+    }
+
+    private void assertSubIpRange(List<ZonedDateTime> dates, long firstBucketIpCount) throws IOException {
+        MappedFieldType dateFieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
+        MappedFieldType ipFieldType = new IpFieldMapper.IpFieldType(IP_FIELD);
+
+        AutoDateHistogramAggregationBuilder b = new AutoDateHistogramAggregationBuilder("a").field(DATE_FIELD)
+            .subAggregation(
+                new IpRangeAggregationBuilder("r").field(IP_FIELD)
+                    .addRange("192.168.0.0", "192.168.0.2")
+                    .addRange("192.168.0.3", "192.168.0.4")
+            );
+        testCase(b, new MatchAllDocsQuery(), iw -> indexSampleData(dates, iw), (InternalAutoDateHistogram h) -> {
+            InternalAutoDateHistogram.Bucket bucket = h.getBuckets().get(0);
+            InternalBinaryRange range = bucket.getAggregations().get("r");
+            assertMap(
+                range.getBuckets().stream().map(InternalBinaryRange.Bucket::getKeyAsString).toList(),
+                matchesList().item("192.168.0.0-192.168.0.2").item("192.168.0.3-192.168.0.4")
+            );
+            assertMap(
+                range.getBuckets().stream().map(InternalBinaryRange.Bucket::getDocCount).toList(),
+                matchesList().item(firstBucketIpCount).item(0L)
+            );
+        }, dateFieldType, ipFieldType);
+    }
+
     @Override
     protected IndexSettings createIndexSettings() {
         final Settings nodeSettings = Settings.builder().put("search.max_buckets", 25000).build();
@@ -957,6 +1039,12 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
             document.add(new LongPoint(INSTANT_FIELD, instant));
             document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, i));
+            document.add(
+                new SortedSetDocValuesField(
+                    IP_FIELD,
+                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.0." + (i % 256))))
+                )
+            );
             indexWriter.addDocument(document);
             document.clear();
             i += 1;

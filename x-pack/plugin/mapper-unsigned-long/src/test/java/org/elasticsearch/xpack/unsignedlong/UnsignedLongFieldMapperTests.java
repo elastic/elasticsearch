@@ -120,6 +120,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         IndexableField pointField = fields[0];
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(9223372036854775807L, pointField.numericValue().longValue());
+        assertAggregatableConsistency(mapper.mappers().getFieldType("field"));
     }
 
     public void testStore() throws Exception {

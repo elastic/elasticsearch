@@ -182,7 +182,7 @@ named queries:
                     text:
                       query: the
                       _name: the
-                - match: 
+                - match:
                     text:
                       query: snack
                       _name: snack
@@ -345,3 +345,86 @@ sequence number and primary term:
   - match:  { aggregations.page.buckets.1.key: 2 }
   - gte:    { aggregations.page.buckets.1.top_hits.hits.hits.0._seq_no: 0 }
   - gte:    { aggregations.page.buckets.1.top_hits.hits.hits.0._primary_term: 0 }
+
+---
+synthetic _source:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test_synthetic
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              page:
+                type: keyword
+              extra:
+                type: keyword
+
+  - do:
+      index:
+        index:   test_synthetic
+        id:      1
+        refresh: true
+        body:
+          page: a
+          extra: foo
+
+  - do:
+      index:
+        index:   test_synthetic
+        id:      2
+        refresh: true
+        body:
+          page: b
+          extra: bar
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          size: 0
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits: {}
+  - is_false: aggregations.page.buckets.0.top_hits.hits.hits.0.fields
+  - match:
+      aggregations.page.buckets.0.top_hits.hits.hits.0._source:
+        extra: foo
+        page: a
+  - is_false: aggregations.page.buckets.1.top_hits.hits.hits.0.fields
+  - match:
+      aggregations.page.buckets.1.top_hits.hits.hits.0._source:
+        extra: bar
+        page: b
+
+  # Now do it again with _source filtering
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          size: 0
+          aggs:
+            page:
+              terms:
+                field: page
+              aggs:
+                top_hits:
+                  top_hits:
+                    _source: extra
+  - is_false: aggregations.page.buckets.0.top_hits.hits.hits.0.fields
+  - match:
+      aggregations.page.buckets.0.top_hits.hits.hits.0._source:
+        extra: foo
+  - is_false: aggregations.page.buckets.1.top_hits.hits.hits.0.fields
+  - match:
+      aggregations.page.buckets.1.top_hits.hits.hits.0._source:
+        extra: bar

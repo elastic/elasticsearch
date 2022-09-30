@@ -2636,7 +2636,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         boolean failIfAlreadyExists
     ) throws IOException {
         logger.trace(() -> format("[%s] Writing [%s] to %s atomically", metadata.name(), blobName, container.path()));
-        container.writeBlob(blobName, failIfAlreadyExists, true, writer);
+        container.writeMetadataBlob(blobName, failIfAlreadyExists, true, writer);
     }
 
     @Override

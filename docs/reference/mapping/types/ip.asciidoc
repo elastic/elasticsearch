@@ -152,11 +152,10 @@ GET my-index-000001/_search
 --------------------------------------------------
 
 [[ip-synthetic-source]]
-==== Synthetic source
+==== Synthetic `_source` preview:[]
 `ip` fields support <<synthetic-source,synthetic `_source`>> in their default
 configuration. Synthetic `_source` cannot be used together with
-<<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or with
-<<doc-values,`doc_values`>> disabled.
+<<copy-to,`copy_to`>> or with <<doc-values,`doc_values`>> disabled.
 
 Synthetic source always sorts `ip` fields and removes duplicates. For example:
 [source,console,id=synthetic-source-ip-example]

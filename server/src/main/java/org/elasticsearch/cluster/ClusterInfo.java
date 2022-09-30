@@ -186,17 +186,17 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Returns the shard size for the given shard routing or <code>null</code> it that metric is not available.
+     * Returns the shard size for the given shardId or <code>null</code> if that metric is not available.
      */
-    public Long getShardSize(ShardRouting shardRouting) {
-        return shardSizes.get(shardIdentifierFromRouting(shardRouting));
+    public Long getShardSize(ShardId shardId, boolean primary) {
+        return shardSizes.get(shardIdentifierFromRouting(shardId, primary));
     }
 
     /**
-     * Returns the nodes absolute data-path the given shard is allocated on or <code>null</code> if the information is not available.
+     * Returns the shard size for the given shard routing or <code>null</code> if that metric is not available.
      */
-    public String getDataPath(ShardRouting shardRouting) {
-        return routingToDataPath.get(shardRouting);
+    public Long getShardSize(ShardRouting shardRouting) {
+        return getShardSize(shardRouting.shardId(), shardRouting.primary());
     }
 
     /**
@@ -205,6 +205,13 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     public long getShardSize(ShardRouting shardRouting, long defaultValue) {
         Long shardSize = getShardSize(shardRouting);
         return shardSize == null ? defaultValue : shardSize;
+    }
+
+    /**
+     * Returns the nodes absolute data-path the given shard is allocated on or <code>null</code> if the information is not available.
+     */
+    public String getDataPath(ShardRouting shardRouting) {
+        return routingToDataPath.get(shardRouting);
     }
 
     public Optional<Long> getShardDataSetSize(ShardId shardId) {
@@ -224,7 +231,36 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * includes a 'p' or 'r' depending on whether the shard is a primary.
      */
     public static String shardIdentifierFromRouting(ShardRouting shardRouting) {
-        return shardRouting.shardId().toString() + "[" + (shardRouting.primary() ? "p" : "r") + "]";
+        return shardIdentifierFromRouting(shardRouting.shardId(), shardRouting.primary());
+    }
+
+    public static String shardIdentifierFromRouting(ShardId shardId, boolean primary) {
+        return shardId.toString() + "[" + (primary ? "p" : "r") + "]";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClusterInfo that = (ClusterInfo) o;
+        return leastAvailableSpaceUsage.equals(that.leastAvailableSpaceUsage)
+            && mostAvailableSpaceUsage.equals(that.mostAvailableSpaceUsage)
+            && shardSizes.equals(that.shardSizes)
+            && shardDataSetSizes.equals(that.shardDataSetSizes)
+            && routingToDataPath.equals(that.routingToDataPath)
+            && reservedSpace.equals(that.reservedSpace);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            routingToDataPath,
+            reservedSpace
+        );
     }
 
     @Override

@@ -270,6 +270,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
         boolean hasDocValues = ((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().hasDocValues();
         assertTrue(hasDocValues);
+        assertTrue(((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().isAggregatable());
 
         // explicit false doc_values
         defaultMapper = createDocumentMapper(fieldMapping(b -> {
@@ -281,6 +282,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
         hasDocValues = ((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().hasDocValues();
         assertFalse(hasDocValues);
+        assertFalse(((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().isAggregatable());
     }
 
     public void testShapeMapperMerge() throws Exception {

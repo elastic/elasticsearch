@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -26,8 +27,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -65,7 +67,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
-import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,21 +94,18 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     /**
      * This is the cluster state task executor for cluster state update actions.
      */
-    private static final ClusterStateTaskExecutor<RollupClusterStateUpdateTask> STATE_UPDATE_TASK_EXECUTOR = batchExecutionContext -> {
-        ClusterState state = batchExecutionContext.initialState();
-        for (final var taskContext : batchExecutionContext.taskContexts()) {
-            try {
-                final var task = taskContext.getTask();
-                try (var ignored = taskContext.captureResponseHeaders()) {
-                    state = task.execute(state);
-                }
-                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
-            } catch (Exception e) {
-                taskContext.onFailure(e);
+    private static final SimpleBatchedExecutor<RollupClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
+        new SimpleBatchedExecutor<>() {
+            @Override
+            public Tuple<ClusterState, Void> executeTask(RollupClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+                return Tuple.tuple(task.execute(clusterState), null);
             }
-        }
-        return state;
-    };
+
+            @Override
+            public void taskSucceeded(RollupClusterStateUpdateTask task, Void unused) {
+                task.listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        };
 
     @Inject
     public TransportRollupAction(
@@ -231,7 +229,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
             });
 
-            RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
+            ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (dimensionFields.isEmpty()) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
             }
@@ -480,7 +478,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     private static void validateDownsamplingInterval(MapperService mapperService, DownsampleConfig config) {
         MappedFieldType timestampFieldType = mapperService.fieldType(config.getTimestampField());
         assert timestampFieldType != null : "Cannot find timestamp field [" + config.getTimestampField() + "] in the mapping";
-        RollupActionRequestValidationException e = new RollupActionRequestValidationException();
+        ActionRequestValidationException e = new ActionRequestValidationException();
 
         Map<String, String> meta = timestampFieldType.meta();
         if (meta.isEmpty() == false) {
@@ -495,7 +493,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     e.addValidationError(
                         "Source index is a downsampled index. Downsampling interval ["
                             + targetIndexInterval
-                            + "] must be greater than the the source index interval ["
+                            + "] must be greater than the source index interval ["
                             + sourceIndexInterval
                             + "]"
                     );

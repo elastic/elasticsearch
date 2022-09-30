@@ -231,7 +231,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         false,
                         true,
                         indexCreatedVersion
-                    );
+                    ).allowMultipleValues(false);
                 }
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);
@@ -386,6 +386,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             QueryRewriteContext context
         ) throws IOException {
             return delegateFieldType().isFieldWithinQuery(reader, from, to, includeLower, includeUpper, timeZone, dateMathParser, context);
+        }
+
+        @Override
+        public boolean isAggregatable() {
+            return true;
         }
 
         @Override

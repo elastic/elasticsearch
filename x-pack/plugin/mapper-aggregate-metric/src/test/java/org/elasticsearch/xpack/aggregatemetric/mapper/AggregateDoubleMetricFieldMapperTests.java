@@ -353,30 +353,41 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         );
     }
 
+    private void randomMapping(XContentBuilder b, int randomNumber) throws IOException {
+        b.field("type", CONTENT_TYPE);
+        switch (randomNumber) {
+            case 0 -> b.field(METRICS_FIELD, new String[] { "min" }).field(DEFAULT_METRIC, "min");
+            case 1 -> b.field(METRICS_FIELD, new String[] { "max" }).field(DEFAULT_METRIC, "max");
+            case 2 -> b.field(METRICS_FIELD, new String[] { "value_count" }).field(DEFAULT_METRIC, "value_count");
+            case 3 -> b.field(METRICS_FIELD, new String[] { "sum" }).field(DEFAULT_METRIC, "sum");
+        }
+    }
+
     /**
      * Test inserting a document containing an array of metrics. An exception must be thrown.
      */
     public void testParseArrayValue() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(
-                source(
-                    b -> b.startArray("field")
-                        .startObject()
-                        .field("min", 10.0)
-                        .field("max", 50.0)
-                        .field("value_count", 3)
-                        .endObject()
-                        .startObject()
-                        .field("min", 11.0)
-                        .field("max", 51.0)
-                        .field("value_count", 3)
-                        .endObject()
-                        .endArray()
-                )
-            )
-        );
+        int randomNumber = randomIntBetween(0, 3);
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> randomMapping(b, randomNumber)));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("field").startObject();
+            switch (randomNumber) {
+                case 0 -> b.field("min", 10.0);
+                case 1 -> b.field("max", 50);
+                case 2 -> b.field("value_count", 3);
+                case 3 -> b.field("sum", 100.0);
+            }
+            b.endObject();
+            b.startObject();
+            switch (randomNumber) {
+                case 0 -> b.field("min", 20.0);
+                case 1 -> b.field("max", 60);
+                case 2 -> b.field("value_count", 2);
+                case 3 -> b.field("sum", 200.0);
+            }
+
+            b.endObject().endArray();
+        })));
         assertThat(
             e.getCause().getMessage(),
             containsString(

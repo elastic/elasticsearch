@@ -17,9 +17,11 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -98,11 +100,27 @@ public class SimpleRole implements Role {
         return runAs;
     }
 
-    // TODO empty?
     @Override
-    @Nullable
-    public List<RemoteIndicesPermission> remoteIndices() {
-        return remoteIndices;
+    public IndicesPermission remoteIndices(final String remoteClusterAlias) {
+        // The actual value of restricted indices doesn't matter here because remote privileges are not used for standard local
+        // authorization
+        final var builder = new IndicesPermission.Builder(new RestrictedIndices(Automatons.EMPTY));
+        // TODO extract into collectIntoIndicesPermissionForClusterAlias()?
+        for (var remoteIndex : remoteIndices) {
+            if (false == remoteIndex.checkRemoteClusterAlias(remoteClusterAlias)) {
+                continue;
+            }
+            for (var group : remoteIndex.indicesPermission().groups()) {
+                builder.addGroup(
+                    group.privilege(),
+                    group.getFieldPermissions(),
+                    group.getQuery(),
+                    group.allowRestrictedIndices(),
+                    group.indices()
+                );
+            }
+        }
+        return builder.build();
     }
 
     @Override

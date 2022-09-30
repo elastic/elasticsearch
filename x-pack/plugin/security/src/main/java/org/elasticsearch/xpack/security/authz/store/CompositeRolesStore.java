@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
@@ -91,8 +92,7 @@ public class CompositeRolesStore {
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
-    // TODO
-    private static final Set<String> LOCAL_CLUSTER_KEY = newHashSet("");
+    private static final Set<String> LOCAL_CLUSTER_GROUP_KEY_SET = newHashSet(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
     private final RoleProviders roleProviders;
     private final NativePrivilegeStore privilegeStore;
@@ -417,9 +417,9 @@ public class CompositeRolesStore {
         final Set<String> clusterPrivileges = new HashSet<>();
         final List<ConfigurableClusterPrivilege> configurableClusterPrivileges = new ArrayList<>();
         final Set<String> runAs = new HashSet<>();
-        // Outer map keyed by target cluster expressions, inner map by index name expressions
-        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> indicesPrivilegesMapByCluster = new HashMap<>();
-        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> restrictedIndicesPrivilegesMapByCluster = new HashMap<>();
+        // Outer map keyed by cluster group expressions (i.e., clusters the index permissions apply to), inner map by index name expressions
+        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> indicesPrivilegesMapByClusterGroup = new HashMap<>();
+        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> restrictedIndicesPrivilegesMapByClusterGroup = new HashMap<>();
 
         // Keyed by application + resource
         final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
@@ -437,15 +437,15 @@ public class CompositeRolesStore {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
             }
 
-            MergeableIndicesPrivilege.collatePrivilegesByTargetClustersAndIndices(
+            MergeableIndicesPrivilege.collatePrivilegesByIndicesAndClusterGroups(
                 descriptor.getIndicesPrivileges(),
                 true,
-                restrictedIndicesPrivilegesMapByCluster
+                restrictedIndicesPrivilegesMapByClusterGroup
             );
-            MergeableIndicesPrivilege.collatePrivilegesByTargetClustersAndIndices(
+            MergeableIndicesPrivilege.collatePrivilegesByIndicesAndClusterGroups(
                 descriptor.getIndicesPrivileges(),
                 false,
-                indicesPrivilegesMapByCluster
+                indicesPrivilegesMapByClusterGroup
             );
 
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
@@ -465,8 +465,8 @@ public class CompositeRolesStore {
         final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
-        indicesPrivilegesMapByCluster.forEach((targetClusters, indicesPrivilegesMapForCluster) -> {
-            if (targetClusters.equals(LOCAL_CLUSTER_KEY)) {
+        indicesPrivilegesMapByClusterGroup.forEach((clusterGroupKey, indicesPrivilegesMapForCluster) -> {
+            if (clusterGroupKey.equals(LOCAL_CLUSTER_GROUP_KEY_SET)) {
                 indicesPrivilegesMapForCluster.forEach(
                     (key, privilege) -> builder.add(
                         fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
@@ -479,7 +479,7 @@ public class CompositeRolesStore {
             } else {
                 indicesPrivilegesMapForCluster.forEach(
                     (key, privilege) -> builder.addRemoteGroup(
-                        targetClusters,
+                        clusterGroupKey,
                         fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                         privilege.query,
                         IndexPrivilege.get(privilege.privileges),
@@ -489,8 +489,8 @@ public class CompositeRolesStore {
                 );
             }
         });
-        restrictedIndicesPrivilegesMapByCluster.forEach((targetClusters, indicesPrivilegesMapForCluster) -> {
-            if (targetClusters.equals(LOCAL_CLUSTER_KEY)) {
+        restrictedIndicesPrivilegesMapByClusterGroup.forEach((clusterGroupKey, indicesPrivilegesMapForCluster) -> {
+            if (clusterGroupKey.equals(LOCAL_CLUSTER_GROUP_KEY_SET)) {
                 indicesPrivilegesMapForCluster.forEach(
                     (key, privilege) -> builder.add(
                         fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
@@ -503,7 +503,7 @@ public class CompositeRolesStore {
             } else {
                 indicesPrivilegesMapForCluster.forEach(
                     (key, privilege) -> builder.addRemoteGroup(
-                        targetClusters,
+                        clusterGroupKey,
                         fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                         privilege.query,
                         IndexPrivilege.get(privilege.privileges),
@@ -615,10 +615,10 @@ public class CompositeRolesStore {
             }
         }
 
-        private static void collatePrivilegesByTargetClustersAndIndices(
+        private static void collatePrivilegesByIndicesAndClusterGroups(
             final IndicesPrivileges[] indicesPrivileges,
             final boolean allowsRestrictedIndices,
-            final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteIndicesPrivilegesMap
+            final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> indicesPrivilegesMapByClusterGroup
         ) {
             // if an index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
             // merging
@@ -631,14 +631,14 @@ public class CompositeRolesStore {
                 if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
                     continue;
                 }
-                final var targetClusters = indicesPrivilege.getTargetClusters() == null
-                    ? LOCAL_CLUSTER_KEY
-                    : newHashSet(indicesPrivilege.getTargetClusters());
-                if (false == remoteIndicesPrivilegesMap.containsKey(targetClusters)) {
-                    remoteIndicesPrivilegesMap.put(targetClusters, new HashMap<>());
+                final var clusterGroup = indicesPrivilege.getRemoteClusters() == null
+                    ? LOCAL_CLUSTER_GROUP_KEY_SET
+                    : newHashSet(indicesPrivilege.getRemoteClusters());
+                if (false == indicesPrivilegesMapByClusterGroup.containsKey(clusterGroup)) {
+                    indicesPrivilegesMapByClusterGroup.put(clusterGroup, new HashMap<>());
                 }
                 final Set<String> key = newHashSet(indicesPrivilege.getIndices());
-                remoteIndicesPrivilegesMap.get(targetClusters).compute(key, (k, value) -> {
+                indicesPrivilegesMapByClusterGroup.get(clusterGroup).compute(key, (k, value) -> {
                     if (value == null) {
                         return new MergeableIndicesPrivilege(
                             indicesPrivilege.getIndices(),

@@ -46,13 +46,7 @@ public interface Role {
 
     IndicesPermission indices();
 
-    default List<RemoteIndicesPermission> remoteIndices() {
-        throw new UnsupportedOperationException("remote indices not supported");
-    }
-
-    default List<RemoteIndicesPermission> remoteIndices(final String targetCluster) {
-        return remoteIndices().stream().filter(it -> it.checkTargetCluster(targetCluster)).toList();
-    }
+    IndicesPermission remoteIndices(final String targetCluster);
 
     ApplicationPermission application();
 
@@ -254,7 +248,7 @@ public interface Role {
         }
 
         public Builder addRemoteGroup(
-            Set<String> targetClusters,
+            Set<String> remoteClusters,
             FieldPermissions fieldPermissions,
             Set<BytesReference> query,
             IndexPrivilege privilege,
@@ -263,7 +257,7 @@ public interface Role {
         ) {
             remoteGroups.add(
                 new Tuple<>(
-                    targetClusters,
+                    remoteClusters,
                     new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices)
                 )
             );

@@ -1000,7 +1000,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
     }
 
-    public void testMergingRolesWithTargetClusters() {
+    public void testMergingRolesWithRemoteClusters() {
         final TransportRequest request1 = mock(TransportRequest.class);
         final TransportRequest request2 = mock(TransportRequest.class);
         final TransportRequest request3 = mock(TransportRequest.class);
@@ -1023,8 +1023,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new IndicesPrivileges[] {
                 IndicesPrivileges.builder().indices("abc-*", "xyz-*").privileges("read").build(),
                 IndicesPrivileges.builder().indices("ind-1-*").privileges("all").build(),
-                IndicesPrivileges.builder().indices("ind-1-*").privileges("all").targetClusters("remote-*", "remote2").build(),
-                IndicesPrivileges.builder().indices("remote-ind-1-*", "ind-1-*").privileges("all").targetClusters("remote-*").build(), },
+                IndicesPrivileges.builder().indices("ind-1-*").privileges("all").remoteClusters("remote-*", "remote2").build(),
+                IndicesPrivileges.builder().indices("remote-ind-1-*", "ind-1-*").privileges("all").remoteClusters("remote-*").build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
                     .application("app1")
@@ -1061,9 +1061,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 IndicesPrivileges.builder()
                     .indices("remote-abc-*", "other-remote", "remote-ind-2-*", "ind-2-*")
                     .privileges("all")
-                    .targetClusters("remote-*")
+                    .remoteClusters("remote-*")
                     .build(),
-                IndicesPrivileges.builder().indices("remote-abc-*", "other-remote").privileges("all").targetClusters("remote1").build(), },
+                IndicesPrivileges.builder().indices("remote-abc-*", "other-remote").privileges("all").remoteClusters("remote1").build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("app2a").resources("*").privileges("all").build(),
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("app2b").resources("*").privileges("read").build() },
@@ -1126,10 +1126,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        assertThat(role.remoteIndices("remote1"), not(empty()));
-        assertThat(role.remoteIndices("remote2"), not(empty()));
-        assertThat(role.remoteIndices("remote-a"), not(empty()));
-        assertThat(role.remoteIndices("foo"), empty());
+        assertThat(role.remoteIndices("remote1-1").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices("remote-a").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices(randomAlphaOfLengthBetween(2, 10)).groups(), emptyArray());
 
         final Predicate<IndexAbstraction> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
         assertThat(allowedWrite.test(mockIndexAbstraction("abc-123")), equalTo(true));
@@ -1147,16 +1146,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
     }
 
-    public void testMergingRolesWithOnlyTargetClusters() {
+    public void testMergingRolesWithOnlyRemoteClusters() {
         RoleDescriptor role1 = new RoleDescriptor(
             "r1",
             null,
             new IndicesPrivileges[] {
-                IndicesPrivileges.builder().indices("remote-abc-*", "xyz-*").privileges("all").targetClusters("remote-*").build(),
+                IndicesPrivileges.builder().indices("remote-abc-*", "xyz-*").privileges("all").remoteClusters("remote-*").build(),
                 IndicesPrivileges.builder()
                     .indices("abc-*", "remote-xyz-*")
                     .privileges("all")
-                    .targetClusters("remote1-*", "remote-*")
+                    .remoteClusters("remote1-*", "remote-*")
                     .build(), },
             null,
             null,
@@ -1184,9 +1183,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        assertThat(role.remoteIndices("remote1-1"), not(empty()));
-        assertThat(role.remoteIndices("remote-a"), not(empty()));
-        assertThat(role.remoteIndices(randomAlphaOfLengthBetween(2, 10)), empty());
+        assertThat(role.remoteIndices("remote1-1").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices("remote-a").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices(randomAlphaOfLengthBetween(2, 10)).groups(), emptyArray());
     }
 
     public void testCustomRolesProviderFailures() throws Exception {

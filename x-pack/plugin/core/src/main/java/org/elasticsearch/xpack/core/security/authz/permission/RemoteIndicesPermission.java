@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
-public record RemoteIndicesPermission(StringMatcher targetClusterMatcher, IndicesPermission indicesPermission) {
+public record RemoteIndicesPermission(StringMatcher remoteClusterAliasMatcher, IndicesPermission indicesPermission) {
 
-    public RemoteIndicesPermission(String[] targetClusters, IndicesPermission indicesPermission) {
-        this(StringMatcher.of(targetClusters), indicesPermission);
+    public RemoteIndicesPermission(String[] remoteClusterAliases, IndicesPermission indicesPermission) {
+        this(StringMatcher.of(remoteClusterAliases), indicesPermission);
     }
 
-    public boolean checkTargetCluster(final String targetCluster) {
-        return targetClusterMatcher.test(targetCluster);
+    public boolean checkRemoteClusterAlias(final String remoteClusterAlias) {
+        return remoteClusterAliasMatcher.test(remoteClusterAlias);
     }
 }

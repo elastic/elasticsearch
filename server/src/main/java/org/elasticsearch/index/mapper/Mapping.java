@@ -76,7 +76,7 @@ public final class Mapping implements ToXContentFragment {
     /**
      * Returns the root object for the current mapping
      */
-    RootObjectMapper getRoot() {
+    public RootObjectMapper getRoot() {
         return root;
     }
 

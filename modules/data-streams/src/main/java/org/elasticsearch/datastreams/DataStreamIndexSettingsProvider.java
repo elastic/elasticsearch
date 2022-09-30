@@ -22,7 +22,10 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingParserContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -161,19 +164,34 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
             List<String> routingPaths = null;
             for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
-                if (fieldMapper instanceof KeywordFieldMapper keywordFieldMapper) {
-                    if (keywordFieldMapper.fieldType().isDimension()) {
-                        if (routingPaths == null) {
-                            routingPaths = new ArrayList<>();
-                        }
-                        routingPaths.add(keywordFieldMapper.name());
-                    }
-                }
+                routingPaths = extractPath(routingPaths, fieldMapper);
+            }
+            for (var template : mapperService.documentMapper().mapping().getRoot().dynamicTemplates()) {
+                var templateName = "__dynamic__" + template.name();
+                var mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
+
+                MappingParserContext parserContext = mapperService.parserContext();
+                var mapper = parserContext.typeParser(KeywordFieldMapper.CONTENT_TYPE)
+                    .parse(template.pathMatch(), mappingSnippet, parserContext)
+                    .build(MapperBuilderContext.ROOT);
+                routingPaths = extractPath(routingPaths, mapper);
             }
             return routingPaths;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    private static List<String> extractPath(List<String> routingPaths, Mapper mapper) {
+        if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
+            if (keywordFieldMapper.fieldType().isDimension()) {
+                if (routingPaths == null) {
+                    routingPaths = new ArrayList<>();
+                }
+                routingPaths.add(mapper.name());
+            }
+        }
+        return routingPaths;
     }
 
 }

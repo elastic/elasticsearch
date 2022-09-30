@@ -608,7 +608,7 @@ public class AllocationService {
         }
     }
 
-    public RoutingAllocation createRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
+    private RoutingAllocation createRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
         return new RoutingAllocation(
             allocationDeciders,
             clusterState.mutableRoutingNodes(),

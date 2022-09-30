@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90336")
     public void testScalingThreadPoolConfiguration() throws InterruptedException {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         final Settings.Builder builder = Settings.builder();
@@ -74,7 +73,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             expectedMax = randomIntBetween(Math.max(1, core), 16);
             builder.put("thread_pool." + threadPoolName + ".max", expectedMax);
         } else {
-            expectedMax = maxBasedOnNumberOfProcessors;
+            expectedMax = threadPoolName.equals(ThreadPool.Names.SNAPSHOT) ? 10 : maxBasedOnNumberOfProcessors;
         }
 
         final long keepAlive;

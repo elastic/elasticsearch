@@ -18,6 +18,8 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -28,9 +30,13 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.CartesianPointIndexFieldData;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
+import org.elasticsearch.xpack.spatial.script.field.CartesianPointDocValuesField;
+import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -189,14 +195,24 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             this.queryProcessor = new ShapeQueryPointProcessor();
         }
 
-        @Override
-        public String typeName() {
-            return CONTENT_TYPE;
+        // only used in test
+        public PointFieldType(String name) {
+            this(name, true, false, true, null, Collections.emptyMap());
         }
 
         @Override
-        public boolean isAggregatable() {
-            return false;
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            failIfNoDocValues();
+            return new CartesianPointIndexFieldData.Builder(
+                name(),
+                CartesianPointValuesSourceType.instance(),
+                CartesianPointDocValuesField::new
+            );
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
         }
 
         @Override

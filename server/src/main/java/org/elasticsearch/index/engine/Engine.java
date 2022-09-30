@@ -1156,7 +1156,7 @@ public abstract class Engine implements Closeable {
             }
         } else {
             logger.debug(
-                () -> format("tried to fail engine but could not acquire lock - engine should " + "be failed by now [%s]", reason),
+                () -> format("tried to fail engine but could not acquire lock - engine should be failed by now [%s]", reason),
                 failure
             );
         }

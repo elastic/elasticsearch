@@ -11,9 +11,10 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,12 +32,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
 
@@ -44,38 +46,47 @@ import static java.util.stream.Collectors.toSet;
  * A {@link ShardsAllocator} which asynchronously refreshes the desired balance held by the {@link DesiredBalanceComputer} and then takes
  * steps towards the desired balance using the {@link DesiredBalanceReconciler}.
  */
-public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterStateListener {
+public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
 
     private final ShardsAllocator delegateAllocator;
+    private final ClusterService clusterService;
+    private final DesiredBalanceReconcilerAction reconciler;
     private final DesiredBalanceComputer desiredBalanceComputer;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
-    private final NodeAllocationOrdering allocationOrdering;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
+    private final ReconcileDesiredBalanceExecutor executor = new ReconcileDesiredBalanceExecutor();
+    private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
-    private volatile DesiredBalance appliedDesiredBalance = DesiredBalance.INITIAL;
 
-    public static DesiredBalanceShardsAllocator create(
-        ShardsAllocator delegateAllocator,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        Supplier<RerouteService> rerouteServiceSupplier
-    ) {
-        var allocator = new DesiredBalanceShardsAllocator(delegateAllocator, threadPool, rerouteServiceSupplier);
-        clusterService.addListener(allocator);
-        return allocator;
+    @FunctionalInterface
+    public interface DesiredBalanceReconcilerAction {
+        ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction);
     }
 
     public DesiredBalanceShardsAllocator(
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
-        Supplier<RerouteService> rerouteServiceSupplier
+        ClusterService clusterService,
+        DesiredBalanceReconcilerAction reconciler
+    ) {
+        this(delegateAllocator, threadPool, clusterService, new DesiredBalanceComputer(delegateAllocator), reconciler);
+    }
+
+    public DesiredBalanceShardsAllocator(
+        ShardsAllocator delegateAllocator,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        DesiredBalanceComputer desiredBalanceComputer,
+        DesiredBalanceReconcilerAction reconciler
     ) {
         this.delegateAllocator = delegateAllocator;
-        this.desiredBalanceComputer = new DesiredBalanceComputer(delegateAllocator);
+        this.clusterService = clusterService;
+        this.reconciler = reconciler;
+        this.desiredBalanceComputer = desiredBalanceComputer;
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
@@ -86,19 +97,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 setCurrentDesiredBalance(
                     desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, this::isFresh)
                 );
-                var isFresh = isFresh(desiredBalanceInput);
-
-                if (isFresh) {
-                    if (DesiredBalance.hasChanges(currentDesiredBalance, appliedDesiredBalance)) {
-                        logger.trace("Current desired balance is different from applied one, scheduling a reroute");
-                        rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.noop());
-                    } else {
-                        var lastConvergedIndex = currentDesiredBalance.lastConvergedIndex();
-                        logger.trace("Executing listeners up to [{}] as desired balance did not require reroute", lastConvergedIndex);
-                        // TODO desired balance this still does not guarantee the correct behaviour in case there is
-                        // extra unrelated allocation between one that triggered this computation and one produced by above reroute.
-                        queue.complete(lastConvergedIndex);
-                    }
+                if (isFresh(desiredBalanceInput)) {
+                    logger.trace("Scheduling a reconciliation");
+                    submitReconcileTask(currentDesiredBalance);
+                } else {
+                    logger.trace("outdated");
                 }
             }
 
@@ -107,8 +110,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                 return "DesiredBalanceShardsAllocator#updateDesiredBalanceAndReroute";
             }
         };
-        this.allocationOrdering = new NodeAllocationOrdering();
         this.queue = new PendingListenersQueue(threadPool);
+    }
+
+    @Override
+    public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+        return delegateAllocator.decideShardAllocation(shard, allocation);
     }
 
     @Override
@@ -123,9 +130,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         // TODO add system context assertion
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
-        queue.pause();
-        allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
-
         var index = indexGenerator.incrementAndGet();
         logger.trace("Executing allocate for [{}]", index);
         queue.add(index, listener);
@@ -133,25 +137,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
 
-        maybeAwaitBalance();
-
-        appliedDesiredBalance = currentDesiredBalance;
-        logger.trace("Allocating using balance [{}]", appliedDesiredBalance);
-        new DesiredBalanceReconciler(appliedDesiredBalance, allocation, allocationOrdering).run();
-
-        queue.complete(appliedDesiredBalance.lastConvergedIndex());
-        if (allocation.routingNodesChanged()) {
-            logger.trace("Delaying execution listeners up to [{}] as routing nodes have changed", index);
-            // Execute listeners after cluster state is applied
-        } else {
-            logger.trace("Executing listeners up to [{}] as routing nodes have not changed", queue.getCompletedIndex());
-            queue.resume();
-        }
-    }
-
-    protected void maybeAwaitBalance() {
-        // TODO possibly add a bounded wait for the computation to complete?
-        // Otherwise we will have to do a second cluster state update straight away.
+        // Starts reconciliation towards desired balance that might have not been updated with a recent calculation yet.
+        // This is fine as balance should have incremental rather than radical changes.
+        // This should speed up achieving the desired balance in cases current state is still different from it (due to THROTTLING).
+        reconcile(currentDesiredBalance, allocation);
     }
 
     @Override
@@ -174,41 +163,91 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         return moves;
     }
 
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().nodes().isLocalNodeElectedMaster()) {
-            logger.trace("Executing listeners up to [{}] after cluster state was committed", queue.getCompletedIndex());
-            queue.resume();
-        } else {
-            reset();
-            allocationOrdering.onNoLongerMaster();
-            queue.completeAllAsNotMaster();
-            pendingDesiredBalanceMoves.clear();
-        }
-    }
-
-    @Override
-    public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-        return delegateAllocator.decideShardAllocation(shard, allocation);
-    }
-
-    private void reset() {
-        if (indexGenerator.getAndSet(-1) != -1) {
-            currentDesiredBalance = DesiredBalance.INITIAL;
-            appliedDesiredBalance = DesiredBalance.INITIAL;
-        }
-    }
-
-    private boolean setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
-        boolean hasChanges = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance);
+    private void setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
         if (logger.isTraceEnabled()) {
-            var diff = hasChanges ? diff(currentDesiredBalance, newDesiredBalance) : "No changes";
+            var diff = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance) ? diff(currentDesiredBalance, newDesiredBalance) : "No changes";
             logger.trace("Desired balance updated: {}. {}", newDesiredBalance, diff);
         } else {
             logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
         }
         currentDesiredBalance = newDesiredBalance;
-        return hasChanges;
+    }
+
+    protected void submitReconcileTask(DesiredBalance desiredBalance) {
+        clusterService.submitStateUpdateTask(
+            "reconcile-desired-balance",
+            new ReconcileDesiredBalanceTask(desiredBalance),
+            ClusterStateTaskConfig.build(Priority.URGENT),
+            executor
+        );
+    }
+
+    protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+        allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
+        new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering).run();
+    }
+
+    private void onNoLongerMaster() {
+        if (indexGenerator.getAndSet(-1) != -1) {
+            currentDesiredBalance = DesiredBalance.INITIAL;
+            queue.completeAllAsNotMaster();
+            pendingDesiredBalanceMoves.clear();
+            allocationOrdering.clear();
+        }
+    }
+
+    private final class ReconcileDesiredBalanceTask implements ClusterStateTaskListener {
+        private final DesiredBalance desiredBalance;
+
+        private ReconcileDesiredBalanceTask(DesiredBalance desiredBalance) {
+            this.desiredBalance = desiredBalance;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            assert MasterService.isPublishFailureException(e) : e;
+            onNoLongerMaster();
+        }
+    }
+
+    private final class ReconcileDesiredBalanceExecutor implements ClusterStateTaskExecutor<ReconcileDesiredBalanceTask> {
+
+        @Override
+        public ClusterState execute(BatchExecutionContext<ReconcileDesiredBalanceTask> batchExecutionContext) {
+            var latest = findLatest(batchExecutionContext.taskContexts());
+            var newState = applyBalance(batchExecutionContext, latest);
+            discardSupersededTasks(batchExecutionContext.taskContexts(), latest);
+            return newState;
+        }
+
+        private TaskContext<ReconcileDesiredBalanceTask> findLatest(List<TaskContext<ReconcileDesiredBalanceTask>> taskContexts) {
+            return taskContexts.stream().max(Comparator.comparing(context -> context.getTask().desiredBalance.lastConvergedIndex())).get();
+        }
+
+        private ClusterState applyBalance(
+            BatchExecutionContext<ReconcileDesiredBalanceTask> batchExecutionContext,
+            TaskContext<ReconcileDesiredBalanceTask> latest
+        ) {
+            try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                var newState = reconciler.apply(
+                    batchExecutionContext.initialState(),
+                    routingAllocation -> reconcile(latest.getTask().desiredBalance, routingAllocation)
+                );
+                latest.success(() -> queue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
+                return newState;
+            }
+        }
+
+        private void discardSupersededTasks(
+            List<TaskContext<ReconcileDesiredBalanceTask>> taskContexts,
+            TaskContext<ReconcileDesiredBalanceTask> latest
+        ) {
+            for (TaskContext<ReconcileDesiredBalanceTask> taskContext : taskContexts) {
+                if (taskContext != latest) {
+                    taskContext.success(() -> {});
+                }
+            }
+        }
     }
 
     private static String diff(DesiredBalance old, DesiredBalance updated) {

@@ -114,20 +114,22 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.snapshotFilesProvider = snapshotFilesProvider;
         this.snapshotFileDownloadsPermit = snapshotFileDownloadsPermit;
         this.shardId = indexShard.shardId();
-        this.multiFileWriter = createMultiFileWriter();
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
         store.incRef();
         indexShard.recoveryStats().incCurrentAsTarget();
     }
 
-    private void refreshMultiFileWriter() {
+    private void recreateMultiFileWriter() {
         // Sometimes we need to clear the downloaded data and start from scratch
         // i.e. when we're recovering from a snapshot that's physically different to the
         // source node index files. In that case we create a new MultiFileWriter using a
         // different tempFilePrefix and close the previous writer that would take care of
         // cleaning itself once all the outstanding writes finish.
-        multiFileWriter.close();
+        MultiFileWriter previousMultiFileWriter = this.multiFileWriter;
+        if (previousMultiFileWriter != null) {
+            previousMultiFileWriter.close();
+        }
         this.multiFileWriter = createMultiFileWriter();
     }
 
@@ -464,7 +466,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ActionListener.completeWith(listener, () -> {
             indexShard.resetRecoveryStage();
             indexShard.prepareForIndexRecovery();
-            refreshMultiFileWriter();
+            recreateMultiFileWriter();
             final RecoveryState.Index index = state().getIndex();
             for (int i = 0; i < phase1ExistingFileNames.size(); i++) {
                 index.addFileDetail(phase1ExistingFileNames.get(i), phase1ExistingFileSizes.get(i), true);

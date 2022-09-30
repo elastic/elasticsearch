@@ -53,6 +53,7 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
 
     @Override
     public synchronized RecoveryState reset() {
+        // In searchable snapshots we won't run into #90441, therefore we don't need to create a new copy
         setStage(Stage.INIT);
         return this;
     }

@@ -350,8 +350,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             true,
             isInSortOrderExecutionRequired
         );
-        // NOCOMMIT - turn this back on
-        // releasables.add(context);
         return context;
     }
 

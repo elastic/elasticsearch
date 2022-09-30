@@ -438,13 +438,3 @@ In the query results, notice that the numer of hits has been reduced to only 288
 This example demonstrates how downsampling can dramatically reduce the number of records stored for time series data, within whatever time boundaries you choose. It's also possible to perform downsampling on already downsampled data, to further reduce storage and associated costs, as the time series data ages and the data resolution becomes less critical.
 
 Downsampling is very easily integrated within an ILM policy. To learn more, try the <<downsampling-ilm,Run downsampling with ILM>> example.
-
-////
-[source,console]
-----
-DELETE /sample-01*
-DELETE _data_stream/*
-DELETE _index_template/*
-----
-// TEST[continued]
-////

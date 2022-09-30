@@ -168,8 +168,8 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             queries = Collections.unmodifiableSet(in.readSet(StreamInput::readBytesReference));
             this.allowRestrictedIndices = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-                final List<String> read = in.readOptionalList(StreamInput::readString);
-                this.remoteClusters = read == null ? null : Collections.unmodifiableSet(new TreeSet<>(read));
+                final List<String> rcs = in.readOptionalList(StreamInput::readString);
+                this.remoteClusters = rcs == null ? null : Collections.unmodifiableSet(new TreeSet<>(rcs));
             } else {
                 this.remoteClusters = null;
             }

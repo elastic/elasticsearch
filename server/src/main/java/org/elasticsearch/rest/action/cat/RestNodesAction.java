@@ -312,7 +312,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("mappings.total_count", "alias:mtc,mappingsTotalCount;default:false;text-align:right;desc:number of mappings");
         table.addCell(
             "mappings.total_estimated_overhead_in_bytes",
-            "alias:mteoi,mappingsTotalEstimatedOverheadInBytes;default:false;text-align:right;desc:estimated"
+            "alias:mteo,mappingsTotalEstimatedOverheadInBytes;default:false;text-align:right;desc:estimated"
                 + " overhead in bytes of mappings"
         );
 

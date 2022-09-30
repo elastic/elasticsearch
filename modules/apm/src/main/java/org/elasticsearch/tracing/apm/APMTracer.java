@@ -187,6 +187,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     @Override
     public void startTrace(String name, Map<String, Object> attributes) {
+        // If tracing has been disabled, return immediately
+        var services = this.services;
+        if (services == null) {
+            return;
+        }
+
         SpanBuilder spanBuilder = services.tracer.spanBuilder(name);
         setSpanAttributes(attributes, spanBuilder);
         spanBuilder.startSpan();

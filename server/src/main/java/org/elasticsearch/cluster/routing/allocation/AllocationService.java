@@ -146,7 +146,7 @@ public class AllocationService {
         return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "]");
     }
 
-    public static ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
+    private static ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
         final RoutingTable oldRoutingTable = oldState.routingTable();
         final RoutingNodes newRoutingNodes = allocation.routingNodes();
         final RoutingTable newRoutingTable = RoutingTable.of(oldRoutingTable.version(), newRoutingNodes);

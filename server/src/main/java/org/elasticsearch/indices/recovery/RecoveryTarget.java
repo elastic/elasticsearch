@@ -114,14 +114,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.snapshotFilesProvider = snapshotFilesProvider;
         this.snapshotFileDownloadsPermit = snapshotFileDownloadsPermit;
         this.shardId = indexShard.shardId();
-        final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
-        this.multiFileWriter = new MultiFileWriter(
-            indexShard.store(),
-            indexShard.recoveryState().getIndex(),
-            tempFilePrefix,
-            logger,
-            this::ensureRefCount
-        );
+        this.multiFileWriter = createMultiFileWriter();
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
         store.incRef();
@@ -135,14 +128,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // different tempFilePrefix and close the previous writer that would take care of
         // cleaning itself once all the outstanding writes finish.
         multiFileWriter.close();
+        this.multiFileWriter = createMultiFileWriter();
+    }
+
+    private MultiFileWriter createMultiFileWriter() {
         final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
-        this.multiFileWriter = new MultiFileWriter(
-            indexShard.store(),
-            indexShard.recoveryState().getIndex(),
-            tempFilePrefix,
-            logger,
-            this::ensureRefCount
-        );
+        return new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger, this::ensureRefCount);
     }
 
     /**

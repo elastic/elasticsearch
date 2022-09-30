@@ -1352,10 +1352,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertThat(internalCluster().stopNode(primaryNodeName), is(equalTo(true)));
 
         firstDownloadStartLatch.await();
-        // Increase the retry timeout as it takes a bit until the source node gets reconnected to the target node
-        updateSetting(INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING.getKey(), "1m");
-        assertThat(connectionRefs, is(not(empty())));
-        connectionRefs.forEach(Transport.Connection::close);
 
         CountDownLatch firstFileChunkSent = new CountDownLatch(1);
         CountDownLatch blockFileChunkDownload = new CountDownLatch(1);
@@ -1368,6 +1364,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 handler.messageReceived(request, channel, task);
             }
         );
+
+        // Increase the retry timeout as it takes a bit until the source node gets reconnected to the target node
+        updateSetting(INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING.getKey(), "1m");
+        assertThat(connectionRefs, is(not(empty())));
+        connectionRefs.forEach(Transport.Connection::close);
 
         firstFileChunkSent.await();
 

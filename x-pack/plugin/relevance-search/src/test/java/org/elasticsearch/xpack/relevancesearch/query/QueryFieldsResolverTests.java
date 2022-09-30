@@ -22,6 +22,14 @@ import static org.mockito.Mockito.when;
 
 public class QueryFieldsResolverTests extends ESTestCase {
 
+    public void testRetrievesSearchableTextFieldsWithNoSettings() {
+
+        Map<String, String> fieldNamesToTypes = Map.of("textField1", "text", "geoLocationField", "geo_location", "textField2", "text");
+
+        final Set<String> queryFields = new QueryFieldsResolver().getQueryFields(createSearchExecutionContext((fieldNamesToTypes)));
+        assertEquals(Set.of("textField1", "textField2"), queryFields);
+    }
+
     private static SearchExecutionContext createSearchExecutionContext(Map<String, String> fieldNamesToTypes) {
         final SearchExecutionContext context = mock(SearchExecutionContext.class);
 
@@ -44,14 +52,6 @@ public class QueryFieldsResolverTests extends ESTestCase {
             when(fieldType.getTextSearchInfo()).thenReturn(textSearchInfo);
         }
         return fieldType;
-    }
-
-    public void testRetrievesSearchableTextFields() {
-
-        Map<String, String> fieldNamesToTypes = Map.of("textField1", "text", "geoLocationField", "geo_location", "textField2", "text");
-
-        final Set<String> queryFields = new QueryFieldsResolver().getQueryFields(createSearchExecutionContext((fieldNamesToTypes)));
-        assertEquals(Set.of("textField1", "textField2"), queryFields);
     }
 
 }

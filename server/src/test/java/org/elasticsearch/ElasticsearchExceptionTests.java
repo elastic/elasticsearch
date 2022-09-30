@@ -613,7 +613,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testGenerateFailureToXContentWithNoDetails() throws IOException {
         {
             Exception ex = new FileNotFoundException("foo not found");
-            for (int i=0; i<randomInt(10); i++) {
+            for (int i = 0; i < randomInt(10); i++) {
                 ex = new RemoteTransportException("foobar", ex);
             }
             assertFailureAsJson(ex, """
@@ -641,7 +641,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testGenerateFailureToXContentWithDetails() throws IOException {
         {
             Exception ex = new FileNotFoundException("foo not found");
-            for (int i=0; i<randomInt(10); i++) {
+            for (int i = 0; i < randomInt(10); i++) {
                 ex = new RemoteTransportException("foobar", ex);
             }
             assertFailureAsJson(ex, """
@@ -686,7 +686,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testGenerateThrowableToXContent() throws IOException {
         {
             Exception ex = new FileNotFoundException("foo not found");
-            for (int i=0; i<randomInt(10); i++) {
+            for (int i = 0; i < randomInt(10); i++) {
                 ex = new RemoteTransportException("foobar", ex);
             }
             assertThrowableAsJson(ex, """

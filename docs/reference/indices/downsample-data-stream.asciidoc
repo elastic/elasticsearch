@@ -30,10 +30,7 @@ PUT /my-time-series-index
                 "end_time": "2022-06-30T23:59:59Z"
             },
             "routing_path": [
-                "kubernetes.namespace",
-                "kubernetes.host",
-                "kubernetes.node",
-                "kubernetes.pod"
+                "test.namespace"
             ],
             "number_of_replicas": 0,
             "number_of_shards": 2
@@ -44,125 +41,13 @@ PUT /my-time-series-index
             "@timestamp": {
                 "type": "date"
             },
-            "kubernetes": {
-                "properties": {
-                    "container": {
-                        "properties": {
-                            "cpu": {
-                                "properties": {
-                                    "usage": {
-                                        "properties": {
-                                            "core": {
-                                                "properties": {
-                                                    "ns": {
-                                                        "type": "long"
-                                                    }
-                                                }
-                                            },
-                                            "limit": {
-                                                "properties": {
-                                                    "pct": {
-                                                        "type": "float"
-                                                    }
-                                                }
-                                            },
-                                            "nanocores": {
-                                                "type": "long",
-                                                "time_series_metric": "gauge"
-                                            },
-                                            "node": {
-                                                "properties": {
-                                                    "pct": {
-                                                        "type": "float"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                            "memory": {
-                                "properties": {
-                                    "available": {
-                                        "properties": {
-                                            "bytes": {
-                                                "type": "long",
-                                                "time_series_metric": "gauge"
-                                            }
-                                        }
-                                    },
-                                    "majorpagefaults": {
-                                        "type": "long"
-                                    },
-                                    "pagefaults": {
-                                        "type": "long",
-                                        "time_series_metric": "gauge"
-                                    },
-                                    "rss": {
-                                        "properties": {
-                                            "bytes": {
-                                                "type": "long",
-                                                "time_series_metric": "gauge"
-                                            }
-                                        }
-                                    },
-                                    "usage": {
-                                        "properties": {
-                                            "bytes": {
-                                                "type": "long",
-                                                "time_series_metric": "gauge"
-                                            },
-                                            "limit": {
-                                                "properties": {
-                                                    "pct": {
-                                                        "type": "float"
-                                                    }
-                                                }
-                                            },
-                                            "node": {
-                                                "properties": {
-                                                    "pct": {
-                                                        "type": "float"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    },
-                                    "workingset": {
-                                        "properties": {
-                                            "bytes": {
-                                                "type": "long",
-                                                "time_series_metric": "gauge"
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                            "name": {
-                                "type": "keyword"
-                            },
-                            "start_time": {
-                                "type": "date"
-                            }
-                        }
-                    },
-                    "host": {
-                        "type": "keyword",
-                        "time_series_dimension": true
-                    },
-                    "namespace": {
-                        "type": "keyword",
-                        "time_series_dimension": true
-                    },
-                    "node": {
-                        "type": "keyword",
-                        "time_series_dimension": true
-                    },
-                    "pod": {
-                        "type": "keyword",
-                        "time_series_dimension": true
-                    }
-                }
+            "metric": {
+                "type": "long",
+                "time_series_metric": "gauge"
+            },
+            "dimension": {
+                "type": "keyword",
+                "time_series_dimension": true
             }
         }
     }

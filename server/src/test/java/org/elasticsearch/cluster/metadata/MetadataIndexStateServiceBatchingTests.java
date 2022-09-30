@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_BLOCKS_WRITE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -71,7 +72,8 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var future2 = client().admin().indices().prepareOpen("test-2", "test-3").execute();
 
         // check the queue for the open-indices tasks
-        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
+        // 2 open index tasks, 1 blocking task, 0-1 reconcile-desired-balance tasks caused by async_shard_fetch
+        assertThat(masterService.pendingTasks(), anyOf(hasSize(3), hasSize(4)));
 
         block1.run(); // release block
 
@@ -109,7 +111,8 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var future2 = client().admin().indices().prepareClose("test-2", "test-3").execute();
 
         // check the queue for the first close tasks (the add-block-index-to-close tasks)
-        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
+        // 2 close index tasks, 1 blocking task, 0-1 reconcile-desired-balance tasks caused by async_shard_fetch
+        assertThat(masterService.pendingTasks(), anyOf(hasSize(3), hasSize(4)));
 
         // add *another* block to the end of the pending tasks, then unblock the current block so we can progress,
         // then immediately block again on that new block
@@ -118,7 +121,10 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block2.run(); // wait for block
 
         // wait for the queue to have the second close tasks (the close-indices tasks)
-        assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
+        assertBusy(() -> {
+            // 2 close index tasks, 1 blocking task, 0-1 reconcile-desired-balance tasks caused by async_shard_fetch
+            assertThat(masterService.pendingTasks(), anyOf(hasSize(3), hasSize(4)));
+        });
 
         block2.run(); // release block
 
@@ -163,7 +169,8 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         final var future2 = client().admin().indices().prepareAddBlock(APIBlock.WRITE, "test-2", "test-3").execute();
 
         // check the queue for the first add-block tasks (the add-index-block tasks)
-        assertThat(masterService.pendingTasks(), hasSize(3)); // two plus the blocking task itself
+        // 2 close index tasks, 1 blocking task, 0-1 reconcile-desired-balance tasks caused by async_shard_fetch
+        assertThat(masterService.pendingTasks(), anyOf(hasSize(3), hasSize(4)));
 
         // add *another* block to the end of the pending tasks, then unblock the current block so we can progress,
         // then immediately block again on that new block
@@ -172,7 +179,10 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         block2.run(); // wait for block
 
         // wait for the queue to have the second add-block tasks (the finalize-index-block tasks)
-        assertBusy(() -> assertThat(masterService.pendingTasks(), hasSize(3))); // two plus the blocking task itself
+        assertBusy(() -> {
+            // 2 close index tasks, 1 blocking task, 0-1 reconcile-desired-balance tasks caused by async_shard_fetch
+            assertThat(masterService.pendingTasks(), anyOf(hasSize(3), hasSize(4)));
+        });
 
         block2.run(); // release block
 

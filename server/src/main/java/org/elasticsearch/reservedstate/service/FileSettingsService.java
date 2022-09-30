@@ -347,12 +347,22 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             try (var ws = watchService) {
                 watcherThread.interrupt();
                 watcherThread.join();
+
+                // make sure any keys are closed - if watchService.close() throws, it may not close the keys first
+                if (configDirWatchKey != null) {
+                    configDirWatchKey.cancel();
+                }
+                if (settingsDirWatchKey != null) {
+                    settingsDirWatchKey.cancel();
+                }
             } catch (IOException e) {
                 logger.warn("encountered exception while closing watch service", e);
             } catch (InterruptedException interruptedException) {
                 logger.info("interrupted while closing the watch service", interruptedException);
             } finally {
                 watcherThread = null;
+                settingsDirWatchKey = null;
+                configDirWatchKey = null;
                 watchService = null;
                 logger.info("watcher service stopped");
             }

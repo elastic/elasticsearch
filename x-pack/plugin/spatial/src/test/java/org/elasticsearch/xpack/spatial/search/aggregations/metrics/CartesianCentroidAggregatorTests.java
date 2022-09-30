@@ -127,7 +127,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
             CartesianPoint expectedCentroid = new CartesianPoint(0, 0);
             CartesianPoint[] multiValues = new CartesianPoint[numUniqueCartesianPoints];
             for (int i = 0; i < multiValues.length; i++) {
-                Point point = ShapeTestUtils.randomPoint(false);
+                Point point = ESTestCase.randomValueOtherThanMany(this::extremePoint, () -> ShapeTestUtils.randomPoint(false));
                 multiValues[i] = new CartesianPoint(point.getX(), point.getY());
             }
             final CartesianPoint[] multiVal = new CartesianPoint[2];
@@ -177,10 +177,10 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
         double coordinate = (Math.abs(a) + Math.abs(b)) / 2;
         if (coordinate < 1.0) {
             // When dealing with small numbers, we use an absolute tolerance, similar to the geo case
-            return 1e-7D;
+            return 1e-6D;
         } else {
             // For large numbers we use a tolerance based on a faction of the expected value
-            double tolerance = coordinate / 1e7D;
+            double tolerance = coordinate / 1e6D;
             // For very large numbers the floating point error is worse for large counts
             return tolerance > 1e25 ? tolerance * count : tolerance;
         }

@@ -220,10 +220,10 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(
-            exampleMalformedValue("a").matcher("For input string: \"a\""),
-            exampleMalformedValue("NaN").matcher("[scaled_float] only supports finite values, but got [NaN]"),
-            exampleMalformedValue("Infinity").matcher("[scaled_float] only supports finite values, but got [Infinity]"),
-            exampleMalformedValue("-Infinity").matcher("[scaled_float] only supports finite values, but got [-Infinity]")
+            exampleMalformedValue("a").errorMatches("For input string: \"a\""),
+            exampleMalformedValue("NaN").errorMatches("[scaled_float] only supports finite values, but got [NaN]"),
+            exampleMalformedValue("Infinity").errorMatches("[scaled_float] only supports finite values, but got [Infinity]"),
+            exampleMalformedValue("-Infinity").errorMatches("[scaled_float] only supports finite values, but got [-Infinity]")
         );
     }
 

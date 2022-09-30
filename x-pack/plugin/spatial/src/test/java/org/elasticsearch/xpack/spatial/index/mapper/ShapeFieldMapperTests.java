@@ -205,27 +205,27 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(
-            exampleMalformedValue("1234.333").matcher("Unknown geometry type: 1234.333"),
-            exampleMalformedValue(b -> b.startObject().field("x", 1.3).field("y", "-").endObject()).matcher("Required [type]"),
-            exampleMalformedValue(b -> b.startObject().field("x", "-").field("y", 1.3).endObject()).matcher("Required [type]"),
-            exampleMalformedValue(b -> b.startObject().field("geohash", stringEncode(0, 0)).endObject()).matcher("Required [type]"),
-            exampleMalformedValue("-,1.3").matcher("Unknown geometry type: -"),
-            exampleMalformedValue("1.3,-").matcher("Unknown geometry type: 1.3"),
-            exampleMalformedValue(b -> b.startObject().field("lon", 1.3).field("y", 1.3).endObject()).matcher("Required [type]"),
-            exampleMalformedValue(b -> b.startObject().field("x", 1.3).field("lat", 1.3).endObject()).matcher("Required [type]"),
-            exampleMalformedValue(b -> b.startObject().field("x", "NaN").field("y", "NaN").endObject()).matcher("Required [type]"),
-            exampleMalformedValue(b -> b.startObject().field("x", "NaN").field("y", 1.3).endObject()).matcher("Required [type]"),
-            exampleMalformedValue(b -> b.startObject().field("x", 1.3).field("y", "NaN").endObject()).matcher("Required [type]"),
-            exampleMalformedValue("NaN,NaN").matcher("Unknown geometry type: nan"),
-            exampleMalformedValue("10,NaN").matcher("Unknown geometry type: 10"),
-            exampleMalformedValue("NaN,12").matcher("Unknown geometry type: nan"),
-            exampleMalformedValue(b -> b.startObject().field("x", 1.3).nullField("y").endObject()).matcher("Required [type]"),
-            exampleMalformedValue(b -> b.startObject().nullField("x").field("y", 1.3).endObject()).matcher("Required [type]"),
-            exampleMalformedValue("Bad shape").matcher("Unknown geometry type: bad"),
+            exampleMalformedValue("1234.333").errorMatches("Unknown geometry type: 1234.333"),
+            exampleMalformedValue(b -> b.startObject().field("x", 1.3).field("y", "-").endObject()).errorMatches("Required [type]"),
+            exampleMalformedValue(b -> b.startObject().field("x", "-").field("y", 1.3).endObject()).errorMatches("Required [type]"),
+            exampleMalformedValue(b -> b.startObject().field("geohash", stringEncode(0, 0)).endObject()).errorMatches("Required [type]"),
+            exampleMalformedValue("-,1.3").errorMatches("Unknown geometry type: -"),
+            exampleMalformedValue("1.3,-").errorMatches("Unknown geometry type: 1.3"),
+            exampleMalformedValue(b -> b.startObject().field("lon", 1.3).field("y", 1.3).endObject()).errorMatches("Required [type]"),
+            exampleMalformedValue(b -> b.startObject().field("x", 1.3).field("lat", 1.3).endObject()).errorMatches("Required [type]"),
+            exampleMalformedValue(b -> b.startObject().field("x", "NaN").field("y", "NaN").endObject()).errorMatches("Required [type]"),
+            exampleMalformedValue(b -> b.startObject().field("x", "NaN").field("y", 1.3).endObject()).errorMatches("Required [type]"),
+            exampleMalformedValue(b -> b.startObject().field("x", 1.3).field("y", "NaN").endObject()).errorMatches("Required [type]"),
+            exampleMalformedValue("NaN,NaN").errorMatches("Unknown geometry type: nan"),
+            exampleMalformedValue("10,NaN").errorMatches("Unknown geometry type: 10"),
+            exampleMalformedValue("NaN,12").errorMatches("Unknown geometry type: nan"),
+            exampleMalformedValue(b -> b.startObject().field("x", 1.3).nullField("y").endObject()).errorMatches("Required [type]"),
+            exampleMalformedValue(b -> b.startObject().nullField("x").field("y", 1.3).endObject()).errorMatches("Required [type]"),
+            exampleMalformedValue("Bad shape").errorMatches("Unknown geometry type: bad"),
             exampleMalformedValue(
                 "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869036, 18.9401790919517 "
                     + "-33.9681188869036, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))"
-            ).matcher("at least three non-collinear points required")
+            ).errorMatches("at least three non-collinear points required")
         );
     }
 

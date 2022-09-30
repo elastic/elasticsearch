@@ -157,27 +157,26 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(
             // no metrics
-            exampleMalformedValue(b -> b.startObject().endObject()).matcher(
+            exampleMalformedValue(b -> b.startObject().endObject()).errorMatches(
                 "Aggregate metric field [field] must contain all metrics [min, max, value_count]"
             ),
             // unmapped metric
             exampleMalformedValue(
                 b -> b.startObject().field("min", -10.1).field("max", 50.0).field("value_count", 14).field("sum", 55).endObject()
-            ).matcher("Aggregate metric [sum] does not exist in the mapping of field [field]"),
+            ).errorMatches("Aggregate metric [sum] does not exist in the mapping of field [field]"),
             // missing metric
-            exampleMalformedValue(b -> b.startObject().field("min", -10.1).field("max", 50.0).endObject()).matcher(
+            exampleMalformedValue(b -> b.startObject().field("min", -10.1).field("max", 50.0).endObject()).errorMatches(
                 "Aggregate metric field [field] must contain all metrics [min, max, value_count]"
             ),
             // invalid metric value
             exampleMalformedValue(b -> b.startObject().field("min", "10.0").field("max", 50.0).field("value_count", 14).endObject())
-                .matcher("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"),
+                .errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"),
             // negative value count
-            exampleMalformedValue(b -> b.startObject().field("min", 10.0).field("max", 50.0).field("value_count", -14).endObject()).matcher(
-                "Aggregate metric [value_count] of field [field] cannot be a negative number"
-            ),
+            exampleMalformedValue(b -> b.startObject().field("min", 10.0).field("max", 50.0).field("value_count", -14).endObject())
+                .errorMatches("Aggregate metric [value_count] of field [field] cannot be a negative number"),
             // value count with decimal digits (whole numbers formatted as doubles are permitted, but non-whole numbers are not)
             exampleMalformedValue(b -> b.startObject().field("min", 10.0).field("max", 50.0).field("value_count", 77.33).endObject())
-                .matcher("failed to parse field [field.value_count] of type [integer]")
+                .errorMatches("failed to parse field [field.value_count] of type [integer]")
         );
     }
 

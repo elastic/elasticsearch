@@ -184,8 +184,8 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(
-            exampleMalformedValue("a").matcher("For input string: \"a\""),
-            exampleMalformedValue(b -> b.value(false)).matcher(
+            exampleMalformedValue("a").errorMatches("For input string: \"a\""),
+            exampleMalformedValue(b -> b.value(false)).errorMatches(
                 both(containsString("Current token")).and(containsString("not numeric, can not use numeric value accessors"))
             )
         );

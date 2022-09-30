@@ -153,7 +153,7 @@ public class IpFieldMapperTests extends MapperTestCase {
 
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
-        return List.of(exampleMalformedValue(":1").matcher("':1' is not an IP string literal"));
+        return List.of(exampleMalformedValue(":1").errorMatches("':1' is not an IP string literal"));
     }
 
     public void testNullValue() throws IOException {

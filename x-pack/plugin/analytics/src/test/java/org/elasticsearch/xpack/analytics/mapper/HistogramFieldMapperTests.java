@@ -116,7 +116,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(
-            exampleMalformedValue(b -> b.startObject().startArray("values").value(2).value(2).endArray().endObject()).matcher(
+            exampleMalformedValue(b -> b.startObject().startArray("values").value(2).value(2).endArray().endObject()).errorMatches(
                 "expected field called [counts]"
             )
         );

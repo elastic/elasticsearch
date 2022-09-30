@@ -381,23 +381,23 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(
-            exampleMalformedValue("1234.333").matcher("unsupported symbol [.] in geohash [1234.333]"),
-            exampleMalformedValue(b -> b.startObject().field("lat", "-").field("lon", 1.3).endObject()).matcher(
+            exampleMalformedValue("1234.333").errorMatches("unsupported symbol [.] in geohash [1234.333]"),
+            exampleMalformedValue(b -> b.startObject().field("lat", "-").field("lon", 1.3).endObject()).errorMatches(
                 "[latitude] must be a valid double value"
             ),
-            exampleMalformedValue(b -> b.startObject().field("lat", 1.3).field("lon", "-").endObject()).matcher(
+            exampleMalformedValue(b -> b.startObject().field("lat", 1.3).field("lon", "-").endObject()).errorMatches(
                 "[longitude] must be a valid double value"
             ),
-            exampleMalformedValue("-,1.3").matcher("latitude must be a number"),
-            exampleMalformedValue("1.3,-").matcher("longitude must be a number"),
-            exampleMalformedValue(b -> b.startObject().field("lat", "NaN").field("lon", 1.2).endObject()).matcher("Required [lat]"),
-            exampleMalformedValue(b -> b.startObject().field("lat", 1.2).field("lon", "NaN").endObject()).matcher("Required [lon]"),
-            exampleMalformedValue("NaN,1.3").matcher("invalid latitude NaN; must be between -90.0 and 90.0"),
-            exampleMalformedValue("1.3,NaN").matcher("invalid longitude NaN; must be between -180.0 and 180.0"),
-            exampleMalformedValue(b -> b.startObject().nullField("lat").field("lon", "NaN").endObject()).matcher(
+            exampleMalformedValue("-,1.3").errorMatches("latitude must be a number"),
+            exampleMalformedValue("1.3,-").errorMatches("longitude must be a number"),
+            exampleMalformedValue(b -> b.startObject().field("lat", "NaN").field("lon", 1.2).endObject()).errorMatches("Required [lat]"),
+            exampleMalformedValue(b -> b.startObject().field("lat", 1.2).field("lon", "NaN").endObject()).errorMatches("Required [lon]"),
+            exampleMalformedValue("NaN,1.3").errorMatches("invalid latitude NaN; must be between -90.0 and 90.0"),
+            exampleMalformedValue("1.3,NaN").errorMatches("invalid longitude NaN; must be between -180.0 and 180.0"),
+            exampleMalformedValue(b -> b.startObject().nullField("lat").field("lon", "NaN").endObject()).errorMatches(
                 "latitude must be a number"
             ),
-            exampleMalformedValue(b -> b.startObject().field("lat", "NaN").nullField("lon").endObject()).matcher(
+            exampleMalformedValue(b -> b.startObject().field("lat", "NaN").nullField("lon").endObject()).errorMatches(
                 "longitude must be a number"
             )
         );

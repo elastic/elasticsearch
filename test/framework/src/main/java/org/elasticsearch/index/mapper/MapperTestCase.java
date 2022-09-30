@@ -184,16 +184,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
 
         /**
-         * Match a string contained in the error message.
+         * Match error messages that contain a string.
          */
-        public ExampleMalformedValue matcher(String contains) {
-            return matcher(containsString(contains));
+        public ExampleMalformedValue errorMatches(String contains) {
+            return errorMatches(containsString(contains));
         }
 
         /**
          * Match the error message in an arbitrary way.
          */
-        public ExampleMalformedValue matcher(Matcher<String> newMatcher) {
+        public ExampleMalformedValue errorMatches(Matcher<String> newMatcher) {
             return new ExampleMalformedValue(mapping, value, newMatcher);
         }
     }

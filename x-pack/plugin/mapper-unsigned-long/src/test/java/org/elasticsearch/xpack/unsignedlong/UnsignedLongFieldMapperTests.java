@@ -177,8 +177,8 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(
-            exampleMalformedValue("a").matcher("For input string: \"a\""),
-            exampleMalformedValue(b -> b.value(false)).matcher("For input string: \"false\"")
+            exampleMalformedValue("a").errorMatches("For input string: \"a\""),
+            exampleMalformedValue(b -> b.value(false)).errorMatches("For input string: \"false\"")
         );
     }
 

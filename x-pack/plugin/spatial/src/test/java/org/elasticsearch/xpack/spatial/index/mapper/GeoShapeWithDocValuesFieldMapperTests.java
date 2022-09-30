@@ -191,11 +191,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(
-            exampleMalformedValue("Bad shape").matcher("Unknown geometry type: bad"),
+            exampleMalformedValue("Bad shape").errorMatches("Unknown geometry type: bad"),
             exampleMalformedValue(
                 "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869036, 18.9401790919517 "
                     + "-33.9681188869036, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))"
-            ).matcher("at least three non-collinear points required")
+            ).errorMatches("at least three non-collinear points required")
         );
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -84,13 +84,12 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
             Collections.singletonMap(
                 "foo",
                 new IndicesAccessControl.IndexAccessControl(
-                    true,
                     fieldPermissions,
                     (useDls) ? DocumentPermissions.filteredBy(queries) : DocumentPermissions.allowAll()
                 )
             )
         );
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
+        new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
 
         ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
 
@@ -129,7 +128,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
             .build();
         final String action = randomFrom(ShrinkAction.NAME, ResizeAction.NAME);
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
+        new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
         ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
 
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);

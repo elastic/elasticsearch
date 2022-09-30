@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -212,7 +213,7 @@ public final class AuthorizationUtils {
         }
 
         final String[] indices = indicesRequest.indices();
-        if (indices == null || indices.length == 0 || Arrays.equals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
+        if (indices == null || indices.length == 0 || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
             // No indices to check
             return;
         }

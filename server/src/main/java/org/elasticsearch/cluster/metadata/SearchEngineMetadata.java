@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -29,6 +30,8 @@ import java.util.Objects;
 public class SearchEngineMetadata implements Metadata.Custom {
 
     public static final String TYPE = "content_indices";
+
+    public static final SearchEngineMetadata EMPTY = new SearchEngineMetadata(ImmutableOpenMap.of());
     public static final ParseField CONTENT_INDICES = new ParseField("content_indices");
 
     @SuppressWarnings("unchecked")

@@ -222,7 +222,7 @@ GET _cat/shards?v=true
 
 [discrete]
 [[field-count-recommendation]]
-==== Allow enough heap on nodes for field mappers and overheads
+==== Allow enough heap for field mappers and overheads
 
 Mapped fields consume some heap memory on each node, and require extra
 heap on data nodes.

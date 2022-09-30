@@ -8,28 +8,26 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.geo.Component2D;
-import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.PointValues;
 
 /**
  * A reusable tree reader visitor for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
  * {@link TriangleTreeWriter}.
  *
- * This class supports checking {@link LatLonGeometry} relations against a serialized triangle tree.
+ * This class supports checking {@link Component2D} relations against a serialized triangle tree.
  * It does not support bounding boxes crossing the dateline.
- *
  */
-class LatLonGeometryRelationVisitor extends TriangleTreeReader.DecodedVisitor {
+class Component2DRelationVisitor extends TriangleTreeReader.DecodedVisitor {
 
     private GeoRelation relation;
     private Component2D component2D;
 
-    LatLonGeometryRelationVisitor(CoordinateEncoder encoder) {
+    Component2DRelationVisitor(CoordinateEncoder encoder) {
         super(encoder);
     }
 
-    public void reset(LatLonGeometry latLonGeometry) {
-        component2D = LatLonGeometry.create(latLonGeometry);
+    public void reset(Component2D component2D) {
+        this.component2D = component2D;
         relation = GeoRelation.QUERY_DISJOINT;
     }
 

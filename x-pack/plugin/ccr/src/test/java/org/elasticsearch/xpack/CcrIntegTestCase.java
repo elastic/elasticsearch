@@ -686,9 +686,15 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             if (shardRouting == null || shardRouting.assignedToNode() == false) {
                 continue;
             }
-            IndexShard indexShard = cluster.getInstance(IndicesService.class, state.nodes().get(shardRouting.currentNodeId()).getName())
-                .indexServiceSafe(shardRouting.index())
-                .getShard(shardRouting.id());
+            final var indexService = cluster.getInstance(IndicesService.class, state.nodes().get(shardRouting.currentNodeId()).getName())
+                .indexService(shardRouting.index());
+            if (indexService == null) {
+                continue;
+            }
+            final var indexShard = indexService.getShardOrNull(shardRouting.id());
+            if (indexShard == null || indexShard.routingEntry().started() == false) {
+                continue;
+            }
             try {
                 final List<DocIdSeqNoAndSource> docsOnShard = IndexShardTestCase.getDocIdAndSeqNos(indexShard);
                 logger.info("--> shard {} docs {} seq_no_stats {}", shardRouting, docsOnShard, indexShard.seqNoStats());

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -102,23 +103,25 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
-        return new DesiredBalanceShardsAllocator(
-            new BalancedShardsAllocator(settings),
-            queue.getThreadPool(),
-            () -> (reason, priority, listener) -> {
-                /* noop as reconciliation will await balance calculation result*/
-            }
-        ) {
+        return new DesiredBalanceShardsAllocator(new BalancedShardsAllocator(settings), queue.getThreadPool(), null, null) {
+            private RoutingAllocation lastAllocation;
+
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+                lastAllocation = allocation;
                 super.allocate(allocation, listener);
-                // We have to call clusterChanged to resume listener queue execution. Otherwise, reroute listeners will never be executed.
-                clusterChanged(new ClusterChangedEvent("test", allocation.getClusterState(), allocation.getClusterState()));
+                queue.runAllTasks();
             }
 
             @Override
-            protected void maybeAwaitBalance() {
-                queue.runAllTasks();
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+                // do nothing as balance is not computed yet (during allocate)
+            }
+
+            @Override
+            protected void submitReconcileTask(DesiredBalance desiredBalance) {
+                // reconcile synchronously rather than in cluster state update task
+                super.reconcile(desiredBalance, lastAllocation);
             }
         };
     }

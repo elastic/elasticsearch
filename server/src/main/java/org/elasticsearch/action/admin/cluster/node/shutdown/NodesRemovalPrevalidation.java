@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
@@ -212,7 +213,7 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
         }
 
         public static IsSafe fromString(String s) {
-            return switch (s.toLowerCase()) {
+            return switch (s.toLowerCase(Locale.ROOT)) {
                 case "yes" -> YES;
                 case "no" -> NO;
                 case "unknown" -> UNKNOWN;

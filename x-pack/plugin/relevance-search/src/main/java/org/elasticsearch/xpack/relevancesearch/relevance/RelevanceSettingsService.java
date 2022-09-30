@@ -26,6 +26,7 @@ public class RelevanceSettingsService {
     }
 
     public RelevanceSettings getRelevanceSettings(String settingsId) throws RelevanceSettingsNotFoundExecption {
+        // TODO cache relevance settings, including cache invalidation
         final Map<String, Object> settingsContent = client.prepareGet(ENT_SEARCH_INDEX, RELEVANCE_SETTINGS_PREFIX + settingsId)
             .get()
             .getSource();

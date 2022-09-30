@@ -15,7 +15,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.relevancesearch.RelevanceSearchPlugin;
 import org.elasticsearch.xpack.relevancesearch.relevance.RelevanceSettingsService;
-import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
@@ -37,8 +36,9 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
         return List.of(RelevanceSearchPlugin.class);
     }
 
-    @Before
-    public void setup() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         relevanceMatchQueryBuilder = new RelevanceMatchQueryBuilder();
         relevanceMatchQueryBuilder.setRelevanceSettingsService(getInstanceFromNode(RelevanceSettingsService.class));
 
@@ -122,6 +122,5 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute()
             .actionGet();
-        ;
     }
 }

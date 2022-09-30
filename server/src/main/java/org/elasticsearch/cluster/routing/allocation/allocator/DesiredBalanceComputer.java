@@ -54,13 +54,25 @@ public class DesiredBalanceComputer {
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
-        final var ignoredShards = new HashSet<>(desiredBalanceInput.ignoredShards());
         final var changes = routingAllocation.changes();
+        final var ignoredShards = desiredBalanceInput.ignoredShards();
         final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         final var unassignedPrimaries = new HashSet<ShardId>();
 
         if (routingNodes.isEmpty()) {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of());
+        }
+
+        // start shards that will be initialized
+        for (final var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
+            final var shardRouting = iterator.next();
+            var info = shardRouting.unassignedInfo();
+            if (info != null
+                && info.getLastAllocatedNodeId() != null
+                && routingNodes.node(info.getLastAllocatedNodeId()) != null
+                && ignoredShards.contains(shardRouting) == false) {
+                iterator.initialize(info.getLastAllocatedNodeId(), null, 0L, changes);
+            }
         }
 
         // we assume that all ongoing recoveries will complete
@@ -189,17 +201,21 @@ public class DesiredBalanceComputer {
             }
         }
 
+        for (final var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
+            final var shardRouting = iterator.next();
+            if (ignoredShards.contains(shardRouting)) {
+                iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, changes);
+            }
+        }
+
         boolean hasChanges = false;
         for (int i = 0; true; i++) {
             if (hasChanges) {
-                final var unassigned = routingNodes.unassigned();
-
                 // Not the first iteration, so every remaining unassigned shard has been ignored, perhaps due to throttling. We must bring
                 // them all back out of the ignored list to give the allocator another go...
-                unassigned.resetIgnored();
-
+                routingNodes.unassigned().resetIgnored();
                 // ... but not if they're ignored because they're out of scope for allocation
-                for (final var iterator = unassigned.iterator(); iterator.hasNext();) {
+                for (final var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
                     final var shardRouting = iterator.next();
                     if (ignoredShards.contains(shardRouting)) {
                         iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, changes);

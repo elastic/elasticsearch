@@ -133,9 +133,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         var index = indexGenerator.incrementAndGet();
         logger.trace("Executing allocate for [{}]", index);
         queue.add(index, listener);
-        desiredBalanceComputation.onNewInput(
-            new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
-        );
+        desiredBalanceComputation.onNewInput(DesiredBalanceInput.create(index, allocation));
 
         // Starts reconciliation towards desired balance that might have not been updated with a recent calculation yet.
         // This is fine as balance should have incremental rather than radical changes.

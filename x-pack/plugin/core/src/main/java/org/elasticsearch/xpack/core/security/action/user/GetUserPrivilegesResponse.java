@@ -213,7 +213,9 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                     .append(queries.stream().map(BytesReference::utf8ToString).collect(Collectors.joining(",")))
                     .append("]");
             }
-            // TODO remoteClusters
+            if (remoteClusters != null) {
+                sb.append(", remoteClusters=[").append(Strings.collectionToCommaDelimitedString(remoteClusters)).append("]");
+            }
             sb.append("]");
             return sb.toString();
         }

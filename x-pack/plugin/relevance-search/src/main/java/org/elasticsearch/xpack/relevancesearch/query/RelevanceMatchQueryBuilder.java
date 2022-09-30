@@ -112,9 +112,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
                 RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
                 fields = relevanceSettings.getFields();
             } catch (RelevanceSettingsService.RelevanceSettingsNotFoundExecption e) {
-                throw new IllegalArgumentException(
-                    String.format("[relevance_match] query can't find search settings: %s", relevanceSettingsId)
-                );
+                throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
             }
         } else {
             fields = queryFieldsResolver.getQueryFields(context);

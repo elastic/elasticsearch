@@ -32,7 +32,7 @@ public class RelevanceSettingsService {
             .getSource();
 
         if (settingsContent == null) {
-            throw new RelevanceSettingsNotFoundExecption(String.format("Relevance settings %s not found", settingsId));
+            throw new RelevanceSettingsNotFoundExecption("Relevance settings " + settingsId + " not found");
         }
 
         return parseRelevanceSettings(settingsContent);

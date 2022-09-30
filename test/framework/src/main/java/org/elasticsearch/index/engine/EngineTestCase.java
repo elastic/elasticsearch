@@ -1350,7 +1350,7 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
-                assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
+                assertThat(luceneOp.source(), equalTo(translogOp.source()));
             }
         }
     }

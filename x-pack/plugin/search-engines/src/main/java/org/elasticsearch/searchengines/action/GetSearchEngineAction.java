@@ -124,7 +124,6 @@ public class GetSearchEngineAction extends ActionType<GetSearchEngineAction.Resp
             this(in.readList(SearchEngine::new));
         }
 
-
         public List<SearchEngine> getSearchEngines() {
             return searchEngines;
         }
@@ -151,14 +150,14 @@ public class GetSearchEngineAction extends ActionType<GetSearchEngineAction.Resp
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
 
-            for (SearchEngine searchEngine: searchEngines) {
+            for (SearchEngine searchEngine : searchEngines) {
                 builder.field(searchEngine.getName());
                 builder.startObject();
 
                 builder.field(NAME_FIELD.getPreferredName(), searchEngine.getName());
 
                 builder.startArray(INDICES_FIELD.getPreferredName());
-                for (Index index: searchEngine.getIndices()) {
+                for (Index index : searchEngine.getIndices()) {
                     builder.value(index.getName());
                 }
 

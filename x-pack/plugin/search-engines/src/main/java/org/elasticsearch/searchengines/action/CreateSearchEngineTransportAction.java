@@ -50,7 +50,12 @@ public class CreateSearchEngineTransportAction extends AcknowledgedTransportMast
     }
 
     @Override
-    protected void masterOperation(Task task, CreateSearchEngineAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        CreateSearchEngineAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
         searchEngineMetadataService.createSearchEngine(request, listener);
     }
 

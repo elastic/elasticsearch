@@ -213,6 +213,11 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
+
+    @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(
             exampleMalformedValue("a").matcher("For input string: \"a\""),
@@ -329,11 +334,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             case 3 -> Float.toString((float) v);
             default -> throw new IllegalArgumentException();
         };
-    }
-
-    @Override
-    protected boolean supportsIgnoreMalformed() {
-        return true;
     }
 
     @Override

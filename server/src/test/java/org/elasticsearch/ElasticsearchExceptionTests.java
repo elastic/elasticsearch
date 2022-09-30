@@ -612,12 +612,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
     public void testGenerateFailureToXContentWithNoDetails() throws IOException {
         {
-            Exception ex;
-            if (randomBoolean()) {
-                // just a wrapper which is omitted
-                ex = new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
-            } else {
-                ex = new FileNotFoundException("foo not found");
+            Exception ex = new FileNotFoundException("foo not found");
+            for (int i=0; i<randomInt(10); i++) {
+                ex = new RemoteTransportException("foobar", ex);
             }
             assertFailureAsJson(ex, """
                 {"error":{"type":"file_not_found_exception","reason":"foo not found"}}""", false);
@@ -628,7 +625,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 {"error":{"type":"parsing_exception","reason":"foobar"}}""", false);
         }
 
-        { // render header and metadata
+        { // header and metadata shouldn't be rendered
             ParsingException ex = new ParsingException(1, 2, "foobar", null);
             ex.addMetadata("es.test1", "value1");
             ex.addMetadata("es.test2", "value2");
@@ -643,12 +640,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
     public void testGenerateFailureToXContentWithDetails() throws IOException {
         {
-            Exception ex;
-            if (randomBoolean()) {
-                // just a wrapper which is omitted
-                ex = new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
-            } else {
-                ex = new FileNotFoundException("foo not found");
+            Exception ex = new FileNotFoundException("foo not found");
+            for (int i=0; i<randomInt(10); i++) {
+                ex = new RemoteTransportException("foobar", ex);
             }
             assertFailureAsJson(ex, """
                 {"error":{"type":"file_not_found_exception","reason":"foo not found",
@@ -691,12 +685,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
     public void testGenerateThrowableToXContent() throws IOException {
         {
-            Exception ex;
-            if (randomBoolean()) {
-                // just a wrapper which is omitted
-                ex = new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
-            } else {
-                ex = new FileNotFoundException("foo not found");
+            Exception ex = new FileNotFoundException("foo not found");
+            for (int i=0; i<randomInt(10); i++) {
+                ex = new RemoteTransportException("foobar", ex);
             }
             assertThrowableAsJson(ex, """
                 {"type":"file_not_found_exception","reason":"foo not found"}""");

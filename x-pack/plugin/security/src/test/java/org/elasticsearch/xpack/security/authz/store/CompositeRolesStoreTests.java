@@ -1168,7 +1168,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         RoleDescriptor role2 = new RoleDescriptor(
             "r2",
             null,
-            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("baz-*").privileges("all").remoteClusters("remote1").build(), },
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("baz-*").privileges("all").remoteClusters("remote1").build(),
+                IndicesPrivileges.builder().indices("bar-*").privileges("all").remoteClusters("remote1", "remote-*").build(), },
             null,
             null,
             null,
@@ -1206,8 +1208,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        assertHasIndices(List.of("abc-*", "remote-xyz-*", "remote-abc-*", "baz-*"), role.remoteIndices("remote1"));
-        assertHasIndices(List.of("remote-abc-*", "xyz-*", "abc-*", "remote-xyz-*", "remote-abc-*"), role.remoteIndices("remote-a"));
+        assertHasIndices(List.of("abc-*", "remote-xyz-*", "remote-abc-*", "baz-*", "bar-*"), role.remoteIndices("remote1"));
+        assertHasIndices(
+            List.of("remote-abc-*", "xyz-*", "abc-*", "remote-xyz-*", "remote-abc-*", "bar-*"),
+            role.remoteIndices("remote-a")
+        );
         assertHasIndices(List.of(), role.remoteIndices(randomAlphaOfLengthBetween(2, 10)));
         assertHasIndices(List.of(), role.remoteIndices("remote2"));
     }

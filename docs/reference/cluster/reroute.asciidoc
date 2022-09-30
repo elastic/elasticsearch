@@ -10,7 +10,7 @@ Changes the allocation of shards in a cluster.
 [[cluster-reroute-api-request]]
 ==== {api-request-title}
 
-`POST /_cluster/reroute`
+`POST /_cluster/reroute?metric=none`
 
 [[cluster-reroute-api-prereqs]]
 ==== {api-prereq-title}
@@ -189,7 +189,7 @@ This is a short example of a simple reroute API call:
 
 [source,console]
 --------------------------------------------------
-POST /_cluster/reroute
+POST /_cluster/reroute?metric=none
 {
   "commands": [
     {

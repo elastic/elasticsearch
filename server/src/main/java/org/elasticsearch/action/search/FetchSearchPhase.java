@@ -213,7 +213,7 @@ final class FetchSearchPhase extends SearchPhase {
                 connection,
                 fetchSearchRequest,
                 context.getTask(),
-                new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
+                new SearchActionListener<>(shardTarget, shardIndex) {
                     @Override
                     public void innerOnResponse(FetchSearchResult result) {
                         try {

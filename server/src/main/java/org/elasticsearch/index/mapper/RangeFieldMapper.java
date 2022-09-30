@@ -170,10 +170,10 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     public static final class RangeFieldType extends MappedFieldType {
-        protected final RangeType rangeType;
-        protected final DateFormatter dateTimeFormatter;
-        protected final DateMathParser dateMathParser;
-        protected final boolean coerce;
+        private final RangeType rangeType;
+        private final DateFormatter dateTimeFormatter;
+        private final DateMathParser dateMathParser;
+        private final boolean coerce;
 
         public RangeFieldType(
             String name,

@@ -92,7 +92,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
                     indexAccessControlMap.put(name, new IndexAccessControl(FieldPermissions.DEFAULT, null));
                 }
                 IndicesAccessControl indicesAccessControl =
-                    new IndicesAccessControl(Collections.unmodifiableMap(indexAccessControlMap));
+                    new IndicesAccessControl(true, Collections.unmodifiableMap(indexAccessControlMap));
                 listener.onResponse(new IndexAuthorizationResult(true, indicesAccessControl));
             }, listener::onFailure));
         } else {

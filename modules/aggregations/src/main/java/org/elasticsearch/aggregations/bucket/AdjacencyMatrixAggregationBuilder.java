@@ -6,10 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.adjacency;
+package org.elasticsearch.aggregations.bucket;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Version;
+import org.elasticsearch.aggregations.bucket.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
@@ -20,7 +21,6 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;

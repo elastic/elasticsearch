@@ -6,11 +6,18 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.adjacency;
+package org.elasticsearch.aggregations.bucket;
 
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,6 +28,22 @@ import java.util.TreeMap;
 public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregationTestCase<InternalAdjacencyMatrix> {
 
     private List<String> keys;
+
+    // TODO: maybe add base class that overwrites registerPlugin(...) for all tests that will be added to this module.
+    @Override
+    protected SearchPlugin registerPlugin() {
+        return new AggregationsPlugin();
+    }
+
+    // TODO: the base test class should be able to get this from the search plugin? (^)
+    @Override
+    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
+        ContextParser<Object, Aggregation> parser = (p, c) -> ParsedAdjacencyMatrix.fromXContent(p, (String) c);
+        return CollectionUtils.appendToCopy(
+            getDefaultNamedXContents(),
+            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(AdjacencyMatrixAggregationBuilder.NAME), parser)
+        );
+    }
 
     @Override
     protected boolean supportsSampling() {

@@ -24,13 +24,13 @@ import java.io.IOException;
 public interface GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue> {
 
     GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
-    GeoShapeValues EMPTY = new Empty();
     ShapeValuesConfig<GeoShapeValues.GeoShapeValue> DEFAULT_CONFIG = new ShapeValuesConfig<>(
         CoordinateEncoder.GEO,
         GeoShapeValue::new,
         new GeoShapeIndexer(Orientation.CCW, "missing"),
         DEFAULT_VALUES_SOURCE_TYPE
     );
+    GeoShapeValues EMPTY = new Empty();
 
     /**
      * Produce empty ShapeValues for geo data

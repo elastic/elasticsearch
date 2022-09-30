@@ -23,13 +23,13 @@ import java.io.IOException;
 public interface CartesianShapeValues extends ShapeValues<CartesianShapeValues.CartesianShapeValue> {
 
     CartesianShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = CartesianShapeValuesSourceType.instance();
-    CartesianShapeValues EMPTY = new CartesianShapeValues.Empty();
     ShapeValuesConfig<CartesianShapeValues.CartesianShapeValue> DEFAULT_CONFIG = new ShapeValuesConfig<>(
         CoordinateEncoder.CARTESIAN,
         CartesianShapeValue::new,
         new CartesianShapeIndexer("missing"),
         DEFAULT_VALUES_SOURCE_TYPE
     );
+    CartesianShapeValues EMPTY = new CartesianShapeValues.Empty();
 
     /**
      * Produce empty ShapeValues for cartesian data

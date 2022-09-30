@@ -92,16 +92,16 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
 
-                logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
+                logger.debug("Starting desired balance computation for [{}]", desiredBalanceInput.index());
 
                 setCurrentDesiredBalance(
                     desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, this::isFresh)
                 );
                 if (isFresh(desiredBalanceInput)) {
-                    logger.trace("Scheduling a reconciliation");
+                    logger.debug("Desired balance computation for [{}] completed, scheduling reconciliation", desiredBalanceInput.index());
                     submitReconcileTask(currentDesiredBalance);
                 } else {
-                    logger.trace("outdated");
+                    logger.debug("Desired balance computation for [{}] discarded", desiredBalanceInput.index());
                 }
             }
 
@@ -131,7 +131,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
         var index = indexGenerator.incrementAndGet();
-        logger.trace("Executing allocate for [{}]", index);
+        logger.debug("Executing allocate for [{}]", index);
         queue.add(index, listener);
         desiredBalanceComputation.onNewInput(
             new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
@@ -165,7 +165,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private void setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
         if (logger.isTraceEnabled()) {
-            var diff = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance) ? diff(currentDesiredBalance, newDesiredBalance) : "No changes";
+            var diff = DesiredBalance.hasChanges(currentDesiredBalance, newDesiredBalance)
+                ? "Diff: " + diff(currentDesiredBalance, newDesiredBalance)
+                : "No changes";
             logger.trace("Desired balance updated: {}. {}", newDesiredBalance, diff);
         } else {
             logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
@@ -183,6 +185,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("Reconciling desired balance: {}", desiredBalance);
+        } else {
+            logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
+        }
         allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
         new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering).run();
     }

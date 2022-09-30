@@ -526,6 +526,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                 }
             }
         }
+
         return startedShard;
     }
 

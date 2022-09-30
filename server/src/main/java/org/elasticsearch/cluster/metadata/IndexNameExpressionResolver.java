@@ -223,7 +223,6 @@ public class IndexNameExpressionResolver {
             .toList();
     }
 
-
     /**
      * Returns {@link IndexAbstraction} instance for the provided write request. This instance isn't fully resolved,
      * meaning that {@link IndexAbstraction#getWriteIndex()} should be invoked in order to get concrete write index.

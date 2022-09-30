@@ -2359,7 +2359,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     }
                 }
 
-                for (SearchEngine searchEngine: searchEngineMetadata.searchEngines().values()) {
+                for (SearchEngine searchEngine : searchEngineMetadata.searchEngines().values()) {
                     assert searchEngine.getIndices().isEmpty() == false;
                     final IndexAbstraction.SearchEngine engineAbstraction = new IndexAbstraction.SearchEngine(searchEngine);
                     IndexAbstraction existing = indicesLookup.put(searchEngine.getName(), engineAbstraction);

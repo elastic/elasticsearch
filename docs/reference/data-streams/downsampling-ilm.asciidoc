@@ -229,6 +229,14 @@ PUT _index_template/datastream_template
 ----
 // TEST[continued]
 
+////
+[source,console]
+----
+DELETE _index_template/*
+----
+// TEST[continued]
+////
+
 [discrete]
 [[downsampling-ilm-ingest-data]]
 ==== Ingest time series data

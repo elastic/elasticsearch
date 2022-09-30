@@ -264,7 +264,7 @@ public class DesiredBalanceReconciler {
                 }
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("No eligible node found to assign shard [{}] amongst [{}] and fallback nodes", shard, assignment);
+                    logger.trace("No eligible node found to assign shard [{}] amongst [{}]", shard, assignment);
                 }
 
                 final UnassignedInfo.AllocationStatus allocationStatus;

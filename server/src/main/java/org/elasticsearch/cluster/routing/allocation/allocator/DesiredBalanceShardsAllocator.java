@@ -92,16 +92,17 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
 
-                logger.debug("Starting desired balance computation for [{}]", desiredBalanceInput.index());
+                long index = desiredBalanceInput.index();
+                logger.debug("Starting desired balance computation for [{}]", index);
 
                 setCurrentDesiredBalance(
                     desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, this::isFresh)
                 );
                 if (isFresh(desiredBalanceInput)) {
-                    logger.debug("Desired balance computation for [{}] completed, scheduling reconciliation", desiredBalanceInput.index());
+                    logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     submitReconcileTask(currentDesiredBalance);
                 } else {
-                    logger.debug("Desired balance computation for [{}] discarded", desiredBalanceInput.index());
+                    logger.debug("Desired balance computation for [{}] is discarded as newer one is submitted", index);
                 }
             }
 

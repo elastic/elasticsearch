@@ -217,6 +217,7 @@ configurations {
 dependencies {
   constraints {
       integTestImplementation('org.ow2.asm:asm:9.3')
+      implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
   }
   components.all(JacksonAlignmentRule)
   constraints {
@@ -293,6 +294,7 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
+
 }
 
 tasks.named('test').configure {

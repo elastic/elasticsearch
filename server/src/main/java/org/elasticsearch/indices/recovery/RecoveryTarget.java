@@ -115,6 +115,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.snapshotFileDownloadsPermit = snapshotFileDownloadsPermit;
         this.shardId = indexShard.shardId();
         this.store = indexShard.store();
+        this.multiFileWriter = createMultiFileWriter();
         // make sure the store is not released until we are done.
         store.incRef();
         indexShard.recoveryStats().incCurrentAsTarget();
@@ -126,10 +127,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // source node index files. In that case we create a new MultiFileWriter using a
         // different tempFilePrefix and close the previous writer that would take care of
         // cleaning itself once all the outstanding writes finish.
-        MultiFileWriter previousMultiFileWriter = this.multiFileWriter;
-        if (previousMultiFileWriter != null) {
-            previousMultiFileWriter.close();
-        }
+        multiFileWriter.close();
         this.multiFileWriter = createMultiFileWriter();
     }
 

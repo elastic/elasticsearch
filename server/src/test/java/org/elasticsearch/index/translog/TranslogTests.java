@@ -1243,7 +1243,7 @@ public class TranslogTests extends ESTestCase {
                 maxOp = next;
             }
             assertNotNull(maxOp);
-            assertEquals(maxOp.getSource().source.utf8ToString(), Integer.toString(count));
+            assertEquals(maxOp.source().utf8ToString(), Integer.toString(count));
         }
     }
 
@@ -1286,7 +1286,7 @@ public class TranslogTests extends ESTestCase {
             for (int op = 0; op < translogOperations; op++) {
                 if (op <= lastSynced) {
                     final Translog.Operation read = snapshot.next();
-                    assertEquals(Integer.toString(op), read.getSource().source.utf8ToString());
+                    assertEquals(Integer.toString(op), read.source().utf8ToString());
                 } else {
                     Translog.Operation next = snapshot.next();
                     assertNull(next);
@@ -1662,7 +1662,7 @@ public class TranslogTests extends ESTestCase {
                     );
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null", next);
-                    assertEquals(i, Integer.parseInt(next.getSource().source.utf8ToString()));
+                    assertEquals(i, Integer.parseInt(next.source().utf8ToString()));
                 }
             }
         }
@@ -1717,7 +1717,7 @@ public class TranslogTests extends ESTestCase {
                 for (int i = 0; i < upTo; i++) {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
+                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.source().utf8ToString()));
                 }
             }
         }
@@ -1744,7 +1744,7 @@ public class TranslogTests extends ESTestCase {
                     for (int i = 0; i < upTo; i++) {
                         Translog.Operation next = snapshot.next();
                         assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                        assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
+                        assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.source().utf8ToString()));
                     }
                 }
             }
@@ -1804,7 +1804,7 @@ public class TranslogTests extends ESTestCase {
                 for (int i = 0; i < upTo; i++) {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
+                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.source().utf8ToString()));
                 }
             }
         }
@@ -1832,7 +1832,7 @@ public class TranslogTests extends ESTestCase {
                     for (int i = 0; i < upTo; i++) {
                         Translog.Operation next = snapshot.next();
                         assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                        assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
+                        assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.source().utf8ToString()));
                     }
                 }
             }
@@ -1916,7 +1916,7 @@ public class TranslogTests extends ESTestCase {
                 for (int i = 0; i < upTo; i++) {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
-                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.utf8ToString()));
+                    assertEquals("payload mismatch, synced: " + sync, i, Integer.parseInt(next.source().utf8ToString()));
                 }
             }
         }
@@ -2202,7 +2202,7 @@ public class TranslogTests extends ESTestCase {
             for (int i = firstUncommitted; i < translogOperations; i++) {
                 Translog.Operation next = snapshot.next();
                 assertNotNull("" + i, next);
-                assertEquals(Integer.parseInt(next.getSource().source.utf8ToString()), i);
+                assertEquals(Integer.parseInt(next.source().utf8ToString()), i);
             }
             assertNull(snapshot.next());
         }
@@ -2414,7 +2414,7 @@ public class TranslogTests extends ESTestCase {
                     );
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null", next);
-                    assertEquals(i, Integer.parseInt(next.getSource().source.utf8ToString()));
+                    assertEquals(i, Integer.parseInt(next.source().utf8ToString()));
                 }
             }
         }
@@ -2943,7 +2943,7 @@ public class TranslogTests extends ESTestCase {
 
             Translog.Operation op = snapshot.next();
             assertNotNull("operation 1 must be non-null", op);
-            assertEquals("payload mismatch for operation 1", 1, Integer.parseInt(op.getSource().source.utf8ToString()));
+            assertEquals("payload mismatch for operation 1", 1, Integer.parseInt(op.source().utf8ToString()));
 
             tlog.add(indexOp("" + 1, 1, primaryTerm.get(), "2"));
         }
@@ -2953,11 +2953,11 @@ public class TranslogTests extends ESTestCase {
 
             Translog.Operation secondOp = snapshot.next();
             assertNotNull("operation 2 must be non-null", secondOp);
-            assertEquals("payload mismatch for operation 2", Integer.parseInt(secondOp.getSource().source.utf8ToString()), 2);
+            assertEquals("payload mismatch for operation 2", Integer.parseInt(secondOp.source().utf8ToString()), 2);
 
             Translog.Operation firstOp = snapshot.next();
             assertNotNull("operation 1 must be non-null", firstOp);
-            assertEquals("payload mismatch for operation 1", Integer.parseInt(firstOp.getSource().source.utf8ToString()), 1);
+            assertEquals("payload mismatch for operation 1", Integer.parseInt(firstOp.source().utf8ToString()), 1);
         }
     }
 
@@ -3013,7 +3013,7 @@ public class TranslogTests extends ESTestCase {
                 for (int i = 0; i < 1; i++) {
                     Translog.Operation next = snapshot.next();
                     assertNotNull("operation " + i + " must be non-null", next);
-                    assertEquals("payload missmatch", i, Integer.parseInt(next.getSource().source.utf8ToString()));
+                    assertEquals("payload missmatch", i, Integer.parseInt(next.source().utf8ToString()));
                 }
             }
             tlog.add(indexOp("" + 1, 1, primaryTerm.get(), "1"));
@@ -3154,7 +3154,7 @@ public class TranslogTests extends ESTestCase {
                 assertEquals(syncedDocs.size(), snapshot.totalOperations());
                 for (int i = 0; i < syncedDocs.size(); i++) {
                     Translog.Operation next = snapshot.next();
-                    assertEquals(syncedDocs.get(i), next.getSource().source.utf8ToString());
+                    assertEquals(syncedDocs.get(i), next.source().utf8ToString());
                     assertNotNull("operation " + i + " must be non-null", next);
                 }
             }

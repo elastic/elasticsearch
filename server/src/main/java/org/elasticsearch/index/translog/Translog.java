@@ -1092,7 +1092,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         long estimateSize();
 
-        Source getSource();
+        BytesReference source();
 
         long seqNo();
 
@@ -1124,18 +1124,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 case NO_OP -> ((NoOp) operation).write(output);
                 default -> throw new AssertionError("no case for [" + operation.opType() + "]");
             }
-        }
-
-    }
-
-    public static class Source {
-
-        public final BytesReference source;
-        public final String routing;
-
-        public Source(BytesReference source, String routing) {
-            this.source = source;
-            this.routing = routing;
         }
 
     }
@@ -1226,6 +1214,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return this.routing;
         }
 
+        @Override
         public BytesReference source() {
             return this.source;
         }
@@ -1242,11 +1231,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         public long version() {
             return this.version;
-        }
-
-        @Override
-        public Source getSource() {
-            return new Source(source, routing);
         }
 
         private void write(final StreamOutput out) throws IOException {
@@ -1406,7 +1390,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         @Override
-        public Source getSource() {
+        public BytesReference source() {
             throw new IllegalStateException("trying to read doc source from delete operation");
         }
 
@@ -1510,7 +1494,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         @Override
-        public Source getSource() {
+        public BytesReference source() {
             throw new UnsupportedOperationException("source does not exist for a no-op");
         }
 

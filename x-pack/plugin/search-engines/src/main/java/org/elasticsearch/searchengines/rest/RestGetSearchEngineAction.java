@@ -19,7 +19,7 @@ import org.elasticsearch.searchengines.action.GetSearchEngineAction;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetSearchEngineAction extends BaseRestHandler {
     @Override
@@ -29,9 +29,7 @@ public class RestGetSearchEngineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new RestHandler.Route(GET, SearchEnginesPlugin.REST_BASE_PATH + "/{name}")
-        );
+        return List.of(new RestHandler.Route(GET, SearchEnginesPlugin.REST_BASE_PATH + "/{name}"));
     }
 
     @Override

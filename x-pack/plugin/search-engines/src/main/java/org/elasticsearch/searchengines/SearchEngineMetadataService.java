@@ -30,7 +30,9 @@ public class SearchEngineMetadataService {
      * Cluster state task executor for ingest pipeline operations
      */
     static final ClusterStateTaskExecutor<SearchEngineMetadataService.ClusterStateUpdateTask> TASK_EXECUTOR = batchExecutionContext -> {
-        final SearchEngineMetadata initialMetadata = batchExecutionContext.initialState().metadata().custom(SearchEngineMetadata.TYPE, SearchEngineMetadata.EMPTY);
+        final SearchEngineMetadata initialMetadata = batchExecutionContext.initialState()
+            .metadata()
+            .custom(SearchEngineMetadata.TYPE, SearchEngineMetadata.EMPTY);
         var currentMetadata = initialMetadata;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             try {
@@ -68,7 +70,6 @@ public class SearchEngineMetadataService {
         }
     }
 
-
     public SearchEngineMetadataService(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
@@ -97,12 +98,7 @@ public class SearchEngineMetadataService {
             // TODO:
             // - validate the engine name
             // - handle indices list
-            SearchEngine searchEngine = new SearchEngine(
-                request.getName(),
-                Collections.emptyList(),
-                false,
-                false
-            );
+            SearchEngine searchEngine = new SearchEngine(request.getName(), Collections.emptyList(), false, false);
             searchEngines.put(request.getName(), searchEngine);
 
             return new SearchEngineMetadata(searchEngines);

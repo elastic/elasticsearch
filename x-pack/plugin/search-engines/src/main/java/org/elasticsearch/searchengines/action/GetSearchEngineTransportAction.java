@@ -61,7 +61,8 @@ public class GetSearchEngineTransportAction extends TransportMasterNodeReadActio
         Task task,
         GetSearchEngineAction.Request request,
         ClusterState state,
-        ActionListener<GetSearchEngineAction.Response> listener) {
+        ActionListener<GetSearchEngineAction.Response> listener
+    ) {
         List<SearchEngine> searchEngines = getSearchEngines(request, state);
         listener.onResponse(new GetSearchEngineAction.Response(searchEngines));
     }

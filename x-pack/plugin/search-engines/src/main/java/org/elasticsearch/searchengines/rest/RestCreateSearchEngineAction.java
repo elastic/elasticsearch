@@ -8,18 +8,18 @@
 package org.elasticsearch.searchengines.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.searchengines.SearchEnginesPlugin;
-import org.elasticsearch.searchengines.action.CreateSearchEngineAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.searchengines.SearchEnginesPlugin;
+import org.elasticsearch.searchengines.action.CreateSearchEngineAction;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestCreateSearchEngineAction  extends BaseRestHandler {
+public class RestCreateSearchEngineAction extends BaseRestHandler {
 
     @Override
     public String getName() {

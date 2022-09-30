@@ -84,9 +84,6 @@ public class SearchEnginesPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(
-            new RestCreateSearchEngineAction(),
-            new RestGetSearchEngineAction()
-        );
+        return List.of(new RestCreateSearchEngineAction(), new RestGetSearchEngineAction());
     }
 }

@@ -135,7 +135,10 @@ public class Retry {
             assert backoff.hasNext();
             TimeValue next = backoff.next();
             logger.trace("Retry of bulk request scheduled in {} ms.", next.millis());
-            retryCancellable = scheduler.schedule(() -> this.execute(bulkRequestForRetry), next, ThreadPool.Names.SAME);
+            retryCancellable = scheduler.schedule(() -> {
+                logger.trace("Retry beginning");
+                this.execute(bulkRequestForRetry);
+            }, next, ThreadPool.Names.SAME);
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {
@@ -156,16 +159,19 @@ public class Retry {
 
         private boolean canRetry(BulkResponse bulkItemResponses) {
             if (backoff.hasNext() == false) {
+                logger.trace("Cannot retry because backoff.hasNext returned false");
                 return false;
             }
             for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
                 if (bulkItemResponse.isFailed()) {
                     final RestStatus status = bulkItemResponse.status();
                     if (status != RETRY_STATUS) {
+                        logger.trace("Cannot retry because status is {}", status);
                         return false;
                     }
                 }
             }
+            logger.trace("Can retry");
             return true;
         }
 

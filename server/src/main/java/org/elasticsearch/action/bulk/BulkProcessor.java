@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -26,6 +28,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -41,6 +44,8 @@ import java.util.function.Supplier;
  * In order to create a new bulk processor, use the {@link Builder}.
  */
 public class BulkProcessor implements Closeable {
+
+    private final Logger logger = LogManager.getLogger(BulkProcessor.class);
 
     static final String FLUSH_SCHEDULER_NAME_SUFFIX = "-flush-scheduler";
     static final String RETRY_SCHEDULER_NAME_SUFFIX = "-retry-scheduler";
@@ -353,7 +358,7 @@ public class BulkProcessor implements Closeable {
      * @throws InterruptedException If the current thread is interrupted
      */
     public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
-        lock.lock();
+        getLock();
         try {
             if (closed) {
                 return true;
@@ -371,7 +376,7 @@ public class BulkProcessor implements Closeable {
                 onClose.run();
             }
         } finally {
-            lock.unlock();
+            releaseLock();
         }
     }
 
@@ -412,13 +417,13 @@ public class BulkProcessor implements Closeable {
         // bulkRequest and instance swapping is not threadsafe, so execute the mutations under a lock.
         // once the bulk request is ready to be shipped swap the instance reference unlock and send the local reference to the handler.
         Tuple<BulkRequest, Long> bulkRequestToExecute = null;
-        lock.lock();
+        getLock();
         try {
             ensureOpen();
             bulkRequest.add(request);
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {
-            lock.unlock();
+            releaseLock();
         }
         // execute sending the local reference outside the lock to allow handler to control the concurrency via it's configuration.
         if (bulkRequestToExecute != null) {
@@ -436,13 +441,13 @@ public class BulkProcessor implements Closeable {
         XContentType xContentType
     ) throws Exception {
         Tuple<BulkRequest, Long> bulkRequestToExecute = null;
-        lock.lock();
+        getLock();
         try {
             ensureOpen();
             bulkRequest.add(data, defaultIndex, null, null, defaultPipeline, null, true, xContentType, RestApiVersion.current());
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {
-            lock.unlock();
+            releaseLock();
         }
 
         if (bulkRequestToExecute != null) {
@@ -510,21 +515,44 @@ public class BulkProcessor implements Closeable {
      * Flush pending delete or index requests.
      */
     public void flush() {
-        lock.lock();
+        getLock();
         try {
             ensureOpen();
             if (bulkRequest.numberOfActions() > 0) {
                 execute();
             }
         } finally {
-            lock.unlock();
+            releaseLock();
         }
+    }
+
+    private void getLock() {
+        if (logger.isTraceEnabled()) {
+            Set<String> semaphoreThreads = bulkRequestHandler.getNamesOfThreadsThatHaveAcquiredSemaphore();
+            logger.trace("Requesting BulkProcessor lock");
+            if (semaphoreThreads.contains(Thread.currentThread().getName())) {
+                /*
+                 * If we always acquire the lock in this class and then the BulkRequestHandler semaphore, we will not get deadlock. But
+                 * if we mix up that order, deadlock can happen.
+                 */
+                String acquiringLockInWrongOrderMessage =
+                    "The thread that has already acquired the BulkRequestHandler semaphore is attempting to get BulkProcessor lock";
+                logger.trace(acquiringLockInWrongOrderMessage);
+            }
+        }
+        lock.lock();
+        logger.trace("Acquired BulkProcessor lock");
+    }
+
+    private void releaseLock() {
+        logger.trace("Releasing BulkProcessor lock");
+        lock.unlock();
     }
 
     class Flush implements Runnable {
         @Override
         public void run() {
-            lock.lock();
+            getLock();
             try {
                 if (closed) {
                     return;
@@ -534,7 +562,7 @@ public class BulkProcessor implements Closeable {
                 }
                 execute();
             } finally {
-                lock.unlock();
+                releaseLock();
             }
         }
     }

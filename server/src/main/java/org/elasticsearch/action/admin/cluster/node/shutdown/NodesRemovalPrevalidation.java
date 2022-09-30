@@ -11,14 +11,35 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
+
+    private static final ParseField RESULT_FIELD = new ParseField("result");
+    private static final ParseField NODES_FIELD = new ParseField("nodes");
+
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<NodesRemovalPrevalidation, Void> PARSER = new ConstructingObjectParser<>(
+        "nodes_removal_prevalidation",
+        objects -> new NodesRemovalPrevalidation((Result) objects[0], (List<NodeResult>) objects[1])
+    );
+
+    static {
+        configureParser(PARSER);
+    }
+
+    static <T> void configureParser(ConstructingObjectParser<T, Void> parser) {
+        parser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Result.fromXContent(p), RESULT_FIELD);
+        parser.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> NodeResult.fromXContent(p), NODES_FIELD);
+    }
 
     private final Result result;
     private final List<NodeResult> nodes;
@@ -42,6 +63,12 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
     }
 
     @Override
+    public void writeTo(final StreamOutput out) throws IOException {
+        result.writeTo(out);
+        out.writeList(nodes);
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("result", result);
@@ -49,10 +76,8 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
         return builder.endObject();
     }
 
-    @Override
-    public void writeTo(final StreamOutput out) throws IOException {
-        result.writeTo(out);
-        out.writeList(nodes);
+    public static NodesRemovalPrevalidation fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     @Override
@@ -74,17 +99,22 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
     }
 
     public record Result(IsSafe isSafe, String reason) implements ToXContentObject, Writeable {
-        public static Result readFrom(final StreamInput in) throws IOException {
-            return new Result(IsSafe.readFrom(in), in.readString());
+
+        private static final ParseField IS_SAFE_FIELD = new ParseField("is_safe");
+        private static final ParseField REASON_FIELD = new ParseField("reason");
+
+        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
+            "nodes_removal_prevalidation_result",
+            objects -> new Result(IsSafe.fromString((String) objects[0]), (String) objects[1])
+        );
+
+        static {
+            configureParser(PARSER);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("is_safe", isSafe.name());
-            builder.field("reason", reason);
-            builder.endObject();
-            return builder;
+        static <T> void configureParser(ConstructingObjectParser<T, Void> parser) {
+            parser.declareString(ConstructingObjectParser.constructorArg(), IS_SAFE_FIELD);
+            parser.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
         }
 
         @Override
@@ -92,22 +122,46 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
             out.writeString(isSafe.isSafe());
             out.writeString(reason);
         }
-    }
 
-    public record NodeResult(String name, String Id, String externalId, Result result) implements ToXContentObject, Writeable {
-        public static NodeResult readFrom(final StreamInput in) throws IOException {
-            return new NodeResult(in.readString(), in.readString(), in.readString(), Result.readFrom(in));
+        public static Result readFrom(final StreamInput in) throws IOException {
+            return new Result(IsSafe.readFrom(in), in.readString());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("id", Id);
-            builder.field("name", name);
-            builder.field("external_id", externalId);
-            builder.field("result", result);
+            builder.field(IS_SAFE_FIELD.getPreferredName(), isSafe.name());
+            builder.field(REASON_FIELD.getPreferredName(), reason);
             builder.endObject();
             return builder;
+        }
+
+        public static Result fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+    }
+
+    public record NodeResult(String name, String Id, String externalId, Result result) implements ToXContentObject, Writeable {
+
+        private static final ParseField NAME_FIELD = new ParseField("name");
+        private static final ParseField ID_FIELD = new ParseField("id");
+        private static final ParseField EXTERNAL_ID_FIELD = new ParseField("external_id");
+        private static final ParseField RESULT_FIELD = new ParseField("result");
+
+        private static final ConstructingObjectParser<NodeResult, Void> PARSER = new ConstructingObjectParser<>(
+            "nodes_removal_prevalidation_node_result",
+            objects -> new NodeResult((String) objects[0], (String) objects[1], (String) objects[2], (Result) objects[3])
+        );
+
+        static {
+            configureParser(PARSER);
+        }
+
+        static <T> void configureParser(ConstructingObjectParser<T, Void> parser) {
+            parser.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+            parser.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
+            parser.declareString(ConstructingObjectParser.constructorArg(), EXTERNAL_ID_FIELD);
+            parser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Result.fromXContent(p), RESULT_FIELD);
         }
 
         @Override
@@ -116,6 +170,25 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
             out.writeString(Id);
             out.writeString(externalId);
             result.writeTo(out);
+        }
+
+        public static NodeResult readFrom(final StreamInput in) throws IOException {
+            return new NodeResult(in.readString(), in.readString(), in.readString(), Result.readFrom(in));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("name", name);
+            builder.field("id", Id);
+            builder.field("external_id", externalId);
+            builder.field("result", result);
+            builder.endObject();
+            return builder;
+        }
+
+        public static NodeResult fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
         }
     }
 
@@ -139,7 +212,7 @@ public class NodesRemovalPrevalidation implements ToXContentObject, Writeable {
         }
 
         public static IsSafe fromString(String s) {
-            return switch (s) {
+            return switch (s.toLowerCase()) {
                 case "yes" -> YES;
                 case "no" -> NO;
                 case "unknown" -> UNKNOWN;

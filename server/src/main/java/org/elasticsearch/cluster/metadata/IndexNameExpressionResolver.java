@@ -198,6 +198,32 @@ public class IndexNameExpressionResolver {
             .toList();
     }
 
+    public List<String> searchEngineNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
+        Context context = new Context(
+            state,
+            options,
+            false,
+            false,
+            true,
+            true,
+            getSystemIndexAccessLevel(),
+            getSystemIndexAccessPredicate(),
+            getNetNewSystemIndexPredicate()
+        );
+        if (indexExpressions == null || indexExpressions.length == 0) {
+            indexExpressions = new String[] { "*" };
+        }
+
+        final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
+        return expressions.stream()
+            .map(x -> state.metadata().getIndicesLookup().get(x))
+            .filter(Objects::nonNull)
+            .filter(ia -> ia.getType() == Type.SEARCH_ENGINE)
+            .map(IndexAbstraction::getName)
+            .toList();
+    }
+
+
     /**
      * Returns {@link IndexAbstraction} instance for the provided write request. This instance isn't fully resolved,
      * meaning that {@link IndexAbstraction#getWriteIndex()} should be invoked in order to get concrete write index.

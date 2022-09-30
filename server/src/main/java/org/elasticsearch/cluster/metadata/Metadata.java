@@ -700,7 +700,9 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         if (i != null) {
             return i;
         }
-        i = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
+        DataStreamMetadata dataStreamMetadata = custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
+        SearchEngineMetadata searchEngineMetadata = custom(SearchEngineMetadata.TYPE, SearchEngineMetadata.EMPTY);
+        i = Builder.buildIndicesLookup(dataStreamMetadata, searchEngineMetadata, indices);
         indicesLookup = i;
         return i;
     }
@@ -1195,6 +1197,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     public Map<String, DataStreamAlias> dataStreamAliases() {
         return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
+    }
+
+    public Map<String, SearchEngine> searchEngines() {
+        return this.custom(SearchEngineMetadata.TYPE, SearchEngineMetadata.EMPTY).searchEngines();
     }
 
     public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
@@ -1917,6 +1923,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return (DataStreamMetadata) this.customs.getOrDefault(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY);
         }
 
+        public SearchEngineMetadata searchEngineMetadata() {
+            return (SearchEngineMetadata) this.customs.getOrDefault(SearchEngineMetadata.TYPE, SearchEngineMetadata.EMPTY);
+        }
+
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
             previousIndicesLookup = null;
             final DataStreamMetadata existing = dataStreamMetadata();
@@ -2168,7 +2178,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             SortedMap<String, IndexAbstraction> indicesLookup = null;
             if (previousIndicesLookup != null) {
                 // no changes to the names of indices, datastreams, and their aliases so we can reuse the previous lookup
-                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
+                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), searchEngineMetadata(), indicesMap));
                 indicesLookup = previousIndicesLookup;
             } else if (skipNameCollisionChecks == false) {
                 // we have changes to the the entity names so we ensure we have no naming collisions
@@ -2312,6 +2322,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         static SortedMap<String, IndexAbstraction> buildIndicesLookup(
             DataStreamMetadata dataStreamMetadata,
+            SearchEngineMetadata searchEngineMetadata,
             ImmutableOpenMap<String, IndexMetadata> indices
         ) {
             SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
@@ -2346,6 +2357,13 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     for (Index i : dataStream.getIndices()) {
                         indexToDataStreamLookup.put(i.getName(), dsAbstraction);
                     }
+                }
+
+                for (SearchEngine searchEngine: searchEngineMetadata.searchEngines().values()) {
+                    assert searchEngine.getIndices().isEmpty() == false;
+                    final IndexAbstraction.SearchEngine engineAbstraction = new IndexAbstraction.SearchEngine(searchEngine);
+                    IndexAbstraction existing = indicesLookup.put(searchEngine.getName(), engineAbstraction);
+                    assert existing == null : "duplicate data stream for " + searchEngine.getName();
                 }
             }
 

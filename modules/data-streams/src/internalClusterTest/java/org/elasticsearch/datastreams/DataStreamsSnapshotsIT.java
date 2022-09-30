@@ -257,7 +257,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RolloverResponse rolloverResponse = client.admin().indices().rolloverIndex(rolloverRequest).actionGet();
         assertThat(rolloverResponse.isRolledOver(), is(true));
         String backingIndexAfterSnapshot = DataStream.getDefaultBackingIndexName("ds", 2);
-        assertThat(backingIndexAfterSnapshot, equalTo(backingIndexAfterSnapshot));
+        assertThat(rolloverResponse.getNewIndex(), equalTo(backingIndexAfterSnapshot));
 
         // Close all backing indices of ds data stream:
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(".ds-ds-*");

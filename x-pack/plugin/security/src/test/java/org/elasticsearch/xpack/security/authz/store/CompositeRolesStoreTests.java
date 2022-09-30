@@ -1154,10 +1154,32 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new IndicesPrivileges[] {
                 IndicesPrivileges.builder().indices("remote-abc-*", "xyz-*").privileges("all").remoteClusters("remote-*").build(),
                 IndicesPrivileges.builder()
-                    .indices("abc-*", "remote-xyz-*")
+                    .indices("abc-*", "remote-xyz-*", "remote-abc-*")
                     .privileges("all")
-                    .remoteClusters("remote1-*", "remote-*")
+                    .remoteClusters("remote1", "remote-*")
                     .build(), },
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        RoleDescriptor role2 = new RoleDescriptor(
+            "r2",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("baz-*").privileges("all").remoteClusters("remote1").build(), },
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        RoleDescriptor role3 = new RoleDescriptor(
+            "r3",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("bad").privileges("none").remoteClusters("remote2").build(), },
             null,
             null,
             null,
@@ -1169,7 +1191,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         CompositeRolesStore.buildRoleFromDescriptors(
-            Sets.newHashSet(role1),
+            Sets.newHashSet(role1, role2, role3),
             cache,
             privilegeStore,
             TestRestrictedIndices.RESTRICTED_INDICES,
@@ -1184,9 +1206,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        assertThat(role.remoteIndices("remote1-1").groups(), not(is(emptyArray())));
-        assertThat(role.remoteIndices("remote-a").groups(), not(is(emptyArray())));
-        assertThat(role.remoteIndices(randomAlphaOfLengthBetween(2, 10)).groups(), emptyArray());
+        assertHasIndices(List.of("abc-*", "remote-xyz-*", "remote-abc-*", "baz-*"), role.remoteIndices("remote1"));
+        assertHasIndices(List.of("remote-abc-*", "xyz-*", "abc-*", "remote-xyz-*", "remote-abc-*"), role.remoteIndices("remote-a"));
+        assertHasIndices(List.of(), role.remoteIndices(randomAlphaOfLengthBetween(2, 10)));
+        assertHasIndices(List.of(), role.remoteIndices("remote2"));
+    }
+
+    private void assertHasIndices(final List<String> expectedIndexNames, final IndicesPermission indicesPermission) {
+        assertThat(
+            Arrays.stream(indicesPermission.groups()).flatMap(group -> Arrays.stream(group.indices())).toList(),
+            containsInAnyOrder(expectedIndexNames.toArray())
+        );
     }
 
     public void testCustomRolesProviderFailures() throws Exception {

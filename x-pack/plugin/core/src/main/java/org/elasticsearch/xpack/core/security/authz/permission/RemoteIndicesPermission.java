@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.util.Set;
 
+// TODO RemoteIndicesPermissions to wrap List<RemoteIndicesPermission>?
 public record RemoteIndicesPermission(
     Set<String> remoteClusterAliases,
     StringMatcher remoteClusterAliasMatcher,

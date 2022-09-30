@@ -719,10 +719,8 @@ public class RBACEngine implements AuthorizationEngine {
                 )
             );
         }
-        // TODO don't duplicate code and fix null handling
-        for (RemoteIndicesPermission remoteIndices : userRole.remoteIndices() == null
-            ? List.<RemoteIndicesPermission>of()
-            : userRole.remoteIndices()) {
+        // TODO don't duplicate code
+        for (final RemoteIndicesPermission remoteIndices : userRole.remoteIndices()) {
             for (var group : remoteIndices.indicesPermission().groups()) {
                 final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
                 final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;

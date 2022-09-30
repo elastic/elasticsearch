@@ -194,7 +194,7 @@ public class DesiredBalanceReconciler {
             nextShard: for (int i = 0; i < primaryLength; i++) {
                 final var shard = primary[i];
                 final var assignment = desiredBalance.getAssignment(shard.shardId());
-                var isThrottled = false;
+                final boolean[] isThrottled = { false };
                 if (assignment != null) {
                     final Set<String> assignmentNodeIds;
 
@@ -215,7 +215,7 @@ public class DesiredBalanceReconciler {
                     for (final var nodeIdIterator : List.<Iterable<String>>of(
                         allocationOrdering.sort(assignmentNodeIds),
                         // TODO consider ignored nodes here too?
-                        () -> (shard.primary()
+                        () -> (shard.primary() && isThrottled[0] == false
                             ? allocationOrdering.sort(
                                 allocation.routingNodes().stream().map(RoutingNode::nodeId).collect(Collectors.toSet())
                             )
@@ -252,7 +252,7 @@ public class DesiredBalanceReconciler {
                                     }
                                     continue nextShard;
                                 }
-                                case THROTTLE -> isThrottled = true;
+                                case THROTTLE -> isThrottled[0] = true;
                                 case NO -> {
                                     if (logger.isTraceEnabled()) {
                                         logger.trace("Couldn't assign shard [{}] to [{}]", shard.shardId(), desiredNodeId);
@@ -270,7 +270,7 @@ public class DesiredBalanceReconciler {
                 final UnassignedInfo.AllocationStatus allocationStatus;
                 if (assignment == null || assignment.isIgnored(shard.primary())) {
                     allocationStatus = UnassignedInfo.AllocationStatus.NO_ATTEMPT;
-                } else if (isThrottled) {
+                } else if (isThrottled[0]) {
                     allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED;
                 } else {
                     allocationStatus = UnassignedInfo.AllocationStatus.DECIDERS_NO;

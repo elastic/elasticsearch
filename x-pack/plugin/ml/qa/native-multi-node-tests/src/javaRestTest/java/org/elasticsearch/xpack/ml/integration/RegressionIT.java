@@ -21,7 +21,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
@@ -418,63 +416,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         Set<String> secondRunTrainingRowsIds = getTrainingRowsIds(secondJobDestIndex);
 
         assertThat(secondRunTrainingRowsIds, equalTo(firstRunTrainingRowsIds));
-    }
-
-    public void testTwoJobsWithDifferentRandomizeSeedUseSameTrainingSet() throws Exception {
-        String sourceIndex = "regression_two_jobs_with_different_randomize_seed_source";
-        indexData(sourceIndex, 30, 0);
-        String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
-
-        String firstJobId = "regression_two_jobs_with_different_randomize_seed_1";
-        String firstJobDestIndex = firstJobId + "_dest";
-
-        BoostedTreeParams boostedTreeParams = BoostedTreeParams.builder()
-            .setLambda(1.0)
-            .setGamma(1.0)
-            .setFeatureBagFraction(0.5)
-            .setMaxTrees(3)
-            .build();
-
-        DataFrameAnalyticsConfig firstJob = buildAnalytics(
-            firstJobId,
-            sourceIndex,
-            firstJobDestIndex,
-            null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 100.0, 0L, null, null, null, null)
-        );
-        putAnalytics(firstJob);
-        startAnalytics(firstJobId);
-        waitUntilAnalyticsIsStopped(firstJobId);
-
-        MeanSquaredError.Result firstJobAccuracyResult = evaluateMse(
-            DEPENDENT_VARIABLE_FIELD,
-            "ml." + predictedClassField,
-            firstJobDestIndex
-        );
-
-        String secondJobId = "regression_two_jobs_with_different_randomize_seed_2";
-        String secondJobDestIndex = secondJobId + "_dest";
-
-        DataFrameAnalyticsConfig secondJob = buildAnalytics(
-            secondJobId,
-            sourceIndex,
-            secondJobDestIndex,
-            null,
-            new Regression(DEPENDENT_VARIABLE_FIELD, boostedTreeParams, null, 100.0, 10L, null, null, null, null)
-        );
-
-        putAnalytics(secondJob);
-        startAnalytics(secondJobId);
-        waitUntilAnalyticsIsStopped(secondJobId);
-
-        MeanSquaredError.Result secondJobAccuracyResult = evaluateMse(
-            DEPENDENT_VARIABLE_FIELD,
-            "ml." + predictedClassField,
-            secondJobDestIndex
-        );
-
-        assertThat(firstJobAccuracyResult.getValue(), not(equalTo(secondJobAccuracyResult.getValue())));
-
     }
 
     public void testDeleteExpiredData_RemovesUnusedState() throws Exception {
@@ -996,22 +937,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         if (bulkResponse.hasFailures()) {
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
-    }
-
-    private <T> MeanSquaredError.Result evaluateMse(String dependentVariable, String predictedClassField, String destinationIndex) {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
-            destinationIndex,
-            new org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Regression(
-                dependentVariable,
-                predictedClassField,
-                Arrays.asList(new MeanSquaredError())
-            )
-        );
-        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
-        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
-
-        MeanSquaredError.Result mseResult = (MeanSquaredError.Result) evaluateDataFrameResponse.getMetrics().get(0);
-        return mseResult;
     }
 
     private static Map<String, Object> getDestDoc(DataFrameAnalyticsConfig config, SearchHit hit) {

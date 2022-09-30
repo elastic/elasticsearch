@@ -15,13 +15,30 @@ If your deployment doesn't include {kib}, all you need to do is
 . Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
 and go to **Manage this deployment**.
 
-. If autoscaling is available but not enabled you will see a banner like the one below. Click the button
-`Enable autoscaling` to allow elasticsearch to scale to fit your needs.
-
+. If autoscaling is available but not enabled, please enable it. You can do this by clicking the button
+`Enable autoscaling` on a banner like the one below:
++
 [role="screenshot"]
 image::images/troubleshooting/disk/autoscaling_banner.png[Autoscaling banner,align="center"]
++
+Or you can go to `Actions > Edit deployment` and check the checkbox `Autoscale`.
++
+[role="screenshot"]
+image::images/troubleshooting/disk/enable_autoscaling.png[Enabling autoscaling,align="center"]
 
-. If autoscaling has succeeded the cluster should return to `healthy` status. If the autoscaling failed ...
+. If autoscaling has succeeded the cluster should return to `healthy` status. If the cluster is still out of disk
+please check if autoscaling has reached its limits. You will be notified about this by the following banner:
++
+[role="screenshot"]
+image::images/troubleshooting/disk/autoscaling_limits_banner.png[Autoscaling banner,align="center"]
++
+or you can go to `Actions > Edit deployment` and check for the label `LIMIT REACHED`:
++
+[role="screenshot"]
+image::images/troubleshooting/disk/reached_autoscaling_limits.png[Autoscaling limits reached,align="center"]
++
+If you are in the banner click `Update autoscaling settings` to go to the `Edit` page. Otherwise, you are already in the
+`Edit` page, click `Edit settings` to increase the autoscaling limits.
 
 // end::cloud[]
 

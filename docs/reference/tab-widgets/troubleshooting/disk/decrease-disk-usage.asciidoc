@@ -32,7 +32,7 @@ image::images/troubleshooting/disk/reduce_replicas.png[Reducing replicas,align="
 
 . Continue this process until the cluster is healthy again.
 
-NOTE: After removing these replicas you need to consider if you still have enough replicas to ensure your search
+IMPORTANT: After removing these replicas you need to consider if you still have enough replicas to ensure your search
 performance and reliability requirements. If not, at your earliest convenience (i) consider using
 <<overview-index-lifecycle-management, Index Lifecycle Management>> to manage more efficiently the
 retention of your timeseries data, or (ii) reduce the amount of data you have by disabling the `source` or removing

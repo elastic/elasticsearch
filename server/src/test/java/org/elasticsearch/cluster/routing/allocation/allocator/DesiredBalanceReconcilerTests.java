@@ -758,7 +758,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         final var desiredBalance = desiredBalance(clusterState, (shardId, nodeId) -> nodeId.equals("node-0"));
-        final var allocationFilter = new AtomicReference<BiPredicate<Integer, String>>((shardId, nodeId) -> shardId == 0);
+        final var allocationFilter = new AtomicReference<BiPredicate<Integer, String>>();
 
         final var allocationService = createTestAllocationService(
             routingAllocation -> reconcile(routingAllocation, desiredBalance),
@@ -776,6 +776,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var unused = ActionListener.<Void>noop();
 
         // first assign the primary of [index-0][0] (no other shards may be allocated due to allocation filter)
+        allocationFilter.set((shardId, nodeId) -> shardId == 0);
         final var stateWithOneInitializingPrimary = allocationService.reroute(clusterState, "test", unused);
         {
             final var shard0RoutingTable = stateWithOneInitializingPrimary.routingTable().shardRoutingTable("index-0", 0);

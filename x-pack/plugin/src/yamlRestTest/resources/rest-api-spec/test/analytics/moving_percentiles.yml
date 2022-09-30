@@ -11,9 +11,6 @@ setup:
                 type: date
               histogram:
                 type: histogram
-              i:
-                type: long
-
 
   - do:
       headers:

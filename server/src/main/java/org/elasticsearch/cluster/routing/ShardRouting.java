@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -293,8 +294,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
     public ShardRouting(ShardId shardId, StreamInput in) throws IOException {
         this.shardId = shardId;
-        currentNodeId = in.readOptionalString();
-        relocatingNodeId = in.readOptionalString();
+        currentNodeId = DiscoveryNode.deduplicateNodeIdentifier(in.readOptionalString());
+        relocatingNodeId = DiscoveryNode.deduplicateNodeIdentifier(in.readOptionalString());
         primary = in.readBoolean();
         state = ShardRoutingState.fromValue(in.readByte());
         if (state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.INITIALIZING) {

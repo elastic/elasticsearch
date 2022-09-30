@@ -1,6 +1,13 @@
 pr: 90529
 summary: Output a consistent format when generating error json
 area: Infra/REST API
-type: bug
+type: "breaking, bug"
 issues:
  - 89387
+breaking:
+  title: Output a consistent format when generating error json
+  area: Infra/REST API
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

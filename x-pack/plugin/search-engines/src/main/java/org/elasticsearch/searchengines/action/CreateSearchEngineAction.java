@@ -14,9 +14,12 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.indices.InvalidEngineNameException;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,13 +38,16 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
         private final String name;
         private final long startTime;
 
+        private final String[] indices;
+
         public Request(String name) {
-            this(name, System.currentTimeMillis());
+            this(name, System.currentTimeMillis(), new String[0]);
         }
 
-        public Request(String name, long startTime) {
+        public Request(String name, long startTime, String[] indices) {
             this.name = name;
             this.startTime = startTime;
+            this.indices = indices;
         }
 
         public String getName() {
@@ -59,6 +65,21 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
             if (Strings.hasText(name) == false) {
                 validationException = ValidateActions.addValidationError("name is missing", validationException);
             }
+            // validate engine name using the same rules as index name
+            try {
+                MetadataCreateIndexService.validateIndexOrAliasName(name, InvalidEngineNameException::new);
+            }
+            catch (InvalidEngineNameException x) {
+                validationException = ValidateActions.addValidationError(x.getMessage(), validationException);
+            }
+            if (CollectionUtils.isEmpty(indices)) {
+                validationException = ValidateActions.addValidationError("no indices specified", validationException);
+            }
+            for (String indexName : indices) {
+                if (Strings.hasText(indexName) == false) {
+                    validationException = ValidateActions.addValidationError("index name can't be empty", validationException);
+                }
+            }
 
             return validationException;
         }
@@ -67,6 +88,7 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
             super(in);
             this.name = in.readString();
             this.startTime = in.readVLong();
+            this.indices = in.readStringArray();
         }
 
         @Override
@@ -74,6 +96,7 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(name);
             out.writeVLong(startTime);
+            out.writeStringArray(indices);
         }
 
         @Override
@@ -91,7 +114,7 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public String[] indices() {
-            return new String[] { name };
+            return indices;
         }
 
         @Override

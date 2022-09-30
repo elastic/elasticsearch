@@ -261,7 +261,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         return client().performRequest(request);
     }
 
-    protected Response mlSearch(String index, String query, String deploymentId, String denseVectorFieldName) throws IOException {
+    protected Response semanticSearch(String index, String query, String deploymentId, String denseVectorFieldName) throws IOException {
         Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
 
         request.setJsonEntity("""

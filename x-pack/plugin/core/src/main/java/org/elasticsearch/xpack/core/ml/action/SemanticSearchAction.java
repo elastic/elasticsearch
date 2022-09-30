@@ -38,7 +38,7 @@ import java.util.Objects;
 
 public class SemanticSearchAction extends ActionType<SemanticSearchAction.Response> {
 
-    public static final String NAME = "indices:semanticsearch_search"; // TODO what should this be called?
+    public static final String NAME = "cluster:monitor/semantic_search"; // TODO what should this be called?
 
     public static final SemanticSearchAction INSTANCE = new SemanticSearchAction(NAME);
 

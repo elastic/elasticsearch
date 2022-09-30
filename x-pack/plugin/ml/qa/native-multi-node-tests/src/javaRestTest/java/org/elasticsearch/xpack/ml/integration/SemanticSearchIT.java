@@ -134,10 +134,10 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
         // Test semantic search against the indexed vectors
         for (int i = 0; i < 5; i++) {
             int randomInput = randomIntBetween(0, inputs.size() - 1);
-            var mlSearchResponse = mlSearch(indexName, inputs.get(randomInput), modelId, "embedding");
-            assertOkWithErrorMessage(mlSearchResponse);
+            var semanticSearchResponse = semanticSearch(indexName, inputs.get(randomInput), modelId, "embedding");
+            assertOkWithErrorMessage(semanticSearchResponse);
 
-            Map<String, Object> responseMap = responseAsMap(mlSearchResponse);
+            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
             List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("search_response.hits.hits", responseMap);
             Map<String, Object> topHit = hits.get(0);
             String sourceText = (String) MapHelper.dig("_source.source_text", topHit);

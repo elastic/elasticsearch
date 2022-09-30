@@ -117,6 +117,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             InferenceConfigUpdate update,
             List<Map<String, Object>> docs,
             String textInput,
+            boolean skipQueue,
             TimeValue inferenceTimeout
         ) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
@@ -124,6 +125,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             this.textInput = textInput;
             this.update = update;
             this.inferenceTimeout = inferenceTimeout;
+            this.skipQueue = skipQueue;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -226,12 +228,13 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 && Objects.equals(docs, that.docs)
                 && Objects.equals(update, that.update)
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout)
+                && Objects.equals(skipQueue, that.skipQueue)
                 && Objects.equals(textInput, that.textInput);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, update, docs, inferenceTimeout, textInput);
+            return Objects.hash(modelId, update, docs, inferenceTimeout, skipQueue, textInput);
         }
 
         @Override
@@ -245,6 +248,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             private List<Map<String, Object>> docs;
             private TimeValue timeout;
             private InferenceConfigUpdate update;
+            private boolean skipQueue = false;
+            private String textInput;
 
             private Builder() {}
 
@@ -272,8 +277,18 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
             }
 
+            public Builder setTextInput(String textInput) {
+                this.textInput = textInput;
+                return this;
+            }
+
+            public Builder setSkipQueue(boolean skipQueue) {
+                this.skipQueue = skipQueue;
+                return this;
+            }
+
             public Request build() {
-                return new Request(modelId, update, docs, timeout);
+                return new Request(modelId, update, docs, textInput, skipQueue, timeout);
             }
         }
     }

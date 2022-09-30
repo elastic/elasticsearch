@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
@@ -22,8 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class InferTrainedModelDeploymentRequestsTests extends AbstractBWCWireSerializationTestCase<
-    InferTrainedModelDeploymentAction.Request> {
+public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerializingTestCase<InferTrainedModelDeploymentAction.Request> {
 
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
         return randomFrom(ZeroShotClassificationConfigUpdateTests.createRandom(), EmptyConfigUpdateTests.testInstance());
@@ -73,27 +71,5 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractBWCWireSer
 
     public void testTimeoutNull() {
         assertNull(createTestInstance().getTimeout());
-    }
-
-    @Override
-    protected InferTrainedModelDeploymentAction.Request mutateInstanceForVersion(
-        InferTrainedModelDeploymentAction.Request instance,
-        Version version
-    ) {
-        if (version.before(Version.V_8_6_0)) {
-            instance = new InferTrainedModelDeploymentAction.Request(
-                instance.getDeploymentId(),
-                instance.getUpdate(),
-                instance.getDocs(),
-                null, // remove textInput
-                instance.getInferenceTimeout()
-            );
-        }
-
-        if (version.before(Version.V_8_3_0)) {
-            instance.setSkipQueue(false);
-        }
-
-        return instance;
     }
 }

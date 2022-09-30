@@ -8,7 +8,14 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,11 +25,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.ingest.IngestInfo;
+import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentParser;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -36,11 +44,14 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -58,8 +69,12 @@ public class FileSettingsServiceTests extends ESTestCase {
     private FileSettingsService fileSettingsService;
     private ReservedClusterStateService controller;
     private ThreadPool threadpool;
+    private NodeClient nodeClient;
+    private ClusterAdminClient clusterAdminClient;
+    private NodeInfo nodeInfo;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
 
@@ -89,7 +104,41 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         controller = new ReservedClusterStateService(clusterService, List.of(new ReservedClusterSettingsAction(clusterSettings)));
 
-        fileSettingsService = new FileSettingsService(clusterService, controller, env);
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            "_node_id",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+
+        nodeInfo = new NodeInfo(
+            Version.CURRENT,
+            Build.CURRENT,
+            discoveryNode,
+            Settings.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new IngestInfo(Collections.singletonList(new ProcessorInfo("set"))),
+            null,
+            null
+        );
+        NodesInfoResponse response = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo), List.of());
+
+        clusterAdminClient = mock(ClusterAdminClient.class);
+        doAnswer(i -> {
+            ((ActionListener<NodesInfoResponse>) i.getArgument(1)).onResponse(response);
+            return null;
+        }).when(clusterAdminClient).nodesInfo(any(), any());
+
+        nodeClient = mock(NodeClient.class);
+        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, nodeClient));
+        doAnswer(i -> clusterAdminClient).when(fileSettingsService).clusterAdminClient();
     }
 
     @After
@@ -174,9 +223,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(stateService).process(any(), (XContentParser) any(), any());
+        }).when(stateService).process(any(), (ReservedStateChunk) any(), any());
 
-        FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
+        FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env, nodeClient));
+        doAnswer(i -> clusterAdminClient).when(service).clusterAdminClient();
 
         Files.createDirectories(service.operatorSettingsDir());
 
@@ -205,7 +255,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
             return null;
-        }).when(stateService).process(any(), (XContentParser) any(), any());
+        }).when(stateService).process(any(), (ReservedStateChunk) any(), any());
 
         service.start();
         service.startWatcher(clusterService.state(), true);
@@ -219,13 +269,14 @@ public class FileSettingsServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testStopWorksInMiddleOfProcessing() throws Exception {
         var spiedController = spy(controller);
-        var fsService = new FileSettingsService(clusterService, spiedController, env);
-
+        var fsService = new FileSettingsService(clusterService, spiedController, env, nodeClient);
         FileSettingsService service = spy(fsService);
+        doAnswer(i -> clusterAdminClient).when(service).clusterAdminClient();
+
         CountDownLatch processFileLatch = new CountDownLatch(1);
         CountDownLatch deadThreadLatch = new CountDownLatch(1);
 
-        doAnswer((Answer<Void>) invocation -> {
+        doAnswer((Answer<ReservedStateChunk>) invocation -> {
             processFileLatch.countDown();
             new Thread(() -> {
                 // Simulate a thread that never comes back and decrements the
@@ -236,8 +287,8 @@ public class FileSettingsServiceTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
             }).start();
-            return null;
-        }).when(spiedController).process(any(String.class), any(XContentParser.class), any(Consumer.class));
+            return new ReservedStateChunk(Collections.emptyMap(), new ReservedStateVersion(1L, Version.CURRENT));
+        }).when(spiedController).parse(any(String.class), any());
 
         service.start();
         assertTrue(service.watching());
@@ -249,7 +300,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
-        processFileLatch.await(30, TimeUnit.SECONDS);
+        assertTrue(processFileLatch.await(30, TimeUnit.SECONDS));
 
         // Stopping the service should interrupt the watcher thread, we should be able to stop
         service.stop();
@@ -262,13 +313,14 @@ public class FileSettingsServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testStopWorksIfProcessingDidntReturnYet() throws Exception {
         var spiedController = spy(controller);
-        var fsService = new FileSettingsService(clusterService, spiedController, env);
+        var fsService = new FileSettingsService(clusterService, spiedController, env, nodeClient);
 
         FileSettingsService service = spy(fsService);
+        doAnswer(i -> clusterAdminClient).when(service).clusterAdminClient();
         CountDownLatch processFileLatch = new CountDownLatch(1);
         CountDownLatch deadThreadLatch = new CountDownLatch(1);
 
-        doAnswer((Answer<Void>) invocation -> {
+        doAnswer((Answer<ReservedStateChunk>) invocation -> {
             processFileLatch.countDown();
             // allow the other thread to continue, but hold on a bit to avoid
             // setting the count-down latch in the main watcher loop.
@@ -282,8 +334,8 @@ public class FileSettingsServiceTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
             }).start();
-            return null;
-        }).when(spiedController).process(any(String.class), any(XContentParser.class), any(Consumer.class));
+            return new ReservedStateChunk(Collections.emptyMap(), new ReservedStateVersion(1L, Version.CURRENT));
+        }).when(spiedController).parse(any(String.class), any());
 
         service.start();
         assertTrue(service.watching());
@@ -295,7 +347,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
-        processFileLatch.await(30, TimeUnit.SECONDS);
+        assertTrue(processFileLatch.await(30, TimeUnit.SECONDS));
 
         // Stopping the service should interrupt the watcher thread, we should be able to stop
         service.stop();
@@ -303,5 +355,119 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.close();
         // let the deadlocked thread end, so we can cleanly exit the test
         deadThreadLatch.countDown();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testNodeInfosRefresh() throws Exception {
+        var spiedController = spy(controller);
+        var csAdminClient = spy(clusterAdminClient);
+        var response = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo), List.of());
+
+        doAnswer(i -> {
+            ((ActionListener<NodesInfoResponse>) i.getArgument(1)).onResponse(response);
+            return null;
+        }).when(csAdminClient).nodesInfo(any(), any());
+
+        var service = spy(new FileSettingsService(clusterService, spiedController, env, nodeClient));
+        doAnswer(i -> csAdminClient).when(service).clusterAdminClient();
+
+        doAnswer(
+            (Answer<ReservedStateChunk>) invocation -> new ReservedStateChunk(
+                Collections.emptyMap(),
+                new ReservedStateVersion(1L, Version.CURRENT)
+            )
+        ).when(spiedController).parse(any(String.class), any());
+
+        Files.createDirectories(service.operatorSettingsDir());
+        // Make some fake settings file to cause the file settings service to process it
+        Files.write(service.operatorSettingsFile(), "{}".getBytes(StandardCharsets.UTF_8));
+
+        clearInvocations(csAdminClient);
+        clearInvocations(spiedController);
+
+        // we haven't fetched the node infos ever, since we haven't done any file processing
+        assertNull(service.nodeInfos());
+
+        // call the processing twice
+        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+            if (e != null) {
+                fail("shouldn't get an exception");
+            }
+        });
+        // after the first processing we should have node infos
+        assertEquals(1, service.nodeInfos().getNodes().size());
+
+        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+            if (e != null) {
+                fail("shouldn't get an exception");
+            }
+        });
+
+        // node infos should have been fetched only once
+        verify(csAdminClient, times(1)).nodesInfo(any(), any());
+        verify(spiedController, times(2)).process(any(), any(ReservedStateChunk.class), any());
+
+        // pretend we added a new node
+
+        final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        NodeInfo localNodeInfo = new NodeInfo(
+            Version.CURRENT,
+            Build.CURRENT,
+            localNode,
+            Settings.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new IngestInfo(Collections.singletonList(new ProcessorInfo("set"))),
+            null,
+            null
+        );
+        var newResponse = new NodesInfoResponse(new ClusterName("elasticsearch"), List.of(nodeInfo, localNodeInfo), List.of());
+
+        final ClusterState prevState = clusterService.state();
+        final ClusterState clusterState = ClusterState.builder(prevState)
+            .nodes(
+                DiscoveryNodes.builder(prevState.getNodes()).add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId())
+            )
+            .build();
+
+        ClusterChangedEvent event = new ClusterChangedEvent("transport", clusterState, prevState);
+        assertTrue(event.nodesChanged());
+        service.clusterChanged(event);
+
+        doAnswer(i -> {
+            ((ActionListener<NodesInfoResponse>) i.getArgument(1)).onResponse(newResponse);
+            return null;
+        }).when(csAdminClient).nodesInfo(any(), any());
+
+        // this wouldn't change yet, node fetch transport action is invoked on demand, when we need to process file changes,
+        // not every time we update the cluster state
+        assertEquals(1, service.nodeInfos().getNodes().size());
+
+        // call the processing twice
+        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+            if (e != null) {
+                fail("shouldn't get an exception");
+            }
+        });
+
+        assertEquals(2, service.nodeInfos().getNodes().size());
+
+        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+            if (e != null) {
+                fail("shouldn't get an exception");
+            }
+        });
+
+        assertEquals(2, service.nodeInfos().getNodes().size());
+
+        // node infos should have been fetched one more time
+        verify(csAdminClient, times(2)).nodesInfo(any(), any());
+        verify(spiedController, times(4)).process(any(), any(ReservedStateChunk.class), any());
     }
 }

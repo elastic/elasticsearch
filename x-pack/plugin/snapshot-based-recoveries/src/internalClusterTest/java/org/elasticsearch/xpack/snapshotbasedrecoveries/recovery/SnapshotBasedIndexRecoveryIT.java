@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -72,6 +73,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.junit.After;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -81,19 +83,24 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -119,9 +126,15 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         );
     }
 
+    @After
+    public void clearRepoDelegate() {
+        FilterFsRepository.clearReadBlobWrapper();
+    }
+
     public static class TestRepositoryPlugin extends Plugin implements RepositoryPlugin {
         public static final String FAULTY_TYPE = "faultyrepo";
         public static final String INSTRUMENTED_TYPE = "instrumentedrepo";
+        public static final String FILTER_TYPE = "filterrepo";
 
         @Override
         public Map<String, Repository.Factory> getRepositories(
@@ -135,7 +148,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 FAULTY_TYPE,
                 metadata -> new FaultyRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings),
                 INSTRUMENTED_TYPE,
-                metadata -> new InstrumentedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                metadata -> new InstrumentedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings),
+                FILTER_TYPE,
+                metadata -> new FilterFsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
             );
         }
     }
@@ -231,6 +246,46 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                             }
                         }
                     };
+                }
+            };
+        }
+    }
+
+    public static class FilterFsRepository extends FsRepository {
+        static final BiFunction<String, InputStream, InputStream> IDENTITY = (blobName, inputStream) -> inputStream;
+        static final AtomicReference<BiFunction<String, InputStream, InputStream>> delegateSupplierRef = new AtomicReference<>(IDENTITY);
+
+        public FilterFsRepository(
+            RepositoryMetadata metadata,
+            Environment environment,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
+            super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+        }
+
+        static void wrapReadBlobMethod(BiFunction<String, InputStream, InputStream> delegate) {
+            delegateSupplierRef.set(delegate);
+        }
+
+        static void clearReadBlobWrapper() {
+            delegateSupplierRef.set(IDENTITY);
+        }
+
+        @Override
+        public BlobContainer shardContainer(IndexId indexId, int shardId) {
+            return new FilterBlobContainer(super.shardContainer(indexId, shardId)) {
+                @Override
+                protected BlobContainer wrapChild(BlobContainer child) {
+                    return child;
+                }
+
+                @Override
+                public InputStream readBlob(String blobName) throws IOException {
+                    BiFunction<String, InputStream, InputStream> delegateSupplier = delegateSupplierRef.get();
+                    return delegateSupplier.apply(blobName, super.readBlob(blobName));
                 }
             };
         }
@@ -1198,6 +1253,143 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 assertPeerRecoveryUsedSnapshots(indexRecoveredFromSnapshot2, sourceNode, targetNode);
             }
         );
+    }
+
+    public void testNodeDisconnectsDoNotOverAccountRecoveredBytes() throws Exception {
+        // This test reproduces a rare (but possible scenario) where a shard is recovering using
+        // snapshots, using logically equivalent index files, but half-way the connection between
+        // the source and the target drops.
+        // - The target node keeps downloading the snapshot file
+        // - The source aborts the snapshot based recovery
+        // - This deletes the temporary files and resets the recovery state in the target
+        // - The target updates the recovered bytes for the file it has been downloading, after the recovery state was cleared.
+        // This could end up over-accounting the number of recovered bytes
+
+        Settings nodeSettings = Settings.builder()
+            // We use a really low timeout to avoid retrying the first RESTORE_FILE_FROM_SNAPSHOT after the connection is dropped
+            .put(INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(1))
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), 1)
+            .put(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.getKey(), 1)
+            .build();
+
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(3, nodeSettings);
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+                .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+                .build()
+        );
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(300, 1000);
+        indexDocs(indexName, 0, numDocs);
+        // Flush to ensure that index_commit_seq_nos(replica) == index_commit_seq_nos(primary),
+        // since the primary flushes the index before taking the snapshot.
+        flush(indexName);
+
+        String repoName = "repo";
+        createRepo(repoName, TestRepositoryPlugin.FILTER_TYPE);
+        createSnapshot(repoName, "snap", Collections.singletonList(indexName));
+
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String primaryNodeId = clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
+        String primaryNodeName = clusterState.nodes().resolveNode(primaryNodeId).getName();
+        String replicaNodeId = clusterState.routingTable().index(indexName).shard(0).replicaShards().get(0).currentNodeId();
+        String replicaNodeName = clusterState.nodes().resolveNode(replicaNodeId).getName();
+
+        String newReplicaNodeName = dataNodes.stream()
+            .filter(nodeName -> nodeName.equals(primaryNodeName) == false)
+            .filter(nodeName -> nodeName.equals(replicaNodeName) == false)
+            .findFirst()
+            .orElseThrow();
+
+        MockTransportService sourceMockTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            replicaNodeName
+        );
+
+        MockTransportService targetMockTransportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            newReplicaNodeName
+        );
+
+        final CountDownLatch firstDownloadStartLatch = new CountDownLatch(1);
+        final CountDownLatch blockSnapshotFileDownload = new CountDownLatch(1);
+
+        final AtomicBoolean firstDataBlobRead = new AtomicBoolean();
+        FilterFsRepository.wrapReadBlobMethod((blobName, inputStream) -> {
+            if (blobName.startsWith("__") && firstDataBlobRead.compareAndSet(false, true)) {
+                return new FilterInputStream(inputStream) {
+                    @Override
+                    public int read(byte[] b, int off, int len) throws IOException {
+                        firstDownloadStartLatch.countDown();
+                        try {
+                            blockSnapshotFileDownload.await();
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                        return super.read(b, off, len);
+                    }
+                };
+            } else {
+                return inputStream;
+            }
+        });
+
+        Set<Transport.Connection> connectionRefs = Collections.synchronizedSet(new HashSet<>());
+        sourceMockTransportService.addSendBehavior(targetMockTransportService, (connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
+                connectionRefs.add(connection);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        assertThat(internalCluster().stopNode(primaryNodeName), is(equalTo(true)));
+
+        firstDownloadStartLatch.await();
+
+        CountDownLatch firstFileChunkSent = new CountDownLatch(1);
+        CountDownLatch blockFileChunkDownload = new CountDownLatch(1);
+
+        targetMockTransportService.addRequestHandlingBehavior(
+            PeerRecoveryTargetService.Actions.FILE_CHUNK,
+            (handler, request, channel, task) -> {
+                firstFileChunkSent.countDown();
+                blockFileChunkDownload.await();
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        // Increase the retry timeout as it takes a bit until the source node gets reconnected to the target node
+        updateSetting(INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING.getKey(), "1m");
+        assertThat(connectionRefs, is(not(empty())));
+        connectionRefs.forEach(Transport.Connection::close);
+
+        firstFileChunkSent.await();
+
+        blockSnapshotFileDownload.countDown();
+        blockFileChunkDownload.countDown();
+
+        ensureGreen(indexName);
+
+        RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
+        for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
+            assertThat(fileDetail.length(), is(equalTo(fileDetail.recovered())));
+        }
+        IndexShard shard = internalCluster().getInstance(IndicesService.class, newReplicaNodeName)
+            .indexServiceSafe(resolveIndex(indexName))
+            .getShard(0);
+
+        // Ensure that leftovers are eventually cleaned
+        assertBusy(() -> {
+            String[] indexFiles = shard.store().directory().listAll();
+            assertThat(Arrays.toString(indexFiles), Arrays.stream(indexFiles).noneMatch(file -> file.startsWith("recovery.")), is(true));
+        });
     }
 
     private void executeRecoveryWithSnapshotFileDownloadThrottled(SnapshotBasedRecoveryThrottlingTestCase testCase) throws Exception {

@@ -140,6 +140,14 @@ The deployment stats for each node that currently has the model allocated.
 The average time for each inference call to complete on this node.
 The average is calculated over the lifetime of the deployment.
 
+`average_inference_time_ms_excluding_cache_hits`:::
+(double)
+The average time to perform inference on the trained model excluding
+occasions where the response comes from the cache. Cached inference
+calls return very quickly as the model is not evaluated, by excluding
+cache hits this value is an accurate measure of the average time taken
+to evaluate the model.
+
 `average_inference_time_ms_last_minute`:::
 (double)
 The average time for each inference call to complete on this node

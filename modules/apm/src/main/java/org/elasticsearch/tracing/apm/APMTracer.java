@@ -291,6 +291,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.NODE_NAME, nodeName);
         spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
     }
+
     private void setSpanAttributes(ThreadContext threadContext, @Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
         setSpanAttributes(spanAttributes, spanBuilder);
 

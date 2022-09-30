@@ -314,6 +314,7 @@ public interface Role {
             RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
             @Nullable FieldPermissionsCache fieldPermissionsCache
         ) {
+            // TODO we have to account for remotes here as well
             List<IndicesPermissionGroupDefinition> list = new ArrayList<>(indicesPrivileges.length);
             for (RoleDescriptor.IndicesPrivileges privilege : indicesPrivileges) {
                 final FieldPermissions fieldPermissions;

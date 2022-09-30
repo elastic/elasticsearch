@@ -1,0 +1,55 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: keyword
+              text_embedding:
+                type: dense_vector
+                dims: 512
+                index: true
+                similarity: cosine
+
+# It is difficult to deploy a text embedding model in yaml tests
+# so focus on negative assertions where the request is invalid
+---
+"unknown deployment":
+  - do:
+      catch: missing
+      semantic_search:
+        index: test
+        body:
+          deployment_id: not-a-model
+          query_string: "kids pyjamas with picture of a tractor"
+          knn:
+            field: vector
+            k: 2
+            num_candidates: 3
+
+---
+"missing query string":
+  - do:
+      catch: bad_request
+      semantic_search:
+        index: test
+        body:
+          deployment_id: not-a-model
+          knn:
+            field: vector
+            k: 2
+            num_candidates: 3
+
+---
+"missing knn":
+  - do:
+      catch: bad_request
+      semantic_search:
+        index: test
+        body:
+          deployment_id: not-a-model
+          query_string: "kids pyjamas with picture of a tractor"

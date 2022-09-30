@@ -48,7 +48,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
 
     public static class Request extends ActionRequest {
 
-        public static final ParseField QUERY_STRING = new ParseField("query_string");
+        public static final ParseField QUERY_STRING = new ParseField("query_string"); // TODO a better name.
         public static final ParseField KNN = new ParseField("knn");
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME);

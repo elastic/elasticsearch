@@ -26,7 +26,7 @@ public class RestSemanticSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         String path = "{index}/_semantic_search";
-        return List.of(new Route(GET, path), new Route(POST, path));
+        return List.of(Route.builder(GET, path).build(), Route.builder(POST, path).build());
     }
 
     @Override

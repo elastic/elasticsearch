@@ -265,6 +265,7 @@ public class Constants {
         "cluster:monitor/nodes/stats",
         "cluster:monitor/nodes/usage",
         "cluster:monitor/remote/info",
+        "cluster:monitor/semantic_search",
         "cluster:monitor/settings",
         "cluster:monitor/state",
         "cluster:monitor/stats",

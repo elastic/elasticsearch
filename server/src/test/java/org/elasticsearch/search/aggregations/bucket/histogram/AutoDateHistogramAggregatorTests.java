@@ -1024,7 +1024,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 final InternalAutoDateHistogram histogram = searchAndReduce(
-                    new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldType, instantFieldType, numericFieldType)
+                    new AggTestConfig(indexSearcher, aggregationBuilder, fieldType, instantFieldType, numericFieldType).withQuery(query)
                 );
                 verify.accept(histogram);
             }

@@ -45,7 +45,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertWarnings(
             "The default [remove_binary] value of 'false' is deprecated "
                 + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure to behavior change."
+                + " or 'false' to ensure no behavior change."
         );
     }
 
@@ -64,7 +64,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertWarnings(
             "The default [remove_binary] value of 'false' is deprecated "
                 + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure to behavior change."
+                + " or 'false' to ensure no behavior change."
         );
     }
 
@@ -80,7 +80,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertWarnings(
             "The default [remove_binary] value of 'false' is deprecated "
                 + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure to behavior change."
+                + " or 'false' to ensure no behavior change."
         );
     }
 
@@ -104,7 +104,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertWarnings(
             "The default [remove_binary] value of 'false' is deprecated "
                 + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure to behavior change."
+                + " or 'false' to ensure no behavior change."
         );
     }
 
@@ -136,7 +136,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertWarnings(
             "The default [remove_binary] value of 'false' is deprecated "
                 + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure to behavior change."
+                + " or 'false' to ensure no behavior change."
         );
     }
 
@@ -157,7 +157,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertWarnings(
             "The default [remove_binary] value of 'false' is deprecated "
                 + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure to behavior change."
+                + " or 'false' to ensure no behavior change."
         );
     }
 

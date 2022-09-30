@@ -6,7 +6,7 @@ setup:
 "Test ingest attachment processor with defaults":
   - do:
       warnings:
-        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change."
+        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure no behavior change."
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -48,7 +48,7 @@ setup:
 
   - do:
       warnings:
-        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change."
+        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure no behavior change."
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -84,7 +84,7 @@ setup:
 "Test indexed chars are configurable":
   - do:
       warnings:
-        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change."
+        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure no behavior change."
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -121,7 +121,7 @@ setup:
 "Test indexed chars are configurable per document":
   - do:
       warnings:
-        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure to behavior change."
+        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure no behavior change."
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >

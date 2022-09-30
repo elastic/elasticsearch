@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
+import static org.elasticsearch.action.admin.indices.create.ShrinkIndexIT.assertNoResizeSourceIndexSettings;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,6 +75,7 @@ public class CloneIndexIT extends ESIntegTestCase {
                     .get()
             );
             ensureGreen();
+            assertNoResizeSourceIndexSettings("target");
 
             final IndicesStatsResponse targetStats = client().admin().indices().prepareStats("target").get();
             assertThat(targetStats.getIndex("target").getIndexShards().keySet().size(), equalTo(numPrimaryShards));

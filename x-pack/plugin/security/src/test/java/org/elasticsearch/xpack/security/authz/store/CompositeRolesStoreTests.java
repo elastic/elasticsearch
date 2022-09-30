@@ -1126,7 +1126,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        assertThat(role.remoteIndices("remote1-1").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices("remote1").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices("remote2").groups(), not(is(emptyArray())));
         assertThat(role.remoteIndices("remote-a").groups(), not(is(emptyArray())));
         assertThat(role.remoteIndices(randomAlphaOfLengthBetween(2, 10)).groups(), emptyArray());
 

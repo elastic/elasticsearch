@@ -262,7 +262,7 @@ This will show you information like in this example output:
 // TESTRESPONSE[s/"total_deduplicated_mapping_size_in_bytes": 1073741824/"total_deduplicated_mapping_size_in_bytes": $body.$_path/]
 
 [discrete]
-===== Getting the max heap and any additional field overhead per node
+===== Retrieving heap size and field mapper overheads
 
 You can use the <<cluster-nodes-stats,Nodes stats API>> to get two relevant metrics
 for each node:

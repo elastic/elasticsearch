@@ -22,7 +22,7 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         File workspaceDir = locateElasticsearchWorkspace(project.getGradle());
         if (workspaceDir == null) {
-            workspaceDir = project.getRootDir();
+            workspaceDir = project.getRootDir().getParentFile();
         }
         // Register the service if not done yet
         File infoPath = new File(workspaceDir, "build-tools-internal");

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -440,18 +441,17 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
-        if (Arrays.equals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
+        if (Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
             // Special placeholder for no indices.
             // We probably can short circuit this, but it's safer not to and just fall through to the regular authorization
             return false;
         }
 
+        // Check if the parent context has already successfully authorized access to the child's indices
         for (String idx : indices) {
             assert Regex.isSimpleMatchPattern(idx) == false
                 : "Wildcards should already be expanded but action [" + requestInfo.getAction() + "] has index [" + idx + "]";
-            IndicesAccessControl.IndexAccessControl iac = indicesAccessControl.getIndexPermissions(idx);
-            // The parent context has already successfully authorized access to this index (by name)
-            if (iac == null || iac.isGranted() == false) {
+            if (indicesAccessControl.hasIndexPermissions(idx) == false) {
                 return false;
             }
         }

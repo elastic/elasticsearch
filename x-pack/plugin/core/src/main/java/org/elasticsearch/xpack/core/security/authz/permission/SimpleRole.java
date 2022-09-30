@@ -101,13 +101,13 @@ public class SimpleRole implements Role {
     }
 
     @Override
-    public IndicesPermission remoteIndices(final String remoteClusterAlias) {
+    public IndicesPermission remoteIndices(final String remoteCluster) {
         // The actual value of restricted indices doesn't matter here because remote privileges are not used for standard local
         // authorization
         final var builder = new IndicesPermission.Builder(new RestrictedIndices(Automatons.EMPTY));
         // TODO extract into collectIntoIndicesPermissionForClusterAlias()?
         for (var remoteIndex : remoteIndices) {
-            if (false == remoteIndex.checkRemoteClusterAlias(remoteClusterAlias)) {
+            if (false == remoteIndex.checkRemoteClusterAlias(remoteCluster)) {
                 continue;
             }
             for (var group : remoteIndex.indicesPermission().groups()) {
@@ -121,6 +121,11 @@ public class SimpleRole implements Role {
             }
         }
         return builder.build();
+    }
+
+    @Override
+    public List<RemoteIndicesPermission> remoteIndices() {
+        return remoteIndices;
     }
 
     @Override

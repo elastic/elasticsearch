@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -60,7 +61,12 @@ public final class LimitedRole implements Role {
     }
 
     @Override
-    public IndicesPermission remoteIndices(final String targetCluster) {
+    public IndicesPermission remoteIndices(final String remoteCluster) {
+        throw new UnsupportedOperationException("cannot retrieve remote indices permission on limited role");
+    }
+
+    @Override
+    public List<RemoteIndicesPermission> remoteIndices() {
         throw new UnsupportedOperationException("cannot retrieve remote indices permission on limited role");
     }
 

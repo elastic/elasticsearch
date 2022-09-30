@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.relevancesearch.query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -38,7 +39,7 @@ public class QueryFieldsResolver {
             }
             final MappedFieldType fieldType = context.getFieldType(fieldName);
             // Get searchable text fields
-            if (fieldType.isSearchable() && "text".equals(fieldType.typeName())) {
+            if (fieldType.isSearchable() && ElasticsearchMappings.TEXT.equals(fieldType.typeName())) {
                 final String analyzerName = fieldType.getTextSearchInfo().searchAnalyzer().name();
                 if (Strings.hasLength(analyzerName)) {
                     analyzerFields.computeIfAbsent(analyzerName, k -> new HashSet<>()).add(fieldName);

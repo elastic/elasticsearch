@@ -15,8 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,7 +30,7 @@ import java.util.Objects;
 public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMatchQueryBuilder> {
 
     public static final String NAME = "relevance_match";
-    private static final Logger logger = LogManager.getLogger(RelevanceMatchQueryBuilder.class);
+
     private static final ParseField FIELD_QUERY = new ParseField("query");
 
     private static final ObjectParser<RelevanceMatchQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, RelevanceMatchQueryBuilder::new);
@@ -86,7 +84,6 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
     @Override
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
-        // TODO add field retrieval (probably a holder class that gets populated with field mapping)
         Collection<String> fields = QueryFieldsResolver.getQueryFields(context);
         if (fields.isEmpty()) {
             throw new IllegalArgumentException("[relevance_match] query cannot find text fields in the index");
@@ -94,9 +91,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
         final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fields.toArray(new String[fields.size()]));
 
-        final Query resultQuery = builder.toQuery(context);
-        logger.info("Result query: {}", resultQuery.toString());
-        return resultQuery;
+        return builder.toQuery(context);
     }
 
     @Override

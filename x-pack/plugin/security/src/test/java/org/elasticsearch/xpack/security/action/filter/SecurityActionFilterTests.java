@@ -182,7 +182,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "foo");
             threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
             if (hasExistingAccessControl) {
-                threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_NO_INDICES);
+                new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(IndicesAccessControl.ALLOW_NO_INDICES);
             }
         } else {
             assertNull(AuditUtil.extractRequestId(threadContext));
@@ -198,6 +198,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             return Void.TYPE;
         }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), anyActionListener());
         IndicesAccessControl authzAccessControl = mock(IndicesAccessControl.class);
+        when(authzAccessControl.isGranted()).thenReturn(true);
         mockAuthorize(authzAccessControl);
 
         filter.apply(task, action, request, listener, chain);
@@ -323,7 +324,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             assertThat(args, arrayWithSize(4));
             ActionListener callback = (ActionListener) args[args.length - 1];
             assertNull(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
-            threadContext.putTransient(INDICES_PERMISSIONS_KEY, indicesAccessControl);
+            new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(indicesAccessControl);
             callback.onResponse(null);
             return Void.TYPE;
         }).when(authzService).authorize(any(Authentication.class), any(String.class), any(TransportRequest.class), anyActionListener());

@@ -40,7 +40,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * A permission that is based on privileges for index related actions executed
@@ -404,32 +403,24 @@ public final class IndicesPermission {
         // by at least one indices permission group
         final Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Map<String, DocumentLevelPermissions> roleQueriesByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
-        final Map<String, Boolean> grantedBuilder = Maps.newMapWithExpectedSize(totalResourceCount);
+        final Set<String> grantedResources = Sets.newHashSetWithExpectedSize(totalResourceCount);
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
         for (IndexResource resource : requestedResources.values()) {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
-            // true if ANY group, which contains certain ingest privileges, covers the given index AND the action is a mapping update for
-            // an index or an alias (but not for a data stream)
-            boolean bwcGrantMappingUpdate = false;
 
             final Collection<String> concreteIndices = resource.resolveConcreteIndices();
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {
-                    boolean actionCheck = group.checkAction(action);
-                    granted = granted || actionCheck;
-
-                    // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
-                    // outside of the privilege definition
-                    boolean bwcMappingActionCheck = isMappingUpdateAction
-                        && false == resource.isPartOfDataStream()
-                        && containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
-                    bwcGrantMappingUpdate = bwcGrantMappingUpdate || bwcMappingActionCheck;
-
-                    if (actionCheck || bwcMappingActionCheck) {
+                    if (group.checkAction(action)
+                        || (isMappingUpdateAction // for BWC reasons, mapping updates are exceptionally allowed for certain privileges on
+                            // indices and aliases (but not on data streams)
+                            && false == resource.isPartOfDataStream()
+                            && containsPrivilegeThatGrantsMappingUpdatesForBwc(group))) {
+                        granted = true;
                         // propagate DLS and FLS permissions over the concrete indices
                         for (String index : concreteIndices) {
                             final Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.compute(index, (k, existingSet) -> {
@@ -475,33 +466,28 @@ public final class IndicesPermission {
                 }
             }
 
-            if (false == granted && bwcGrantMappingUpdate) {
-                // the action is granted only due to the deprecated behaviour of certain privileges
-                granted = true;
-            }
-
-            grantedBuilder.put(resource.name, granted);
-            if (resource.canHaveBackingIndices()) {
-                for (String concreteIndex : concreteIndices) {
-                    // If the name appear directly as part of the requested indices, it takes precedence over implicit access
-                    if (false == requestedResources.containsKey(concreteIndex)) {
-                        grantedBuilder.merge(concreteIndex, granted, Boolean::logicalOr);
+            if (granted) {
+                grantedResources.add(resource.name);
+                if (resource.canHaveBackingIndices()) {
+                    for (String concreteIndex : concreteIndices) {
+                        // If the name appear directly as part of the requested indices, it takes precedence over implicit access
+                        if (false == requestedResources.containsKey(concreteIndex)) {
+                            grantedResources.add(concreteIndex);
+                        }
                     }
                 }
             }
         }
 
-        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedBuilder.size());
-        for (Map.Entry<String, Boolean> entry : grantedBuilder.entrySet()) {
-            String index = entry.getKey();
-            DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
-            final Set<BytesReference> roleQueries;
+        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedResources.size());
+        for (String index : grantedResources) {
+            final DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
+            final DocumentPermissions documentPermissions;
             if (permissions != null && permissions.isAllowAll() == false) {
-                roleQueries = unmodifiableSet(permissions.queries);
+                documentPermissions = DocumentPermissions.filteredBy(permissions.queries);
             } else {
-                roleQueries = null;
+                documentPermissions = DocumentPermissions.allowAll();
             }
-
             final FieldPermissions fieldPermissions;
             final Set<FieldPermissions> indexFieldPermissions = fieldPermissionsByIndex.get(index);
             if (indexFieldPermissions != null && indexFieldPermissions.isEmpty() == false) {
@@ -511,14 +497,7 @@ public final class IndicesPermission {
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
-            indexPermissions.put(
-                index,
-                new IndicesAccessControl.IndexAccessControl(
-                    entry.getValue(),
-                    fieldPermissions,
-                    (roleQueries != null) ? DocumentPermissions.filteredBy(roleQueries) : DocumentPermissions.allowAll()
-                )
-            );
+            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(fieldPermissions, documentPermissions));
         }
         return unmodifiableMap(indexPermissions);
     }

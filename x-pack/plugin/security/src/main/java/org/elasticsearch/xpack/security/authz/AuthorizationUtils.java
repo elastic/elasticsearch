@@ -233,7 +233,8 @@ public final class AuthorizationUtils {
                 ParentIndexActionAuthorization.readFromThreadContext(threadContext)
             );
             if (existingParentAuthorization.isPresent()) {
-                if (existingParentAuthorization.get().action().equals(parentContext.getAction())) {
+                if (existingParentAuthorization.get().action().equals(parentContext.getAction())
+                    || parentContext.getAction().startsWith(existingParentAuthorization.get().action())) {
                     // Single request can fan-out a child action to multiple nodes in the cluster, e.g. node1 and node2.
                     // Sending a child action to node1 would have already put parent authorization in the thread context.
                     // To avoid attempting to pre-authorize the same parent action twice we simply return here

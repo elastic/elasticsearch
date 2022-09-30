@@ -240,7 +240,7 @@ public class DesiredBalanceComputer {
             }
             if (i > 0 && i % 100 == 0) {
                 // TODO this warning should be time based, iteration count should be proportional to the number of shards
-                logger.warn("Desired balance computation is still not converged after {} iterations", i);
+                logger.debug("Desired balance computation is still not converged after {} iterations", i);
             }
         }
 

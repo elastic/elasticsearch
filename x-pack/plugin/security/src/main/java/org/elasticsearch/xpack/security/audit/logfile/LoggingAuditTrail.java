@@ -15,7 +15,6 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -125,6 +124,7 @@ import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
 import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_SOURCE_FIELD;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo.indices;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ANONYMOUS_ACCESS_DENIED;
@@ -475,7 +475,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
-            final Optional<String[]> indices = indices(transportRequest);
+            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -504,7 +504,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
-            final Optional<String[]> indices = indices(transportRequest);
+            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -538,7 +538,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
-            final Optional<String[]> indices = indices(transportRequest);
+            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices, Optional.of(action))) == false) {
                 final LogEntryBuilder logEntryBuilder = new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -575,7 +575,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationFailed(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
-            final Optional<String[]> indices = indices(transportRequest);
+            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -620,7 +620,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         TransportRequest transportRequest
     ) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
-            final Optional<String[]> indices = indices(transportRequest);
+            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -669,7 +669,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         final User user = authentication.getUser();
         final boolean isSystem = User.isInternal(user);
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
-            final Optional<String[]> indices = indices(msg);
+            final Optional<String[]> indices = Optional.ofNullable(indices(msg));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -835,7 +835,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         AuthorizationInfo authorizationInfo
     ) {
         if (events.contains(ACCESS_DENIED)) {
-            final Optional<String[]> indices = indices(transportRequest);
+            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -879,7 +879,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void tamperedRequest(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
-            final Optional<String[]> indices = indices(transportRequest);
+            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -898,7 +898,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
-            final Optional<String[]> indices = indices(transportRequest);
+            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -967,7 +967,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         AuthorizationInfo authorizationInfo
     ) {
         if (events.contains(RUN_AS_GRANTED)) {
-            final Optional<String[]> indices = indices(transportRequest);
+            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -1003,7 +1003,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         AuthorizationInfo authorizationInfo
     ) {
         if (events.contains(RUN_AS_DENIED)) {
-            final Optional<String[]> indices = indices(transportRequest);
+            final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -1701,16 +1701,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
-    }
-
-    private static Optional<String[]> indices(TransportRequest transportRequest) {
-        if (transportRequest instanceof IndicesRequest) {
-            final String[] indices = ((IndicesRequest) transportRequest).indices();
-            if (indices != null) {
-                return Optional.of(((IndicesRequest) transportRequest).indices());
-            }
-        }
-        return Optional.empty();
     }
 
     public static void registerSettings(List<Setting<?>> settings) {

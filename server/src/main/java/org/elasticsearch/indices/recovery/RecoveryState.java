@@ -109,12 +109,27 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public RecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode, Index index) {
+        this(shardRouting.shardId(), shardRouting.primary(), shardRouting.recoverySource(), sourceNode, targetNode, index, new Timer());
         assert shardRouting.initializing() : "only allow initializing shard routing to be recovered: " + shardRouting;
-        RecoverySource recoverySource = shardRouting.recoverySource();
-        assert (recoverySource.getType() == RecoverySource.Type.PEER) == (sourceNode != null)
-            : "peer recovery requires source node, recovery type: " + recoverySource.getType() + " source node: " + sourceNode;
-        this.shardId = shardRouting.shardId();
-        this.primary = shardRouting.primary();
+        assert (shardRouting.recoverySource().getType() == RecoverySource.Type.PEER) == (sourceNode != null)
+            : "peer recovery requires source node, recovery type: "
+                + shardRouting.recoverySource().getType()
+                + " source node: "
+                + sourceNode;
+        timer.start();
+    }
+
+    private RecoveryState(
+        ShardId shardId,
+        boolean primary,
+        RecoverySource recoverySource,
+        DiscoveryNode sourceNode,
+        DiscoveryNode targetNode,
+        Index index,
+        Timer timer
+    ) {
+        this.shardId = shardId;
+        this.primary = primary;
         this.recoverySource = recoverySource;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
@@ -122,8 +137,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.index = index;
         translog = new Translog();
         verifyIndex = new VerifyIndex();
-        timer = new Timer();
-        timer.start();
+        this.timer = timer;
     }
 
     private RecoveryState(StreamInput in) throws IOException {
@@ -214,6 +228,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             default -> throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;
+    }
+
+    /**
+     * Resets the stage to the initial state and clears all index, verify index and translog information keeping the original timing
+     * information
+     */
+    public RecoveryState reset() {
+        return new RecoveryState(shardId, primary, recoverySource, sourceNode, targetNode, new Index(), timer);
     }
 
     public synchronized RecoveryState setLocalTranslogStage() {

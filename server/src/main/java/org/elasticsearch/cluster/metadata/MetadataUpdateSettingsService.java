@@ -84,6 +84,7 @@ public class MetadataUpdateSettingsService {
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
+
             }
             if (state != batchExecutionContext.initialState()) {
                 // reroute in case things change that require it (like number of replicas)

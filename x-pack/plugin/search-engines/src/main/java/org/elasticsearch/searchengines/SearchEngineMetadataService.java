@@ -9,6 +9,7 @@ package org.elasticsearch.searchengines;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -16,11 +17,14 @@ import org.elasticsearch.cluster.metadata.SearchEngine;
 import org.elasticsearch.cluster.metadata.SearchEngineMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.searchengines.action.CreateSearchEngineAction;
 
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
+import java.util.HashMap;
 
 public class SearchEngineMetadataService {
 
@@ -38,7 +42,7 @@ public class SearchEngineMetadataService {
             try {
                 final var task = taskContext.getTask();
                 try (var ignored = taskContext.captureResponseHeaders()) {
-                    currentMetadata = task.execute(currentMetadata);
+                    currentMetadata = task.execute(currentMetadata, batchExecutionContext.initialState());
                 }
                 taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
@@ -62,7 +66,7 @@ public class SearchEngineMetadataService {
             this.listener = listener;
         }
 
-        public abstract SearchEngineMetadata execute(SearchEngineMetadata currentMetadata);
+        public abstract SearchEngineMetadata execute(SearchEngineMetadata currentMetadata, ClusterState state);
 
         @Override
         public void onFailure(Exception e) {
@@ -73,6 +77,7 @@ public class SearchEngineMetadataService {
     public SearchEngineMetadataService(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
+
 
     public void createSearchEngine(CreateSearchEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask(
@@ -91,14 +96,28 @@ public class SearchEngineMetadataService {
             this.request = request;
         }
 
+        private void validate(CreateSearchEngineAction.Request request, ClusterState state) {
+            // - validate index names, make sure they exist
+            for (String index: request.indices()) {
+                if ((state.routingTable().hasIndex(index) || state.metadata().hasIndex(index) || state.metadata().hasAlias(index)) == false) {
+                    throw new IndexNotFoundException(index);
+                }
+            }
+        }
+
         @Override
-        public SearchEngineMetadata execute(SearchEngineMetadata currentMetadata) {
+        public SearchEngineMetadata execute(SearchEngineMetadata currentMetadata, ClusterState state) {
+            validate(request, state);
+
             Map<String, SearchEngine> searchEngines = new HashMap<>(currentMetadata.searchEngines());
 
-            // TODO:
-            // - validate the engine name
-            // - handle indices list
-            SearchEngine searchEngine = new SearchEngine(request.getName(), Collections.emptyList(), false, false);
+            // TODO: is this right?
+            List<Index> indices = new ArrayList<>();
+            for (String indexName: request.indices()) {
+                indices.add(state.getMetadata().index(indexName).getIndex());
+            }
+
+            SearchEngine searchEngine = new SearchEngine(request.getName(), indices, false, false);
             searchEngines.put(request.getName(), searchEngine);
 
             return new SearchEngineMetadata(searchEngines);

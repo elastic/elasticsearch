@@ -632,9 +632,9 @@ public class CompositeRolesStore {
                 if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
                     continue;
                 }
-                final var clusterGroup = indicesPrivilege.getRemoteClusters() == null
-                    ? LOCAL_CLUSTER_GROUP_KEY_SET
-                    : newHashSet(indicesPrivilege.getRemoteClusters());
+                final var clusterGroup = indicesPrivilege.hasRemoteClusters()
+                    ? newHashSet(indicesPrivilege.getRemoteClusters())
+                    : LOCAL_CLUSTER_GROUP_KEY_SET;
                 if (false == indicesPrivilegesMapByClusterGroup.containsKey(clusterGroup)) {
                     indicesPrivilegesMapByClusterGroup.put(clusterGroup, new HashMap<>());
                 }

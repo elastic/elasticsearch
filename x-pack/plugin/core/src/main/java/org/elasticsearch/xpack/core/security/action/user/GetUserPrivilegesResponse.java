@@ -237,7 +237,6 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
         @Override
         public int hashCode() {
-            // TODO handle nullable `remoteClusters`
             return Objects.hash(indices, privileges, fieldSecurity, queries, allowRestrictedIndices, remoteClusters);
         }
 

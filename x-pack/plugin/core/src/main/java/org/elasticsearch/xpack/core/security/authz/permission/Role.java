@@ -193,7 +193,7 @@ public interface Role {
         private ClusterPermission cluster = ClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private final List<IndicesPermissionGroupDefinition> groups = new ArrayList<>();
-        private final List<Tuple<Set<String>, IndicesPermissionGroupDefinition>> remoteGroups = new ArrayList<>();
+        private final List<RemoteIndicesPermissionGroupDefinition> remoteGroups = new ArrayList<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
         private final RestrictedIndices restrictedIndices;
 
@@ -205,16 +205,18 @@ public interface Role {
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache, RestrictedIndices restrictedIndices) {
             this.names = new String[] { rd.getName() };
             cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges()));
+            // TODO meh
             final Map<Set<String>, List<IndicesPermissionGroupDefinition>> indexPrivilegesByClusterGroup = convertFromIndicesPrivileges(
                 rd.getIndicesPrivileges(),
                 fieldPermissionsCache
             );
-            // TODO meh
             for (var entry : indexPrivilegesByClusterGroup.entrySet()) {
                 if (entry.getKey().equals(newHashSet(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
                     groups.addAll(indexPrivilegesByClusterGroup.get(newHashSet(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)));
                 } else {
-                    remoteGroups.addAll(entry.getValue().stream().map(it -> new Tuple<>(entry.getKey(), it)).toList());
+                    remoteGroups.addAll(
+                        entry.getValue().stream().map(it -> new RemoteIndicesPermissionGroupDefinition(entry.getKey(), it)).toList()
+                    );
                 }
             }
 
@@ -266,15 +268,15 @@ public interface Role {
         }
 
         public Builder addRemoteGroup(
-            Set<String> remoteClusters,
-            FieldPermissions fieldPermissions,
-            Set<BytesReference> query,
-            IndexPrivilege privilege,
-            boolean allowRestrictedIndices,
-            String... indices
+            final Set<String> remoteClusters,
+            final FieldPermissions fieldPermissions,
+            final Set<BytesReference> query,
+            final IndexPrivilege privilege,
+            final boolean allowRestrictedIndices,
+            final String... indices
         ) {
             remoteGroups.add(
-                new Tuple<>(
+                new RemoteIndicesPermissionGroupDefinition(
                     remoteClusters,
                     new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices)
                 )
@@ -304,23 +306,13 @@ public interface Role {
                 }
                 indices = indicesBuilder.build();
             }
-            final List<RemoteIndicesPermission> remoteIndices;
-            if (remoteGroups.isEmpty()) {
-                remoteIndices = null;
-            } else {
-                remoteIndices = new ArrayList<>();
-                for (var entry : remoteGroups) {
-                    IndicesPermissionGroupDefinition group = entry.v2();
-                    IndicesPermission.Builder indicesBuilder = new IndicesPermission.Builder(restrictedIndices);
-                    indicesBuilder.addGroup(
-                        group.privilege,
-                        group.fieldPermissions,
-                        group.query,
-                        group.allowRestrictedIndices,
-                        group.indices
-                    );
-                    remoteIndices.add(new RemoteIndicesPermission(entry.v1().toArray(new String[0]), indicesBuilder.build()));
-                }
+            final List<RemoteIndicesPermission> remoteIndices = new ArrayList<>();
+            for (final RemoteIndicesPermissionGroupDefinition remoteGroup : remoteGroups) {
+                // TODO handle empty groups edge case
+                final IndicesPermissionGroupDefinition group = remoteGroup.group();
+                final IndicesPermission.Builder indicesBuilder = new IndicesPermission.Builder(restrictedIndices);
+                indicesBuilder.addGroup(group.privilege, group.fieldPermissions, group.query, group.allowRestrictedIndices, group.indices);
+                remoteIndices.add(new RemoteIndicesPermission(remoteGroup.remoteClusterGroup(), indicesBuilder.build()));
             }
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
                 ? ApplicationPermission.NONE
@@ -332,11 +324,11 @@ public interface Role {
             RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
             @Nullable FieldPermissionsCache fieldPermissionsCache
         ) {
-            Map<Set<String>, List<IndicesPermissionGroupDefinition>> groupedByCluster = new HashMap<>();
+            final Map<Set<String>, List<IndicesPermissionGroupDefinition>> groupedByCluster = new HashMap<>();
             for (RoleDescriptor.IndicesPrivileges privilege : indicesPrivileges) {
-                final var clusterGroup = privilege.getRemoteClusters() == null
-                    ? newHashSet(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
-                    : newHashSet(privilege.getRemoteClusters());
+                final var clusterGroup = privilege.hasRemoteClusters()
+                    ? newHashSet(privilege.getRemoteClusters())
+                    : newHashSet(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                 if (false == groupedByCluster.containsKey(clusterGroup)) {
                     groupedByCluster.put(clusterGroup, new ArrayList<>());
                 }

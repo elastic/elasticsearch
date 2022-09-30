@@ -789,7 +789,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         // users. Setting this flag eliminates this special status, and any index name pattern in the permission will cover restricted
         // indices as well.
         private boolean allowRestrictedIndices = false;
-        // TODO remoteClusters?
         private String[] remoteClusters = null;
 
         private IndicesPrivileges() {}
@@ -803,8 +802,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             this.allowRestrictedIndices = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
                 this.remoteClusters = in.readOptionalStringArray();
-                // TODO doesn't belong here
-                assert this.remoteClusters == null || Arrays.stream(this.remoteClusters).noneMatch(it -> it.equals(""));
             }
         }
 
@@ -879,6 +876,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         @Nullable
         public String[] getRemoteClusters() {
             return remoteClusters;
+        }
+
+        public boolean hasRemoteClusters() {
+            return remoteClusters != null;
         }
 
         @Override

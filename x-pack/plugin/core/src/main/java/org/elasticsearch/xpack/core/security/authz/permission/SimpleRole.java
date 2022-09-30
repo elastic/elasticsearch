@@ -46,7 +46,6 @@ public class SimpleRole implements Role {
     private final IndicesPermission indices;
     private final ApplicationPermission application;
     private final RunAsPermission runAs;
-    @Nullable
     private final List<RemoteIndicesPermission> remoteIndices;
 
     SimpleRole(
@@ -54,25 +53,15 @@ public class SimpleRole implements Role {
         ClusterPermission cluster,
         IndicesPermission indices,
         ApplicationPermission application,
-        RunAsPermission runAs
-    ) {
-        this(names, cluster, indices, application, runAs, null);
-    }
-
-    SimpleRole(
-        String[] names,
-        ClusterPermission cluster,
-        IndicesPermission indices,
-        ApplicationPermission application,
         RunAsPermission runAs,
-        @Nullable List<RemoteIndicesPermission> remoteIndices
+        List<RemoteIndicesPermission> remoteIndices
     ) {
         this.names = names;
         this.cluster = Objects.requireNonNull(cluster);
         this.indices = Objects.requireNonNull(indices);
         this.application = Objects.requireNonNull(application);
         this.runAs = Objects.requireNonNull(runAs);
-        this.remoteIndices = remoteIndices;
+        this.remoteIndices = Objects.requireNonNull(remoteIndices);
     }
 
     @Override

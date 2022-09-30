@@ -724,7 +724,6 @@ public class RBACEngine implements AuthorizationEngine {
             ? List.<RemoteIndicesPermission>of()
             : userRole.remoteIndices()) {
             for (var group : remoteIndices.indicesPermission().groups()) {
-                assert remoteIndices.remoteClusterAliases() != null;
                 final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
                 final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
                 if (group.getFieldPermissions().hasFieldLevelSecurity()) {
@@ -742,7 +741,7 @@ public class RBACEngine implements AuthorizationEngine {
                         fieldSecurity,
                         queries,
                         group.allowRestrictedIndices(),
-                        Arrays.asList(remoteIndices.remoteClusterAliases())
+                        remoteIndices.remoteClusterAliases()
                     )
                 );
             }

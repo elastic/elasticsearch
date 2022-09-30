@@ -408,6 +408,8 @@ public class Constants {
         "indices:admin/seq_no/global_checkpoint_sync",
         "indices:admin/seq_no/remove_retention_lease",
         "indices:admin/seq_no/renew_retention_lease",
+        "indices:admin/search_engine/create",
+        "indices:admin/search_engine/get",
         "indices:admin/settings/update",
         "indices:admin/shards/search_shards",
         "indices:admin/template/delete",

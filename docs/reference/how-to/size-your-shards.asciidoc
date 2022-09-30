@@ -267,7 +267,7 @@ This will show you information like in this example output:
 You can use the <<cluster-nodes-stats,Nodes stats API>> to get two relevant metrics
 for each node:
 
-* The maximum amount of available heap memory per node.
+* The size of the heap on each node.
 
 * Any additional estimated heap overhead for the fields per node. This is specific to
 data nodes, where apart from the cluster state field information mentioned above,

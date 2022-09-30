@@ -21,7 +21,9 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         File workspaceDir = locateElasticsearchWorkspace(project.getGradle());
-
+        if (workspaceDir == null) {
+            workspaceDir = project.getRootDir();
+        }
         // Register the service if not done yet
         File infoPath = new File(workspaceDir, "build-tools-internal");
         Provider<VersionPropertiesBuildService> serviceProvider = project.getGradle().getSharedServices()
@@ -41,7 +43,11 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
             }
 
             // Otherwise assume this project is the root elasticsearch workspace
-            return project.getRootProject().getRootDir();
+            if (project.getRootProject().getName().equals("elasticsearch")) {
+                return project.getRootProject().getRootDir();
+            } else {
+                return null;
+            }
         } else {
             // We're an included build, so keep looking
             return locateElasticsearchWorkspace(project.getParent());

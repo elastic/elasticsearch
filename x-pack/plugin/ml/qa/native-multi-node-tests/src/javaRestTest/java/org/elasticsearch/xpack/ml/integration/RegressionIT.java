@@ -430,9 +430,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         BoostedTreeParams boostedTreeParams = BoostedTreeParams.builder()
             .setLambda(1.0)
-            .setGamma(10.0)
+            .setGamma(1.0)
             .setFeatureBagFraction(0.5)
-            .setMaxTrees(2)
+            .setMaxTrees(3)
             .build();
 
         DataFrameAnalyticsConfig firstJob = buildAnalytics(

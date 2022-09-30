@@ -116,6 +116,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
@@ -363,11 +364,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         String someRandomHeader = "test_" + UUIDs.randomBase64UUID();
         Object someRandomHeaderValue = mock(Object.class);
         threadContext.putTransient(someRandomHeader, someRandomHeaderValue);
+        SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         // the thread context before authorization could contain any of the transient headers
         IndicesAccessControl mockAccessControlHeader = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
         if (mockAccessControlHeader == null && randomBoolean()) {
             mockAccessControlHeader = mock(IndicesAccessControl.class);
-            threadContext.putTransient(INDICES_PERMISSIONS_KEY, mockAccessControlHeader);
+            when(mockAccessControlHeader.isGranted()).thenReturn(true);
+            securityContext.putIndicesAccessControl(mockAccessControlHeader);
         }
         String originatingActionHeader = threadContext.getTransient(ORIGINATING_ACTION_KEY);
         if (this.setFakeOriginatingAction) {
@@ -947,7 +950,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                         + action
                         + "] is unauthorized"
                         + " for user [test user]"
-                        + " with effective roles [] (assigned roles [non-existent-role] were not found),"
+                        + " with effective roles [] (assigned roles [non-existent-role] were not found)"
                 )
             )
         );
@@ -1041,7 +1044,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(
             securityException,
             throwableWithMessage(
-                containsString("[" + action + "] is unauthorized" + " for user [test user]" + " with effective roles [no_indices],")
+                containsString("[" + action + "] is unauthorized" + " for user [test user]" + " with effective roles [no_indices]")
             )
         );
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
@@ -2030,7 +2033,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final SearchRequest searchRequest = new SearchRequest("_all");
         authorize(authentication, SearchAction.NAME, searchRequest);
         assertEquals(2, searchRequest.indices().length);
-        assertEquals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(searchRequest.indices()));
+        assertEquals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(searchRequest.indices()));
     }
 
     public void testMonitoringOperationsAgainstSecurityIndexRequireAllowRestricted() {

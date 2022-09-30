@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
@@ -70,26 +72,20 @@ public class MetadataUpdateSettingsService {
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
-        this.executor = batchExecutionContext -> {
-            ClusterState state = batchExecutionContext.initialState();
-            for (final var taskContext : batchExecutionContext.taskContexts()) {
-                try {
-                    final var task = taskContext.getTask();
-                    try (var ignored = taskContext.captureResponseHeaders()) {
-                        state = task.execute(state);
-                    }
-                    taskContext.success(task.getAckListener());
-                } catch (Exception e) {
-                    taskContext.onFailure(e);
-                }
+        this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateSettingsTask task, ClusterState clusterState) {
+                return Tuple.tuple(task.execute(clusterState), task.getAckListener());
             }
-            if (state != batchExecutionContext.initialState()) {
-                // reroute in case things change that require it (like number of replicas)
-                try (var ignored = batchExecutionContext.dropHeadersContext()) {
-                    state = allocationService.reroute(state, "settings update");
+
+            @Override
+            public ClusterState afterBatchExecution(ClusterState clusterState, boolean clusterStateChanged) {
+                if (clusterStateChanged) {
+                    // reroute in case things change that require it (like number of replicas)
+                    return allocationService.reroute(clusterState, "settings update");
                 }
+                return clusterState;
             }
-            return state;
         };
     }
 

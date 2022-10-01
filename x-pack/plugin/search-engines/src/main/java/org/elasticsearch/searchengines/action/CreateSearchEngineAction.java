@@ -20,8 +20,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.indices.InvalidEngineNameException;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
@@ -38,7 +44,21 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
         private final String name;
         private final long startTime;
 
-        private final String[] indices;
+        private String[] indices;
+
+        private static final ObjectParser<Request, RestRequest> PARSER;
+        static {
+            PARSER = new ObjectParser<>("create_search_engine");
+            PARSER.declareField(Request::setIndices, (p) -> {
+                List<String> indices = new ArrayList<>();
+                while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                        indices.add(p.text());
+                    }
+                }
+                return indices;
+            }, new ParseField("indices"), ObjectParser.ValueType.OBJECT_ARRAY);
+        }
 
         public Request(String name) {
             this(name, System.currentTimeMillis(), new String[0]);
@@ -120,6 +140,19 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
         @Override
         public IndicesOptions indicesOptions() {
             return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        }
+
+        public void setIndices(List<String> indices) {
+            String[] arr = new String[indices.size()];
+            indices.toArray(arr);
+            this.indices = arr;
+        }
+
+        public static Request parseRestRequest(RestRequest restRequest) throws IOException {
+            final Request request = new Request(restRequest.param("name"));
+            XContentParser contentParser = restRequest.contentParser();
+            PARSER.parse(contentParser, request, restRequest);
+            return request;
         }
     }
 }

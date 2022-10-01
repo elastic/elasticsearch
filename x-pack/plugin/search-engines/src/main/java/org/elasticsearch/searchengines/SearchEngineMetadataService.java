@@ -7,6 +7,7 @@
 
 package org.elasticsearch.searchengines;
 
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,10 +22,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.searchengines.action.CreateSearchEngineAction;
 
-import java.util.List;
 import java.util.ArrayList;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class SearchEngineMetadataService {
 
@@ -98,10 +99,16 @@ public class SearchEngineMetadataService {
 
         private void validate(CreateSearchEngineAction.Request request, ClusterState state) {
             // - validate index names, make sure they exist
+            List<String> missingIndices = new ArrayList<>();
             for (String index: request.indices()) {
-                if ((state.routingTable().hasIndex(index) || state.metadata().hasIndex(index) || state.metadata().hasAlias(index)) == false) {
-                    throw new IndexNotFoundException(index);
+                if ((state.routingTable().hasIndex(index)
+                    || state.metadata().hasIndex(index)
+                    || state.metadata().hasAlias(index)) == false) {
+                    missingIndices.add(index);
                 }
+            }
+            if (missingIndices.size() > 0) {
+                throw new IndexNotFoundException(Strings.join(missingIndices, ','));
             }
         }
 

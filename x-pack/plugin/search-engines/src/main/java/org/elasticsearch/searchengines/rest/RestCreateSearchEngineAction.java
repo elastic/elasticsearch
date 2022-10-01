@@ -15,6 +15,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.searchengines.SearchEnginesPlugin;
 import org.elasticsearch.searchengines.action.CreateSearchEngineAction;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -32,9 +33,8 @@ public class RestCreateSearchEngineAction extends BaseRestHandler {
     }
 
     @Override
-    protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        CreateSearchEngineAction.Request createEngineRequest = new CreateSearchEngineAction.Request(request.param("name"));
+    protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        CreateSearchEngineAction.Request createEngineRequest = CreateSearchEngineAction.Request.parseRestRequest(request);
         return channel -> client.execute(CreateSearchEngineAction.INSTANCE, createEngineRequest, new RestToXContentListener<>(channel));
     }
-
 }

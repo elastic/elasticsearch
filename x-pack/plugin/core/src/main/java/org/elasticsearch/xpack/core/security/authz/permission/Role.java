@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
@@ -32,12 +31,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
@@ -204,21 +201,11 @@ public interface Role {
 
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache, RestrictedIndices restrictedIndices) {
             this.names = new String[] { rd.getName() };
-            cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges()));
-            // TODO meh
-            final Map<Set<String>, List<IndicesPermissionGroupDefinition>> indexPrivilegesByClusterGroup = convertFromIndicesPrivileges(
+            cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges())).
+                indices(
                 rd.getIndicesPrivileges(),
                 fieldPermissionsCache
             );
-            for (var entry : indexPrivilegesByClusterGroup.entrySet()) {
-                if (entry.getKey().equals(newHashSet(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))) {
-                    groups.addAll(indexPrivilegesByClusterGroup.get(newHashSet(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)));
-                } else {
-                    remoteGroups.addAll(
-                        entry.getValue().stream().map(it -> new RemoteIndicesPermissionGroupDefinition(entry.getKey(), it)).toList()
-                    );
-                }
-            }
 
             final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = rd.getApplicationPrivileges();
             for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : applicationPrivileges) {
@@ -320,19 +307,11 @@ public interface Role {
             return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices);
         }
 
-        static Map<Set<String>, List<IndicesPermissionGroupDefinition>> convertFromIndicesPrivileges(
-            RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
-            @Nullable FieldPermissionsCache fieldPermissionsCache
+        Builder indices(
+            final RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
+            final @Nullable FieldPermissionsCache fieldPermissionsCache
         ) {
-            final Map<Set<String>, List<IndicesPermissionGroupDefinition>> groupedByCluster = new HashMap<>();
             for (RoleDescriptor.IndicesPrivileges privilege : indicesPrivileges) {
-                final var clusterGroup = privilege.hasRemoteClusters()
-                    ? newHashSet(privilege.getRemoteClusters())
-                    : newHashSet(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                if (false == groupedByCluster.containsKey(clusterGroup)) {
-                    groupedByCluster.put(clusterGroup, new ArrayList<>());
-                }
-
                 final FieldPermissions fieldPermissions;
                 if (fieldPermissionsCache != null) {
                     fieldPermissions = fieldPermissionsCache.getFieldPermissions(privilege.getGrantedFields(), privilege.getDeniedFields());
@@ -342,18 +321,27 @@ public interface Role {
                     );
                 }
                 final Set<BytesReference> query = privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery());
-                groupedByCluster.get(clusterGroup)
-                    .add(
-                        new IndicesPermissionGroupDefinition(
-                            IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
-                            fieldPermissions,
-                            query,
-                            privilege.allowRestrictedIndices(),
-                            privilege.getIndices()
-                        )
+                if (false == privilege.hasRemoteClusters()) {
+                    add(
+                        fieldPermissions,
+                        query,
+                        IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
+                        privilege.allowRestrictedIndices(),
+                        privilege.getIndices()
                     );
+                } else {
+                    addRemoteGroup(
+                        Set.of(privilege.getRemoteClusters()),
+                        fieldPermissions,
+                        query,
+                        IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
+                        privilege.allowRestrictedIndices(),
+                        privilege.getIndices()
+                    );
+                }
             }
-            return groupedByCluster;
+
+            return this;
         }
 
         static Tuple<ApplicationPrivilege, Set<String>> convertApplicationPrivilege(RoleDescriptor.ApplicationResourcePrivileges arp) {

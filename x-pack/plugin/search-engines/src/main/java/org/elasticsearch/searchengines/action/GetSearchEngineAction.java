@@ -160,7 +160,7 @@ public class GetSearchEngineAction extends ActionType<GetSearchEngineAction.Resp
                 for (Index index : searchEngine.getIndices()) {
                     builder.value(index.getName());
                 }
-
+                builder.endArray();
                 builder.endObject();
             }
             builder.endObject();

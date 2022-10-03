@@ -1662,6 +1662,11 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
+        public Builder put(SearchEngineMetadata searchEngineMetadata) {
+            previousIndicesLookup = null;
+            return putCustom(SearchEngineMetadata.TYPE, searchEngineMetadata);
+        }
+
         private void maybeSetMappingPurgeFlag(@Nullable IndexMetadata previous, IndexMetadata updated) {
             if (checkForUnusedMappings) {
                 return;

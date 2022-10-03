@@ -13,7 +13,7 @@
   # Prevalidate its removal
   - do:
       _internal.prevalidate_node_removal:
-        node: $node_id
+        ids: $node_id
 
   - match: { result.is_safe: "YES"}
   - contains: {nodes: {id: "$node_id", result: {is_safe: "YES", reason: ""}}}

@@ -6,18 +6,14 @@ esplugin {
   classname 'org.elasticsearch.xpack.relevancesearch.RelevanceSearchPlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-enterprise-search'
 
 dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 tasks.named("dependencyLicenses").configure {
   ignoreSha 'x-pack-core'
-}
-
-//no tests
-tasks.named("test").configure {
-  enabled = false
 }

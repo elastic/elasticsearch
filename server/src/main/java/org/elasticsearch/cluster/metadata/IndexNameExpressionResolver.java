@@ -1185,7 +1185,10 @@ public class IndexNameExpressionResolver {
                     .getIndicesLookup()
                     .values()
                     .stream()
-                    .filter(indexAbstraction -> indexAbstraction.getType() == Type.DATA_STREAM)
+                    .filter(
+                        indexAbstraction -> indexAbstraction.getType() == Type.DATA_STREAM
+                            || indexAbstraction.getType() == Type.SEARCH_ENGINE
+                    )
                     .filter(
                         indexAbstraction -> indexAbstraction.isSystem() == false
                             || context.systemIndexAccessPredicate.test(indexAbstraction.getName())
@@ -1415,7 +1418,8 @@ public class IndexNameExpressionResolver {
             return resources.flatMap(indexAbstraction -> {
                 if (context.isPreserveAliases() && indexAbstraction.getType() == Type.ALIAS) {
                     return Stream.of(indexAbstraction.getName());
-                } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
+                } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM
+                    || indexAbstraction.getType() == Type.SEARCH_ENGINE) {
                     return Stream.of(indexAbstraction.getName());
                 } else {
                     Stream<IndexMetadata> indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata()::index);

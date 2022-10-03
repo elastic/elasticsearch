@@ -2368,7 +2368,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     assert searchEngine.getIndices().isEmpty() == false;
                     final IndexAbstraction.SearchEngine engineAbstraction = new IndexAbstraction.SearchEngine(searchEngine);
                     IndexAbstraction existing = indicesLookup.put(searchEngine.getName(), engineAbstraction);
-                    assert existing == null : "duplicate data stream for " + searchEngine.getName();
+                    assert existing == null : "duplicate engine for " + searchEngine.getName();
                 }
             }
 

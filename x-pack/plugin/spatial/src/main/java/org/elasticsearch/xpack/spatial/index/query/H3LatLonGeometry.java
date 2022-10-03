@@ -19,14 +19,14 @@ import org.apache.lucene.spatial3d.geom.GeoPathFactory;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
 import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
-import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygon;
-import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygonFactory;
 import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
+import org.elasticsearch.xpack.spatial.geom.GeoRegularConvexPolygon;
+import org.elasticsearch.xpack.spatial.geom.GeoRegularConvexPolygonFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;

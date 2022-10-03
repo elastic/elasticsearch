@@ -5,7 +5,18 @@
  * 2.0.
  */
 
-package org.apache.lucene.spatial3d.geom;
+package org.elasticsearch.xpack.spatial.geom;
+
+import org.apache.lucene.spatial3d.geom.Bounds;
+import org.apache.lucene.spatial3d.geom.DistanceStyle;
+import org.apache.lucene.spatial3d.geom.GeoAreaShape;
+import org.apache.lucene.spatial3d.geom.GeoPoint;
+import org.apache.lucene.spatial3d.geom.GeoShape;
+import org.apache.lucene.spatial3d.geom.Membership;
+import org.apache.lucene.spatial3d.geom.Plane;
+import org.apache.lucene.spatial3d.geom.PlanetModel;
+import org.apache.lucene.spatial3d.geom.SerializableObject;
+import org.apache.lucene.spatial3d.geom.SidedPlane;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,8 +30,13 @@ import java.util.Arrays;
  *
  * The existing Lucene class GeoS2Shape could extend this class, and in fact this class was created as a simple generalization
  * of the GeoS2Shape class.
+ *
+ * TODO: Once Lucene makes GeoBaseAreaShape and/or GeoBasePolygon public, we can stop extending LuceneGeoBaseAreaShape and delete that
+ * and instead extend GeoBasePolygon from Lucene directly.
+ *
+ * TODO: Consider moving this class and its tests into Lucene spatial3d library itself.
  */
-public class GeoRegularConvexPolygon extends GeoBasePolygon {
+public class GeoRegularConvexPolygon extends LuceneGeoBaseAreaShape {
 
     protected final GeoPoint[] points;
     protected final SidedPlane[] planes;

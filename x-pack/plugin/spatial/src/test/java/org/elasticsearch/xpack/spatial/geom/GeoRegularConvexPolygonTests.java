@@ -5,14 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.spatial.index.query;
+package org.elasticsearch.xpack.spatial.geom;
 
 import org.apache.lucene.spatial3d.geom.GeoArea;
 import org.apache.lucene.spatial3d.geom.GeoPoint;
 import org.apache.lucene.spatial3d.geom.GeoPolygon;
 import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
-import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygon;
-import org.apache.lucene.spatial3d.geom.GeoRegularConvexPolygonFactory;
 import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
 import org.apache.lucene.spatial3d.geom.Spatial3DTestUtil;
@@ -30,6 +28,9 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeThat;
 
+/**
+ * TODO: Consider moving these tests and GeoRegularConvexPolygon into Lucene spatial3d library itself.
+ */
 public class GeoRegularConvexPolygonTests extends ESTestCase {
 
     public void testSimpleTriangle() {
@@ -62,7 +63,6 @@ public class GeoRegularConvexPolygonTests extends ESTestCase {
         double latitude = randomDoubleBetween(-85, 85, false);
         double longitude = randomDoubleBetween(-180, 180, true);
         int resolution = randomIntBetween(0, H3.MAX_H3_RES);
-        //String h3Address = H3.geoToH3Address(25, 25, 3);
         String h3Address = H3.geoToH3Address(latitude, longitude, resolution);
         CellBoundary boundary = H3.h3ToGeoBoundary(h3Address);
         assumeThat("This test only works with true convex hexagons", boundary.numPoints(), equalTo(6));

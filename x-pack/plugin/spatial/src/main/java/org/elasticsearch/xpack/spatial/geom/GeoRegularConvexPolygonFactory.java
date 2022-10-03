@@ -5,7 +5,10 @@
  * 2.0.
  */
 
-package org.apache.lucene.spatial3d.geom;
+package org.elasticsearch.xpack.spatial.geom;
+
+import org.apache.lucene.spatial3d.geom.GeoPoint;
+import org.apache.lucene.spatial3d.geom.PlanetModel;
 
 /**
  * Class which constructs a GeoPolygon representing a regular simple convex polygon, for example an S2 google pixel, or an H3 uber tile.

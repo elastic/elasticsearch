@@ -2,5 +2,4 @@ pr: 90612
 summary: Make `knn` search requests fully cancellable
 area: Vector Search
 type: bug
-issues:
- - 90323
+issues: []

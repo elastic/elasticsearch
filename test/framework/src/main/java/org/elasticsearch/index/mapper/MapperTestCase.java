@@ -1162,7 +1162,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 new SyntheticSourceInvalidExample(
                     matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
                     b -> {
-                        syntheticSourceSupport(rarely()).example(5).mapping().accept(b);
+                        syntheticSourceSupport(ignoreMalformed).example(5).mapping().accept(b);
                         b.field("copy_to", "bar");
                     }
                 )

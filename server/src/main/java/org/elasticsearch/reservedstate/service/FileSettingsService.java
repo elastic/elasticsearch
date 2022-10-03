@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -57,6 +58,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     public static final String SETTINGS_FILE_NAME = "settings.json";
     public static final String NAMESPACE = "file_settings";
+    private static final int REGISTER_RETRY_COUNT = 5;
 
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
@@ -371,16 +373,35 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException {
+    // package private for testing
+    long retryDelayMillis(int failedCount) {
+        assert failedCount < 31; // don't let the count overflow
+        return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
+    }
+
+    // package private for testing
+    WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException, InterruptedException {
         if (previousKey != null) {
             previousKey.cancel();
         }
-        return settingsDir.register(
-            watchService,
-            StandardWatchEventKinds.ENTRY_MODIFY,
-            StandardWatchEventKinds.ENTRY_CREATE,
-            StandardWatchEventKinds.ENTRY_DELETE
-        );
+        int retryCount = 0;
+
+        do {
+            try {
+                return settingsDir.register(
+                    watchService,
+                    StandardWatchEventKinds.ENTRY_MODIFY,
+                    StandardWatchEventKinds.ENTRY_CREATE,
+                    StandardWatchEventKinds.ENTRY_DELETE
+                );
+            } catch (IOException e) {
+                if (retryCount == REGISTER_RETRY_COUNT - 1) {
+                    throw e;
+                }
+                Thread.sleep(retryDelayMillis(retryCount));
+                retryCount++;
+            }
+        } while (true);
     }
 
     CompletableFuture<Void> processFileSettings(Path path) {

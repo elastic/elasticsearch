@@ -63,18 +63,6 @@ public class DesiredBalanceComputer {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of());
         }
 
-        // start shards that will be initialized
-        for (final var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
-            final var shardRouting = iterator.next();
-            var info = shardRouting.unassignedInfo();
-            if (info != null
-                && info.getLastAllocatedNodeId() != null
-                && routingNodes.node(info.getLastAllocatedNodeId()) != null
-                && ignoredShards.contains(shardRouting)) {
-                iterator.initialize(info.getLastAllocatedNodeId(), null, 0L, changes);
-            }
-        }
-
         // we assume that all ongoing recoveries will complete
         for (final var routingNode : routingNodes) {
             for (final var shardRouting : routingNode) {
@@ -121,6 +109,13 @@ public class DesiredBalanceComputer {
 
             final var targetNodes = assignment != null ? new TreeSet<>(assignment.nodeIds()) : new TreeSet<String>();
             targetNodes.retainAll(knownNodeIds);
+
+            for (ShardRouting shardRouting : routings.unassigned()) {
+                var lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
+                if (lastAllocatedNodeId != null && routingNodes.node(lastAllocatedNodeId) != null) {
+                    targetNodes.add(lastAllocatedNodeId);
+                }
+            }
 
             for (final var shardRouting : routings.assigned()) {
                 assert shardRouting.started();

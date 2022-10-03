@@ -35,6 +35,10 @@ artifacts {
 
 testClusters.configureEach {
   module ':modules:mapper-extras'
+  // This dependency can be removed when aggregations and
+  // respective yaml test have been moved to aggregations module.
+  // See for the progress: https://github.com/elastic/elasticsearch/issues/90283
+  module ':modules:aggregations'
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 

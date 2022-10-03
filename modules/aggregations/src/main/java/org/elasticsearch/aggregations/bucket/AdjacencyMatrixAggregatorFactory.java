@@ -6,17 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.adjacency;
+package org.elasticsearch.aggregations.bucket;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.aggregations.bucket.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;

@@ -14,6 +14,11 @@
     <property name="file" value="${config_loc}/checkstyle_suppressions.xml" />
   </module>
 
+  <module name="SuppressionFilter">
+    <property name="file" value="${config_loc}/additional_checkstyle_suppressions.xml" />
+    <property name="optional" value="true" />
+  </module>
+
   <module name="SuppressWarningsFilter" />
 
   <module name="RegexpMultiline">

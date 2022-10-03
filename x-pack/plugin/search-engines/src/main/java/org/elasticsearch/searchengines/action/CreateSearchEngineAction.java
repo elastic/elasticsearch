@@ -88,8 +88,7 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
             // validate engine name using the same rules as index name
             try {
                 MetadataCreateIndexService.validateIndexOrAliasName(name, InvalidEngineNameException::new);
-            }
-            catch (InvalidEngineNameException x) {
+            } catch (InvalidEngineNameException x) {
                 validationException = ValidateActions.addValidationError(x.getMessage(), validationException);
             }
             if (CollectionUtils.isEmpty(indices)) {

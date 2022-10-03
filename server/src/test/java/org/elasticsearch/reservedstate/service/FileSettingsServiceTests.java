@@ -36,9 +36,11 @@ import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.WatchKey;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -46,6 +48,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -56,8 +59,10 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -192,10 +197,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         FileSettingsService service = spy(fileSettingsService);
         CountDownLatch processFileLatch = new CountDownLatch(1);
 
-        doAnswer((Answer<Void>) invocation -> {
+        doAnswer((Answer<CompletableFuture<Void>>) invocation -> {
             processFileLatch.countDown();
-            return null;
-        }).when(service).processFileSettings(any(), any());
+            return CompletableFuture.completedFuture(null);
+        }).when(service).processFileSettings(any());
 
         service.start();
         assertTrue(service.watching());
@@ -209,7 +214,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         processFileLatch.await(30, TimeUnit.SECONDS);
 
         verify(service, Mockito.atLeast(1)).watchedFileChanged(any());
-        verify(service, times(1)).processFileSettings(any(), any());
+        verify(service, times(1)).processFileSettings(any());
 
         service.stop();
         assertFalse(service.watching());
@@ -245,7 +250,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             )
         );
 
-        verify(service, times(1)).processFileSettings(any(), any());
+        verify(service, times(1)).processFileSettings(any());
 
         service.stop();
 
@@ -260,7 +265,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.start();
         service.startWatcher(clusterService.state(), true);
 
-        verify(service, times(1)).processFileSettings(any(), any());
+        verify(service, times(1)).processFileSettings(any());
 
         service.stop();
         service.close();
@@ -321,13 +326,12 @@ public class FileSettingsServiceTests extends ESTestCase {
         CountDownLatch deadThreadLatch = new CountDownLatch(1);
 
         doAnswer((Answer<ReservedStateChunk>) invocation -> {
-            processFileLatch.countDown();
             // allow the other thread to continue, but hold on a bit to avoid
-            // setting the count-down latch in the main watcher loop.
+            // completing the task immediately in the main watcher loop
             Thread.sleep(1_000);
+            processFileLatch.countDown();
             new Thread(() -> {
-                // Simulate a thread that never comes back and decrements the
-                // countdown latch in FileSettingsService.processFileSettings
+                // Simulate a thread that never allows the completion to complete
                 try {
                     deadThreadLatch.await();
                 } catch (InterruptedException e) {
@@ -349,7 +353,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // on Linux is instantaneous. Windows is instantaneous too.
         assertTrue(processFileLatch.await(30, TimeUnit.SECONDS));
 
-        // Stopping the service should interrupt the watcher thread, we should be able to stop
+        // Stopping the service should interrupt the watcher thread, allowing the whole thing to exit
         service.stop();
         assertFalse(service.watching());
         service.close();
@@ -389,7 +393,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertNull(service.nodeInfos());
 
         // call the processing twice
-        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+        service.processFileSettings(service.operatorSettingsFile()).whenComplete((o, e) -> {
             if (e != null) {
                 fail("shouldn't get an exception");
             }
@@ -397,7 +401,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // after the first processing we should have node infos
         assertEquals(1, service.nodeInfos().getNodes().size());
 
-        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+        service.processFileSettings(service.operatorSettingsFile()).whenComplete((o, e) -> {
             if (e != null) {
                 fail("shouldn't get an exception");
             }
@@ -450,7 +454,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertEquals(1, service.nodeInfos().getNodes().size());
 
         // call the processing twice
-        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+        service.processFileSettings(service.operatorSettingsFile()).whenComplete((o, e) -> {
             if (e != null) {
                 fail("shouldn't get an exception");
             }
@@ -458,7 +462,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         assertEquals(2, service.nodeInfos().getNodes().size());
 
-        service.processFileSettings(service.operatorSettingsFile(), (e) -> {
+        service.processFileSettings(service.operatorSettingsFile()).whenComplete((o, e) -> {
             if (e != null) {
                 fail("shouldn't get an exception");
             }
@@ -469,5 +473,27 @@ public class FileSettingsServiceTests extends ESTestCase {
         // node infos should have been fetched one more time
         verify(csAdminClient, times(2)).nodesInfo(any(), any());
         verify(spiedController, times(4)).process(any(), any(ReservedStateChunk.class), any());
+    }
+
+    public void testRegisterWatchKeyRetry() throws IOException, InterruptedException {
+        var service = spy(fileSettingsService);
+        doAnswer(i -> 0L).when(service).retryDelayMillis(anyInt());
+
+        Files.createDirectories(service.operatorSettingsDir());
+
+        var mockedPath = spy(service.operatorSettingsDir());
+        var prevWatchKey = mock(WatchKey.class);
+        var newWatchKey = mock(WatchKey.class);
+
+        doThrow(new IOException("can't register")).doThrow(new IOException("can't register - attempt 2"))
+            .doAnswer(i -> newWatchKey)
+            .when(mockedPath)
+            .register(any(), any());
+
+        var result = service.enableSettingsWatcher(prevWatchKey, mockedPath);
+        assertNotNull(result);
+        assertTrue(result != prevWatchKey);
+
+        verify(service, times(2)).retryDelayMillis(anyInt());
     }
 }

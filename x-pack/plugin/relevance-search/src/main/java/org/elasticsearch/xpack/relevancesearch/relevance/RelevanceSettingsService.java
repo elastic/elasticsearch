@@ -25,7 +25,8 @@ public class RelevanceSettingsService {
         this.client = client;
     }
 
-    public RelevanceSettings getRelevanceSettings(String settingsId) throws RelevanceSettingsNotFoundException {
+    public RelevanceSettings getRelevanceSettings(String settingsId) throws RelevanceSettingsNotFoundException,
+        RelevanceSettingsInvalidException {
         // TODO cache relevance settings, including cache invalidation
         final Map<String, Object> settingsContent = client.prepareGet(ENT_SEARCH_INDEX, RELEVANCE_SETTINGS_PREFIX + settingsId)
             .get()
@@ -38,21 +39,33 @@ public class RelevanceSettingsService {
         return parseRelevanceSettings(settingsContent);
     }
 
-    private RelevanceSettings parseRelevanceSettings(Map<String, Object> source) {
+    private RelevanceSettings parseRelevanceSettings(Map<String, Object> source) throws RelevanceSettingsInvalidException {
 
         RelevanceSettings relevanceSettings = new RelevanceSettings();
+        QueryConfiguration relevanceSettingsQueryConfiguration = new QueryConfiguration();
 
         @SuppressWarnings("unchecked")
-        final List<String> fields = (List<String>) source.get("fields");
-        QueryConfiguration queryConfiguration = new QueryConfiguration();
-        queryConfiguration.parseFieldsAndBoosts(fields);
-        relevanceSettings.setQueryConfiguration(queryConfiguration);
+        final Map<String, Object> queryConfiguration = (Map<String, Object>) source.get("query_configuration");
+        @SuppressWarnings("unchecked")
+        final List<String> fields = (List<String>) queryConfiguration.get("fields");
+        if (fields == null || fields.isEmpty()) {
+            throw new RelevanceSettingsInvalidException("[relevance_match] fields not specified in relevance settings. Source: " + source);
+        }
+        relevanceSettingsQueryConfiguration.parseFieldsAndBoosts(fields);
+
+        relevanceSettings.setQueryConfiguration(relevanceSettingsQueryConfiguration);
 
         return relevanceSettings;
     }
 
     public static class RelevanceSettingsNotFoundException extends Exception {
         public RelevanceSettingsNotFoundException(String message) {
+            super(message);
+        }
+    }
+
+    public static class RelevanceSettingsInvalidException extends Exception {
+        public RelevanceSettingsInvalidException(String message) {
             super(message);
         }
     }

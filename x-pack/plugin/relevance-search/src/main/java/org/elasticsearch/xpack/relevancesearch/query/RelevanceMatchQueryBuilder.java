@@ -119,6 +119,8 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
                 fieldsAndBoosts = queryConfiguration.getFieldsAndBoosts();
             } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
                 throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
+            } catch (RelevanceSettingsService.RelevanceSettingsInvalidException e) {
+                throw new IllegalArgumentException("[relevance_match] invalid relevance search settings for: " + relevanceSettingsId);
             }
         } else {
             Collection<String> fields = queryFieldsResolver.getQueryFields(context);

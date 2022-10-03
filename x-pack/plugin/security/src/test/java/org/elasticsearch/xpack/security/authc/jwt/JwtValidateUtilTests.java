@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Date;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -30,8 +31,10 @@ public class JwtValidateUtilTests extends JwtTestCase {
 
     private boolean helpTestSignatureAlgorithm(final String signatureAlgorithm, final boolean requireOidcSafe) throws Exception {
         LOGGER.trace("Testing signature algorithm " + signatureAlgorithm);
-        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");;
-        secureRandom.setSeed(Random.makeBytes(32));
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        byte[] seed = Random.makeBytes(32);
+        LOGGER.warn("Seed: {}", Base64.getEncoder().encodeToString(seed));
+        secureRandom.setSeed(seed);
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, secureRandom, requireOidcSafe);
         final SecureString serializedJWTOriginal = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm);
         final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal.toString());

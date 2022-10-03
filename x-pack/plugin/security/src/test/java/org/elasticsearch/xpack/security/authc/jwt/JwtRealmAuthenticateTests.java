@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -154,8 +155,10 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         LOGGER.debug("JWT 1 still worked, because JWT realm has old JWKs cached in memory");
 
         // Generate a replacement set of JWKs 2 for the JWT issuer.
-        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");;
-        secureRandom.setSeed(Random.makeBytes(32));
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        byte[] seed = Random.makeBytes(32);
+        LOGGER.warn("Seed: {}", Base64.getEncoder().encodeToString(seed));
+        secureRandom.setSeed(seed);
         final List<JwtIssuer.AlgJwkPair> jwtIssuerJwks2Backup = JwtRealmTestCase.randomJwks(
             jwtIssuerJwks1Backup.stream().map(e -> e.alg()).toList(),
             secureRandom,

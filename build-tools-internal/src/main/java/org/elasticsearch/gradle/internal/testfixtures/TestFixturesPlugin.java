@@ -117,15 +117,11 @@ public class TestFixturesPlugin implements Plugin<Project> {
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
             composeExtension.getUseComposeFiles().addAll(Collections.singletonList(DOCKER_COMPOSE_YML));
             composeExtension.getRemoveContainers().set(true);
-            composeExtension.getExecutable().set(
-                this.providerFactory.provider(
-                    () -> {
-                        String composePath = dockerSupport.get().getDockerAvailability().dockerComposePath();
-                        LOGGER.debug("Docker Compose path: {}", composePath);
-                        return composePath != null ? composePath : "/usr/bin/docker-compose";
-                    }
-                )
-            );
+            composeExtension.getExecutable().set(this.providerFactory.provider(() -> {
+                String composePath = dockerSupport.get().getDockerAvailability().dockerComposePath();
+                LOGGER.debug("Docker Compose path: {}", composePath);
+                return composePath != null ? composePath : "/usr/bin/docker-compose";
+            }));
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions

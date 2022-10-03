@@ -122,6 +122,11 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.net.SocketPermission "*", "accept,connect";
 };
 
+grant codeBase "${codebase.nimbus-jose-jwt}" {
+  // needed for com.nimbusds.jose.shaded.gson.Gson.toJson
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
 grant {
   permission java.net.SocketPermission "127.0.0.1", "connect, resolve";
   permission java.nio.file.LinkPermission "symbolic";

@@ -75,6 +75,11 @@ grant codeBase "${codebase.log4j-api}" {
   permission java.lang.RuntimePermission "getClassLoader";
 };
 
+grant codeBase "${codebase.nimbus-jose-jwt}" {
+  // needed for com.nimbusds.jose.shaded.gson.Gson.toJson
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
 //// Everything else:
 
 grant {

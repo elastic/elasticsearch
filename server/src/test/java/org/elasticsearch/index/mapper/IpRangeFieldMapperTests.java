@@ -53,6 +53,11 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         return false;
     }
 
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
     public void testStoreCidr() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "ip_range").field("store", true)));

@@ -208,6 +208,11 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new MatchOnlyTextSyntheticSourceSupport();
     }

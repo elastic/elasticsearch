@@ -13,6 +13,8 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -35,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BulkShardOperationsTests extends IndexShardTestCase {
 
-    private static final byte[] SOURCE = "{}".getBytes(StandardCharsets.UTF_8);
+    private static final BytesReference SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
 
     // test that we use the primary term on the follower when applying operations from the leader
     public void testPrimaryTermFromFollower() throws IOException {

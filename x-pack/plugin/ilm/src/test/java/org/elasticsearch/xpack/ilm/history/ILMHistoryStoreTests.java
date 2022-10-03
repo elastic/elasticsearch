@@ -212,7 +212,6 @@ public class ILMHistoryStoreTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68468")
     @TestLogging(
         value = "org.elasticsearch.action.bulk:trace",
         reason = "Logging information about locks useful for tracking down deadlock"

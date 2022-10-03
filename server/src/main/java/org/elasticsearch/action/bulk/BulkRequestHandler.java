@@ -91,14 +91,22 @@ public final class BulkRequestHandler {
     }
 
     public void execute(BulkRequest bulkRequest, long executionId) {
-        Runnable toRelease = () -> {};
-        boolean bulkRequestSetupSuccessful = false;
         try {
             listener.beforeBulk(executionId, bulkRequest);
-            acquireSemaphore();
-            toRelease = this::releaseSemaphore;
             CountDownLatch latch = new CountDownLatch(1);
-            retry.withBackoff(consumer, bulkRequest, ActionListener.runAfter(new ActionListener<BulkResponse>() {
+            final BiConsumer<BulkRequest, ActionListener<BulkResponse>> semaphoreAcquiringConsumer = (
+                bulkRequest1,
+                bulkResponseActionListener) -> {
+                try {
+                    acquireSemaphore();
+                    consumer.accept(bulkRequest1, bulkResponseActionListener);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    releaseSemaphore();
+                }
+            };
+            retry.withBackoff(semaphoreAcquiringConsumer, bulkRequest, ActionListener.runAfter(new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse response) {
                     listener.afterBulk(executionId, bulkRequest, response);
@@ -108,11 +116,7 @@ public final class BulkRequestHandler {
                 public void onFailure(Exception e) {
                     listener.afterBulk(executionId, bulkRequest, e);
                 }
-            }, () -> {
-                releaseSemaphore();
-                latch.countDown();
-            }));
-            bulkRequestSetupSuccessful = true;
+            }, () -> { latch.countDown(); }));
             if (concurrentRequests == 0) {
                 latch.await();
             }
@@ -123,10 +127,6 @@ public final class BulkRequestHandler {
         } catch (Exception e) {
             logger.warn(() -> "Failed to execute bulk request " + executionId + ".", e);
             listener.afterBulk(executionId, bulkRequest, e);
-        } finally {
-            if (bulkRequestSetupSuccessful == false) {  // if we fail on client.bulk() release the semaphore
-                toRelease.run();
-            }
         }
     }
 

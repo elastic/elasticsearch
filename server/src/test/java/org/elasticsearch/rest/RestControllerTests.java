@@ -64,6 +64,7 @@ import static org.elasticsearch.rest.RestRequest.Method.OPTIONS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -384,7 +385,11 @@ public class RestControllerTests extends ESTestCase {
             }
         };
 
-        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        try {
+            restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        } catch (AssertionError e) {
+            assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        }
 
         assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
         assertEquals(0, inFlightRequestsBreaker.getUsed());

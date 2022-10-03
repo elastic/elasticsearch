@@ -20,13 +20,12 @@ import java.util.Set;
 
 public record RemoteIndicesPermission(
     RestrictedIndices restrictedIndices,
-    List<IndicesPermissionWithRemoteClusterAlias> permissions
+    List<IndicesPermissionWithRemoteClusterAlias> indicesPermissions
 ) {
 
     public IndicesPermission indicesPermissionFor(final String remoteClusterAlias) {
-        // TODO cache result
         final var builder = new IndicesPermission.Builder(restrictedIndices);
-        for (var permissionWithRemoteClusterAlias : permissions) {
+        for (var permissionWithRemoteClusterAlias : indicesPermissions) {
             if (false == permissionWithRemoteClusterAlias.checkRemoteClusterAlias(remoteClusterAlias)) {
                 continue;
             }
@@ -41,6 +40,7 @@ public record RemoteIndicesPermission(
                 );
             }
         }
+        // TODO cache result
         return builder.build();
     }
 

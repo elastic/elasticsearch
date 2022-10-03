@@ -219,7 +219,9 @@ but limiting the complexity of the regular expressions. Innocuous looking regexe
 can have staggering performance and stack depth behavior. But still, they remain an 
 amazingly powerful tool. In addition, to `limited`, the setting can be set to `true`, 
 as before, which enables regular expressions without limiting them.To enable them 
-yourself set `script.painless.regex.enabled: true` in `elasticsearch.yml`.
+yourself set `script.painless.regex.enabled: true` in `elasticsearch.yml` or you can 
+add `"script.painless.regex.enabled" : true` in 
+https://www.elastic.co/guide/en/cloud/current/ec-add-user-settings.html[Elastic Service Console].
 
 Painless's native support for regular expressions has syntax constructs:
 

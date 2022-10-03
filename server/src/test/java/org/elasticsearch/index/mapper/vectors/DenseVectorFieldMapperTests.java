@@ -21,7 +21,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -499,12 +498,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         @Override
         public SyntheticSourceExample example(int maxValues) throws IOException {
             List<Float> value = randomList(dims, dims, ESTestCase::randomFloat);
-            CheckedConsumer<XContentBuilder, IOException> writeValue = b -> {
-                for (Float f: value) {
-                    b.value(f);
-                }
-            };
-            return new SyntheticSourceExample(writeValue, writeValue, this::mapping);
+            return new SyntheticSourceExample(value, value, this::mapping);
         }
 
         private void mapping(XContentBuilder b) throws IOException {

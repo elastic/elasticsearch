@@ -115,10 +115,10 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.indexSearcher.setQueryCache(null);
         this.accessStats = accessStats;
         this.parallelArray = new ParallelArray(this.searchBatchSize);
+        this.indexVersionCreated = indexVersionCreated;
         final TopDocs topDocs = searchOperations(null, accessStats);
         this.totalHits = Math.toIntExact(topDocs.totalHits.value);
         this.scoreDocs = topDocs.scoreDocs;
-        this.indexVersionCreated = indexVersionCreated;
         fillParallelArray(scoreDocs, parallelArray);
     }
 

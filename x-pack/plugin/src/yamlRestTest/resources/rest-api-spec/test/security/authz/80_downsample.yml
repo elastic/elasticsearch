@@ -116,8 +116,8 @@ setup:
           {
             "indices": [
               {
-                "names": ["target"],
-                "privileges": ["all"],
+                "names": ["non-existing-index"],
+                "privileges": ["read"],
                 "query": { "match_all": {} }
               }
             ]
@@ -145,48 +145,6 @@ setup:
           }
 
 ---
-"Downsample user missing permissions on target index (document level security)":
-  - skip:
-      version: " - 8.4.99"
-      reason: "downsample introduced in 8.5.0"
-      features: headers
-
-  - do:
-      security.put_role:
-        name: "downsample-role"
-        body: >
-          {
-            "indices": [
-              {
-                "names": ["source"],
-                "privileges": ["read"],
-                "query": { "match_all": {} }
-              }
-            ]
-          }
-  - do:
-      security.put_user:
-        username: "downsample-user"
-        body: >
-          {
-            "password" : "x-pack-test-password",
-            "roles" : [ "downsample-role" ],
-            "full_name" : "user without permissions on the downsample target index"
-          }
-
-  # Downsample using `1h` fixed interval
-  - do:
-      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
-      catch: '/action \[indices:admin/xpack/downsample\] is unauthorized for user \[downsample-user\] with effective roles \[downsample-role\], this action is granted by the index privileges \[manage,all\]/'
-      indices.downsample:
-        index: source
-        target_index: target
-        body: >
-          {
-            "fixed_interval": "1h"
-          }
-
----
 "Downsample user missing read permissions on source index fields (field level security)":
   - skip:
       version: " - 8.4.99"
@@ -205,11 +163,6 @@ setup:
                 "field_security": {
                   "grant": ["@timestamp", "k8s.pod.network.*"]
                 }
-              },
-              {
-                "names": ["target"],
-                "privileges": ["all"],
-                "query": { "match_all": {} }
               }
             ]
           }
@@ -249,7 +202,7 @@ setup:
           {
             "indices": [
               {
-                "names": ["source", "target"],
+                "names": ["source"],
                 "privileges": ["all"],
                 "query": { "match_all": {} }
               }

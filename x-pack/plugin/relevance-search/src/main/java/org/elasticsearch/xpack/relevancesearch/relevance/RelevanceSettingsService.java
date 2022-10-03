@@ -49,8 +49,8 @@ public class RelevanceSettingsService {
         return relevanceSettings;
     }
 
-    public static class RelevanceSettingsNotFoundExecption extends Exception {
-        public RelevanceSettingsNotFoundExecption(String message) {
+    public static class RelevanceSettingsNotFoundException extends Exception {
+        public RelevanceSettingsNotFoundException(String message) {
             super(message);
         }
     }

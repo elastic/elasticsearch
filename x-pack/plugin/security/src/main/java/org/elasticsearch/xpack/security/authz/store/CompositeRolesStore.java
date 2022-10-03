@@ -626,7 +626,7 @@ public class CompositeRolesStore {
                 // merging
                 final boolean isExplicitDenial = indicesPrivileges.length == 1
                     && "none".equalsIgnoreCase(indicesPrivilege.getPrivileges()[0]);
-                if (isExplicitDenial || indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
+                if (isExplicitDenial || (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices)) {
                     continue;
                 }
                 final var clusterAlias = indicesPrivilege.hasRemoteClusters()

@@ -159,7 +159,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
      */
     public void testCreateJwtIntegrationTestRealm1() throws Exception {
         // Create RSA key for algorithm RS256
-        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");;
         secureRandom.setSeed(Random.makeBytes(32));
         final JWK jwk = new RSAKey.Builder(JwtTestCase.randomJwkRsa(JWSAlgorithm.RS256, secureRandom)).keyID("test-rsa-key").build();
         final JwtIssuer.AlgJwkPair algJwkPairPkc = new JwtIssuer.AlgJwkPair("RS256", jwk);

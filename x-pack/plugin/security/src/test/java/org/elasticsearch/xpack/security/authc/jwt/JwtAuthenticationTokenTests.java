@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class JwtAuthenticationTokenTests extends JwtTestCase {
 
     public void testJwtAuthenticationTokenParse() throws Exception {
-        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");;
         secureRandom.setSeed(Random.makeBytes(32));
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, secureRandom, randomBoolean());
@@ -70,7 +70,7 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         final String principalClaimValue = randomAlphaOfLengthBetween(8, 32);
 
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
-        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");;
         secureRandom.setSeed(Random.makeBytes(32));
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, secureRandom, randomBoolean());
 

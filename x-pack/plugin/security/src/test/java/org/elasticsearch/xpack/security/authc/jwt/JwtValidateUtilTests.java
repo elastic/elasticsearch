@@ -30,7 +30,7 @@ public class JwtValidateUtilTests extends JwtTestCase {
 
     private boolean helpTestSignatureAlgorithm(final String signatureAlgorithm, final boolean requireOidcSafe) throws Exception {
         LOGGER.trace("Testing signature algorithm " + signatureAlgorithm);
-        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");;
         secureRandom.setSeed(Random.makeBytes(32));
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, secureRandom, requireOidcSafe);
         final SecureString serializedJWTOriginal = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm);

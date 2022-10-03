@@ -48,7 +48,7 @@ public class JwkValidateUtilTests extends JwtTestCase {
     }
 
     public void testComputeBitLengthRsa() throws Exception {
-        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");;
         secureRandom.setSeed(Random.makeBytes(32));
         for (final String signatureAlgorithmRsa : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA) {
             final JWK jwk = JwtTestCase.randomJwkRsa(JWSAlgorithm.parse(signatureAlgorithmRsa), secureRandom);
@@ -70,7 +70,7 @@ public class JwkValidateUtilTests extends JwtTestCase {
     }
 
     private void filterJwksAndAlgorithmsTestHelper(final List<String> candidateAlgs) throws Exception {
-        final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");;
         secureRandom.setSeed(Random.makeBytes(32));
         final List<String> algsRandom = randomOfMinUnique(2, candidateAlgs); // duplicates allowed
         final List<JwtIssuer.AlgJwkPair> algJwkPairsAll = JwtTestCase.randomJwks(algsRandom, secureRandom, randomBoolean());

@@ -431,7 +431,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         return coerce.value();
     }
 
-    boolean ignoreMalformed() {
+    @Override
+    public boolean ignoreMalformed() {
         return ignoreMalformed.value();
     }
 
@@ -464,6 +465,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 numericValue = parse(parser, coerce.value());
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value()) {
+                    context.addIgnoredField(mappedFieldType.name());
                     return;
                 } else {
                     throw e;
@@ -487,6 +489,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         double doubleValue = numericValue.doubleValue();
         if (Double.isFinite(doubleValue) == false) {
             if (ignoreMalformed.value()) {
+                context.addIgnoredField(mappedFieldType.name());
                 return;
             } else {
                 // since we encode to a long, we have no way to carry NaNs and infinities

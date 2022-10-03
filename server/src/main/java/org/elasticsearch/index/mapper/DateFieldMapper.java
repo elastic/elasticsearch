@@ -926,7 +926,8 @@ public final class DateFieldMapper extends FieldMapper {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, v -> indexValue(documentParserContext, v));
     }
 
-    public boolean getIgnoreMalformed() {
+    @Override
+    public boolean ignoreMalformed() {
         return ignoreMalformed;
     }
 

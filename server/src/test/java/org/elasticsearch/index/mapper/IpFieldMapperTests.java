@@ -19,7 +19,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -52,8 +51,6 @@ public class IpFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "::1"));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", false), m -> assertFalse(((IpFieldMapper) m).ignoreMalformed()));
-
         registerDimensionChecks(checker);
     }
 
@@ -149,24 +146,14 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddress.getByName("::1"))), storedField.binaryValue());
     }
 
-    public void testIgnoreMalformed() throws Exception {
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-
-        ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", ":1")));
-        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), containsString("':1' is not an IP string literal"));
-
-        DocumentMapper mapper2 = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "ip");
-            b.field("ignore_malformed", true);
-        }));
-
-        ParsedDocument doc = mapper2.parse(source(b -> b.field("field", ":1")));
-
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
-        assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(exampleMalformedValue(":1").errorMatches("':1' is not an IP string literal"));
     }
 
     public void testNullValue() throws IOException {

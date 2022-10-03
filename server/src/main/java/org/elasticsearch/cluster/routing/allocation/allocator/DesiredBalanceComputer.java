@@ -70,7 +70,7 @@ public class DesiredBalanceComputer {
             if (info != null
                 && info.getLastAllocatedNodeId() != null
                 && routingNodes.node(info.getLastAllocatedNodeId()) != null
-                && ignoredShards.contains(shardRouting) == false) {
+                && ignoredShards.contains(shardRouting)) {
                 iterator.initialize(info.getLastAllocatedNodeId(), null, 0L, changes);
             }
         }

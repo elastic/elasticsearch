@@ -165,10 +165,22 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         for (final var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
             final var shardRouting = iterator.next();
             if (shardRouting.shardId().id() == 0 && shardRouting.primary()) {
-                iterator.updateUnassigned(new UnassignedInfo(
-                    UnassignedInfo.Reason.NODE_LEFT,
-                    null, null, 0, 0, 0, false, UnassignedInfo.AllocationStatus.NO_ATTEMPT, Set.of(), "node-2"
-                ), RecoverySource.EmptyStoreRecoverySource.INSTANCE, changes);
+                iterator.updateUnassigned(
+                    new UnassignedInfo(
+                        UnassignedInfo.Reason.NODE_LEFT,
+                        null,
+                        null,
+                        0,
+                        0,
+                        0,
+                        false,
+                        UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                        Set.of(),
+                        "node-2"
+                    ),
+                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                    changes
+                );
             }
         }
         clusterState = ClusterState.builder(clusterState)

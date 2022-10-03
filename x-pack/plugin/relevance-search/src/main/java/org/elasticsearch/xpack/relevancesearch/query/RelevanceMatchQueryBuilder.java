@@ -53,8 +53,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
     private String relevanceSettingsId;
 
-    public RelevanceMatchQueryBuilder() {
-    }
+    public RelevanceMatchQueryBuilder() {}
 
     public RelevanceMatchQueryBuilder(RelevanceSettingsService relevanceSettingsService, StreamInput in) throws IOException {
         super(in);

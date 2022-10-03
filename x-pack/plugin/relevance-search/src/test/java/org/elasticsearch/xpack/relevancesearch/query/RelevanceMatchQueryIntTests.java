@@ -55,8 +55,7 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
         indexDocument(
             DOCUMENTS_INDEX,
             "2",
-            Map.of("textField", "other document", "intField", 12, "doubleField", 13.45, "anotherTextField", "should not be found"
-            )
+            Map.of("textField", "other document", "intField", 12, "doubleField", 13.45, "anotherTextField", "should not be found")
         );
 
         relevanceMatchQueryBuilder.setQuery("text match");

@@ -625,7 +625,7 @@ public class CompositeRolesStore {
                 // if an index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
                 // merging
                 final boolean isExplicitDenial = indicesPrivileges.length == 1
-                    && "none".equalsIgnoreCase(indicesPrivileges[0].getPrivileges()[0]);
+                    && "none".equalsIgnoreCase(indicesPrivilege.getPrivileges()[0]);
                 if (isExplicitDenial || indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
                     continue;
                 }

@@ -234,7 +234,11 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         }, geoHashGrid -> {
             assertEquals("Bucket count", expectedCountPerGeoHash.size(), geoHashGrid.getBuckets().size());
             for (GeoGrid.Bucket bucket : geoHashGrid.getBuckets()) {
-                assertEquals("For bucket " + bucket.getKeyAsString(), (long) expectedCountPerGeoHash.get(bucket.getKeyAsString()), bucket.getDocCount());
+                assertEquals(
+                    "For bucket " + bucket.getKeyAsString(),
+                    (long) expectedCountPerGeoHash.get(bucket.getKeyAsString()),
+                    bucket.getDocCount()
+                );
             }
             assertTrue(AggregationInspectionHelper.hasValue(geoHashGrid));
         });

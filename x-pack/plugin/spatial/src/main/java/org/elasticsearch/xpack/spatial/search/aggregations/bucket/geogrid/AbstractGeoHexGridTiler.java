@@ -107,6 +107,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
                     for (String child : H3.h3ToChildren(h3)) {
                         // TODO: determine case for optimization, probably only the central child cell
                         if (relation == GeoRelation.QUERY_INSIDE && false) {
+                            // Without this optimization the unbounded test slows down from 120ms to over 28seconds
                             setAllValuesByRecursion(values, child, precision + 1);
                         } else {
                             setValuesByRecursion(values, geoValue, child, precision + 1);

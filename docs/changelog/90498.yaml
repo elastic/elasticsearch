@@ -1,0 +1,5 @@
+pr: 90498
+summary: Add XContentType of source in translog
+area: Store
+type: enhancement
+issues: []

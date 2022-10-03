@@ -401,7 +401,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         XContentParser parser = context.parser();
         QueryBuilder queryBuilder;
         try {
-            //make sure that we don't expand dots in field names while parsing, otherwise queries will
+            // make sure that we don't expand dots in field names while parsing, otherwise queries will
             // fail parsing due to unsupported inner objects
             context.path().setWithinLeafObject(true);
             queryBuilder = parseTopLevelQuery(parser);

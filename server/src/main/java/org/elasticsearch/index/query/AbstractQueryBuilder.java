@@ -295,6 +295,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      */
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {}
 
+    /**
+     * Parses and returns a query (excluding the query field that wraps it). To be called by API that support
+     * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
+     * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
+     * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}.
+     */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser) throws IOException {
         FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
             int nestedDepth;
@@ -319,7 +325,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     /**
-     * Parses a query excluding the query element that wraps it
+     * Parses an inner query. To be called by query implementations that support inner queries.
      */
     protected static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {

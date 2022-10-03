@@ -11,6 +11,7 @@ package org.elasticsearch.search.profile.dfs;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
+import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -24,33 +25,15 @@ import java.util.List;
  */
 public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
 
-    private boolean profiledStatistics = false;
-    private boolean profiledVectorQuery = false;
-
     private long startTime;
     private long totalTime;
 
     private final QueryProfiler queryProfiler;
+    private boolean collectorSet = false;
 
     public DfsProfiler(QueryProfiler queryProfiler) {
         super(DfsTimingType.class);
         this.queryProfiler = queryProfiler;
-    }
-
-    /**
-     * Indicate term statistics are collected so
-     * profiling information for collection are built.
-     */
-    public void profileStatistics() {
-        profiledStatistics = true;
-    }
-
-    /**
-     * Indicate that there is a knn vector query so
-     * profiling information for the vector query is built.
-     */
-    public void profileVectorQuery() {
-        profiledVectorQuery = true;
     }
 
     public void start() {
@@ -69,11 +52,21 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
         getTimer(dfsTimingType).stop();
     }
 
+    public void setCollector(InternalProfileCollector collector) {
+        queryProfiler.setCollector(collector);
+        collectorSet = true;
+    }
+
     public SearchProfileDfsPhaseResult buildDfsPhaseResults() {
-        ProfileResult dfsProfileResult = profiledStatistics
-            ? new ProfileResult("statistics", "collect term statistics", toBreakdownMap(), toDebugMap(), totalTime, List.of())
-            : null;
-        QueryProfileShardResult queryProfileShardResult = profiledVectorQuery
+        ProfileResult dfsProfileResult = new ProfileResult(
+            "statistics",
+            "collect term statistics",
+            toBreakdownMap(),
+            toDebugMap(),
+            totalTime,
+            List.of()
+        );
+        QueryProfileShardResult queryProfileShardResult = collectorSet
             ? new QueryProfileShardResult(queryProfiler.getTree(), queryProfiler.getRewriteTime(), queryProfiler.getCollector())
             : null;
         return new SearchProfileDfsPhaseResult(dfsProfileResult, queryProfileShardResult);

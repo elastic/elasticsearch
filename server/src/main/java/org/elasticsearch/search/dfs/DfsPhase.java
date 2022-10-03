@@ -63,7 +63,6 @@ public class DfsPhase {
             profiler = null;
         } else {
             profiler = context.getProfilers().getDfsProfiler();
-            profiler.profileStatistics();
         }
 
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
@@ -195,13 +194,12 @@ public class DfsPhase {
         Collector collector = topScoreDocCollector;
 
         if (context.getProfilers() != null) {
-            context.getProfilers().getDfsProfiler().profileVectorQuery();
             InternalProfileCollector ipc = new InternalProfileCollector(
                 topScoreDocCollector,
                 CollectorResult.REASON_SEARCH_TOP_HITS,
                 List.of()
             );
-            context.getProfilers().getCurrentQueryProfiler().setCollector(ipc);
+            context.getProfilers().getDfsProfiler().setCollector(ipc);
             collector = ipc;
         }
 

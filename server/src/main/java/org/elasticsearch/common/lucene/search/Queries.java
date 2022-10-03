@@ -12,7 +12,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -73,7 +73,7 @@ public class Queries {
      */
     public static Query newNonNestedFilter(Version indexVersionCreated) {
         if (indexVersionCreated.onOrAfter(NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION)) {
-            return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+            return new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
         } else {
             return not(newNestedFilter(indexVersionCreated));
         }

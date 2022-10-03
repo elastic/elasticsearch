@@ -819,7 +819,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          */
         List<SyntheticSourceInvalidExample> invalidExample() throws IOException;
     }
-    
+
     protected abstract SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed);
 
     public final void testSyntheticSource() throws IOException {
@@ -828,6 +828,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceIgnoreMalformed() throws IOException {
         assertSyntheticSource(syntheticSourceSupport(true).example(5));
+    }
+
+    public final void testSyntheticSourceIgnoreMalformedExamples() throws IOException {
+        CheckedConsumer<XContentBuilder, IOException> mapping = syntheticSourceSupport(true).example(1).mapping();
+        for (IgnoreM
+        assertSyntheticSource(new SyntheticSourceExample());
     }
 
     private void assertSyntheticSource(SyntheticSourceExample example) throws IOException {

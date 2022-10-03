@@ -25,7 +25,7 @@ public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_internal/prevalidate_node_removal/{nodeId}"));
+        return List.of(new Route(POST, "/_internal/prevalidate_node_removal"));
     }
 
     @Override
@@ -35,8 +35,14 @@ public class RestPrevalidateNodeRemovalAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String[] nodeIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        PrevalidateNodeRemovalRequest prevalidationRequest = new PrevalidateNodeRemovalRequest(nodeIds);
+        String[] ids = request.paramAsStringArray("ids", Strings.EMPTY_ARRAY);
+        String[] names = request.paramAsStringArray("names", Strings.EMPTY_ARRAY);
+        String[] externalIds = request.paramAsStringArray("external_ids", Strings.EMPTY_ARRAY);
+        PrevalidateNodeRemovalRequest prevalidationRequest = PrevalidateNodeRemovalRequest.builder()
+            .setNames(names)
+            .setIds(ids)
+            .setExternalIds(externalIds)
+            .build();
         prevalidationRequest.masterNodeTimeout(request.paramAsTime("master_timeout", prevalidationRequest.masterNodeTimeout()));
         return channel -> client.execute(
             PrevalidateNodeRemovalAction.INSTANCE,

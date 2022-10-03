@@ -10,51 +10,129 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<PrevalidateNodeRemovalRequest> {
 
-    private final String[] nodeIds; // Maybe named just nodes?
-    private DiscoveryNode[] concreteNodes;
+    public static final String VALIDATION_ERROR_MSG_ONLY_ONE_QUERY_PARAM =
+        "request must contain only one of the parameters node names, or IDs, or external IDs";
+    public static final String VALIDATION_ERROR_MSG_NO_QUERY_PARAM = "request must contain node names, or IDs, or external IDs";
 
-    public PrevalidateNodeRemovalRequest(String... nodeIds) {
-        this.nodeIds = nodeIds;
+    private final String[] names;
+    private final String[] ids;
+    private final String[] externalIds;
+
+    private PrevalidateNodeRemovalRequest(Builder builder) {
+        this.names = builder.names;
+        this.ids = builder.ids;
+        this.externalIds = builder.externalIds;
     }
 
     public PrevalidateNodeRemovalRequest(final StreamInput in) throws IOException {
         super(in);
-        nodeIds = in.readStringArray();
-    }
-
-    public void setConcreteNodes(DiscoveryNode... discoveryNodes) {
-        concreteNodes = discoveryNodes;
+        names = in.readStringArray();
+        ids = in.readStringArray();
+        externalIds = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (nodeIds == null) {
+        if (names == null) {
             out.writeVInt(0);
         } else {
-            out.writeStringArray(nodeIds);
+            out.writeStringArray(names);
+        }
+        if (ids == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeStringArray(ids);
+        }
+        if (externalIds == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeStringArray(externalIds);
         }
     }
 
     @Override
     public ActionRequestValidationException validate() {
+        var nonEmptyParams = Stream.of(names, ids, externalIds).filter(a -> a != null && a.length > 0).toList();
+        if (nonEmptyParams.isEmpty()) {
+            var e = new ActionRequestValidationException();
+            e.addValidationError("request must contain node names, or IDs, or external IDs");
+            return e;
+        }
+        if (nonEmptyParams.size() > 1) {
+            var e = new ActionRequestValidationException();
+            e.addValidationError("request must contain only one of the parameters node names, or IDs, or external IDs");
+            return e;
+        }
         return null;
     }
 
-    public List<DiscoveryNode> getConcreteNodes() {
-        return List.of(concreteNodes);
+    public String[] getNames() {
+        return names;
     }
 
-    public List<String> getNodeIds() {
-        return List.of(nodeIds);
+    public String[] getIds() {
+        return ids;
+    }
+
+    public String[] getExternalIds() {
+        return externalIds;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof PrevalidateNodeRemovalRequest == false) return false;
+        PrevalidateNodeRemovalRequest other = (PrevalidateNodeRemovalRequest) o;
+        return Arrays.equals(names, other.names) && Arrays.equals(ids, other.ids) && Arrays.equals(externalIds, other.externalIds);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(Arrays.hashCode(names), Arrays.hashCode(ids), Arrays.hashCode(externalIds));
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+
+        private String[] names = Strings.EMPTY_ARRAY;
+        private String[] ids = Strings.EMPTY_ARRAY;
+        private String[] externalIds = Strings.EMPTY_ARRAY;
+
+        public Builder setNames(String... names) {
+            Objects.requireNonNull(names);
+            this.names = names;
+            return this;
+        }
+
+        public Builder setIds(String... ids) {
+            Objects.requireNonNull(ids);
+            this.ids = ids;
+            return this;
+        }
+
+        public Builder setExternalIds(String... externalIds) {
+            Objects.requireNonNull(externalIds);
+            this.externalIds = externalIds;
+            return this;
+        }
+
+        public PrevalidateNodeRemovalRequest build() {
+            return new PrevalidateNodeRemovalRequest(this);
+        }
     }
 }

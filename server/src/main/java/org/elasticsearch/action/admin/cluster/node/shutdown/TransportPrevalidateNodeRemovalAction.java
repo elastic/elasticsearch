@@ -22,18 +22,20 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.IsSafe;
 import static org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation.NodeResult;
@@ -74,36 +76,60 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         ClusterState state,
         ActionListener<PrevalidateNodeRemovalResponse> listener
     ) {
-        List<String> nodes = request.getNodeIds();
         try {
-            Set<DiscoveryNode> concreteNodes = resolveNodes(nodes, state.nodes());
-            request.setConcreteNodes(concreteNodes.toArray(new DiscoveryNode[0]));
-            doPrevalidation(request, state, listener);
+            Set<DiscoveryNode> discoveryNodes = resolveNodes(request, state.nodes());
+            doPrevalidation(discoveryNodes, state, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    public static Set<DiscoveryNode> resolveNodes(List<String> nodes, DiscoveryNodes discoveryNodes) {
-        Set<DiscoveryNode> concreteNodes = new HashSet<>(nodes.size());
-        for (String node : nodes) {
-            List<DiscoveryNode> matches = discoveryNodes.stream()
-                .filter(dn -> dn.getId().equals(node) || dn.getName().equals(node) || dn.getExternalId().equals(node))
-                .toList();
-            if (matches.isEmpty()) {
-                throw new ResourceNotFoundException("node [{}] not found", node);
+    public static Set<DiscoveryNode> resolveNodes(PrevalidateNodeRemovalRequest request, DiscoveryNodes discoveryNodes) {
+        // Only one of the three arrays must be non-empty.
+        assert Stream.of(request.getNames(), request.getIds(), request.getExternalIds())
+            .filter(a -> a != null && a.length > 0)
+            .toList()
+            .size() == 1;
+        // Resolve by name
+        if (notEmpty(request.getNames())) {
+            var names = new HashSet<>(Arrays.asList(request.getNames()));
+            var resolvedNodes = discoveryNodes.stream().filter(n -> names.contains(n.getName())).collect(Collectors.toSet());
+            if (resolvedNodes.size() < names.size()) {
+                // find out which one wasn't found
+                var existingNodeNames = discoveryNodes.stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
+                names.removeAll(existingNodeNames);
+                throw new ResourceNotFoundException("could not resolve node names [{}]", names);
             }
-            if (matches.size() > 1) {
-                throw new IllegalArgumentException("more than one node matches [" + node + "]");
+            assert resolvedNodes.size() == request.getNames().length;
+            return resolvedNodes;
+        }
+        // Resolve by ID
+        if (notEmpty(request.getIds())) {
+            var ids = request.getIds();
+            var resolvedNode = Arrays.stream(ids).map(discoveryNodes::get).filter(Objects::nonNull).collect(Collectors.toSet());
+            if (resolvedNode.size() < ids.length) {
+                // find out which one wasn't found
+                var existingNodeIds = discoveryNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+                var idsNotFound = Arrays.stream(ids).filter(id -> existingNodeIds.contains(id) == false).collect(Collectors.toSet());
+                throw new ResourceNotFoundException("could not resolve node IDs [{}]", idsNotFound);
             }
-            concreteNodes.add(matches.get(0));
+            return resolvedNode;
         }
-        if (concreteNodes.size() != nodes.size()) {
-            throw new IllegalArgumentException(
-                Strings.format("provided {} values for <nodes> which resolved to {} nodes", nodes.size(), concreteNodes.size())
-            );
+        // Resolve by external ID
+        var externalIds = new HashSet<>(Arrays.asList(request.getExternalIds()));
+        var resolvedNodes = discoveryNodes.stream().filter(n -> externalIds.contains(n.getExternalId())).collect(Collectors.toSet());
+        if (resolvedNodes.size() < externalIds.size()) {
+            // find out which one wasn't found
+            var existingExternalIds = discoveryNodes.stream().map(DiscoveryNode::getExternalId).collect(Collectors.toSet());
+            externalIds.removeAll(existingExternalIds);
+            throw new ResourceNotFoundException("could not resolve node external IDs [{}]", externalIds);
         }
-        return concreteNodes;
+        assert resolvedNodes.size() == request.getExternalIds().length;
+        return resolvedNodes;
+    }
+
+    private static boolean notEmpty(String[] a) {
+        return a != null && a.length > 0;
     }
 
     @Override
@@ -113,21 +139,21 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
     }
 
     private void doPrevalidation(
-        PrevalidateNodeRemovalRequest prevalidationRequest,
+        Set<DiscoveryNode> nodes,
         ClusterState clusterState,
         ActionListener<PrevalidateNodeRemovalResponse> listener
     ) {
-        assert prevalidationRequest.getConcreteNodes() != null && prevalidationRequest.getConcreteNodes().isEmpty() == false;
+        assert nodes != null && nodes.isEmpty() == false;
+
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
         Metadata metadata = clusterState.metadata();
         switch (clusterStateHealth.getStatus()) {
             case GREEN, YELLOW -> {
                 Result result = new Result(IsSafe.YES, "cluster status is not RED");
-                List<NodeResult> nodes = prevalidationRequest.getConcreteNodes()
-                    .stream()
+                List<NodeResult> nodesResults = nodes.stream()
                     .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
                     .toList();
-                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodes)));
+                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodesResults)));
             }
             case RED -> {
                 Set<String> redIndices = clusterStateHealth.getIndices()
@@ -143,17 +169,15 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                     .map(im -> im.getIndex().getName())
                     .collect(Collectors.toSet());
                 Result result;
-                List<NodeResult> nodes;
+                List<NodeResult> nodeResults;
                 if (redNonSSIndices.isEmpty()) {
                     result = new Result(IsSafe.YES, "all red indices are searchable snapshot indices");
-                    nodes = prevalidationRequest.getConcreteNodes()
-                        .stream()
+                    nodeResults = nodes.stream()
                         .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
                         .toList();
                 } else {
                     result = new Result(IsSafe.UNKNOWN, "cluster health is RED");
-                    nodes = prevalidationRequest.getConcreteNodes()
-                        .stream()
+                    nodeResults = nodes.stream()
                         .map(
                             dn -> new NodeResult(
                                 dn.getName(),
@@ -164,7 +188,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                         )
                         .toList();
                 }
-                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodes)));
+                listener.onResponse(new PrevalidateNodeRemovalResponse(new NodesRemovalPrevalidation(result, nodeResults)));
             }
         }
     }

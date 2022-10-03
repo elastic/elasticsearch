@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
@@ -23,12 +22,11 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,10 +57,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
             AbstractShapeGeometryFieldMapper<?> gsfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
-        });
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
-            AbstractShapeGeometryFieldMapper<?> gpfm = (AbstractShapeGeometryFieldMapper<?>) m;
-            assertTrue(gpfm.ignoreMalformed());
         });
         checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
             AbstractShapeGeometryFieldMapper<?> gpfm = (AbstractShapeGeometryFieldMapper<?>) m;
@@ -189,71 +183,20 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         assertThat(ignoreZValue, equalTo(false));
     }
 
-    /**
-     * Test that ignore_malformed parameter correctly parses
-     */
-    public void testIgnoreMalformedParsing() throws IOException {
-
-        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", getFieldName());
-            b.field("ignore_malformed", true);
-        }));
-        Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
-
-        boolean ignoreMalformed = ((AbstractGeometryFieldMapper<?>) fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed, equalTo(true));
-
-        // explicit false ignore_malformed test
-        defaultMapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", getFieldName());
-            b.field("ignore_malformed", false);
-        }));
-        fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
-        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
-
-        ignoreMalformed = ((AbstractGeometryFieldMapper<?>) fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed, equalTo(false));
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
     }
 
-    public void testIgnoreMalformedValues() throws IOException {
-
-        DocumentMapper ignoreMapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", getFieldName());
-            b.field("ignore_malformed", true);
-        }));
-        DocumentMapper failMapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", getFieldName());
-            b.field("ignore_malformed", false);
-        }));
-
-        {
-            BytesReference arrayedDoc = BytesReference.bytes(
-                XContentFactory.jsonBuilder().startObject().field(FIELD_NAME, "Bad shape").endObject()
-            );
-            SourceToParse sourceToParse = new SourceToParse("1", arrayedDoc, XContentType.JSON);
-            ParsedDocument document = ignoreMapper.parse(sourceToParse);
-            assertThat(document.docs().get(0).getFields(FIELD_NAME).length, equalTo(0));
-            MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
-            assertThat(exception.getCause().getMessage(), containsString("Unknown geometry type: bad"));
-        }
-        {
-            BytesReference arrayedDoc = BytesReference.bytes(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(
-                        FIELD_NAME,
-                        "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869036, 18.9401790919517 "
-                            + "-33.9681188869036, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))"
-                    )
-                    .endObject()
-            );
-            SourceToParse sourceToParse = new SourceToParse("1", arrayedDoc, XContentType.JSON);
-            ParsedDocument document = ignoreMapper.parse(sourceToParse);
-            assertThat(document.docs().get(0).getFields(FIELD_NAME).length, equalTo(0));
-            MapperParsingException exception = expectThrows(MapperParsingException.class, () -> failMapper.parse(sourceToParse));
-            assertThat(exception.getCause().getMessage(), containsString("at least three non-collinear points required"));
-        }
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue("Bad shape").errorMatches("Unknown geometry type: bad"),
+            exampleMalformedValue(
+                "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869036, 18.9401790919517 "
+                    + "-33.9681188869036, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))"
+            ).errorMatches("at least three non-collinear points required")
+        );
     }
 
     /**

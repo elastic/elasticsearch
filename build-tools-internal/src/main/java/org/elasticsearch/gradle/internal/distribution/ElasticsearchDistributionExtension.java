@@ -36,7 +36,7 @@ public class ElasticsearchDistributionExtension {
         return project.getConfigurations().detachedConfiguration(dep);
     }
 
-    public void copyModule(TaskProvider<AbstractCopyTask> copyTask, Project module) {
+    public void copyModule(TaskProvider<? extends AbstractCopyTask> copyTask, Project module) {
         copyTask.configure(sync -> {
             var moduleConfig = moduleZip(module);
             sync.dependsOn(moduleConfig);

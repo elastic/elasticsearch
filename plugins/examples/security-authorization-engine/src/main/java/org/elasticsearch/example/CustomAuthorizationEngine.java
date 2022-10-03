@@ -89,7 +89,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();
                 for (String name : resolvedIndices.getLocal()) {
-                    indexAccessControlMap.put(name, new IndexAccessControl(true, FieldPermissions.DEFAULT, null));
+                    indexAccessControlMap.put(name, new IndexAccessControl(FieldPermissions.DEFAULT, null));
                 }
                 IndicesAccessControl indicesAccessControl =
                     new IndicesAccessControl(true, Collections.unmodifiableMap(indexAccessControlMap));

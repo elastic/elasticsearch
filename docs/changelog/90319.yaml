@@ -1,0 +1,6 @@
+pr: 90319
+summary: Preventing serialization errors in the nodes stats API
+area: Ingest Node
+type: bug
+issues:
+ - 77973

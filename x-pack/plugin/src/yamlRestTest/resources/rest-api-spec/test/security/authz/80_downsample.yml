@@ -1,0 +1,453 @@
+setup:
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "index-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["source", "target"],
+                "privileges": ["all"],
+                "query": { "match_all": {} }
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "index"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "index-role" ],
+            "full_name" : "user with all permissions on source and target index"
+          }
+
+  - do:
+      headers: { Authorization: "Basic aW5kZXg6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" }
+      indices.create:
+        index: source
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge
+                          sent:
+                            type: long
+                            time_series_metric: counter
+                          received:
+                            type: long
+                            time_series_metric: counter
+
+  - do:
+      headers: { Authorization: "Basic aW5kZXg6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" }
+      bulk:
+        refresh: true
+        index: source
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2001818691, "rx": 802133794, "sent": 2001818691, "received": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2005177954, "rx": 801479970, "sent": 2001826691, "received": 802143794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2006223737, "rx": 802337279, "sent": 2002018680, "received": 802173799}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T20:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "network": {"tx": 2012916202, "rx": 803685721, "sent": 2002267888, "received": 802178800}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434521831, "rx": 530575198, "sent": 1434521831, "received": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434577921, "rx": 530600088, "sent": 1434557898, "received": 530577811}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434587694, "rx": 530604797, "sent": 1434589900, "received": 530600110}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "network": {"tx": 1434595272, "rx": 530605511, "sent": 1434612001, "received": 530622980}}}}'
+
+  # Make the downsample source index read-only
+  - do:
+      headers: { Authorization: "Basic aW5kZXg6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" }
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+
+---
+"Downsample user missing permissions on source index (document level security)":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "downsample-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["target"],
+                "privileges": ["all"],
+                "query": { "match_all": {} }
+              }
+            ]
+          }
+  - do:
+      security.put_user:
+        username: "downsample-user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "downsample-role" ],
+            "full_name" : "user without permissions on the downsample source index"
+          }
+
+  # Downsample using `1h` fixed interval
+  - do:
+      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      catch: '/action \[indices:admin/xpack/downsample\] is unauthorized for user \[downsample-user\] with effective roles \[downsample-role\] on indices \[source\], this action is granted by the index privileges \[manage,all\]/'
+      indices.downsample:
+        index: source
+        target_index: target
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+---
+"Downsample user missing permissions on target index (document level security)":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "downsample-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["source"],
+                "privileges": ["read"],
+                "query": { "match_all": {} }
+              }
+            ]
+          }
+  - do:
+      security.put_user:
+        username: "downsample-user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "downsample-role" ],
+            "full_name" : "user without permissions on the downsample target index"
+          }
+
+  # Downsample using `1h` fixed interval
+  - do:
+      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      catch: '/action \[indices:admin/xpack/downsample\] is unauthorized for user \[downsample-user\] with effective roles \[downsample-role\], this action is granted by the index privileges \[manage,all\]/'
+      indices.downsample:
+        index: source
+        target_index: target
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+---
+"Downsample user missing read permissions on source index fields (field level security)":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "downsample-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["source"],
+                "privileges": ["read"],
+                "field_security": {
+                  "grant": ["@timestamp", "k8s.pod.network.*"]
+                }
+              },
+              {
+                "names": ["target"],
+                "privileges": ["all"],
+                "query": { "match_all": {} }
+              }
+            ]
+          }
+  - do:
+      security.put_user:
+        username: "downsample-user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "downsample-role" ],
+            "full_name" : "user who can read a limited set of fields in the source index"
+          }
+
+  # Downsample using `1h` fixed interval
+  - do:
+      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      catch: '/action \[indices:admin/xpack/downsample\] is unauthorized for user \[downsample-user\] with effective roles \[downsample-role\] on indices \[source\], this action is granted by the index privileges \[manage,all\]/'
+      indices.downsample:
+        index: source
+        target_index: target
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+---
+"User with all permissions on source index but no permissions on the target index (document level security)":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "downsample-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["source", "target"],
+                "privileges": ["all"],
+                "query": { "match_all": {} }
+              }
+            ]
+          }
+
+  # User performing the downsample operation
+  - do:
+      security.put_user:
+        username: "downsample-user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "downsample-role" ],
+            "full_name" : "user with all privileges on downsample source and target indices"
+          }
+
+  - do:
+      security.put_role:
+        name: "user-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["source"],
+                "privileges": ["all"],
+                "query": { "match_all": {} }
+              }
+            ]
+          }
+
+  # User accessing downsample source and target index with permissions only on the source index
+  - do:
+      security.put_user:
+        username: "user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "user-role" ],
+            "full_name" : "user who can read documents in the downsample source index but without permissions on the downsample target index"
+          }
+
+  # Downsample using `1h` fixed interval
+  # NOTE: this operation succedes even if we have specific permissions setup on the `source` index. Ideally we would like to fail
+  # downsampling in this scenario and allow it only if the source index has no permissions defined.
+  - do:
+      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      indices.downsample:
+        index: source
+        target_index: target
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      headers: { Authorization: "Basic dXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" }
+      search:
+        index: source
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 8 }
+
+  - do:
+      headers: { Authorization: "Basic dXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" }
+      catch: '/action \[indices:data/read/search\] is unauthorized for user \[user\] with effective roles \[user-role\] on indices \[target\], this action is granted by the index privileges \[read,all\]/'
+      search:
+        index: target
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+---
+"User with limited permissions on a set of fields in the source and target index (field level security)":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "downsample-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["source", "target"],
+                "privileges": ["all"],
+                "query": { "match_all": {} }
+              }
+            ]
+          }
+
+  # User performing the downsample operation
+  - do:
+      security.put_user:
+        username: "downsample-user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "downsample-role" ],
+            "full_name" : "user with all privileges on downsample source and target indices"
+          }
+
+  - do:
+      security.put_role:
+        name: "user-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": [ "source", "target" ],
+                "privileges": [ "read" ],
+                "field_security": {
+                  "grant": [ "k8s.pod.network.*" ]
+                }
+              }
+            ]
+          }
+
+  # User accessing downsample source and target index with permissions only on the source index
+  - do:
+      security.put_user:
+        username: "user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "user-role" ],
+            "full_name" : "user who can read documents in the downsample source index but without permissions on the downsample target index"
+          }
+
+  # Downsample using `1h` fixed interval
+  # NOTE: this operation succedes even if we have specific permissions setup on the `source` index. Ideally we would like to fail
+  # downsampling in this scenario and allow it only if the source index has no permissions defined.
+  - do:
+      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      indices.downsample:
+        index: source
+        target_index: target
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      headers: { Authorization: "Basic dXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" }
+      search:
+        index: source
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 8 }
+  - match: { hits.hits.0._source.@timestamp: null }
+  - match: { hits.hits.0._source.metricset: null }
+  - match: { hits.hits.0._source.k8s.pod.uid: null }
+  - match: { hits.hits.1._source.@timestamp: null }
+  - match: { hits.hits.1._source.metricset: null }
+  - match: { hits.hits.1._source.k8s.pod.uid: null }
+  - match: { hits.hits.2._source.@timestamp: null }
+  - match: { hits.hits.2._source.metricset: null }
+  - match: { hits.hits.2._source.k8s.pod.uid: null }
+  - match: { hits.hits.3._source.@timestamp: null }
+  - match: { hits.hits.3._source.metricset: null }
+  - match: { hits.hits.3._source.k8s.pod.uid: null }
+  - match: { hits.hits.4._source.@timestamp: null }
+  - match: { hits.hits.4._source.metricset: null }
+  - match: { hits.hits.4._source.k8s.pod.uid: null }
+  - match: { hits.hits.5._source.@timestamp: null }
+  - match: { hits.hits.5._source.metricset: null }
+  - match: { hits.hits.5._source.k8s.pod.uid: null }
+  - match: { hits.hits.6._source.@timestamp: null }
+  - match: { hits.hits.6._source.metricset: null }
+  - match: { hits.hits.6._source.k8s.pod.uid: null }
+  - match: { hits.hits.7._source.@timestamp: null }
+  - match: { hits.hits.7._source.metricset: null }
+  - match: { hits.hits.7._source.k8s.pod.uid: null }
+
+  - do:
+      headers: { Authorization: "Basic dXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" }
+      search:
+        index: target
+        body:
+          sort: [ "_tsid", "@timestamp" ]
+
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._source.@timestamp: null }
+  - match: { hits.hits.0._source.metricset: null }
+  - match: { hits.hits.0._source.k8s.pod.uid: null }
+  - match: { hits.hits.1._source.@timestamp: null }
+  - match: { hits.hits.1._source.metricset: null }
+  - match: { hits.hits.1._source.k8s.pod.uid: null }
+  - match: { hits.hits.2._source.@timestamp: null }
+  - match: { hits.hits.2._source.metricset: null }
+  - match: { hits.hits.2._source.k8s.pod.uid: null }
+  - match: { hits.hits.3._source.@timestamp: null }
+  - match: { hits.hits.3._source.metricset: null }
+  - match: { hits.hits.3._source.k8s.pod.uid: null }

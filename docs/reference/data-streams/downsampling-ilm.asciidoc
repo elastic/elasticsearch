@@ -38,20 +38,20 @@ To enable downsampling, add a <<ilm-downsample,Downsample action>> and set
 <<ilm-downsample-options,`fixed_interval`>> to the downsampling interval at
 which you want to aggregate the original time series data.
 
-In this example, an ILM policy is configired for the `hot` phase. A downsample
-process runs after the first document is inserted into the index, and then
-repeats hourly.
+In this example, an ILM policy is configired for the `hot` phase. The downsample
+takes place after the initial index rollover, which for demonstration
+purposes is set to run after five minutes.
 
 [source,console]
 ----
-PUT _ilm/policy/datastream_policy   
+PUT _ilm/policy/datastream_policy
 {
-  "policy": {                       
+  "policy": {
     "phases": {
-      "hot": {                      
+      "hot": {
         "actions": {
-          "rollover": {             
-            "max_docs": 1
+          "rollover" : {
+            "max_age": "5m"
           },
           "downsample": {
   	          "fixed_interval": "1h"
@@ -62,6 +62,21 @@ PUT _ilm/policy/datastream_policy
   }
 }
 ----
+
+By default, index lifecycle management checks every ten minutes for indices that
+meet policy criteria. For this example, update the
+`indices.lifecycle.poll_interval` setting to one minute.
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "transient": {
+    "indices.lifecycle.poll_interval": "1m"
+  }
+}
+----
+// TEST[continued]
 
 [discrete]
 [[downsampling-ilm-create-index-template]]
@@ -359,7 +374,7 @@ The query returns your ten newly added documents.
 ...
 ```
 
-Wait a minute or so and then re-run the `GET _data_stream` request.
+Wait for five minutes or so (maybe brew up a quick coffee or tea &#9749; ) and then re-run the `GET _data_stream` request.
 
 [source,console]
 ----

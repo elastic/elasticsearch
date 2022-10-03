@@ -122,6 +122,18 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         }
     }
 
+    public CombinedFieldsQueryBuilder(Object value, Map<String,Float> fieldsAndBoosts) {
+        if (value == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires query value");
+        }
+        if (fieldsAndBoosts == null || fieldsAndBoosts.isEmpty()) {
+            throw new IllegalArgumentException("[" + NAME + "] requires field list");
+        }
+        this.value = value;
+        this.fieldsAndBoosts = new TreeMap<>();
+        fieldsAndBoosts.forEach(this::field);
+    }
+
     /**
      * Read from a stream.
      */

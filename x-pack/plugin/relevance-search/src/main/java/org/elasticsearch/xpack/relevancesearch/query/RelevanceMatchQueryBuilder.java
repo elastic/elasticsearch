@@ -24,7 +24,10 @@ import org.elasticsearch.xpack.relevancesearch.relevance.RelevanceSettingsServic
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Parses and builds relevance_match queries
@@ -107,22 +110,23 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     @Override
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
 
-        Collection<String> fields;
+        Map<String,Float> fieldsAndBoosts;
         if (relevanceSettingsId != null) {
             try {
                 RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
-                fields = relevanceSettings.getFields();
+                fieldsAndBoosts = relevanceSettings.getQueryConfiguration().getFieldsAndBoosts();
             } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
                 throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
             }
         } else {
-            fields = queryFieldsResolver.getQueryFields(context);
+            Collection<String> fields = queryFieldsResolver.getQueryFields(context);
             if (fields.isEmpty()) {
                 throw new IllegalArgumentException("[relevance_match] query cannot find text fields in the index");
             }
+            fieldsAndBoosts = fields.stream().collect(Collectors.toMap(Function.identity(), (field) -> AbstractQueryBuilder.DEFAULT_BOOST));
         }
 
-        final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fields.toArray(new String[0]));
+        final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fieldsAndBoosts);
 
         return builder.toQuery(context);
     }

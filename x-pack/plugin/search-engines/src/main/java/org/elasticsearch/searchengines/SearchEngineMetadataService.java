@@ -18,11 +18,14 @@ import org.elasticsearch.cluster.metadata.SearchEngine;
 import org.elasticsearch.cluster.metadata.SearchEngineMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.index.EngineNotFoundException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.searchengines.action.CreateSearchEngineAction;
+import org.elasticsearch.searchengines.action.DeleteSearchEngineAction;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,6 +91,15 @@ public class SearchEngineMetadataService {
         );
     }
 
+    public void deleteSearchEngine(DeleteSearchEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        clusterService.submitStateUpdateTask(
+            "delete-search-engine-" + Strings.join(Arrays.asList(request.getNames()), ','),
+            new DeleteSearchEngineClusterStateUpdateTask(listener, request),
+            ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
+            TASK_EXECUTOR
+        );
+    }
+
     static class CreateSearchEngineClusterStateUpdateTask extends ClusterStateUpdateTask {
         private final CreateSearchEngineAction.Request request;
 
@@ -129,4 +141,28 @@ public class SearchEngineMetadataService {
             return new SearchEngineMetadata(searchEngines);
         }
     }
+
+    static class DeleteSearchEngineClusterStateUpdateTask extends ClusterStateUpdateTask {
+        private final DeleteSearchEngineAction.Request request;
+
+        DeleteSearchEngineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, DeleteSearchEngineAction.Request request) {
+            super(listener);
+            this.request = request;
+        }
+
+        @Override
+        public SearchEngineMetadata execute(SearchEngineMetadata currentMetadata, ClusterState state) {
+            if (request.getResolved() == null || request.getResolved().isEmpty()) {
+                throw new EngineNotFoundException(Strings.join(Arrays.asList(request.getNames()), ','));
+            }
+
+            Map<String, SearchEngine> searchEngines = new HashMap<>(currentMetadata.searchEngines());
+            for (String name : request.getNames()) {
+                searchEngines.remove(name);
+            }
+
+            return new SearchEngineMetadata(searchEngines);
+        }
+    }
+
 }

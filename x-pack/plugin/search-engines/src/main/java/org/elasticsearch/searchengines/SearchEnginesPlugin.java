@@ -29,9 +29,12 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.searchengines.action.CreateSearchEngineAction;
 import org.elasticsearch.searchengines.action.CreateSearchEngineTransportAction;
+import org.elasticsearch.searchengines.action.DeleteSearchEngineAction;
+import org.elasticsearch.searchengines.action.DeleteSearchEngineTransportAction;
 import org.elasticsearch.searchengines.action.GetSearchEngineAction;
 import org.elasticsearch.searchengines.action.GetSearchEngineTransportAction;
 import org.elasticsearch.searchengines.rest.RestCreateSearchEngineAction;
+import org.elasticsearch.searchengines.rest.RestDeleteSearchEngineAction;
 import org.elasticsearch.searchengines.rest.RestGetSearchEngineAction;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -70,7 +73,8 @@ public class SearchEnginesPlugin extends Plugin implements ActionPlugin {
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionPlugin.ActionHandler<>(CreateSearchEngineAction.INSTANCE, CreateSearchEngineTransportAction.class),
-            new ActionPlugin.ActionHandler<>(GetSearchEngineAction.INSTANCE, GetSearchEngineTransportAction.class)
+            new ActionPlugin.ActionHandler<>(GetSearchEngineAction.INSTANCE, GetSearchEngineTransportAction.class),
+            new ActionPlugin.ActionHandler<>(DeleteSearchEngineAction.INSTANCE, DeleteSearchEngineTransportAction.class)
         );
     }
 
@@ -84,6 +88,6 @@ public class SearchEnginesPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestCreateSearchEngineAction(), new RestGetSearchEngineAction());
+        return List.of(new RestCreateSearchEngineAction(), new RestGetSearchEngineAction(), new RestDeleteSearchEngineAction());
     }
 }

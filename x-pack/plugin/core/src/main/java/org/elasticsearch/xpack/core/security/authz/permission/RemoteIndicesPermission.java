@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Set;
 
 public record RemoteIndicesPermission(
+    // TODO this is redundant
     RestrictedIndices restrictedIndices,
     List<IndicesPermissionWithRemoteClusterAliases> indicesPermissions
 ) {

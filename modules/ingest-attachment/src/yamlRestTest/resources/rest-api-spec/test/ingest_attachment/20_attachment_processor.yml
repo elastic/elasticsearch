@@ -1,12 +1,6 @@
 ---
-setup:
-  - skip:
-      features: warnings
----
 "Test ingest attachment processor with defaults":
   - do:
-      warnings:
-        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure no behavior change."
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -15,7 +9,8 @@ setup:
             "processors": [
               {
                 "attachment" : {
-                  "field" : "field1"
+                  "field" : "field1",
+                  "remove_binary": false
                 }
               }
             ]
@@ -47,8 +42,6 @@ setup:
           wait_for_status: green
 
   - do:
-      warnings:
-        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure no behavior change."
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -58,7 +51,8 @@ setup:
               {
                 "attachment" : {
                   "field" : "field1",
-                  "properties" : ["language"]
+                  "properties" : ["language"],
+                  "remove_binary": "false"
                 }
               }
             ]
@@ -83,8 +77,6 @@ setup:
 ---
 "Test indexed chars are configurable":
   - do:
-      warnings:
-        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure no behavior change."
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -94,7 +86,8 @@ setup:
               {
                 "attachment" : {
                   "field" : "field1",
-                  "indexed_chars": 30
+                  "indexed_chars": 30,
+                  "remove_binary": true
                 }
               }
             ]
@@ -120,8 +113,6 @@ setup:
 ---
 "Test indexed chars are configurable per document":
   - do:
-      warnings:
-        - "The default [remove_binary] value of 'false' is deprecated and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true' or 'false' to ensure no behavior change."
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -132,7 +123,8 @@ setup:
                 "attachment" : {
                   "field" : "field1",
                   "indexed_chars": 30,
-                  "indexed_chars_field": "max_size"
+                  "indexed_chars_field": "max_size",
+                  "remove_binary": true
                 }
               }
             ]

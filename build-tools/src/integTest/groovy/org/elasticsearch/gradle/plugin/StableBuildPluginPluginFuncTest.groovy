@@ -8,9 +8,13 @@
 
 package org.elasticsearch.gradle.plugin
 
+import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.databind.ObjectMapper
+
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.Assert
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -56,8 +60,61 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
         props.get("has.native.controller") == "false"
         props.size() == 8
 
+    }
 
-//        propsFile.toFile().exists() == true;
+    def "can scan and create named components file"() {
+        given:
+        println testProjectDir.root
+        File jarFolder = new File(testProjectDir.root, "jars")
+        jarFolder.mkdirs()
+
+        buildFile << """plugins {
+                id 'elasticsearch.stable-esplugin'
+            }
+
+            version = '1.2.3'
+
+            esplugin {
+                name = 'myplugin'
+                description = 'test plugin'
+            }
+
+            dependencies {
+                implementation files('${pluginApiJar(jarFolder).absolutePath}')
+                implementation files('${extensibleApiJar(jarFolder).absolutePath}')
+            }
+
+            """
+
+        file("src/main/java/org/acme/A.java") << """
+            package org.acme;
+
+            import org.elasticsearch.plugin.api.NamedComponent;
+            import org.elasticsearch.extensible.ExtensibleClass;
+
+            @NamedComponent(name = "componentA")
+            public class A extends ExtensibleClass {
+            }
+        """
+
+
+        when:
+        def result = gradleRunner(":assemble").build()
+        Path namedComponents = file("build/generated-named-components/named_components.json").toPath();
+        ObjectMapper mapper = new ObjectMapper()
+        TypeReference<Map<String,Map<String,String>>> typeRef
+            = new TypeReference<HashMap<String,Object>>() {}
+
+        Map<String,Map<String,String>> map = mapper.readValue(namedComponents.toFile(), typeRef);
+
+
+        then:
+        result.task(":assemble").outcome == TaskOutcome.SUCCESS
+
+        println Files.readString(namedComponents)
+        println namedComponents.toFile().exists()
+
+        map  == ["org.elasticsearch.extensible.ExtensibleClass" : (["componentA" : "org.acme.A"]) ]
     }
 
 

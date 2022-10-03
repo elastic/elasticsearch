@@ -162,7 +162,6 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
         JarUtils.createJarWithEntries(jar, jarEntries);
 
         pluginApiJar(dirWithJar.toFile())
-//        createPluginApiJar(dirWithJar.resolve("plugin-api.jar"));
         createExtensibleApiJar(dirWithJar.resolve("plugin-extensible-api.jar"));//for instance analysis api
 
         Supplier<Stream<ClassReader>> classReaderStream = () -> ClassReaders.ofDirWithJars(dirWithJar.toString());

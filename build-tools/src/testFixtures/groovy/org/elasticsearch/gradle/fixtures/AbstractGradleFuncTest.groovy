@@ -144,9 +144,8 @@ abstract class AbstractGradleFuncTest extends Specification {
         return jarFile;
     }
 
+    //todo maybe we could refer to ../libs/plugin-api compile it and create a jar?
     File pluginApiJar(File jarFolder){
-//        File jarFolder = new File(testProjectDir.root, "jars");
-//        jarFolder.mkdirs()
         File jarFile = new File(jarFolder, "plugin-api.jar")
 
         DynamicType.Unloaded<Extensible> extensible =
@@ -160,7 +159,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         return jarFile;
     }
 
-    private void extensibleApiJar(Path jarFolder) throws IOException {
+    File extensibleApiJar(File jarFolder) throws IOException {
         File jar = new File(jarFolder, "plugin-extensible-api.jar")
 
         DynamicType.Unloaded<?> extensible =
@@ -169,8 +168,9 @@ abstract class AbstractGradleFuncTest extends Specification {
         DynamicType.Unloaded<?> extensibleClass =
             new ByteBuddy().decorate(ExtensibleClass.class).make();
 
-        extensible.toJar(jar.toFile());
-        extensibleClass.inject(jar.toFile());
+        extensible.toJar(jar);
+        extensibleClass.inject(jar);
+        return jar;
     }
 
     File internalBuild(

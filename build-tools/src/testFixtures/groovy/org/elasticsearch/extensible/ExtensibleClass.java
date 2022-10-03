@@ -8,4 +8,7 @@
 
 package org.elasticsearch.extensible;
 
+import org.elasticsearch.plugin.api.Extensible;
+
+@Extensible
 public class ExtensibleClass {}

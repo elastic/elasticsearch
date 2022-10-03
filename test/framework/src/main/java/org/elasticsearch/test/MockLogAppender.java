@@ -27,7 +27,7 @@ public class MockLogAppender extends AbstractAppender {
 
     private static final String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
 
-    private List<LoggingExpectation> expectations;
+    private final List<LoggingExpectation> expectations;
 
     public MockLogAppender() {
         super("mock", null, null, false, Property.EMPTY_ARRAY);

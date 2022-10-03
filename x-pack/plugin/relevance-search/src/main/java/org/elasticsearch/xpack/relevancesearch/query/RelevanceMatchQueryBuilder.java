@@ -111,7 +111,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
             try {
                 RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
                 fields = relevanceSettings.getFields();
-            } catch (RelevanceSettingsService.RelevanceSettingsNotFoundExecption e) {
+            } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
                 throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
             }
         } else {
@@ -121,7 +121,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
             }
         }
 
-        final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fields.toArray(new String[fields.size()]));
+        final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fields.toArray(new String[0]));
 
         return builder.toQuery(context);
     }

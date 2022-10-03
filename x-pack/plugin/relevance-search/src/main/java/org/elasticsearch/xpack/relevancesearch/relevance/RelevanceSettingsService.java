@@ -25,14 +25,14 @@ public class RelevanceSettingsService {
         this.client = client;
     }
 
-    public RelevanceSettings getRelevanceSettings(String settingsId) throws RelevanceSettingsNotFoundExecption {
+    public RelevanceSettings getRelevanceSettings(String settingsId) throws RelevanceSettingsNotFoundException {
         // TODO cache relevance settings, including cache invalidation
         final Map<String, Object> settingsContent = client.prepareGet(ENT_SEARCH_INDEX, RELEVANCE_SETTINGS_PREFIX + settingsId)
             .get()
             .getSource();
 
         if (settingsContent == null) {
-            throw new RelevanceSettingsNotFoundExecption("Relevance settings " + settingsId + " not found");
+            throw new RelevanceSettingsNotFoundException("Relevance settings " + settingsId + " not found");
         }
 
         return parseRelevanceSettings(settingsContent);

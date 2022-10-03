@@ -13,6 +13,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.script.ClassPermission;
+import org.elasticsearch.secure_sm.ThreadPermission;
 
 import java.io.FilePermission;
 import java.io.IOException;
@@ -185,7 +186,8 @@ public class PolicyUtil {
             new RuntimePermission("getFileStoreAttributes"),
             new RuntimePermission("accessUserInformation"),
             new AuthPermission("modifyPrivateCredentials"),
-            new RuntimePermission("accessSystemModules")
+            new RuntimePermission("accessSystemModules"),
+            new ThreadPermission("modifyArbitraryThreadGroup")
         );
         PermissionCollection modulePermissionCollection = new Permissions();
         namedPermissions.forEach(modulePermissionCollection::add);

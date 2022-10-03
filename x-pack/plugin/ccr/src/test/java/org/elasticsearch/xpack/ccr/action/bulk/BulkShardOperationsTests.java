@@ -20,6 +20,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 
@@ -57,7 +58,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 () -> randomFrom(Translog.Operation.Type.values())
             );
             switch (type) {
-                case INDEX -> operations.add(new Translog.Index(id, seqNo, primaryTerm, 0, SOURCE, null, -1));
+                case INDEX -> operations.add(new Translog.Index(id, seqNo, primaryTerm, 0, SOURCE, XContentType.JSON, null, -1));
                 case DELETE -> operations.add(new Translog.Delete(id, seqNo, primaryTerm, 0));
                 case NO_OP -> operations.add(new Translog.NoOp(seqNo, primaryTerm, "test"));
                 default -> throw new IllegalStateException("unexpected operation type [" + type + "]");
@@ -105,7 +106,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
             final String id = Integer.toString(between(1, 100));
             final Translog.Operation op;
             if (randomBoolean()) {
-                op = new Translog.Index(id, seqno++, primaryTerm, 0, SOURCE, null, -1);
+                op = new Translog.Index(id, seqno++, primaryTerm, 0, SOURCE, XContentType.JSON, null, -1);
             } else if (randomBoolean()) {
                 op = new Translog.Delete(id, seqno++, primaryTerm, 0);
             } else {

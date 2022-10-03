@@ -60,6 +60,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -1435,6 +1436,10 @@ public abstract class Engine implements Closeable {
 
         public BytesReference source() {
             return this.doc.source();
+        }
+
+        public XContentType sourceContentType() {
+            return doc.getXContentType();
         }
 
         @Override

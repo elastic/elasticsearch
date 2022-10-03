@@ -8,29 +8,31 @@
 
 package org.elasticsearch.action.resync;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
+import static org.elasticsearch.index.translog.TranslogOperationsUtils.randomSourceXContentType;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ResyncReplicationRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        final byte[] bytes = "{}".getBytes(StandardCharsets.UTF_8);
+        final XContentType sourceContentType = randomSourceXContentType();
         final Translog.Index index = new Translog.Index(
             "id",
             0,
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            new BytesArray(bytes),
+            RandomObjects.randomSource(random(), sourceContentType, 0),
+            sourceContentType,
             randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
             randomNonNegativeLong()
         );

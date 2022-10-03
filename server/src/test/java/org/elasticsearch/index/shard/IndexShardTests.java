@@ -2857,6 +2857,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         primary.getPendingPrimaryTerm(),
                         1,
                         new BytesArray("{\"foo\" : \"bar\"}".getBytes(StandardCharsets.UTF_8)),
+                        XContentType.JSON,
                         null,
                         -1
                     )
@@ -2869,7 +2870,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         1,
                         primary.getPendingPrimaryTerm(),
                         1,
-                        new BytesArray("{\"foo\" : \"bar}".getBytes(StandardCharsets.UTF_8)),
+                        new BytesArray("{\"foo\" : \"bar}".getBytes(StandardCharsets.UTF_8)), // broken JSON
+                        XContentType.JSON,
                         null,
                         -1
                     )
@@ -4277,6 +4279,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         shard.getPendingPrimaryTerm(),
                         1,
                         new BytesArray("{\"foo\" : \"bar\"}".getBytes(StandardCharsets.UTF_8)),
+                        XContentType.JSON,
                         null,
                         -1
                     )
@@ -4289,7 +4292,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         0,
                         shard.getPendingPrimaryTerm(),
                         1,
-                        new BytesArray("{\"foo\" : \"bar}".getBytes(StandardCharsets.UTF_8)),
+                        new BytesArray("{\"foo\" : \"bar}".getBytes(StandardCharsets.UTF_8)), // broken JSON
+                        XContentType.JSON,
                         null,
                         -1
                     )

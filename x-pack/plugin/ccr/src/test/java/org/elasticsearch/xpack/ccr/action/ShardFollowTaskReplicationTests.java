@@ -53,6 +53,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
@@ -389,7 +390,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         final int numDocs = between(1, 100);
         final List<Translog.Operation> operations = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
-            operations.add(new Translog.Index(Integer.toString(i), i, primaryTerm, 0, source, null, -1));
+            operations.add(new Translog.Index(Integer.toString(i), i, primaryTerm, 0, source, XContentType.JSON, null, -1));
         }
         Future<Void> recoveryFuture = null;
         Settings settings = Settings.builder()

@@ -73,7 +73,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -90,6 +89,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -2367,6 +2368,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testConcurrentGetAndSetOnPrimary() throws IOException, InterruptedException {
         MapperService mapperService = createMapperService();
         MappingLookup mappingLookup = mapperService.mappingLookup();
@@ -2403,7 +2405,18 @@ public class InternalEngineTests extends EngineTestCase {
                     try (Engine.GetResult get = engine.get(engineGet, mappingLookup, documentParser, randomSearcherWrapper())) {
                         FieldsVisitor visitor = new FieldsVisitor(true);
                         get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
-                        List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
+                        List<String> values = new ArrayList<>();
+                        if (visitor.source().length() > 0) {
+                            values.addAll(
+                                new ArrayList<>(
+                                    (List<String>) XContentMapValues.extractValue(
+                                        "values",
+                                        XContentHelper.convertToMap(visitor.source(), true, XContentType.JSON).v2()
+                                    )
+                                )
+                            );
+                        }
+
                         String removed = op % 3 == 0 && values.size() > 0 ? values.remove(0) : null;
                         String added = "v_" + idGenerator.incrementAndGet();
                         values.add(added);
@@ -2413,7 +2426,7 @@ public class InternalEngineTests extends EngineTestCase {
                                 "1",
                                 null,
                                 testDocument(),
-                                bytesArray(Strings.collectionToCommaDelimitedString(values)),
+                                XContentHelper.toXContent((builder, params) -> builder.field("values", values), XContentType.JSON, false),
                                 null
                             ),
                             UNASSIGNED_SEQ_NO,
@@ -2461,7 +2474,11 @@ public class InternalEngineTests extends EngineTestCase {
         ) {
             FieldsVisitor visitor = new FieldsVisitor(true);
             get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
-            List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
+            @SuppressWarnings("unchecked")
+            List<String> values = (List<String>) XContentMapValues.extractValue(
+                "values",
+                XContentHelper.convertToMap(visitor.source(), true, XContentType.JSON).v2()
+            );
             assertThat(currentValues, equalTo(new HashSet<>(values)));
         }
     }
@@ -5498,7 +5515,7 @@ public class InternalEngineTests extends EngineTestCase {
             document.add(uidField);
             document.add(versionField);
             seqID.addFields(document);
-            final BytesReference source = new BytesArray(new byte[] { 1 });
+            final BytesReference source = B_1;
             final ParsedDocument parsedDocument = new ParsedDocument(
                 versionField,
                 seqID,

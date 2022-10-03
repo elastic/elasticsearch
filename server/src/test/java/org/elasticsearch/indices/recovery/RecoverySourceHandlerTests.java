@@ -75,6 +75,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -85,7 +86,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -114,6 +114,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.index.translog.TranslogOperationsUtils.randomSourceXContentType;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -1955,7 +1956,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
     private static List<Translog.Operation> generateOperations(int numOps) {
         final List<Translog.Operation> operations = new ArrayList<>(numOps);
-        final BytesArray source = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
+        final XContentType sourceContentType = randomSourceXContentType();
         final Set<Long> seqNos = new HashSet<>();
         for (int i = 0; i < numOps; i++) {
             final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, ESTestCase::randomNonNegativeLong);
@@ -1966,7 +1967,8 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                     seqNo,
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    source,
+                    RandomObjects.randomSource(random(), sourceContentType, 0),
+                    sourceContentType,
                     randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
                     randomNonNegativeLong()
                 );

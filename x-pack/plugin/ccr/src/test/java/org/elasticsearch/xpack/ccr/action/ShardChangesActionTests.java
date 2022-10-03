@@ -183,7 +183,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             indexShard.getHistoryUUID(),
             new ByteSizeValue(256, ByteSizeUnit.BYTES)
         );
-        assertThat(operations.length, equalTo(8));
+        assertThat(operations.length, equalTo(7));
         assertThat(operations[0].seqNo(), equalTo(0L));
         assertThat(operations[1].seqNo(), equalTo(1L));
         assertThat(operations[2].seqNo(), equalTo(2L));
@@ -191,7 +191,6 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         assertThat(operations[4].seqNo(), equalTo(4L));
         assertThat(operations[5].seqNo(), equalTo(5L));
         assertThat(operations[6].seqNo(), equalTo(6L));
-        assertThat(operations[7].seqNo(), equalTo(7L));
     }
 
     public void testGetOperationsAlwaysReturnAtLeastOneOp() throws Exception {

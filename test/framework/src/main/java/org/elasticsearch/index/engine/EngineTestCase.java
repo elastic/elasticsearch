@@ -895,9 +895,9 @@ public abstract class EngineTestCase extends ESTestCase {
         return config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier);
     }
 
-    protected static final BytesReference B_1 = new BytesArray(new byte[] { 1 });
-    protected static final BytesReference B_2 = new BytesArray(new byte[] { 2 });
-    protected static final BytesReference B_3 = new BytesArray(new byte[] { 3 });
+    protected static final BytesReference B_1 = bytesArray("{\"b\":1}");
+    protected static final BytesReference B_2 = bytesArray("{\"b\":2}");
+    protected static final BytesReference B_3 = bytesArray("{\"b\":3}");
     protected static final BytesArray SOURCE = bytesArray("{}");
 
     protected static BytesArray bytesArray(String string) {

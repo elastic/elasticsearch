@@ -232,9 +232,9 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
                 iw.addDocument(document);
             }
         }, geoHashGrid -> {
-            assertEquals(expectedCountPerGeoHash.size(), geoHashGrid.getBuckets().size());
+            assertEquals("Bucket count", expectedCountPerGeoHash.size(), geoHashGrid.getBuckets().size());
             for (GeoGrid.Bucket bucket : geoHashGrid.getBuckets()) {
-                assertEquals((long) expectedCountPerGeoHash.get(bucket.getKeyAsString()), bucket.getDocCount());
+                assertEquals("For bucket " + bucket.getKeyAsString(), (long) expectedCountPerGeoHash.get(bucket.getKeyAsString()), bucket.getDocCount());
             }
             assertTrue(AggregationInspectionHelper.hasValue(geoHashGrid));
         });

@@ -28,7 +28,7 @@ public class GeoShapeGeoHexGridAggregatorTests extends GeoShapeGeoGridTestCase<I
 
     @Override
     protected String hashAsString(double lng, double lat, int precision) {
-        return H3.geoToH3Address(lng, lat, precision);
+        return H3.geoToH3Address(lat, lng, precision);
     }
 
     @Override

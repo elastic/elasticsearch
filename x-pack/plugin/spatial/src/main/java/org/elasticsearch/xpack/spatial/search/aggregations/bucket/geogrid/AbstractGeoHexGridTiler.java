@@ -39,7 +39,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
 
         // When the shape represents a point, we compute the address directly as we do it for GeoPoint
         if (bounds.minX() == bounds.maxX() && bounds.minY() == bounds.maxY()) {
-            return setValue(values, geoValue, H3.geoToH3Address(bounds.minX(), bounds.minY(), precision));
+            return setPointValue(values, H3.geoToH3Address(bounds.minY(), bounds.minX(), precision));
         }
         return setValuesByRecursion(values, geoValue);
     }
@@ -49,8 +49,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
      */
     protected int setValuesByBruteForce(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
         for (String h3 : getAllCellsAt(precision)) {
-            GeoHexBoundedPredicate.H3LatLonGeom hexagon = new GeoHexBoundedPredicate.H3LatLonGeom(h3);
-            GeoRelation relation = geoValue.relate(hexagon);
+            GeoRelation relation = relateTile(geoValue, h3);
             if (relation != GeoRelation.QUERY_DISJOINT) {
                 values.resizeCell(values.docValueCount() + 1);
                 values.add(values.docValueCount() - 1, H3.stringToH3(h3));
@@ -70,7 +69,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     }
 
     private List<String> getAllCellsAt(int precision) {
-        ArrayList<String> cells = new ArrayList<>((int) this.getMaxCells());
+        ArrayList<String> cells = new ArrayList<>();
         for (String h3 : H3.getStringRes0Cells()) {
             addCells(cells, h3, precision, 0);
         }
@@ -99,15 +98,15 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     private void setValuesByRecursion(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue, String h3, int precision)
         throws IOException {
         if (precision <= this.precision) {
-            GeoHexBoundedPredicate.H3LatLonGeom hexagon = new GeoHexBoundedPredicate.H3LatLonGeom(h3);
-            GeoRelation relation = geoValue.relate(hexagon);
+            GeoRelation relation = relateTile(geoValue, h3);
             if (relation != GeoRelation.QUERY_DISJOINT) {
                 if (precision == this.precision) {
                     values.resizeCell(values.docValueCount() + 1);
                     values.add(values.docValueCount() - 1, H3.stringToH3(h3));
                 } else {
                     for (String child : H3.h3ToChildren(h3)) {
-                        if (relation == GeoRelation.QUERY_INSIDE) {
+                        // TODO: determine case for optimization, probably only the central child cell
+                        if (relation == GeoRelation.QUERY_INSIDE && false) {
                             setAllValuesByRecursion(values, child, precision + 1);
                         } else {
                             setValuesByRecursion(values, geoValue, child, precision + 1);
@@ -132,18 +131,18 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     /**
      * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}.
      */
-    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, String address) throws IOException {
-        if (relateTile(geoValue, address) != GeoRelation.QUERY_DISJOINT) {
+    private int setPointValue(GeoShapeCellValues docValues, String addressOfPoint) {
+        if (validAddress(addressOfPoint)) {
             docValues.resizeCell(1);
-            docValues.add(0, H3.stringToH3(address));
+            docValues.add(0, H3.stringToH3(addressOfPoint));
             return 1;
         }
         return 0;
     }
 
-    private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String address) throws IOException {
-        if (validAddress(address)) {
-            GeoHexBoundedPredicate.H3LatLonGeom hexagon = new GeoHexBoundedPredicate.H3LatLonGeom(address);
+    private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String addressOfTile) throws IOException {
+        if (validAddress(addressOfTile)) {
+            GeoHexBoundedPredicate.H3LatLonGeom hexagon = new GeoHexBoundedPredicate.H3LatLonGeom(addressOfTile);
             return geoValue.relate(hexagon);
         }
         return GeoRelation.QUERY_DISJOINT;

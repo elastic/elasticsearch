@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.analysis.analyzer;
+package org.elasticsearch.xpack.ql.analyzer;
 
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 

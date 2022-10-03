@@ -13,6 +13,7 @@ import org.apache.http.nio.entity.NByteArrayEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 
 public class RestEsqlTestCase extends ESRestTestCase {
 
@@ -35,7 +37,7 @@ public class RestEsqlTestCase extends ESRestTestCase {
         private boolean isBuilt = false;
 
         public RequestObjectBuilder() throws IOException {
-            this(XContentType.JSON);
+            this(randomFrom(XContentType.values()));
         }
 
         public RequestObjectBuilder(XContentType type) throws IOException {
@@ -84,13 +86,21 @@ public class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testGetAnswer() throws IOException {
-        RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
+        RequestObjectBuilder builder = new RequestObjectBuilder();
         Map<String, Object> answer = runEsql(builder.query("row a = 1, b = 2").build());
         assertEquals(2, answer.size());
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
         assertEquals(List.of(colA, colB), answer.get("columns"));
         assertEquals(List.of(List.of(1, 2)), answer.get("values"));
+    }
+
+    public void testUseUnknownIndex() throws IOException {
+        RequestObjectBuilder request = new RequestObjectBuilder().query("from doesNotExist").build();
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(request));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("verification_exception"));
+        assertThat(e.getMessage(), containsString("Unknown index [doesNotExist]"));
     }
 
     public static Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {

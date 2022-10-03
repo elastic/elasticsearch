@@ -81,7 +81,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             e.getCause().getMessage(),
-            containsString("doesn't not support indexing multiple values " + "for the same field in the same document")
+            containsString("doesn't not support indexing multiple values for the same field in the same document")
         );
     }
 
@@ -108,10 +108,18 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("expected field called [counts]"));
     }
 
-    public void testIgnoreMalformed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", true)));
-        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("values", new double[] { 2, 2 }).endObject()));
-        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
+
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue(b -> b.startObject().startArray("values").value(2).value(2).endArray().endObject()).errorMatches(
+                "expected field called [counts]"
+            )
+        );
     }
 
     public void testIgnoreMalformedSkipsKeyword() throws Exception {

@@ -632,6 +632,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new KeywordSyntheticSourceSupport(randomBoolean(), usually() ? null : randomAlphaOfLength(2), true);
     }

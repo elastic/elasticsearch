@@ -100,7 +100,7 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     }
 
     @Override
-    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
+    protected ValuesSourceConfig resolveConfig(AggregationContext context, AggregatorFactory parent) {
         ValuesSourceConfig config;
         Joiner joiner = Joiner.getJoiner(context);
         if (joiner != null && joiner.childTypeExists(childType)) {

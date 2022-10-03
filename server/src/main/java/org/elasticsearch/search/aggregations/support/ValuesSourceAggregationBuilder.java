@@ -12,7 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.xcontent.AbstractObjectParser;
@@ -404,7 +406,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     @Override
     protected final ValuesSourceAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
         throws IOException {
-        ValuesSourceConfig config = resolveConfig(context);
+        ValuesSourceConfig config = resolveConfig(context, parent);
 
         ValuesSourceAggregatorFactory factory;
 
@@ -441,7 +443,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      *
      * @return A {@link ValuesSourceConfig} configured based on the parsed field and/or script.
      */
-    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
+    protected ValuesSourceConfig resolveConfig(AggregationContext context, AggregatorFactory parent) {
         return ValuesSourceConfig.resolve(
             context,
             this.userValueTypeHint,

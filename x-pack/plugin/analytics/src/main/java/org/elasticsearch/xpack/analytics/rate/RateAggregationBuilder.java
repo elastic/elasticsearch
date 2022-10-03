@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationFactory;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesValuesSourceType;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -196,11 +197,20 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
         return parsedRate;
     }
 
+    private static boolean isWithinTSID(AggregatorFactory aggregator) {
+        for (AggregatorFactory af = aggregator; af != null; af = af.getParent()) {
+            if (af instanceof TimeSeriesAggregationFactory) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
-    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
+    protected ValuesSourceConfig resolveConfig(AggregationContext context, AggregatorFactory parent) {
         if (field() != null) {
             MappedFieldType ft = context.getFieldType(field());
-            if (ft.getMetricType() == TimeSeriesParams.MetricType.counter) {
+            if (ft.getMetricType() == TimeSeriesParams.MetricType.counter && isWithinTSID(parent)) {
                 return new ValuesSourceConfig(
                     TimeSeriesValuesSourceType.COUNTER,
                     context.buildFieldContext(ft),
@@ -217,7 +227,7 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
         if (field() == null && script() == null) {
             return new ValuesSourceConfig(CoreValuesSourceType.NUMERIC, null, true, null, null, 1.0, null, DocValueFormat.RAW, context);
         } else {
-            return super.resolveConfig(context);
+            return super.resolveConfig(context, parent);
         }
     }
 

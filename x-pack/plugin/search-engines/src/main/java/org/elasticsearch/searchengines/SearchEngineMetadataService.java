@@ -79,7 +79,6 @@ public class SearchEngineMetadataService {
         this.clusterService = clusterService;
     }
 
-
     public void createSearchEngine(CreateSearchEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask(
             "create-search-engine-" + request.getName(),
@@ -100,7 +99,7 @@ public class SearchEngineMetadataService {
         private void validate(CreateSearchEngineAction.Request request, ClusterState state) {
             // - validate index names, make sure they exist
             List<String> missingIndices = new ArrayList<>();
-            for (String index: request.indices()) {
+            for (String index : request.indices()) {
                 if ((state.routingTable().hasIndex(index)
                     || state.metadata().hasIndex(index)
                     || state.metadata().hasAlias(index)) == false) {
@@ -120,7 +119,7 @@ public class SearchEngineMetadataService {
 
             // TODO: is this right?
             List<Index> indices = new ArrayList<>();
-            for (String indexName: request.indices()) {
+            for (String indexName : request.indices()) {
                 indices.add(state.getMetadata().index(indexName).getIndex());
             }
 

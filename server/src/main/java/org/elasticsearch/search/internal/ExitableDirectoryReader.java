@@ -33,6 +33,8 @@ import java.io.IOException;
 /**
  * Wraps an {@link IndexReader} with a {@link QueryCancellation}
  * which checks for cancelled or timed-out query.
+ * Note: this class was adapted from Lucene's ExitableDirectoryReader, but instead of using a query timeout for cancellation,
+ *       a {@link QueryCancellation} object is used. The main behavior of the classes is mostly unchanged.
  */
 class ExitableDirectoryReader extends FilterDirectoryReader {
 

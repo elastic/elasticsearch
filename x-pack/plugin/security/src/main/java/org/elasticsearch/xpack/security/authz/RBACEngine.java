@@ -354,6 +354,9 @@ public class RBACEngine implements AuthorizationEngine {
                     // check action name
                     listener.onResponse(authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES));
                 } else {
+                    assert false == resolvedIndices.getLocal().stream().anyMatch(Regex::isSimpleMatchPattern)
+                        || false == ((IndicesRequest.Replaceable) request).indicesOptions().expandWildcardExpressions()
+                        : "wildcards for local indices have been expanded or the request should not expand wildcards";
                     listener.onResponse(
                         buildIndicesAccessControl(
                             action,
@@ -380,6 +383,9 @@ public class RBACEngine implements AuthorizationEngine {
                         if (resolvedIndices.isNoIndicesPlaceholder()) {
                             listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                         } else {
+                            assert false == resolvedIndices.getLocal().stream().anyMatch(Regex::isSimpleMatchPattern)
+                                    || false == ((IndicesRequest.Replaceable) request).indicesOptions().expandWildcardExpressions()
+                                    : "wildcards for local indices have been expanded or the request should not expand wildcards";
                             listener.onResponse(
                                 buildIndicesAccessControl(
                                     action,

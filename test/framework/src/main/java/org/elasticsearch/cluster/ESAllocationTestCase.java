@@ -47,6 +47,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
+import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
@@ -93,13 +94,11 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         .build();
 
     private static ShardsAllocator createShardsAllocator(Settings settings) {
-        return createDesiredBalanceShardsAllocator(settings);
-        // return new BalancedShardsAllocator(settings);
-        // return switch (SHARDS_ALLOCATOR_TYPE_SETTING.get(settings, BALANCED_ALLOCATOR_BY_DEFAULT)) {
-        // case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
-        // case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
-        // default -> throw new AssertionError("Unknown allocator");
-        // };
+        return switch (SHARDS_ALLOCATOR_TYPE_SETTING.get(settings, BALANCED_ALLOCATOR_BY_DEFAULT)) {
+            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
+            case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
+            default -> throw new AssertionError("Unknown allocator");
+        };
     }
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {

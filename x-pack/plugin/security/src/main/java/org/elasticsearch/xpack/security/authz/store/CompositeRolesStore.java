@@ -621,15 +621,12 @@ public class CompositeRolesStore {
             final boolean allowsRestrictedIndices,
             final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> indicesPrivilegesMapByClusterAlias
         ) {
-            // if an index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
-            // merging
-            final boolean isExplicitDenial = indicesPrivileges.length == 1
-                && "none".equalsIgnoreCase(indicesPrivileges[0].getPrivileges()[0]);
-            if (isExplicitDenial) {
-                return;
-            }
             for (final IndicesPrivileges indicesPrivilege : indicesPrivileges) {
-                if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
+                // if an index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
+                // merging
+                final boolean isExplicitDenial = indicesPrivileges.length == 1
+                    && "none".equalsIgnoreCase(indicesPrivileges[0].getPrivileges()[0]);
+                if (isExplicitDenial || indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
                     continue;
                 }
                 final var clusterAlias = indicesPrivilege.hasRemoteClusters()

@@ -229,27 +229,41 @@ public class JoinValidationService {
         try {
             nextItem.run();
         } finally {
-            final var remaining = queueSize.decrementAndGet();
-            assert remaining >= 0;
-            if (remaining > 0) {
-                runProcessor();
+            var cleanupSuccess = false;
+            try {
+                final var remaining = queueSize.decrementAndGet();
+                assert remaining >= 0;
+                if (remaining > 0) {
+                    runProcessor();
+                }
+                cleanupSuccess = true;
+            } finally {
+                assert cleanupSuccess;
             }
         }
     }
 
     private void onShutdown() {
-        // shutting down when enqueueing the next processor run which means there is no active processor so it's safe to clear out the
-        // cache ...
-        cacheClearer.run();
+        var success = false;
 
-        // ... and drain the queue
-        do {
-            final var nextItem = queue.poll();
-            assert nextItem != null;
-            if (nextItem != cacheClearer) {
-                nextItem.onFailure(new NodeClosedException(transportService.getLocalNode()));
-            }
-        } while (queueSize.decrementAndGet() > 0);
+        try {
+            // shutting down when enqueueing the next processor run which means there is no active processor so it's safe to clear out the
+            // cache ...
+            cacheClearer.run();
+
+            // ... and drain the queue
+            do {
+                final var nextItem = queue.poll();
+                assert nextItem != null;
+                if (nextItem != cacheClearer) {
+                    nextItem.onFailure(new NodeClosedException(transportService.getLocalNode()));
+                }
+            } while (queueSize.decrementAndGet() > 0);
+
+            success = true;
+        } finally {
+            assert success;
+        }
     }
 
     private final AbstractRunnable cacheClearer = new AbstractRunnable() {

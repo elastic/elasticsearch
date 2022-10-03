@@ -35,6 +35,8 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
     private static final ObjectParser<RelevanceMatchQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, RelevanceMatchQueryBuilder::new);
 
+    private final QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
+
     static {
         declareStandardFields(PARSER);
 
@@ -84,7 +86,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
     @Override
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
-        Collection<String> fields = QueryFieldsResolver.getQueryFields(context);
+        Collection<String> fields = queryFieldsResolver.getQueryFields(context);
         if (fields.isEmpty()) {
             throw new IllegalArgumentException("[relevance_match] query cannot find text fields in the index");
         }

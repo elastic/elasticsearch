@@ -50,7 +50,7 @@ public class QueryFieldsResolverTests extends ESTestCase {
 
         Map<String, String> fieldNamesToTypes = Map.of("textField1", "text", "geoLocationField", "geo_location", "textField2", "text");
 
-        final Set<String> queryFields = QueryFieldsResolver.getQueryFields(createSearchExecutionContext((fieldNamesToTypes)));
+        final Set<String> queryFields = new QueryFieldsResolver().getQueryFields(createSearchExecutionContext((fieldNamesToTypes)));
         assertEquals(Set.of("textField1", "textField2"), queryFields);
     }
 

@@ -25,7 +25,7 @@ import java.util.Set;
  */
 public class QueryFieldsResolver {
 
-    public static Set<String> getQueryFields(SearchExecutionContext context) {
+    public Set<String> getQueryFields(SearchExecutionContext context) {
 
         final Set<String> fieldNames = context.getMatchingFieldNames("*");
 

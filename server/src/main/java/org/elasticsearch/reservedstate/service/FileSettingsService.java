@@ -386,8 +386,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     // package private for testing
     long retryDelayMillis(int failedCount) {
-        assert failedCount < 31;
-        return 10 * (1 << failedCount) + Randomness.get().nextInt(10);
+        assert failedCount < 31; // don't let the count overflow
+        return 100 * (1 << failedCount) + Randomness.get().nextInt(10); // add a bit of jitter to avoid two processes in lockstep
     }
 
     // package private for testing
@@ -395,26 +395,24 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         if (previousKey != null) {
             previousKey.cancel();
         }
-        WatchKey watchKey = null;
+        int retryCount = 0;
 
-        for (int i = 0; i < REGISTER_RETRY_COUNT; i++) {
+        do {
             try {
-                watchKey = settingsDir.register(
+                return settingsDir.register(
                     watchService,
                     StandardWatchEventKinds.ENTRY_MODIFY,
                     StandardWatchEventKinds.ENTRY_CREATE,
                     StandardWatchEventKinds.ENTRY_DELETE
                 );
-                break;
             } catch (IOException e) {
-                if (i == REGISTER_RETRY_COUNT - 1) {
+                if (retryCount == REGISTER_RETRY_COUNT - 1) {
                     throw e;
                 }
-                Thread.sleep(retryDelayMillis(i));
+                Thread.sleep(retryDelayMillis(retryCount));
+                retryCount++;
             }
-        }
-
-        return watchKey;
+        } while (true);
     }
 
     CountDownLatch processFileSettings(Path path, Consumer<Exception> errorHandler) {

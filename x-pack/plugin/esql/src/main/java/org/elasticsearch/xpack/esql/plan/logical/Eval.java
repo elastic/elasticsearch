@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.ql.capabilities.Resolvables;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -30,8 +34,15 @@ public class Eval extends UnaryPlan {
     }
 
     @Override
+    public List<Attribute> output() {
+        List<Attribute> output = new ArrayList<>(child().output());
+        output.addAll(Expressions.asAttributes(fields));
+        return output;
+    }
+
+    @Override
     public boolean expressionsResolved() {
-        return false;
+        return Resolvables.resolved(fields);
     }
 
     @Override

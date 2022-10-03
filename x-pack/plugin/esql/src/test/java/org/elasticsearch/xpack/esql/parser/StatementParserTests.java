@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 
 import java.util.List;
@@ -225,7 +223,7 @@ public class StatementParserTests extends ESTestCase {
         assertThat(limit.children().size(), equalTo(1));
         assertThat(limit.children().get(0), instanceOf(Filter.class));
         assertThat(limit.children().get(0).children().size(), equalTo(1));
-        assertThat(limit.children().get(0).children().get(0), instanceOf(Project.class));
+        assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
     }
 
     public void testLimitConstraints() {
@@ -276,7 +274,7 @@ public class StatementParserTests extends ESTestCase {
         assertThat(orderBy.children().size(), equalTo(1));
         assertThat(orderBy.children().get(0), instanceOf(Filter.class));
         assertThat(orderBy.children().get(0).children().size(), equalTo(1));
-        assertThat(orderBy.children().get(0).children().get(0), instanceOf(Project.class));
+        assertThat(orderBy.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
     }
 
     public void testSubquery() {
@@ -303,14 +301,8 @@ public class StatementParserTests extends ESTestCase {
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {
         LogicalPlan from = statement(statement);
-        assertThat(from, instanceOf(Project.class));
-        Project p = (Project) from;
-        assertThat(p.resolved(), is(false));
-        assertThat(p.projections().size(), equalTo(1));
-        assertThat(p.projections().get(0), instanceOf(UnresolvedStar.class));
-        assertThat(p.children().size(), is(1));
-        assertThat(p.children().get(0), instanceOf(UnresolvedRelation.class));
-        UnresolvedRelation table = (UnresolvedRelation) p.children().get(0);
+        assertThat(from, instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation table = (UnresolvedRelation) from;
         assertThat(table.table().index(), is(identifier));
     }
 

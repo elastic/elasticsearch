@@ -42,6 +42,7 @@ dependencies {
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 }
 
 restResources {
@@ -171,8 +172,6 @@ tasks.named("thirdPartyAudit").configure {
     'com.ning.compress.lzf.util.ChunkDecoderFactory',
     'com.ning.compress.lzf.util.ChunkEncoderFactory',
     'lzma.sdk.lzma.Encoder',
-    'io.netty.channel.unix.FileDescriptor',
-    'io.netty.channel.unix.UnixChannel',
     'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
     'io.netty.internal.tcnative.AsyncTask',
     'io.netty.internal.tcnative.CertificateCallback',

@@ -204,6 +204,9 @@
                               "type": "long"
                             }
                           }
+                        },
+                        "cfs_quota_micros": {
+                          "type": "long"
                         }
                       }
                     }

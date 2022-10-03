@@ -44,7 +44,9 @@ public class RelevanceSettingsService {
 
         @SuppressWarnings("unchecked")
         final List<String> fields = (List<String>) source.get("fields");
-        relevanceSettings.getQueryConfiguration().parseFieldsAndBoosts(fields);
+        QueryConfiguration queryConfiguration = new QueryConfiguration();
+        queryConfiguration.parseFieldsAndBoosts(fields);
+        relevanceSettings.setQueryConfiguration(queryConfiguration);
 
         return relevanceSettings;
     }

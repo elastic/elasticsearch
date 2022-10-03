@@ -28,7 +28,8 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Holds the desired balance and updates it as the cluster evolves.
@@ -56,7 +57,7 @@ public class DesiredBalanceComputer {
         final var routingNodes = routingAllocation.routingNodes();
         final var changes = routingAllocation.changes();
         final var ignoredShards = desiredBalanceInput.ignoredShards();
-        final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+        final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(toSet());
         final var unassignedPrimaries = new HashSet<ShardId>();
 
         if (routingNodes.isEmpty()) {
@@ -81,13 +82,14 @@ public class DesiredBalanceComputer {
             for (final var iterator = unassigned.iterator(); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
                 if (shardRouting.primary() == primary) {
-                    if (ignoredShards.contains(shardRouting)) {
+                    var lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
+                    if (knownNodeIds.contains(lastAllocatedNodeId) || ignoredShards.contains(shardRouting) == false) {
+                        shardRoutings.computeIfAbsent(shardRouting.shardId(), ShardRoutings::new).unassigned().add(shardRouting);
+                    } else {
                         iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, changes);
                         if (shardRouting.primary()) {
                             unassignedPrimaries.add(shardRouting.shardId());
                         }
-                    } else {
-                        shardRoutings.computeIfAbsent(shardRouting.shardId(), ShardRoutings::new).unassigned().add(shardRouting);
                     }
                 }
             }
@@ -109,10 +111,10 @@ public class DesiredBalanceComputer {
 
             final var targetNodes = assignment != null ? new TreeSet<>(assignment.nodeIds()) : new TreeSet<String>();
             targetNodes.retainAll(knownNodeIds);
-
+            // preserving last known shard location as a starting point to avoid unnecessary relocations
             for (ShardRouting shardRouting : routings.unassigned()) {
                 var lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
-                if (lastAllocatedNodeId != null && routingNodes.node(lastAllocatedNodeId) != null) {
+                if (knownNodeIds.contains(lastAllocatedNodeId)) {
                     targetNodes.add(lastAllocatedNodeId);
                 }
             }

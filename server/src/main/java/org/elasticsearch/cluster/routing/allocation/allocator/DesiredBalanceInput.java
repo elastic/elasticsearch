@@ -46,6 +46,9 @@ public record DesiredBalanceInput(long index, RoutingAllocation routingAllocatio
             .collect(toUnmodifiableSet());
     }
 
+    /**
+     * AllocationStatus is discarded as it might come from GatewayAllocator and not be present in corresponding routing table
+     */
     private static UnassignedInfo discardAllocationStatus(UnassignedInfo info) {
         return new UnassignedInfo(
             info.getReason(),

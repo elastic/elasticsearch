@@ -187,7 +187,16 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
             .build();
 
-        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
+        var ignored = randomBoolean()
+            ? new ShardRouting[0]
+            : new ShardRouting[] { clusterState.routingTable().index(TEST_INDEX).shard(0).primaryShard() };
+
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.INITIAL,
+            createInput(clusterState, ignored),
+            queue(),
+            input -> true
+        );
 
         assertDesiredAssignments(
             desiredBalance,

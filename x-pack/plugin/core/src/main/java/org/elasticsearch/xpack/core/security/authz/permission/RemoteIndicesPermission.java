@@ -20,7 +20,7 @@ import java.util.Set;
 
 public record RemoteIndicesPermission(
     RestrictedIndices restrictedIndices,
-    List<IndicesPermissionWithRemoteClusterAlias> indicesPermissions
+    List<IndicesPermissionWithRemoteClusterAliases> indicesPermissions
 ) {
 
     public IndicesPermission indicesPermissionFor(final String remoteClusterAlias) {
@@ -45,9 +45,8 @@ public record RemoteIndicesPermission(
     }
 
     public static class Builder {
-        final List<IndicesPermissionWithRemoteClusterAlias> indicesPermissions;
-
         final RestrictedIndices restrictedIndices;
+        final List<IndicesPermissionWithRemoteClusterAliases> indicesPermissions;
 
         public Builder(RestrictedIndices restrictedIndices) {
             this.restrictedIndices = restrictedIndices;
@@ -64,7 +63,7 @@ public record RemoteIndicesPermission(
         ) {
             final IndicesPermission.Builder indicesBuilder = new IndicesPermission.Builder(restrictedIndices);
             indicesBuilder.addGroup(privilege, fieldPermissions, query, allowRestrictedIndices, indices);
-            indicesPermissions.add(new IndicesPermissionWithRemoteClusterAlias(remoteClusterAliases, indicesBuilder.build()));
+            indicesPermissions.add(new IndicesPermissionWithRemoteClusterAliases(remoteClusterAliases, indicesBuilder.build()));
             return this;
         }
 
@@ -73,13 +72,13 @@ public record RemoteIndicesPermission(
         }
     }
 
-    public record IndicesPermissionWithRemoteClusterAlias(
+    public record IndicesPermissionWithRemoteClusterAliases(
         Set<String> remoteClusterAliases,
         StringMatcher remoteClusterAliasMatcher,
         IndicesPermission indicesPermission
     ) {
 
-        public IndicesPermissionWithRemoteClusterAlias(Set<String> remoteClusterAliases, IndicesPermission indicesPermission) {
+        public IndicesPermissionWithRemoteClusterAliases(Set<String> remoteClusterAliases, IndicesPermission indicesPermission) {
             this(remoteClusterAliases, StringMatcher.of(remoteClusterAliases), indicesPermission);
         }
 

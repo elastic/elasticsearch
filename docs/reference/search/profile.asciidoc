@@ -1049,14 +1049,29 @@ loading stored fields by setting
 [[profiling-dfs]]
 ===== Profiling DFS
 
-The dfs phase collects term statistics to achieve more accurate search results
-prior to the query phase. To profile the dfs phase use a `_search` request with
-the url parameter `search_type` set as `dfs_and_then_query` and add a top-level
-`profile` parameter set to `true`. Note that for the dfs phase to run an index
-must have multiple shards.
+The DFS phase runs before the query phase to collect global information
+relevant to the query. It's currently used in two cases:
 
-As an example, let's first setup an index with multiple shards and index
-a pair of documents with different values on a keyword field.
+. When the `search_type` is set to
+<<profiling-dfs-statistics, `dfs_query_then_fetch`>> and the index has
+multiple shards.
+. When the search request contains a <<profiling-knn-search, knn section>>.
+
+Both of these cases can be profiled by setting `profile` to `true` as
+part of the search request.
+
+[[profiling-dfs-statistics]]
+====== Profiling DFS Statistics
+
+When the `search_type` is set to `dfs_query_then_fetch` and the index
+has multiple shards, the dfs phase collects term statistics to improve
+the relevance of search results.
+
+The following is an example of setting `profile` to `true` on a search
+that uses `dfs_query_then_fetch`:
+
+Let's first setup an index with multiple shards and index
+a pair of documents with different values on a `keyword` field.
 
 [source,console]
 --------------------------------------------------
@@ -1082,7 +1097,7 @@ POST my-dfs-index/_bulk?refresh=true
 <1> The `my-dfs-index` is created with multiple shards.
 
 With an index setup, we can now profile the dfs phase of a
-search query. As an example we use a term query.
+search query. For this example we use a term query.
 
 [source,console]
 --------------------------------------------------
@@ -1103,7 +1118,7 @@ GET /my-dfs-index/_search?search_type=dfs_query_then_fetch&pretty <1>
 ensure the dfs phase is run.
 <2> The `profile` parameter is set to `true`.
 
-In the response, we see a very verbose profile which includes a `dfs` section
+In the response, we see a profile which includes a `dfs` section
 for each shard along with profile output for the rest of the search phases.
 One of the `dfs` sections for a shard looks like the following:
 
@@ -1135,20 +1150,18 @@ One of the `dfs` sections for a shard looks like the following:
 
 In the `dfs.statistics` portion of this response we see a `time_in_nanos`
 which is the total time it took to collect term statistics for this
-shard. We also see a further breakdown of times where `create_weight`
-is called to generate the collection of term statistics, and the specific
-call order is `create_weight -> collection_statistics -> term_statistics`.
-`Rewrite` is only used for queries that utilize rescore and thus, isn't
-called as part of this example.
+shard along with a further breakdown of the individual parts.
 
-[[profiling-knn]]
-===== Profiling kNN
+[[profiling-knn-search]]
+====== Profiling kNN Search
 
-A k-nearest neighbor (kNN) search runs as part of the dfs phase. To
-profile a kNN search query add a top-level `profile` parameter set to
-`true`.
+A <<approximate-knn, k-nearest neighbor (kNN)>> search runs during
+the dfs phase.
 
-As an example, let's first setup an index with several dense vectors.
+The following is an example of setting `profile` to `true` on a search
+that has a knn section:
+
+Let's first setup an index with several dense vectors.
 
 [source,console]
 --------------------------------------------------
@@ -1194,7 +1207,7 @@ POST my-knn-index/_search
 
 <1> The `profile` parameter is set to `true`.
 
-In the response, we see a very verbose profile which includes a `knn` section
+In the response, we see a profile which includes a `knn` section
 as part of the `dfs` section for each shard along with profile output for the
 rest of the search phases.
 
@@ -1234,7 +1247,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
                     }
                 }
             ],
-            "rewrite_time" : 1275732, <1>
+            "rewrite_time" : 1275732,
             "collector" : [
                 {
                     "name" : "SimpleTopScoreDocCollector",
@@ -1248,15 +1261,12 @@ One of the `dfs.knn` sections for a shard looks like the following:
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> The rewrite time is especially important as this
-is where the kNN search query is actually evaluated.
 
 In the `dfs.knn` portion of the response we can see the output
 the of timings for <<query-section, query>>, <<rewrite-section, rewrite>>,
-and <<collectors-section, collector>>. The `rewrite_time`
-contains the amount of time where the kNN search query is evaluated which
-is notably different from other types of queries, so this is the
-most important timing when figuring out how long a kNN search query takes.
+and <<collectors-section, collector>>. Unlike many other queries, kNN
+search does the bulk of the work during the query rewrite. This means
+rewrite_time represents the time spent on kNN search.
 
 [[profiling-considerations]]
 ===== Profiling Considerations
@@ -1280,8 +1290,7 @@ have a drastic effect compared to other components in the profiled query.
 - Profiling also does not account for time spent in the queue, merging shard
 responses on the coordinating node, or additional work such as building global
 ordinals (an internal data structure used to speed up search).
-- Profiling statistics are currently not available for suggestions,
-highlighting
+- Profiling statistics are currently not available for suggestions.
 - Profiling of the reduce phase of aggregation is currently not available.
 - The Profiler is instrumenting internals that can change from version to
 version. The resulting json should be considered mostly unstable, especially

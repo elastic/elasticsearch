@@ -8,14 +8,23 @@
 
 package org.elasticsearch.index.query;
 
+import io.netty.util.Constant;
+
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
+import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
@@ -110,5 +119,22 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         ConstantScoreQueryBuilder queryBuilder = new ConstantScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "foo"));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testExceedMaxNestedDepth() throws IOException {
+        ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(new ConstantScoreQueryBuilder(
+            new ConstantScoreQueryBuilder(new ConstantScoreQueryBuilder(RandomQueryBuilder.createQuery(random())))));
+        AbstractQueryBuilder.setMaxNestedDepth(2);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, query.toString())) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseTopLevelQuery(parser));
+            assertEquals(
+                "The nested depth of the query exceeds the maximum nested depth for queries set in ["
+                    + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
+                    + "]",
+                e.getMessage()
+            );
+        } finally {
+            AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));
+        }
     }
 }

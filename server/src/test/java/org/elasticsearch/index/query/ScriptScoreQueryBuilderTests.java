@@ -19,16 +19,23 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
@@ -144,5 +151,24 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         ScriptScoreQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[script score] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
+    }
+
+    public void testExceedMaxNestedDepth() throws IOException {
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
+        ScriptScoreQueryBuilder query = new ScriptScoreQueryBuilder(new ScriptScoreQueryBuilder(new ScriptScoreQueryBuilder(
+            RandomQueryBuilder.createQuery(random()), script), script), script);
+        AbstractQueryBuilder.setMaxNestedDepth(2);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, query.toString())) {
+            XContentParseException e = expectThrows(XContentParseException.class, () -> parseTopLevelQuery(parser));
+            assertThat(e.getCause(), Matchers.instanceOf(IllegalArgumentException.class));
+            assertEquals(
+                "The nested depth of the query exceeds the maximum nested depth for queries set in ["
+                    + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
+                    + "]",
+                e.getCause().getMessage()
+            );
+        } finally {
+            AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));
+        }
     }
 }

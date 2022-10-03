@@ -312,7 +312,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                     nestedDepth++;
                     if (nestedDepth > maxNestedDepth) {
                         throw new IllegalArgumentException(
-                            "The nested depth of the query exceeds the maximum nested depth for bool queries set in ["
+                            "The nested depth of the query exceeds the maximum nested depth for queries set in ["
                                 + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
                                 + "]"
                         );

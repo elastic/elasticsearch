@@ -13,6 +13,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -443,16 +444,18 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     public void testExceedMaxNestedDepth() throws IOException {
         BoolQueryBuilder query = new BoolQueryBuilder();
         query.should(new BoolQueryBuilder().should(new BoolQueryBuilder().should(RandomQueryBuilder.createQuery(random()))));
-        BoolQueryBuilder.setMaxNestedDepth(2);
+        AbstractQueryBuilder.setMaxNestedDepth(2);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query.toString())) {
             XContentParseException e = expectThrows(XContentParseException.class, () -> parseTopLevelQuery(parser));
             assertThat(e.getCause(), Matchers.instanceOf(IllegalArgumentException.class));
             assertEquals(
-                "The nested depth of the query exceeds the maximum nested depth for bool queries set in ["
+                "The nested depth of the query exceeds the maximum nested depth for queries set in ["
                     + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
                     + "]",
                 e.getCause().getMessage()
             );
+        } finally {
+            AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));
         }
     }
 }

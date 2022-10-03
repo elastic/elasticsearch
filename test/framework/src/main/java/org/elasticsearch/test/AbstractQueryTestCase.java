@@ -22,10 +22,12 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -41,6 +43,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -57,6 +60,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
+import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -837,5 +841,4 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertNotNull(rewriteQuery.toQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
-
 }

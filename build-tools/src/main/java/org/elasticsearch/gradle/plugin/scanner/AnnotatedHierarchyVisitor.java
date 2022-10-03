@@ -33,7 +33,7 @@ public class AnnotatedHierarchyVisitor extends ClassVisitor {
 
     AnnotatedHierarchyVisitor(String targetAnnotation, Function<String, AnnotationVisitor> annotationVisitor) {
         super(Opcodes.ASM9);
-        this.targetAnnotationDescriptor = targetAnnotation;//Type.getDescriptor(targetAnnotation);
+        this.targetAnnotationDescriptor = targetAnnotation;// Type.getDescriptor(targetAnnotation);
         this.visitor = annotationVisitor;
     }
 

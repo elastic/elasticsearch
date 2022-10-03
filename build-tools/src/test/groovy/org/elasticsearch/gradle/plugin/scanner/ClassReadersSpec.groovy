@@ -6,32 +6,35 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.plugin.scanner;
+package org.elasticsearch.gradle.plugin.scanner
 
-import junit.framework.TestCase;
+
+import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.internal.test.InMemoryJavaCompiler;
 
 //import org.apache.lucene.tests.util.LuceneTestCase;
 //import org.elasticsearch.test.ESTestCase;
 //import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 //import org.elasticsearch.test.jar.JarUtils;
-import org.elasticsearch.gradle.internal.test.InMemoryJavaCompiler;
-import org.elasticsearch.gradle.internal.test.JarUtils;
-import org.hamcrest.Matchers;
-import org.objectweb.asm.ClassReader;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import org.elasticsearch.gradle.internal.test.JarUtils
+import org.hamcrest.Matchers
+import org.objectweb.asm.ClassReader
 
-import static org.hamcrest.MatcherAssert.assertThat;
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.stream.Collectors
+import java.util.stream.Stream
 
-public class ClassReadersTests extends TestCase {
-//
-    public void testSkipModuleInfo() throws IOException {
+import static org.hamcrest.MatcherAssert.assertThat
+
+class ClassReadersSpec extends AbstractGradleFuncTest{
+
+     private Path tmpDir() throws IOException {
+         return dir("tmpDirPrefix");
+     }
+
+     def "module-info is not returned as a class from jar"(){
         final Path tmp = tmpDir();
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
@@ -45,11 +48,9 @@ public class ClassReadersTests extends TestCase {
         }
     }
 
-    private Path tmpDir() throws IOException {
-        return Files.createTempDirectory("tmpDirPrefix");
-    }
 
-    public void testStreamFromJar() throws IOException {
+
+     def "two classes are returned in a stream from jar"(){
         final Path tmp = tmpDir();
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
@@ -70,7 +71,7 @@ public class ClassReadersTests extends TestCase {
     }
 
 
-    public void testStreamOfClassPath() throws IOException {
+     def "on a classpath jars and individual classes are returned"(){
         final Path tmp = tmpDir();
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
@@ -109,8 +110,7 @@ public class ClassReadersTests extends TestCase {
             assertThat(collect, Matchers.containsInAnyOrder("p/A", "p/B", "p/C", "p/D", "p/E"));
         }
     }
-
-    public void testStreamFromDirWithJars() throws IOException {
+     def "classes from multiple jars in a dir are returned"(){
         final Path tmp = tmpDir();
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);

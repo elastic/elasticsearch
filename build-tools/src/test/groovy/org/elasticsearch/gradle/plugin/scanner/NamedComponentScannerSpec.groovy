@@ -8,12 +8,11 @@
 
 package org.elasticsearch.gradle.plugin.scanner;
 
-import junit.framework.TestCase;
-
 import net.bytebuddy.ByteBuddy;
 
-import net.bytebuddy.dynamic.DynamicType;
+import net.bytebuddy.dynamic.DynamicType
 
+import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest;
 import org.elasticsearch.gradle.internal.test.InMemoryJavaCompiler;
 import org.elasticsearch.gradle.internal.test.JarUtils;
 import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleClass;
@@ -23,10 +22,11 @@ import org.elasticsearch.plugin.api.Extensible;
 import org.elasticsearch.plugin.api.NamedComponent;
 import org.objectweb.asm.ClassReader;
 
+import spock.lang.Specification;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,55 +39,81 @@ import java.util.stream.Stream;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class NamedComponentScannerTests extends TestCase {
+class NamedComponentScannerSpec extends AbstractGradleFuncTest {
 
     NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
 
-
-    public void testFindNamedComponentInSingleClass() throws URISyntaxException {
+    def "named component is found when single class provided"() {
+        when:
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(
             classReaderStream(TestNamedComponent.class, ExtensibleInterface.class)
-        );
-        assertThat(namedComponents,
-            equalTo(Map.of(ExtensibleInterface.class.getCanonicalName(),
-                Map.of("test_named_component", TestNamedComponent.class.getCanonicalName()))));
+        )
+
+        then:
+        assertThat(
+            namedComponents,
+            equalTo(
+                Map.of(
+                    ExtensibleInterface.class.getCanonicalName(),
+                    Map.of("test_named_component", TestNamedComponent.class.getCanonicalName())
+                )
+            )
+        )
+
     }
 
-    public void testFindNamedComponentInJar() throws IOException {
+    def "named components are found when single jar provided"() {
+        given:
         final Path tmp = tmpDir();
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
         Path jar = dirWithJar.resolve("plugin.jar");
-        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+        JarUtils.createJarWithEntries(
+            jar, Map.of(
+            "p/A.class", InMemoryJavaCompiler.compile(
+            "p.A", """
             package p;
             import org.elasticsearch.plugin.api.*;
             import org.elasticsearch.gradle.plugin.scanner.test_classes.*;
             @NamedComponent(name = "a_component")
             public class A extends ExtensibleClass {}
-            """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+            """
+        ), "p/B.class", InMemoryJavaCompiler.compile(
+            "p.B", """
             package p;
             import org.elasticsearch.plugin.api.*;
             import org.elasticsearch.gradle.plugin.scanner.test_classes.*;
             @NamedComponent(name = "b_component")
             public class B implements ExtensibleInterface{}
-            """)));
+            """
+        )
+        )
+        );
         createPluginApiJar(dirWithJar.resolve("plugin-api.jar"));
         createExtensibleApiJar(dirWithJar.resolve("plugin-extensible-api.jar"));//for instance analysis api
 
 
         Supplier<Stream<ClassReader>> classReaderStream = () -> ClassReaders.ofDirWithJars(dirWithJar.toString());
 
+        when:
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
-        assertThat(namedComponents,
-            equalTo(Map.of(ExtensibleClass.class.getCanonicalName(),
-                Map.of("a_component", "p.A"),
-                ExtensibleInterface.class.getCanonicalName(),
-                Map.of("b_component", "p.B")
-            )));
+
+        then:
+        assertThat(
+            namedComponents,
+            equalTo(
+                Map.of(
+                    ExtensibleClass.class.getCanonicalName(),
+                    Map.of("a_component", "p.A"),
+                    ExtensibleInterface.class.getCanonicalName(),
+                    Map.of("b_component", "p.B")
+                )
+            )
+        );
     }
 
-    public void testCommonSuperClassInJar() throws IOException {
-
+    def "named components can extend common super class"() {
+        given:
         Map<String, CharSequence> sources = Map.of(
             "p.CustomExtensibleInterface",
             """
@@ -135,17 +161,28 @@ public class NamedComponentScannerTests extends TestCase {
         Path jar = dirWithJar.resolve("plugin.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
 
-        createPluginApiJar(dirWithJar.resolve("plugin-api.jar"));
+        pluginApiJar(dirWithJar.toFile())
+//        createPluginApiJar(dirWithJar.resolve("plugin-api.jar"));
         createExtensibleApiJar(dirWithJar.resolve("plugin-extensible-api.jar"));//for instance analysis api
 
         Supplier<Stream<ClassReader>> classReaderStream = () -> ClassReaders.ofDirWithJars(dirWithJar.toString());
 
+        when:
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
-        assertThat(namedComponents,
-            equalTo(Map.of(ExtensibleInterface.class.getCanonicalName(),
-                Map.of("a_component", "p.A",
-                    "b_component", "p.B"
-                ))));
+
+        then:
+        assertThat(
+            namedComponents,
+            equalTo(
+                Map.of(
+                    ExtensibleInterface.class.getCanonicalName(),
+                    Map.of(
+                        "a_component", "p.A",
+                        "b_component", "p.B"
+                    )
+                )
+            )
+        );
     }
 
     private void createExtensibleApiJar(Path jar) throws IOException {
@@ -169,23 +206,25 @@ public class NamedComponentScannerTests extends TestCase {
         namedComponent.inject(jar.toFile());
     }
 
-    // duplication
+    // todo how better handle exceptions?
     private Supplier<Stream<ClassReader>> classReaderStream(Class<?>... classes) {
 
         return () -> {
             try {
-                Path mainPath = Paths.get(NamedComponentScannerTests.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-                return Arrays.stream(classes).map(clazz -> {
-                    String className = classNameToPath(clazz) + ".class";
-                    Path path = mainPath.resolve(className);
-                    try (InputStream is = Files.newInputStream(path)) {
-                        byte[] classBytes = is.readAllBytes();
-                        ClassReader classReader = new ClassReader(classBytes);
-                        return classReader;
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+                Path mainPath = Paths.get(NamedComponentScannerSpec.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+                return Arrays.stream(classes).map(
+                    clazz -> {
+                        String className = classNameToPath(clazz) + ".class";
+                        Path path = mainPath.resolve(className);
+                        try (InputStream is = Files.newInputStream(path)) {
+                            byte[] classBytes = is.readAllBytes();
+                            ClassReader classReader = new ClassReader(classBytes);
+                            return classReader;
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
                     }
-                })/*.filter(cr -> cr != null)*/;
+                )/*.filter(cr -> cr != null)*/;
             } catch (Exception e) {
 
             }
@@ -198,6 +237,6 @@ public class NamedComponentScannerTests extends TestCase {
     }
 
     private Path tmpDir() throws IOException {
-        return Files.createTempDirectory("tmpDirPrefix");
+        return dir("tmpDir").toPath()
     }
 }

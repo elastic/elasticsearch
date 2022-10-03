@@ -134,7 +134,9 @@ dependencies {
     testFixturesApi(buildLibs.spock.core) {
         exclude module: "groovy"
     }
-
+    testFixturesApi(buildLibs.bytebuddy) {
+      because 'Generating dynamic plugin apis'
+    }
     testImplementation(buildLibs.spock.junit4) {
         because 'required as we rely on junit4 rules'
     }
@@ -150,6 +152,7 @@ dependencies {
     testRuntimeOnly(buildLibs.junit5.platform.launcher) {
         because 'allows tests to run from IDEs that bundle older version of launcher'
     }
+
 }
 
 tasks.named('test').configure {

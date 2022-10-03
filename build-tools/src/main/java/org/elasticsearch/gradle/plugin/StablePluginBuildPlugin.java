@@ -34,7 +34,7 @@ public class StablePluginBuildPlugin implements Plugin<Project> {
         final var pluginNamedComponents = project.getTasks().register("pluginNamedComponents", GenerateNamedComponentsTask.class, t -> {
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
             t.setPluginClasses(mainSourceSet.getOutput().getClassesDirs());
-            //it has to be compile classpath ?? otherwise libraries which are provided in runtime by es server won't be visible
+            // it has to be compile classpath ?? otherwise libraries which are provided in runtime by es server won't be visible
             // and we want to scan them too
             t.setClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
         });

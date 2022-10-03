@@ -8,13 +8,10 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -172,6 +169,5 @@ public class InMemoryJavaCompiler {
     private static CompilationTask getCompilationTask(InMemoryJavaFileObject file, String... options) {
         return getCompiler().getTask(null, new FileManagerWrapper(file), null, List.of(options), null, List.of(file));
     }
-
 
 }

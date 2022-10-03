@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.plugin;
 
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.gradle.plugin.scanner.ClassReaders;
@@ -16,14 +15,11 @@ import org.elasticsearch.gradle.plugin.scanner.NamedComponentScanner;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.file.FileSystemLocation;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
-import org.gradle.api.provider.Property;
-import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
@@ -40,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+
 import javax.inject.Inject;
 
 //asm here?
@@ -57,6 +54,7 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
         getOutputFile().convention(projectLayout.getBuildDirectory().file("generated-named-components/" + NAMED_COMPONENTS_FILE));
 
     }
+
     @TaskAction
     public void scanPluginClasses() {
         workerExecutor.noIsolation().submit(GenerateNamedComponentsAction.class, params -> {
@@ -68,7 +66,6 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
 
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
-
 
     @CompileClasspath
     public FileCollection getClasspath() {
@@ -96,15 +93,12 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
             LOGGER.info(files.toString());
             LOGGER.info(pluginFiles.toString());
 
-
             Supplier<Stream<ClassReader>> classReaderStreamSupplier = () -> {
-                Stream<Path> pluginJars = Stream.concat(files.stream(), pluginFiles.stream())
-                    .map(File::toPath);
+                Stream<Path> pluginJars = Stream.concat(files.stream(), pluginFiles.stream()).map(File::toPath);
                 return ClassReaders.ofPaths(pluginJars);
             };
             NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
-            Map<String, Map<String, String>> namedComponentsMap
-                = namedComponentScanner.scanForNamedClasses(classReaderStreamSupplier);
+            Map<String, Map<String, String>> namedComponentsMap = namedComponentScanner.scanForNamedClasses(classReaderStreamSupplier);
             writeToFile(namedComponentsMap);
         }
 
@@ -125,7 +119,6 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
     interface Parameters extends WorkParameters {
 
         ConfigurableFileCollection getClasspath();
-
 
         ConfigurableFileCollection getPluginClasses();
 

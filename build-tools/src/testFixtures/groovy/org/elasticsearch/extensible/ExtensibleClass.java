@@ -6,6 +6,6 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.plugin.scanner.test_classes;
+package org.elasticsearch.extensible;
 
-public class SubClass extends ExtensibleClass {}
+public class ExtensibleClass {}

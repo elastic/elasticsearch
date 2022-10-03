@@ -8,11 +8,18 @@
 
 package org.elasticsearch.gradle.fixtures
 
+import net.bytebuddy.ByteBuddy
+import net.bytebuddy.dynamic.DynamicType
+
 import org.apache.commons.io.FileUtils
+import org.elasticsearch.extensible.ExtensibleClass
+import org.elasticsearch.extensible.ExtensibleInterface
 import org.elasticsearch.gradle.internal.test.ConfigurationCacheCompatibleAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
+import org.elasticsearch.plugin.api.Extensible
+import org.elasticsearch.plugin.api.NamedComponent
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
@@ -21,6 +28,7 @@ import spock.lang.Specification
 import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
+import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 
@@ -134,6 +142,35 @@ abstract class AbstractGradleFuncTest extends Specification {
         }
 
         return jarFile;
+    }
+
+    File pluginApiJar(File jarFolder){
+//        File jarFolder = new File(testProjectDir.root, "jars");
+//        jarFolder.mkdirs()
+        File jarFile = new File(jarFolder, "plugin-api.jar")
+
+        DynamicType.Unloaded<Extensible> extensible =
+            new ByteBuddy().decorate(Extensible.class).make();
+        DynamicType.Unloaded<NamedComponent> namedComponent =
+            new ByteBuddy().decorate(NamedComponent.class).make();
+
+        extensible.toJar(jarFile);
+        namedComponent.inject(jarFile);
+
+        return jarFile;
+    }
+
+    private void extensibleApiJar(Path jarFolder) throws IOException {
+        File jar = new File(jarFolder, "plugin-extensible-api.jar")
+
+        DynamicType.Unloaded<?> extensible =
+            new ByteBuddy().decorate(ExtensibleInterface.class).make();
+
+        DynamicType.Unloaded<?> extensibleClass =
+            new ByteBuddy().decorate(ExtensibleClass.class).make();
+
+        extensible.toJar(jar.toFile());
+        extensibleClass.inject(jar.toFile());
     }
 
     File internalBuild(

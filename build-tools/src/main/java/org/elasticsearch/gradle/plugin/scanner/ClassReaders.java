@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.plugin.scanner;
 
 import org.objectweb.asm.ClassReader;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -30,7 +31,7 @@ import java.util.zip.ZipFile;
 public class ClassReaders {
     // TODO javadoc on closing a stream
 
-    public static Stream<ClassReader> ofDirWithJars(String path)  {
+    public static Stream<ClassReader> ofDirWithJars(String path) {
         if (path == null) {
             return Stream.empty();
         }

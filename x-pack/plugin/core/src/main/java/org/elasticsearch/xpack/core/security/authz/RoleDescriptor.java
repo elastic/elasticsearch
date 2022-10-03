@@ -1044,10 +1044,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 if (indicesPrivileges.privileges == null || indicesPrivileges.privileges.length == 0) {
                     throw new IllegalArgumentException("indices privileges must define at least one privilege");
                 }
-                // TODO does this belong here?
-                if (indicesPrivileges.remoteClusters != null && indicesPrivileges.remoteClusters.length == 0) {
-                    throw new IllegalArgumentException("indices privileges must refer to at least one remote cluster or omit the field");
-                }
                 return indicesPrivileges;
             }
         }

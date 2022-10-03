@@ -197,10 +197,8 @@ public interface Role {
 
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache, RestrictedIndices restrictedIndices) {
             this.names = new String[] { rd.getName() };
-            cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges())).indices(
-                rd.getIndicesPrivileges(),
-                fieldPermissionsCache
-            );
+            cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges()));
+            indices(rd.getIndicesPrivileges(), fieldPermissionsCache);
 
             final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = rd.getApplicationPrivileges();
             for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : applicationPrivileges) {
@@ -250,7 +248,7 @@ public interface Role {
         }
 
         public Builder addRemoteGroup(
-            final Set<String> remoteClusters,
+            final Set<String> remoteClusterAliases,
             final FieldPermissions fieldPermissions,
             final Set<BytesReference> query,
             final IndexPrivilege privilege,
@@ -259,7 +257,7 @@ public interface Role {
         ) {
             remoteGroups.add(
                 new RemoteIndicesPermissionGroupDefinition(
-                    remoteClusters,
+                    remoteClusterAliases,
                     new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices)
                 )
             );

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88647")
 public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase {
 
     /*

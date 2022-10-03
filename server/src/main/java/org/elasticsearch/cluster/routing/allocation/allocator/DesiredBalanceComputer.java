@@ -196,13 +196,6 @@ public class DesiredBalanceComputer {
             }
         }
 
-        for (final var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
-            final var shardRouting = iterator.next();
-            if (ignoredShards.contains(shardRouting)) {
-                iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, changes);
-            }
-        }
-
         boolean hasChanges = false;
         for (int i = 0; true; i++) {
             if (hasChanges) {

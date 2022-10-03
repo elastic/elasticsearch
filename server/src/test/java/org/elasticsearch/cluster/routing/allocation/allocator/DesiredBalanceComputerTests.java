@@ -155,7 +155,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         );
     }
 
-    public void testAssignIgnoredShardsToTheirPreviousLocationIfAvailable() {
+    public void testAssignShardsToTheirPreviousLocationIfAvailable() {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = createInitialClusterState(3);
         var index = clusterState.metadata().index(TEST_INDEX).getIndex();
@@ -186,14 +186,8 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState)
             .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
             .build();
-        var primaryShard = clusterState.routingTable().index(TEST_INDEX).shard(0).primaryShard();
 
-        var desiredBalance = desiredBalanceComputer.compute(
-            DesiredBalance.INITIAL,
-            createInput(clusterState, primaryShard),
-            queue(),
-            input -> true
-        );
+        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
         assertDesiredAssignments(
             desiredBalance,

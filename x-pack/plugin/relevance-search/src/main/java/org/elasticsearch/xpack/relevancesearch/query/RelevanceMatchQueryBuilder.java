@@ -33,8 +33,8 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
     public static final String NAME = "relevance_match";
 
-    private static final ParseField FIELD_QUERY = new ParseField("query");
-    private static final ParseField FIELD_RELEVANCE_SETTINGS = new ParseField("relevance_settings");
+    private static final ParseField QUERY_FIELD = new ParseField("query");
+    private static final ParseField RELEVANCE_SETTINGS_FIELD = new ParseField("relevance_settings");
 
     private static final ObjectParser<RelevanceMatchQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, RelevanceMatchQueryBuilder::new);
 
@@ -45,8 +45,8 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     static {
         declareStandardFields(PARSER);
 
-        PARSER.declareString(RelevanceMatchQueryBuilder::setQuery, FIELD_QUERY);
-        PARSER.declareStringOrNull(RelevanceMatchQueryBuilder::setRelevanceSettingsId, FIELD_RELEVANCE_SETTINGS);
+        PARSER.declareString(RelevanceMatchQueryBuilder::setQuery, QUERY_FIELD);
+        PARSER.declareStringOrNull(RelevanceMatchQueryBuilder::setRelevanceSettingsId, RELEVANCE_SETTINGS_FIELD);
     }
 
     private String query;
@@ -95,9 +95,9 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     protected void doXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject(NAME);
 
-        builder.field(FIELD_QUERY.getPreferredName(), query);
+        builder.field(QUERY_FIELD.getPreferredName(), query);
         if (relevanceSettingsId != null) {
-            builder.field(FIELD_RELEVANCE_SETTINGS.getPreferredName(), relevanceSettingsId);
+            builder.field(RELEVANCE_SETTINGS_FIELD.getPreferredName(), relevanceSettingsId);
         }
 
         builder.endObject();

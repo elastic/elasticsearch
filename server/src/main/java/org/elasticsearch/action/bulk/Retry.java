@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
@@ -22,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -31,10 +33,17 @@ import java.util.function.Predicate;
 public class Retry {
     private final BackoffPolicy backoffPolicy;
     private final Scheduler scheduler;
+    private final int maxQueueSize;
+    private final AtomicInteger queueSize = new AtomicInteger(0);
 
-    public Retry(BackoffPolicy backoffPolicy, Scheduler scheduler) {
+    public Retry(BackoffPolicy backoffPolicy, Scheduler scheduler, int maxQueueSize) {
         this.backoffPolicy = backoffPolicy;
         this.scheduler = scheduler;
+        this.maxQueueSize = maxQueueSize;
+    }
+
+    public Retry(BackoffPolicy backoffPolicy, Scheduler scheduler) {
+        this(backoffPolicy, scheduler, Integer.MAX_VALUE);
     }
 
     /**
@@ -49,7 +58,7 @@ public class Retry {
         BulkRequest bulkRequest,
         ActionListener<BulkResponse> listener
     ) {
-        RetryHandler r = new RetryHandler(backoffPolicy, consumer, listener, scheduler);
+        RetryHandler r = new RetryHandler(backoffPolicy, consumer, listener, scheduler, queueSize, maxQueueSize);
         r.execute(bulkRequest);
     }
 
@@ -84,12 +93,16 @@ public class Retry {
         // volatile as we're called from a scheduled thread
         private volatile BulkRequest currentBulkRequest;
         private volatile Scheduler.Cancellable retryCancellable;
+        private final AtomicInteger queueSize;
+        private final int maxQueueSize;
 
         RetryHandler(
             BackoffPolicy backoffPolicy,
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
             ActionListener<BulkResponse> listener,
-            Scheduler scheduler
+            Scheduler scheduler,
+            AtomicInteger queueSize,
+            int maxQueueSize
         ) {
             super(listener);
             this.backoff = backoffPolicy.iterator();
@@ -97,6 +110,8 @@ public class Retry {
             this.scheduler = scheduler;
             // in contrast to System.currentTimeMillis(), nanoTime() uses a monotonic clock under the hood
             this.startTimestampNanos = System.nanoTime();
+            this.queueSize = queueSize;
+            this.maxQueueSize = maxQueueSize;
         }
 
         @Override
@@ -134,10 +149,18 @@ public class Retry {
         private void retry(BulkRequest bulkRequestForRetry) {
             assert backoff.hasNext();
             TimeValue next = backoff.next();
+            int newQueueSize = queueSize.incrementAndGet();
+            logger.trace("New queue size: " + newQueueSize);
+            if (newQueueSize > maxQueueSize) {
+                queueSize.decrementAndGet();
+                logger.trace("Max queue size of {} exceeded, rejecting entry", maxQueueSize);
+                throw new EsRejectedExecutionException("Queue too big");
+            }
             logger.trace("Retry of bulk request scheduled in {} ms.", next.millis());
             retryCancellable = scheduler.schedule(() -> {
                 logger.trace("Retry beginning");
                 this.execute(bulkRequestForRetry);
+                queueSize.decrementAndGet();
             }, next, ThreadPool.Names.SAME);
         }
 

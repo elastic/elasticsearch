@@ -43,7 +43,7 @@ public final class BulkRequestHandler {
         this.consumer = consumer;
         this.listener = listener;
         this.concurrentRequests = concurrentRequests;
-        this.retry = new Retry(backoffPolicy, scheduler);
+        this.retry = new Retry(backoffPolicy, scheduler, 10 * concurrentRequests);
         this.semaphore = new Semaphore(concurrentRequests > 0 ? concurrentRequests : 1);
     }
 
@@ -99,9 +99,12 @@ public final class BulkRequestHandler {
                 bulkResponseActionListener) -> {
                 try {
                     acquireSemaphore();
-                    consumer.accept(bulkRequest1, bulkResponseActionListener);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    return;
+                }
+                try {
+                    consumer.accept(bulkRequest1, bulkResponseActionListener);
                 } finally {
                     releaseSemaphore();
                 }

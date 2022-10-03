@@ -61,12 +61,7 @@ public final class LimitedRole implements Role {
     }
 
     @Override
-    public IndicesPermission remoteIndices(final String remoteCluster) {
-        throw new UnsupportedOperationException("cannot retrieve remote indices permission on limited role");
-    }
-
-    @Override
-    public List<RemoteIndicesPermission> remoteIndices() {
+    public RemoteIndicesPermission remoteIndices() {
         throw new UnsupportedOperationException("cannot retrieve remote indices permission on limited role");
     }
 

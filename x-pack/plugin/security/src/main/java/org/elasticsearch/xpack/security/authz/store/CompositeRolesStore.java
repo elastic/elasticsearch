@@ -419,8 +419,8 @@ public class CompositeRolesStore {
         final List<ConfigurableClusterPrivilege> configurableClusterPrivileges = new ArrayList<>();
         final Set<String> runAs = new HashSet<>();
         // Outer map keyed by cluster group expressions (i.e., clusters the index permissions apply to), inner map by index name expressions
-        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> indicesPrivilegesMapByClusterGroup = new HashMap<>();
-        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> restrictedIndicesPrivilegesMapByClusterGroup = new HashMap<>();
+        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> indicesPrivilegesMapByCluster = new HashMap<>();
+        final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> restrictedIndicesPrivilegesMapByCluster = new HashMap<>();
 
         // Keyed by application + resource
         final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
@@ -441,12 +441,12 @@ public class CompositeRolesStore {
             MergeableIndicesPrivilege.collatePrivilegesByIndicesAndClusterGroups(
                 descriptor.getIndicesPrivileges(),
                 true,
-                restrictedIndicesPrivilegesMapByClusterGroup
+                restrictedIndicesPrivilegesMapByCluster
             );
             MergeableIndicesPrivilege.collatePrivilegesByIndicesAndClusterGroups(
                 descriptor.getIndicesPrivileges(),
                 false,
-                indicesPrivilegesMapByClusterGroup
+                indicesPrivilegesMapByCluster
             );
 
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
@@ -466,7 +466,7 @@ public class CompositeRolesStore {
         final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
-        indicesPrivilegesMapByClusterGroup.forEach((clusterGroupKey, indicesPrivilegesMapForCluster) -> {
+        indicesPrivilegesMapByCluster.forEach((clusterGroupKey, indicesPrivilegesMapForCluster) -> {
             if (clusterGroupKey.equals(LOCAL_CLUSTER_GROUP_KEY_SET)) {
                 indicesPrivilegesMapForCluster.forEach(
                     (key, privilege) -> builder.add(
@@ -490,7 +490,7 @@ public class CompositeRolesStore {
                 );
             }
         });
-        restrictedIndicesPrivilegesMapByClusterGroup.forEach((clusterGroupKey, indicesPrivilegesMapForCluster) -> {
+        restrictedIndicesPrivilegesMapByCluster.forEach((clusterGroupKey, indicesPrivilegesMapForCluster) -> {
             if (clusterGroupKey.equals(LOCAL_CLUSTER_GROUP_KEY_SET)) {
                 indicesPrivilegesMapForCluster.forEach(
                     (key, privilege) -> builder.add(

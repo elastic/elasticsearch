@@ -36,8 +36,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
-
 public interface Role {
 
     Role EMPTY = builder(new RestrictedIndices(Automatons.EMPTY)).build();
@@ -48,13 +46,11 @@ public interface Role {
 
     IndicesPermission indices();
 
-    IndicesPermission remoteIndices(final String remoteCluster);
-
-    List<RemoteIndicesPermission> remoteIndices();
-
     ApplicationPermission application();
 
     RunAsPermission runAs();
+
+    RemoteIndicesPermission remoteIndices();
 
     /**
      * Whether the Role has any field or document level security enabled index privileges
@@ -201,8 +197,7 @@ public interface Role {
 
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache, RestrictedIndices restrictedIndices) {
             this.names = new String[] { rd.getName() };
-            cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges())).
-                indices(
+            cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges())).indices(
                 rd.getIndicesPrivileges(),
                 fieldPermissionsCache
             );
@@ -293,18 +288,22 @@ public interface Role {
                 }
                 indices = indicesBuilder.build();
             }
-            final List<RemoteIndicesPermission> remoteIndices = new ArrayList<>();
+            final RemoteIndicesPermission.Builder remoteIndicesBuilder = new RemoteIndicesPermission.Builder(restrictedIndices);
             for (final RemoteIndicesPermissionGroupDefinition remoteGroup : remoteGroups) {
-                // TODO handle empty groups edge case
                 final IndicesPermissionGroupDefinition group = remoteGroup.group();
-                final IndicesPermission.Builder indicesBuilder = new IndicesPermission.Builder(restrictedIndices);
-                indicesBuilder.addGroup(group.privilege, group.fieldPermissions, group.query, group.allowRestrictedIndices, group.indices);
-                remoteIndices.add(new RemoteIndicesPermission(remoteGroup.remoteClusterGroup(), indicesBuilder.build()));
+                remoteIndicesBuilder.addIndicesPermission(
+                    remoteGroup.remoteClusterAliases(),
+                    group.privilege,
+                    group.fieldPermissions,
+                    group.query,
+                    group.allowRestrictedIndices,
+                    group.indices
+                );
             }
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
                 ? ApplicationPermission.NONE
                 : new ApplicationPermission(applicationPrivs);
-            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices);
+            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndicesBuilder.build());
         }
 
         Builder indices(
@@ -351,7 +350,7 @@ public interface Role {
             );
         }
 
-        private record RemoteIndicesPermissionGroupDefinition(Set<String> remoteClusterGroup, IndicesPermissionGroupDefinition group) {}
+        private record RemoteIndicesPermissionGroupDefinition(Set<String> remoteClusterAliases, IndicesPermissionGroupDefinition group) {}
 
         private static class IndicesPermissionGroupDefinition {
             private final IndexPrivilege privilege;

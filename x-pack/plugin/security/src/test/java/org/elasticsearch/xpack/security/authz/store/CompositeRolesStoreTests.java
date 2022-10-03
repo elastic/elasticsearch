@@ -1126,10 +1126,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        assertThat(role.remoteIndices("remote1").groups(), not(is(emptyArray())));
-        assertThat(role.remoteIndices("remote2").groups(), not(is(emptyArray())));
-        assertThat(role.remoteIndices("remote-a").groups(), not(is(emptyArray())));
-        assertThat(role.remoteIndices(randomAlphaOfLengthBetween(2, 10)).groups(), emptyArray());
+        assertThat(role.remoteIndices().indicesPermissionFor("remote1").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices().indicesPermissionFor("remote2").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices().indicesPermissionFor("remote-a").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices().indicesPermissionFor(randomAlphaOfLengthBetween(2, 10)).groups(), emptyArray());
 
         final Predicate<IndexAbstraction> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
         assertThat(allowedWrite.test(mockIndexAbstraction("abc-123")), equalTo(true));
@@ -1208,13 +1208,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        assertHasIndices(List.of("abc-*", "remote-xyz-*", "remote-abc-*", "baz-*", "bar-*"), role.remoteIndices("remote1"));
+        assertHasIndices(
+            List.of("abc-*", "remote-xyz-*", "remote-abc-*", "baz-*", "bar-*"),
+            role.remoteIndices().indicesPermissionFor("remote1")
+        );
         assertHasIndices(
             List.of("remote-abc-*", "xyz-*", "abc-*", "remote-xyz-*", "remote-abc-*", "bar-*"),
-            role.remoteIndices("remote-a")
+            role.remoteIndices().indicesPermissionFor("remote-a")
         );
-        assertHasIndices(List.of(), role.remoteIndices(randomAlphaOfLengthBetween(2, 10)));
-        assertHasIndices(List.of(), role.remoteIndices("remote2"));
+        assertHasIndices(List.of(), role.remoteIndices().indicesPermissionFor(randomAlphaOfLengthBetween(2, 10)));
+        assertHasIndices(List.of(), role.remoteIndices().indicesPermissionFor("remote2"));
     }
 
     private void assertHasIndices(final List<String> expectedIndexNames, final IndicesPermission indicesPermission) {

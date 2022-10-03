@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
 import org.elasticsearch.xpack.relevancesearch.relevance.RelevanceSettings;
 import org.elasticsearch.xpack.relevancesearch.relevance.RelevanceSettingsService;
 
@@ -114,7 +115,8 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         if (relevanceSettingsId != null) {
             try {
                 RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
-                fieldsAndBoosts = relevanceSettings.getQueryConfiguration().getFieldsAndBoosts();
+                QueryConfiguration queryConfiguration = relevanceSettings.getQueryConfiguration();
+                fieldsAndBoosts = queryConfiguration.getFieldsAndBoosts();
             } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
                 throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
             }

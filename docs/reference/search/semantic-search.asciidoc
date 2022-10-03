@@ -42,7 +42,7 @@ GET my-index/_semantic_search
   }
 }
 ----
-// TEST[continued]
+// TEST[skip:TBD]
 
 
 [[semantic-search-api-request]]

@@ -166,7 +166,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
                 routingPaths = extractPath(routingPaths, fieldMapper);
             }
-            for (var template : mapperService.documentMapper().mapping().getRoot().dynamicTemplates()) {
+            for (var template : mapperService.getAllDynamicTemplates()) {
                 var templateName = "__dynamic__" + template.name();
                 var mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
 

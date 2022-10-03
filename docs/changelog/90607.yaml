@@ -1,5 +1,0 @@
-pr: 90607
-summary: Remove the regex filter from the mock log appender
-area: Infra/Core
-type: bug
-issues: []

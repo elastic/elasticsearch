@@ -143,10 +143,16 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     public void testExceedMaxNestedDepth() throws IOException {
-        BoostingQueryBuilder query = new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()),
-            new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()),
-            new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()),
-            new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()), RandomQueryBuilder.createQuery(random())))));
+        BoostingQueryBuilder query = new BoostingQueryBuilder(
+            RandomQueryBuilder.createQuery(random()),
+            new BoostingQueryBuilder(
+                RandomQueryBuilder.createQuery(random()),
+                new BoostingQueryBuilder(
+                    RandomQueryBuilder.createQuery(random()),
+                    new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()), RandomQueryBuilder.createQuery(random()))
+                )
+            )
+        );
         AbstractQueryBuilder.setMaxNestedDepth(2);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query.toString())) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseTopLevelQuery(parser));

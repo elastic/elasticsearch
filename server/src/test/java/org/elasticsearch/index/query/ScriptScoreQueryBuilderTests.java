@@ -155,8 +155,10 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
 
     public void testExceedMaxNestedDepth() throws IOException {
         Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
-        ScriptScoreQueryBuilder query = new ScriptScoreQueryBuilder(new ScriptScoreQueryBuilder(new ScriptScoreQueryBuilder(
-            RandomQueryBuilder.createQuery(random()), script), script), script);
+        ScriptScoreQueryBuilder query = new ScriptScoreQueryBuilder(
+            new ScriptScoreQueryBuilder(new ScriptScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), script), script),
+            script
+        );
         AbstractQueryBuilder.setMaxNestedDepth(2);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query.toString())) {
             XContentParseException e = expectThrows(XContentParseException.class, () -> parseTopLevelQuery(parser));

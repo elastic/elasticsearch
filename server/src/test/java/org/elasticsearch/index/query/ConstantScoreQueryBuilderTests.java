@@ -8,18 +8,14 @@
 
 package org.elasticsearch.index.query;
 
-import io.netty.util.Constant;
-
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
@@ -122,8 +118,11 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     public void testExceedMaxNestedDepth() throws IOException {
-        ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(new ConstantScoreQueryBuilder(
-            new ConstantScoreQueryBuilder(new ConstantScoreQueryBuilder(RandomQueryBuilder.createQuery(random())))));
+        ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(
+            new ConstantScoreQueryBuilder(
+                new ConstantScoreQueryBuilder(new ConstantScoreQueryBuilder(RandomQueryBuilder.createQuery(random())))
+            )
+        );
         AbstractQueryBuilder.setMaxNestedDepth(2);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query.toString())) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseTopLevelQuery(parser));

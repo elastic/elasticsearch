@@ -53,10 +53,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
-            GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
-            assertTrue(gpfm.ignoreMalformed());
-        });
         checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
             GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
             assertFalse(gpfm.ignoreZValue());
@@ -377,53 +373,33 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertThat(nullValue, equalTo(new GeoPoint(89, 1)));
     }
 
-    public void testInvalidGeohashIgnored() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_malformed", "true")));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234.333")));
-        assertThat(doc.rootDoc().getField("field"), nullValue());
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
     }
 
-    public void testInvalidGeohashNotIgnored() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", "1234.333")))
-        );
-        assertThat(e.getMessage(), containsString("failed to parse field [field] of type [geo_point]"));
-        assertThat(e.getRootCause().getMessage(), containsString("unsupported symbol [.] in geohash [1234.333]"));
-    }
-
-    public void testInvalidGeopointValuesIgnored() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_malformed", "true")));
-
-        assertThat(mapper.parse(source(b -> b.field("field", "1234.333"))).rootDoc().getField("field"), nullValue());
-        assertThat(
-            mapper.parse(source(b -> b.startObject("field").field("lat", "-").field("lon", 1.3).endObject())).rootDoc().getField("field"),
-            nullValue()
-        );
-        assertThat(
-            mapper.parse(source(b -> b.startObject("field").field("lat", 1.3).field("lon", "-").endObject())).rootDoc().getField("field"),
-            nullValue()
-        );
-        assertThat(mapper.parse(source(b -> b.field("field", "-,1.3"))).rootDoc().getField("field"), nullValue());
-        assertThat(mapper.parse(source(b -> b.field("field", "1.3,-"))).rootDoc().getField("field"), nullValue());
-        assertThat(
-            mapper.parse(source(b -> b.startObject("field").field("lat", "NaN").field("lon", 1.2).endObject())).rootDoc().getField("field"),
-            nullValue()
-        );
-        assertThat(
-            mapper.parse(source(b -> b.startObject("field").field("lat", 1.2).field("lon", "NaN").endObject())).rootDoc().getField("field"),
-            nullValue()
-        );
-        assertThat(mapper.parse(source(b -> b.field("field", "1.3,NaN"))).rootDoc().getField("field"), nullValue());
-        assertThat(mapper.parse(source(b -> b.field("field", "NaN,1.3"))).rootDoc().getField("field"), nullValue());
-        assertThat(
-            mapper.parse(source(b -> b.startObject("field").nullField("lat").field("lon", 1.2).endObject())).rootDoc().getField("field"),
-            nullValue()
-        );
-        assertThat(
-            mapper.parse(source(b -> b.startObject("field").field("lat", 1.2).nullField("lon").endObject())).rootDoc().getField("field"),
-            nullValue()
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue("1234.333").errorMatches("unsupported symbol [.] in geohash [1234.333]"),
+            exampleMalformedValue(b -> b.startObject().field("lat", "-").field("lon", 1.3).endObject()).errorMatches(
+                "[latitude] must be a valid double value"
+            ),
+            exampleMalformedValue(b -> b.startObject().field("lat", 1.3).field("lon", "-").endObject()).errorMatches(
+                "[longitude] must be a valid double value"
+            ),
+            exampleMalformedValue("-,1.3").errorMatches("latitude must be a number"),
+            exampleMalformedValue("1.3,-").errorMatches("longitude must be a number"),
+            exampleMalformedValue(b -> b.startObject().field("lat", "NaN").field("lon", 1.2).endObject()).errorMatches("Required [lat]"),
+            exampleMalformedValue(b -> b.startObject().field("lat", 1.2).field("lon", "NaN").endObject()).errorMatches("Required [lon]"),
+            exampleMalformedValue("NaN,1.3").errorMatches("invalid latitude NaN; must be between -90.0 and 90.0"),
+            exampleMalformedValue("1.3,NaN").errorMatches("invalid longitude NaN; must be between -180.0 and 180.0"),
+            exampleMalformedValue(b -> b.startObject().nullField("lat").field("lon", "NaN").endObject()).errorMatches(
+                "latitude must be a number"
+            ),
+            exampleMalformedValue(b -> b.startObject().field("lat", "NaN").nullField("lon").endObject()).errorMatches(
+                "longitude must be a number"
+            )
         );
     }
 

@@ -33,19 +33,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     public static final String METRICS_FIELD = METRICS;
-    public static final String IGNORE_MALFORMED_FIELD = IGNORE_MALFORMED;
     public static final String CONTENT_TYPE = AggregateDoubleMetricFieldMapper.CONTENT_TYPE;
     public static final String DEFAULT_METRIC = AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC;
 
@@ -61,11 +58,6 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(
-            b -> b.field(IGNORE_MALFORMED_FIELD, true),
-            m -> assertTrue(((AggregateDoubleMetricFieldMapper) m).ignoreMalformed())
-        );
-
         checker.registerConflictCheck(
             DEFAULT_METRIC,
             fieldMapping(this::minimalMapping),
@@ -156,21 +148,41 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         );
     }
 
-    /**
-     * Test parsing an aggregate_metric field that contains no values
-     * when ignore_malformed = true
-     */
-    public void testParseEmptyValueIgnoreMalformed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", CONTENT_TYPE)
-                    .field(METRICS_FIELD, new String[] { "min", "max", "value_count" })
-                    .field("ignore_malformed", true)
-                    .field(DEFAULT_METRIC, "max")
-            )
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
+
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            // no metrics
+            exampleMalformedValue(b -> b.startObject().endObject()).errorMatches(
+                "Aggregate metric field [field] must contain all metrics [min, max, value_count]"
+            ),
+            // unmapped metric
+            exampleMalformedValue(
+                b -> b.startObject().field("min", -10.1).field("max", 50.0).field("value_count", 14).field("sum", 55).endObject()
+            ).errorMatches("Aggregate metric [sum] does not exist in the mapping of field [field]"),
+            // missing metric
+            exampleMalformedValue(b -> b.startObject().field("min", -10.1).field("max", 50.0).endObject()).errorMatches(
+                "Aggregate metric field [field] must contain all metrics [min, max, value_count]"
+            ),
+            // invalid metric value
+            exampleMalformedValue(b -> b.startObject().field("min", "10.0").field("max", 50.0).field("value_count", 14).endObject())
+                .errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"),
+            // negative value count
+            exampleMalformedValue(b -> b.startObject().field("min", 10.0).field("max", 50.0).field("value_count", -14).endObject())
+                .errorMatches("Aggregate metric [value_count] of field [field] cannot be a negative number"),
+            // value count with decimal digits (whole numbers formatted as doubles are permitted, but non-whole numbers are not)
+            exampleMalformedValue(b -> b.startObject().field("min", 10.0).field("max", 50.0).field("value_count", 77.33).endObject())
+                .errorMatches("failed to parse field [field.value_count] of type [integer]")
         );
-        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").endObject()));
-        assertThat(doc.rootDoc().getField("field"), nullValue());
+    }
+
+    @Override
+    protected String[] ignoredFields() {
+        return new String[] { "field.value_count", "field.min", "field.max" };
     }
 
     /**
@@ -187,145 +199,6 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Test inserting a document containing a metric that has not been defined in the field mapping.
-     */
-    public void testUnmappedMetric() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(
-                source(
-                    b -> b.startObject("field").field("min", -10.1).field("max", 50.0).field("value_count", 14).field("sum", 55).endObject()
-                )
-            )
-        );
-        assertThat(e.getCause().getMessage(), containsString("Aggregate metric [sum] does not exist in the mapping of field [field]"));
-    }
-
-    /**
-     * Test inserting a document containing a metric that has not been defined in the field mapping.
-     * Field will be ignored because config ignore_malformed has been set.
-     */
-    public void testUnmappedMetricWithIgnoreMalformed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", CONTENT_TYPE)
-                    .field(METRICS_FIELD, new String[] { "min", "max" })
-                    .field("ignore_malformed", true)
-                    .field(DEFAULT_METRIC, "max")
-            )
-        );
-
-        ParsedDocument doc = mapper.parse(
-            source(b -> b.startObject("field").field("min", -10.1).field("max", 50.0).field("sum", 55).endObject())
-        );
-        assertNull(doc.rootDoc().getField("metric.min"));
-    }
-
-    /**
-     * Test inserting a document containing less metrics than those defined in the field mapping.
-     * An exception will be thrown
-     */
-    public void testMissingMetric() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.startObject("field").field("min", -10.1).field("max", 50.0).endObject()))
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Aggregate metric field [field] must contain all metrics [min, max, value_count]")
-        );
-    }
-
-    /**
-     * Test inserting a document containing less metrics than those defined in the field mapping.
-     * Field will be ignored because config ignore_malformed has been set.
-     */
-    public void testMissingMetricWithIgnoreMalformed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", CONTENT_TYPE)
-                    .field(METRICS_FIELD, new String[] { "min", "max" })
-                    .field("ignore_malformed", true)
-                    .field(DEFAULT_METRIC, "max")
-            )
-        );
-
-        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("min", -10.1).field("max", 50.0).endObject()));
-
-        assertNull(doc.rootDoc().getField("metric.min"));
-    }
-
-    /**
-     * Test a metric that has an invalid value (string instead of number)
-     */
-    public void testInvalidMetricValue() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(
-                source(b -> b.startObject("field").field("min", "10.0").field("max", 50.0).field("value_count", 14).endObject())
-            )
-        );
-
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]")
-        );
-    }
-
-    /**
-     * Test a metric that has an invalid value (string instead of number)
-     * with ignore_malformed = true
-     */
-    public void testInvalidMetricValueIgnoreMalformed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", CONTENT_TYPE)
-                    .field(METRICS_FIELD, new String[] { "min", "max" })
-                    .field("ignore_malformed", true)
-                    .field(DEFAULT_METRIC, "max")
-            )
-        );
-        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("min", "10.0").field("max", 50.0).endObject()));
-        assertThat(doc.rootDoc().getField("metric"), nullValue());
-    }
-
-    /**
-     * Test a field that has a negative value for value_count
-     */
-    public void testNegativeValueCount() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(
-                source(b -> b.startObject("field").field("min", 10.0).field("max", 50.0).field("value_count", -14).endObject())
-            )
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Aggregate metric [value_count] of field [field] cannot be a negative number")
-        );
-    }
-
-    /**
-     * Test a field that has a negative value for value_count with ignore_malformed = true
-     * No exception will be thrown but the field will be ignored
-     */
-    public void testNegativeValueCountIgnoreMalformed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "value_count" }).field("ignore_malformed", true)
-            )
-        );
-
-        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("value_count", -14).endObject()));
-        assertThat(doc.rootDoc().getField("field.value_count"), nullValue());
-    }
-
-    /**
      * Test parsing a value_count metric written as double with zero decimal digits
      */
     public void testValueCountDouble() throws Exception {
@@ -334,23 +207,6 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             source(b -> b.startObject("field").field("min", 10.0).field("max", 50.0).field("value_count", 77.0).endObject())
         );
         assertEquals(77, doc.rootDoc().getField("field.value_count").numericValue().longValue());
-    }
-
-    /**
-     * Test parsing a value_count metric written as double with some decimal digits
-     */
-    public void testInvalidDoubleValueCount() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(
-                source(b -> b.startObject("field").field("min", 10.0).field("max", 50.0).field("value_count", 77.33).endObject())
-            )
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("failed to parse field [field.value_count] of type [integer] in document with id '1'.")
-        );
     }
 
     private void randomMapping(XContentBuilder b, int randomNumber) throws IOException {

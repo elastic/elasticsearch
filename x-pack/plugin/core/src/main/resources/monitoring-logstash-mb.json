@@ -146,10 +146,10 @@
                               "type": "nested",
                               "properties": {
                                 "name": {
-                                    "type": "keyword"
+                                  "type": "keyword"
                                 },
                                 "value": {
-                                    "type": "long"
+                                  "type": "long"
                                 }
                               }
                             }
@@ -164,13 +164,13 @@
                             "load_average": {
                               "properties": {
                                 "5m": {
-                                  "type": "long"
+                                  "type": "half_float"
                                 },
                                 "15m": {
-                                  "type": "long"
+                                  "type": "half_float"
                                 },
                                 "1m": {
-                                  "type": "long"
+                                  "type": "half_float"
                                 }
                               }
                             }

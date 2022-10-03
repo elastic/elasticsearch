@@ -1423,11 +1423,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             {
                                 InternalNested result = searchAndReduce(
                                     // match root document only
-                                    new AggTestConfig(
-                                        newSearcher(indexReader, false, true),
-                                        new FieldExistsQuery(PRIMARY_TERM_NAME),
-                                        nested,
-                                        fieldType
+                                    new AggTestConfig(newSearcher(indexReader, false, true), nested, fieldType).withQuery(
+                                        new FieldExistsQuery(PRIMARY_TERM_NAME)
                                     )
                                 );
                                 InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
@@ -1439,11 +1436,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                     .subAggregation(nested);
                                 InternalFilter result = searchAndReduce(
                                     // match root document only
-                                    new AggTestConfig(
-                                        newSearcher(indexReader, false, true),
-                                        new FieldExistsQuery(PRIMARY_TERM_NAME),
-                                        filter,
-                                        fieldType
+                                    new AggTestConfig(newSearcher(indexReader, false, true), filter, fieldType).withQuery(
+                                        new FieldExistsQuery(PRIMARY_TERM_NAME)
                                     )
                                 );
                                 InternalNested nestedResult = result.getAggregations().get("nested");
@@ -1478,12 +1472,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     StringTerms result = searchAndReduce(
                         // match root document only
-                        new AggTestConfig(
-                            newSearcher(indexReader, false, true),
-                            Queries.newNonNestedFilter(Version.CURRENT),
-                            terms,
-                            animalFieldType,
-                            nestedFieldType
+                        new AggTestConfig(newSearcher(indexReader, false, true), terms, animalFieldType, nestedFieldType).withQuery(
+                            Queries.newNonNestedFilter(Version.CURRENT)
                         )
                     );
                     assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("pig"));
@@ -1522,12 +1512,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     LongTerms result = searchAndReduce(
                         // match root document only
-                        new AggTestConfig(
-                            newSearcher(indexReader, false, true),
-                            new FieldExistsQuery(PRIMARY_TERM_NAME),
-                            terms,
-                            fieldType,
-                            nestedFieldType
+                        new AggTestConfig(newSearcher(indexReader, false, true), terms, fieldType, nestedFieldType).withQuery(
+                            new FieldExistsQuery(PRIMARY_TERM_NAME)
                         )
                     );
                     assertThat(result.getBuckets().get(0).term, equalTo(3L));

@@ -8,6 +8,9 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 public final class EngineNotFoundException extends ResourceNotFoundException {
     public EngineNotFoundException(String engine) {
@@ -16,5 +19,9 @@ public final class EngineNotFoundException extends ResourceNotFoundException {
 
     public EngineNotFoundException(String engine, Throwable cause) {
         super("no such engine [" + engine + "]", cause);
+    }
+
+    public EngineNotFoundException(StreamInput in) throws IOException {
+        super(in);
     }
 }

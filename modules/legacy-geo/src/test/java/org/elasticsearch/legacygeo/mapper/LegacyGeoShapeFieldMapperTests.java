@@ -85,10 +85,6 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
             LegacyGeoShapeFieldMapper gsfm = (LegacyGeoShapeFieldMapper) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
-            LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
-            assertTrue(gpfm.ignoreMalformed());
-        });
         checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
             LegacyGeoShapeFieldMapper gpfm = (LegacyGeoShapeFieldMapper) m;
             assertFalse(gpfm.ignoreZValue());
@@ -232,27 +228,14 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         assertFieldWarnings("strategy", "tree");
     }
 
-    /**
-     * Test that ignore_malformed parameter correctly parses
-     */
-    public void testIgnoreMalformedParsing() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("ignore_malformed", true))
-        );
-        Mapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-        boolean ignoreMalformed = ((LegacyGeoShapeFieldMapper) fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed, equalTo(true));
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
 
-        // explicit false ignore_malformed test
-        mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "geo_shape").field("tree", "quadtree").field("ignore_malformed", false))
-        );
-        fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(LegacyGeoShapeFieldMapper.class));
-        ignoreMalformed = ((LegacyGeoShapeFieldMapper) fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed, equalTo(false));
-        assertFieldWarnings("tree", "strategy");
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of();
     }
 
     public void testGeohashConfiguration() throws IOException {

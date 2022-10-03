@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -491,6 +493,14 @@ public interface AuthorizationEngine {
                 + originatingAuthorizationContext
                 + "]}";
         }
+
+        @Nullable
+        public static String[] indices(TransportRequest transportRequest) {
+            if (transportRequest instanceof final IndicesRequest indicesRequest) {
+                return indicesRequest.indices();
+            }
+            return null;
+        }
     }
 
     /**
@@ -526,7 +536,7 @@ public interface AuthorizationEngine {
          * Returns additional context about an authorization failure, if {@link #isGranted()} is false.
          */
         @Nullable
-        public String getFailureContext(RestrictedIndices restrictedIndices) {
+        public String getFailureContext(RequestInfo requestInfo, RestrictedIndices restrictedIndices) {
             return null;
         }
 
@@ -560,11 +570,22 @@ public interface AuthorizationEngine {
         }
 
         @Override
-        public String getFailureContext(RestrictedIndices restrictedIndices) {
+        public String getFailureContext(RequestInfo requestInfo, RestrictedIndices restrictedIndices) {
             if (isGranted()) {
                 return null;
             } else {
-                return getFailureDescription(indicesAccessControl.getDeniedIndices(), restrictedIndices);
+                assert indicesAccessControl != null;
+                String[] indices = RequestInfo.indices(requestInfo.getRequest());
+                if (indices == null
+                    || indices.length == 0
+                    || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
+                    return null;
+                }
+                Set<String> deniedIndices = Arrays.asList(indices)
+                    .stream()
+                    .filter(index -> false == indicesAccessControl.hasIndexPermissions(index))
+                    .collect(Collectors.toSet());
+                return getFailureDescription(deniedIndices, restrictedIndices);
             }
         }
 
@@ -591,6 +612,7 @@ public interface AuthorizationEngine {
             return message.toString();
         }
 
+        @Nullable
         public IndicesAccessControl getIndicesAccessControl() {
             return indicesAccessControl;
         }

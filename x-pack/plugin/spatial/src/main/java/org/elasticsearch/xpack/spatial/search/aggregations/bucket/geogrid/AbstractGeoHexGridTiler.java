@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,7 +33,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     }
 
     @Override
-    public int setValues(GeoShapeCellValues values, ShapeValues.ShapeValue geoValue) throws IOException {
+    public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
         GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         assert bounds.minX() <= bounds.maxX();
 
@@ -97,7 +96,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
      * Recursively search the H3 tree, only following branches that intersect the geometry.
      * Once at the required depth, then all cells that intersect are added to the collection.
      */
-    private void setValuesByRecursion(GeoShapeCellValues values, ShapeValues.ShapeValue geoValue, String h3, int precision)
+    private void setValuesByRecursion(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue, String h3, int precision)
         throws IOException {
         if (precision <= this.precision) {
             GeoHexBoundedPredicate.H3LatLonGeom hexagon = new GeoHexBoundedPredicate.H3LatLonGeom(h3);
@@ -123,7 +122,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
      * Recursively search the H3 tree, only following branches that intersect the geometry.
      * Once at the required depth, then all cells that intersect are added to the collection.
      */
-    protected int setValuesByRecursion(GeoShapeCellValues values, ShapeValues.ShapeValue geoValue) throws IOException {
+    protected int setValuesByRecursion(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
         for (String h3 : H3.getStringRes0Cells()) {
             setValuesByRecursion(values, geoValue, h3, 0);
         }
@@ -133,7 +132,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     /**
      * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}.
      */
-    protected int setValue(GeoShapeCellValues docValues, ShapeValues.ShapeValue geoValue, String address) throws IOException {
+    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, String address) throws IOException {
         if (relateTile(geoValue, address) != GeoRelation.QUERY_DISJOINT) {
             docValues.resizeCell(1);
             docValues.add(0, H3.stringToH3(address));
@@ -142,7 +141,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         return 0;
     }
 
-    private GeoRelation relateTile(ShapeValues.ShapeValue geoValue, String address) throws IOException {
+    private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String address) throws IOException {
         if (validAddress(address)) {
             GeoHexBoundedPredicate.H3LatLonGeom hexagon = new GeoHexBoundedPredicate.H3LatLonGeom(address);
             return geoValue.relate(hexagon);

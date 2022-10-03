@@ -59,8 +59,11 @@ public class GeoRegularConvexPolygonTests extends ESTestCase {
     }
 
     public void testH3Hexagon() {
-        // TODO randomize test point
-        String h3Address = H3.geoToH3Address(25, 25, 3);
+        double latitude = randomDoubleBetween(-85, 85, false);
+        double longitude = randomDoubleBetween(-180, 180, true);
+        int resolution = randomIntBetween(0, H3.MAX_H3_RES);
+        //String h3Address = H3.geoToH3Address(25, 25, 3);
+        String h3Address = H3.geoToH3Address(latitude, longitude, resolution);
         CellBoundary boundary = H3.h3ToGeoBoundary(h3Address);
         assumeThat("This test only works with true convex hexagons", boundary.numPoints(), equalTo(6));
         GeoPoint centroid = Spatial3DTestUtil.calculateCentroid3d(boundary);

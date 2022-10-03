@@ -76,6 +76,48 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         doTestGeohexGrid(GeoPointFieldMapper.CONTENT_TYPE, GeometryTestUtils::randomPoint);
     }
 
+    public void testGeoPointGeoHex_Point0() throws IOException {
+        doTestGeohexGrid(GeoPointFieldMapper.CONTENT_TYPE, () -> new Point(0, 0));
+    }
+
+    public void testGeoPointGeoHex_Point25() throws IOException {
+        doTestGeohexGrid(GeoPointFieldMapper.CONTENT_TYPE, () -> new Point(25, 25));
+    }
+
+    public void testGeoShapeGeoHex_Point() throws IOException {
+        doTestGeohexGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, GeometryTestUtils::randomPoint);
+    }
+
+    public void testGeoShapeGeoHex_Point0() throws IOException {
+        doTestGeohexGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> new Point(0, 0));
+    }
+
+    public void testGeoShapeGeoHex_Point25() throws IOException {
+        doTestGeohexGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> new Point(25, 25));
+    }
+
+    public void testGeohexGrid() throws IOException {
+        Point queryPoint = new Point(25, 25);
+        TestGridConfig config = new TestGridConfig(1, 1, GeoPointFieldMapper.CONTENT_TYPE);
+        doValidateGrid(
+            config,
+            queryPoint,
+            (precision, point) -> H3.geoToH3Address(point.getLat(), point.getLon(), precision),
+            h3 -> toPoints(H3.h3ToGeoBoundary(h3)),
+            GeoHexGridAggregationBuilder::new,
+            (s1, s2) -> new GeoGridQueryBuilder(s1).setGridId(GeoGridQueryBuilder.Grid.GEOHEX, s2)
+        );
+        config = new TestGridConfig(1, 1, GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE);
+        doValidateGrid(
+            config,
+            queryPoint,
+            (precision, point) -> H3.geoToH3Address(point.getLat(), point.getLon(), precision),
+            h3 -> toPoints(H3.h3ToGeoBoundary(h3)),
+            GeoHexGridAggregationBuilder::new,
+            (s1, s2) -> new GeoGridQueryBuilder(s1).setGridId(GeoGridQueryBuilder.Grid.GEOHEX, s2)
+        );
+    }
+
     public void testGeoShapeGeoHex() throws IOException {
         doTestGeohexGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false));
     }
@@ -93,10 +135,9 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
     }
 
     private void doTestGeohashGrid(String fieldType, Supplier<Geometry> randomGeometriesSupplier) throws IOException {
+        TestGridConfig config = new TestGridConfig(1, Geohash.PRECISION, fieldType);
         doTestGrid(
-            1,
-            Geohash.PRECISION,
-            fieldType,
+            config,
             (precision, point) -> Geohash.stringEncode(point.getLon(), point.getLat(), precision),
             hash -> toPoints(Geohash.toBoundingBox(hash)),
             Geohash::toBoundingBox,
@@ -107,10 +148,9 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
     }
 
     private void doTestGeotileGrid(String fieldType, int maxPrecision, Supplier<Geometry> randomGeometriesSupplier) throws IOException {
+        TestGridConfig config = new TestGridConfig(0, maxPrecision, fieldType);
         doTestGrid(
-            0,
-            maxPrecision,
-            fieldType,
+            config,
             (precision, point) -> GeoTileUtils.stringEncode(GeoTileUtils.longEncode(point.getLon(), point.getLat(), precision)),
             tile -> toPoints(GeoTileUtils.toBoundingBox(tile)),
             GeoTileUtils::toBoundingBox,
@@ -121,14 +161,11 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
     }
 
     private void doTestGeohexGrid(String fieldType, Supplier<Geometry> randomGeometriesSupplier) throws IOException {
-        doTestGrid(1, H3.MAX_H3_RES, fieldType, (precision, point) -> H3.geoToH3Address(point.getLat(), point.getLon(), precision), h3 -> {
-            final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
-            final List<Point> points = new ArrayList<>(boundary.numPoints());
-            for (int i = 0; i < boundary.numPoints(); i++) {
-                points.add(new Point(boundary.getLatLon(i).getLonDeg(), boundary.getLatLon(i).getLatDeg()));
-            }
-            return points;
-        },
+        TestGridConfig config = new TestGridConfig(1, H3.MAX_H3_RES, fieldType);
+        doTestGrid(
+            config,
+            (precision, point) -> H3.geoToH3Address(point.getLat(), point.getLon(), precision),
+            h3 -> toPoints(H3.h3ToGeoBoundary(h3)),
             h3 -> new Rectangle(GeoUtils.MIN_LON, GeoUtils.MAX_LON, GeoUtils.MAX_LAT, GeoUtils.MAX_LAT),
             GeoHexGridAggregationBuilder::new,
             (s1, s2) -> new GeoGridQueryBuilder(s1).setGridId(GeoGridQueryBuilder.Grid.GEOHEX, s2),
@@ -136,10 +173,40 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         );
     }
 
+    private static class TestGridConfig {
+        private final int minPrecision;
+        private final int maxPrecision;
+        private final String fieldType;
+        private final String indexName;
+        private final String aggName;
+        private final String fieldName;
+
+        private TestGridConfig(int minPrecision, int maxPrecision, String fieldType) {
+            this.minPrecision = minPrecision;
+            this.maxPrecision = maxPrecision;
+            this.fieldType = fieldType;
+            this.indexName = "test_" + fieldType;
+            this.fieldName = "geometry";
+            this.aggName = "geometry_agg";
+        }
+    }
+
+    private void doValidateGrid(
+        TestGridConfig config,
+        Point queryPoint,
+        BiFunction<Integer, Point, String> pointEncoder,
+        Function<String, List<Point>> toPoints,
+        Function<String, GeoGridAggregationBuilder> aggBuilder,
+        BiFunction<String, String, QueryBuilder> queryBuilder
+    ) throws IOException {
+        createIndex(config);
+        BulkRequestBuilder builder = client().prepareBulk();
+        prepareDataInTiles(builder, config, queryPoint, pointEncoder, toPoints);
+        validateGrid(config, aggBuilder, queryBuilder);
+    }
+
     private void doTestGrid(
-        int minPrecision,
-        int maxPrecision,
-        String fieldType,
+        TestGridConfig config,
         BiFunction<Integer, Point, String> pointEncoder,
         Function<String, List<Point>> toPoints,
         Function<String, Rectangle> toBoundingBox,
@@ -147,82 +214,110 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         BiFunction<String, String, QueryBuilder> queryBuilder,
         Supplier<Geometry> randomGeometriesSupplier
     ) throws IOException {
-        XContentBuilder xcb = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("geometry")
-            .field("type", fieldType)
-            .endObject()
-            .endObject()
-            .endObject();
-        client().admin().indices().prepareCreate("test").setMapping(xcb).get();
-
-        Point queryPoint = GeometryTestUtils.randomPoint();
-        String[] tiles = new String[maxPrecision + 1];
-        for (int zoom = minPrecision; zoom < tiles.length; zoom++) {
-            tiles[zoom] = pointEncoder.apply(zoom, queryPoint);
-        }
-
+        createIndex(config);
         BulkRequestBuilder builder = client().prepareBulk();
-        for (int zoom = minPrecision; zoom < tiles.length; zoom++) {
-            List<Point> edgePoints = toPoints.apply(tiles[zoom]);
-            String[] multiPoint = new String[edgePoints.size()];
-            for (int i = 0; i < edgePoints.size(); i++) {
-                String wkt = WellKnownText.toWKT(edgePoints.get(i));
-                String doc = "{\"geometry\" : \"" + wkt + "\"}";
-                builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
-                multiPoint[i] = "\"" + wkt + "\"";
-            }
-            String doc = "{\"geometry\" : " + Arrays.toString(multiPoint) + "}";
-            builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
 
-        }
-        assertFalse(builder.get().hasFailures());
-        client().admin().indices().prepareRefresh("test").get();
+        Point queryPoint = new Point(25, 25);// GeometryTestUtils.randomPoint();
+        String[] tiles = prepareDataInTiles(builder, config, queryPoint, pointEncoder, toPoints);
 
-        for (int i = minPrecision; i <= maxPrecision; i++) {
-            GeoGridAggregationBuilder builderPoint = aggBuilder.apply("geometry").field("geometry").precision(i);
-            SearchResponse response = client().prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
-            InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
-            assertQuery(gridPoint.getBuckets(), queryBuilder, i);
-        }
+        validateGrid(config, aggBuilder, queryBuilder);
 
         builder = client().prepareBulk();
         final int numDocs = randomIntBetween(10, 20);
         for (int id = 0; id < numDocs; id++) {
             String wkt = WellKnownText.toWKT(randomGeometriesSupplier.get());
-            String doc = "{\"geometry\" : \"" + wkt + "\"}";
-            builder.add(new IndexRequest("test").source(doc, XContentType.JSON));
+            String doc = "{\"" + config.fieldName + "\" : \"" + wkt + "\"}";
+            builder.add(new IndexRequest(config.indexName).source(doc, XContentType.JSON));
         }
         assertFalse(builder.get().hasFailures());
-        client().admin().indices().prepareRefresh("test").get();
+        client().admin().indices().prepareRefresh(config.indexName).get();
 
-        int zoom = randomIntBetween(minPrecision, maxPrecision);
+        int zoom = randomIntBetween(config.minPrecision, config.maxPrecision);
         Rectangle rectangle = toBoundingBox.apply(tiles[zoom]);
         GeoBoundingBox boundingBox = new GeoBoundingBox(
             new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
             new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
         );
 
-        for (int i = minPrecision; i <= Math.min(maxPrecision, zoom + 3); i++) {
-            GeoGridAggregationBuilder builderPoint = aggBuilder.apply("geometry")
-                .field("geometry")
+        for (int i = config.minPrecision; i <= Math.min(config.maxPrecision, zoom + 3); i++) {
+            GeoGridAggregationBuilder builderPoint = aggBuilder.apply(config.aggName)
+                .field(config.fieldName)
                 .precision(i)
                 .setGeoBoundingBox(boundingBox)
                 .size(256 * 256);
-            SearchResponse response = client().prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
-            InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
-            assertQuery(gridPoint.getBuckets(), queryBuilder, i);
+            SearchResponse response = client().prepareSearch(config.indexName).addAggregation(builderPoint).setSize(0).get();
+            InternalGeoGrid<?> gridPoint = response.getAggregations().get(config.aggName);
+            assertQuery(gridPoint.getBuckets(), queryBuilder, config.fieldName, config.indexName, i);
         }
     }
 
-    private void assertQuery(List<InternalGeoGridBucket> buckets, BiFunction<String, String, QueryBuilder> queryFunction, int precision) {
+    private void createIndex(TestGridConfig config) throws IOException {
+        XContentBuilder xcb = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(config.fieldName)
+            .field("type", config.fieldType)
+            .endObject()
+            .endObject()
+            .endObject();
+        client().admin().indices().prepareCreate(config.indexName).setMapping(xcb).get();
+    }
+
+    private String[] prepareDataInTiles(
+        BulkRequestBuilder builder,
+        TestGridConfig config,
+        Point queryPoint,
+        BiFunction<Integer, Point, String> pointEncoder,
+        Function<String, List<Point>> toPoints
+    ) {
+        String[] tiles = new String[config.maxPrecision + 1];
+        for (int zoom = config.minPrecision; zoom < tiles.length; zoom++) {
+            tiles[zoom] = pointEncoder.apply(zoom, queryPoint);
+        }
+
+        for (int zoom = config.minPrecision; zoom < tiles.length; zoom++) {
+            List<Point> edgePoints = toPoints.apply(tiles[zoom]);
+            String[] multiPoint = new String[edgePoints.size()];
+            for (int i = 0; i < edgePoints.size(); i++) {
+                String wkt = WellKnownText.toWKT(edgePoints.get(i));
+                String doc = "{\"" + config.fieldName + "\" : \"" + wkt + "\"}";
+                builder.add(new IndexRequest(config.indexName).source(doc, XContentType.JSON));
+                multiPoint[i] = "\"" + wkt + "\"";
+            }
+            String doc = "{\"" + config.fieldName + "\" : " + Arrays.toString(multiPoint) + "}";
+            builder.add(new IndexRequest(config.indexName).source(doc, XContentType.JSON));
+        }
+        assertFalse(builder.get().hasFailures());
+        client().admin().indices().prepareRefresh(config.indexName).get();
+        return tiles;
+    }
+
+    private void validateGrid(
+        TestGridConfig config,
+        Function<String, GeoGridAggregationBuilder> aggBuilder,
+        BiFunction<String, String, QueryBuilder> queryBuilder
+    ) {
+        for (int i = config.minPrecision; i <= config.maxPrecision; i++) {
+            GeoGridAggregationBuilder builderPoint = aggBuilder.apply(config.aggName).field(config.fieldName).precision(i);
+            SearchResponse response = client().prepareSearch(config.indexName).addAggregation(builderPoint).setSize(0).get();
+            InternalGeoGrid<?> gridPoint = response.getAggregations().get(config.aggName);
+            assertQuery(gridPoint.getBuckets(), queryBuilder, config.fieldName, config.indexName, i);
+        }
+    }
+
+    private void assertQuery(
+        List<InternalGeoGridBucket> buckets,
+        BiFunction<String, String, QueryBuilder> queryFunction,
+        String fieldName,
+        String indexName,
+        int precision
+    ) {
         for (InternalGeoGridBucket bucket : buckets) {
             assertThat(bucket.getDocCount(), Matchers.greaterThan(0L));
-            QueryBuilder queryBuilder = queryFunction.apply("geometry", bucket.getKeyAsString());
-            SearchResponse response = client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder).get();
+            QueryBuilder queryBuilder = queryFunction.apply(fieldName, bucket.getKeyAsString());
+            SearchResponse response = client().prepareSearch(indexName).setTrackTotalHits(true).setQuery(queryBuilder).get();
             assertThat(
-                "Expected hits at precision " + precision,
+                "Precision:" + precision + ", Bucket '" + bucket.getKeyAsString() + "' Expected hits at precision " + precision,
                 response.getHits().getTotalHits().value,
                 Matchers.equalTo(bucket.getDocCount())
             );
@@ -235,6 +330,14 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         points.add(new Point(rectangle.getMaxX(), rectangle.getMinY()));
         points.add(new Point(rectangle.getMinX(), rectangle.getMaxY()));
         points.add(new Point(rectangle.getMaxX(), rectangle.getMaxY()));
+        return points;
+    }
+
+    private static List<Point> toPoints(CellBoundary boundary) {
+        final List<Point> points = new ArrayList<>(boundary.numPoints());
+        for (int i = 0; i < boundary.numPoints(); i++) {
+            points.add(new Point(boundary.getLatLon(i).getLonDeg(), boundary.getLatLon(i).getLatDeg()));
+        }
         return points;
     }
 }

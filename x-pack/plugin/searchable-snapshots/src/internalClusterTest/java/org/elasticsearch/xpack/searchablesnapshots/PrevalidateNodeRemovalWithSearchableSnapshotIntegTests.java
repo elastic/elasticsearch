@@ -60,7 +60,7 @@ public class PrevalidateNodeRemovalWithSearchableSnapshotIntegTests extends Base
             assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
         });
         // Assert that removal of any node from the red cluster is safe
-        PrevalidateNodeRemovalRequest req = new PrevalidateNodeRemovalRequest(node2);
+        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
         assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
         assertThat(resp.getPrevalidation().getNodes().size(), equalTo(1));

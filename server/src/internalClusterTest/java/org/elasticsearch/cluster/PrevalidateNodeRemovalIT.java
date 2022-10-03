@@ -35,7 +35,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         );
         ensureGreen();
         String nodeName = randomFrom(node1, node2);
-        PrevalidateNodeRemovalRequest req = new PrevalidateNodeRemovalRequest(nodeName);
+        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(nodeName).build();
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
 
         assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
@@ -48,7 +48,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         // Enforce a replica to get unassigned
         updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._name", node1));
         ensureYellow();
-        PrevalidateNodeRemovalRequest req2 = new PrevalidateNodeRemovalRequest(node2);
+        PrevalidateNodeRemovalRequest req2 = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
         PrevalidateNodeRemovalResponse resp2 = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req2).get();
 
         assertThat(resp2.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
@@ -83,7 +83,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         });
         // With a RED non-searchable-snapshot index, node removal safety is unknown
         // since that node might have the last copy of the unassigned index.
-        PrevalidateNodeRemovalRequest req = new PrevalidateNodeRemovalRequest(node2);
+        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
         assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.UNKNOWN));
         assertThat(resp.getPrevalidation().getNodes().size(), equalTo(1));

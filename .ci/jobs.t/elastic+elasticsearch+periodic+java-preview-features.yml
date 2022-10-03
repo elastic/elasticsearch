@@ -29,8 +29,8 @@
       - inject:
           properties-file: '.ci/java-versions.properties'
           properties-content: |
-            JAVA_HOME=$HOME/.java/openjdk19
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/openjdk19
             JAVA11_HOME=$HOME/.java/java11
             JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |

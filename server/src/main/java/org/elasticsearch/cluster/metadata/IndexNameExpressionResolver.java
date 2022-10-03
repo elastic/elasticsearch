@@ -1420,14 +1420,16 @@ public class IndexNameExpressionResolver {
                     return Stream.of(indexAbstraction.getName());
                 } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM
                     || indexAbstraction.getType() == Type.SEARCH_ENGINE) {
-                    return Stream.of(indexAbstraction.getName());
-                } else {
-                    Stream<IndexMetadata> indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata()::index);
-                    if (excludeState != null) {
-                        indicesStateStream = indicesStateStream.filter(indexMeta -> indexMeta.getState() != excludeState);
+                        return Stream.of(indexAbstraction.getName());
+                    } else {
+                        Stream<IndexMetadata> indicesStateStream = indexAbstraction.getIndices()
+                            .stream()
+                            .map(context.state.metadata()::index);
+                        if (excludeState != null) {
+                            indicesStateStream = indicesStateStream.filter(indexMeta -> indexMeta.getState() != excludeState);
+                        }
+                        return indicesStateStream.map(indexMeta -> indexMeta.getIndex().getName());
                     }
-                    return indicesStateStream.map(indexMeta -> indexMeta.getIndex().getName());
-                }
             });
         }
 

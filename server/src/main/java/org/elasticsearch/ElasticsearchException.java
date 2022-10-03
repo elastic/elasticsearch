@@ -1585,6 +1585,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UnsupportedAggregationOnDownsampledIndex::new,
             167,
             Version.V_8_5_0
+        ),
+        ENGINE_NOT_FOUND_EXCEPTION(
+            org.elasticsearch.index.EngineNotFoundException.class,
+            org.elasticsearch.index.EngineNotFoundException::new,
+            168,
+            Version.V_8_6_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

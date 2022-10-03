@@ -1229,7 +1229,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertToXContentEquivalent(new BytesArray(expectedJson), actual, XContentType.JSON);
     }
 
-    private static void assertThrowableAsJson(Exception e, String expectedJson) throws IOException {
+    private static void assertThrowableAsJson(Throwable e, String expectedJson) throws IOException {
         assertToXContentAsJson((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, params, e);
             return builder;

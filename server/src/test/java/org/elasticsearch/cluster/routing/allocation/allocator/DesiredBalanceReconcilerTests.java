@@ -88,7 +88,7 @@ import static org.hamcrest.Matchers.oneOf;
 public class DesiredBalanceReconcilerTests extends ESTestCase {
 
     public void testNoChangesOnEmptyDesiredBalance() {
-        final var clusterState = DesiredBalanceComputerTests.createInitialClusterState();
+        final var clusterState = DesiredBalanceComputerTests.createInitialClusterState(3);
         final var routingAllocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
             clusterState.mutableRoutingNodes(),
@@ -103,7 +103,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     }
 
     public void testFailsNewPrimariesIfNoDataNodes() {
-        final var clusterState = ClusterState.builder(DesiredBalanceComputerTests.createInitialClusterState())
+        final var clusterState = ClusterState.builder(DesiredBalanceComputerTests.createInitialClusterState(3))
             .nodes(
                 DiscoveryNodes.builder()
                     .add(

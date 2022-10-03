@@ -53,7 +53,7 @@ public class SearchEngineMetadataService {
         final var finalMetadata = currentMetadata;
         return finalMetadata == initialMetadata
             ? batchExecutionContext.initialState()
-            : batchExecutionContext.initialState().copyAndUpdateMetadata(b -> b.putCustom(SearchEngineMetadata.TYPE, finalMetadata));
+            : batchExecutionContext.initialState().copyAndUpdateMetadata(b -> { b.put(finalMetadata); });
     };
 
     /**

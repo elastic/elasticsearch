@@ -100,23 +100,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         throw new UnsupportedOperationException();
     }
 
-    public void testStackOverflowDoesNotOccur() {
-        QB query = null;
-        try {
-            query = createQueryWithInnerQuery(new MatchAllQueryBuilder());
-        } catch (UnsupportedOperationException e) {
-            assumeNoException("Runs only for queries that support nesting", e);
-        }
-        QB q = query;
-        expectThrows(IllegalArgumentException.class, () -> {
-            QB q2 = q;
-            while (true) {
-                q2 = createQueryWithInnerQuery(q2);
-                parseQuery(Strings.toString(q2));
-            }
-        });
-    }
-
     public void testMaxNestedDepth() throws IOException {
         QB query = null;
         try {

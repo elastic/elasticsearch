@@ -10,13 +10,17 @@ package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.action.admin.cluster.node.shutdown.NodesRemovalPrevalidation;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalRequest;
+import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -37,7 +41,19 @@ public class PrevalidateNodeRemovalRestIT extends HttpSmokeTestCase {
             case 2 -> new Request(HttpPost.METHOD_NAME, "/_internal/prevalidate_node_removal?external_ids=" + node1Name);
             default -> throw new IllegalStateException("unexpected value " + i);
         };
-        assertThat(client.performRequest(req).getStatusLine().getStatusCode(), equalTo(200));
+        Response response = client.performRequest(req);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        PrevalidateNodeRemovalResponse prevalidationResp;
+        try (
+            var input = response.getEntity().getContent();
+            var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, input)
+        ) {
+            prevalidationResp = PrevalidateNodeRemovalResponse.fromXContent(parser);
+        }
+        assertThat(
+            prevalidationResp.getPrevalidation().getResult(),
+            equalTo(new NodesRemovalPrevalidation.Result(NodesRemovalPrevalidation.IsSafe.YES, "cluster status is not RED"))
+        );
 
         try {
             String queryParam = randomFrom("names", "ids", "external_ids") + "=nonExistingNode";

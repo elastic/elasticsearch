@@ -44,20 +44,17 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
             default -> throw new IllegalStateException("Unexpected value");
         }
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req.build()).get();
-
         assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
         assertThat(resp.getPrevalidation().getNodes().size(), equalTo(1));
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().getNodes().get(0);
         assertNotNull(nodeResult);
         assertThat(nodeResult.name(), equalTo(nodeName));
         assertThat(nodeResult.result().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
-
         // Enforce a replica to get unassigned
         updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._name", node1));
         ensureYellow();
         PrevalidateNodeRemovalRequest req2 = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
         PrevalidateNodeRemovalResponse resp2 = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req2).get();
-
         assertThat(resp2.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
         assertThat(resp2.getPrevalidation().getNodes().size(), equalTo(1));
         NodesRemovalPrevalidation.NodeResult nodeResult2 = resp2.getPrevalidation().getNodes().get(0);
@@ -88,7 +85,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
                 .actionGet();
             assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
         });
-        // With a RED non-searchable-snapshot index, node removal safety is unknown
+        // With a RED non-searchable-snapshot index, node removal is potentially unsafe
         // since that node might have the last copy of the unassigned index.
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();

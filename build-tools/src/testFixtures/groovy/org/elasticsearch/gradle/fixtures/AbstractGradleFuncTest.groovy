@@ -10,6 +10,8 @@ package org.elasticsearch.gradle.fixtures
 
 import net.bytebuddy.ByteBuddy
 import net.bytebuddy.dynamic.DynamicType
+import spock.lang.Specification
+import spock.lang.TempDir
 
 import org.apache.commons.io.FileUtils
 import org.elasticsearch.extensible.ExtensibleClass
@@ -24,11 +26,8 @@ import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
-import spock.lang.Specification
-import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
-import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 

@@ -6,38 +6,29 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.plugin.scanner;
+package org.elasticsearch.gradle.plugin.scanner
 
-import net.bytebuddy.ByteBuddy;
-
+import net.bytebuddy.ByteBuddy
 import net.bytebuddy.dynamic.DynamicType
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest;
-import org.elasticsearch.gradle.internal.test.InMemoryJavaCompiler;
-import org.elasticsearch.gradle.internal.test.JarUtils;
-import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleClass;
-import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleInterface;
-import org.elasticsearch.gradle.plugin.scanner.test_classes.TestNamedComponent;
-import org.elasticsearch.plugin.api.Extensible;
-import org.elasticsearch.plugin.api.NamedComponent;
-import org.objectweb.asm.ClassReader;
+import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.internal.test.InMemoryJavaCompiler
+import org.elasticsearch.gradle.internal.test.JarUtils
+import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleClass
+import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleInterface
+import org.elasticsearch.gradle.plugin.scanner.test_classes.TestNamedComponent
+import org.elasticsearch.plugin.api.Extensible
+import org.elasticsearch.plugin.api.NamedComponent
+import org.objectweb.asm.ClassReader
 
-import spock.lang.Specification;
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.util.function.Supplier
+import java.util.stream.Stream
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat
+import static org.hamcrest.Matchers.equalTo
 
 class NamedComponentScannerSpec extends AbstractGradleFuncTest {
 

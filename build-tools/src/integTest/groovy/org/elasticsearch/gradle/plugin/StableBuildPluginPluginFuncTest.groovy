@@ -14,7 +14,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
-import org.junit.Assert
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -44,7 +43,6 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
         when:
         def result = gradleRunner(":pluginProperties").build()
         def props = getPluginProperties()
-//        Path propsFile = file("build/generated-named-components/named_components.json").toPath();
 
         then:
         result.task(":pluginProperties").outcome == TaskOutcome.SUCCESS

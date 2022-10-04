@@ -12,11 +12,6 @@ package org.elasticsearch.gradle.plugin.scanner
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.elasticsearch.gradle.internal.test.InMemoryJavaCompiler;
 
-//import org.apache.lucene.tests.util.LuceneTestCase;
-//import org.elasticsearch.test.ESTestCase;
-//import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
-//import org.elasticsearch.test.jar.JarUtils;
-
 import org.elasticsearch.gradle.internal.test.JarUtils
 import org.hamcrest.Matchers
 import org.objectweb.asm.ClassReader

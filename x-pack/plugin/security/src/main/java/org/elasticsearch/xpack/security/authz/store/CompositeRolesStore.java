@@ -93,7 +93,7 @@ public class CompositeRolesStore {
     );
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
 
-    private static final Set<String> LOCAL_CLUSTER_ALIAS_KEY_SET = newHashSet(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+    private static final Set<String> LOCAL_CLUSTER_ALIAS_KEY = newHashSet(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
     private final RoleProviders roleProviders;
     private final NativePrivilegeStore privilegeStore;
@@ -467,7 +467,7 @@ public class CompositeRolesStore {
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
         indicesPrivilegesMapByClusterAlias.forEach((clusterAliasKey, indicesPrivilegesMapForCluster) -> {
-            if (clusterAliasKey.equals(LOCAL_CLUSTER_ALIAS_KEY_SET)) {
+            if (clusterAliasKey.equals(LOCAL_CLUSTER_ALIAS_KEY)) {
                 indicesPrivilegesMapForCluster.forEach(
                     (key, privilege) -> builder.add(
                         fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
@@ -491,7 +491,7 @@ public class CompositeRolesStore {
             }
         });
         restrictedIndicesPrivilegesMapByClusterAlias.forEach((clusterAliasKey, indicesPrivilegesMapForCluster) -> {
-            if (clusterAliasKey.equals(LOCAL_CLUSTER_ALIAS_KEY_SET)) {
+            if (clusterAliasKey.equals(LOCAL_CLUSTER_ALIAS_KEY)) {
                 indicesPrivilegesMapForCluster.forEach(
                     (key, privilege) -> builder.add(
                         fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
@@ -631,7 +631,7 @@ public class CompositeRolesStore {
                 }
                 final var clusterAlias = indicesPrivilege.hasRemoteClusters()
                     ? newHashSet(indicesPrivilege.getRemoteClusters())
-                    : LOCAL_CLUSTER_ALIAS_KEY_SET;
+                    : LOCAL_CLUSTER_ALIAS_KEY;
                 if (false == indicesPrivilegesMapByClusterAlias.containsKey(clusterAlias)) {
                     indicesPrivilegesMapByClusterAlias.put(clusterAlias, new HashMap<>());
                 }

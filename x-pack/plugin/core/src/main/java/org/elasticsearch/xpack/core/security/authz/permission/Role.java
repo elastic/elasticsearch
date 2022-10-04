@@ -290,10 +290,10 @@ public interface Role {
             if (remoteGroups.isEmpty()) {
                 remoteIndices = RemoteIndicesPermission.NONE;
             } else {
-                final RemoteIndicesPermission.Builder remoteIndicesBuilder = new RemoteIndicesPermission.Builder(restrictedIndices);
+                final RemoteIndicesPermission.Builder remoteIndicesBuilder = new RemoteIndicesPermission.Builder();
                 for (final RemoteIndicesPermissionGroupDefinition remoteGroup : remoteGroups) {
                     final IndicesPermissionGroupDefinition group = remoteGroup.group();
-                    remoteIndicesBuilder.addIndicesPermission(
+                    remoteIndicesBuilder.addRemoteIndicesGroup(
                         remoteGroup.remoteClusterAliases(),
                         group.privilege,
                         group.fieldPermissions,

@@ -781,7 +781,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         private String[] indices;
         private String[] privileges;
-
         private String[] grantedFields = null;
         private String[] deniedFields = null;
         private BytesReference query;

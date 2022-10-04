@@ -19,46 +19,39 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-public record RemoteIndicesPermission(
-    // TODO this is redundant
-    RestrictedIndices restrictedIndices,
-    List<IndicesPermissionWithRemoteClusterAliases> indicesPermissions
-) {
+public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGroups) {
 
-    // TODO use this
-    public static final RemoteIndicesPermission NONE = new RemoteIndicesPermission(new RestrictedIndices(Automatons.EMPTY), List.of());
+    public static final RemoteIndicesPermission NONE = new RemoteIndicesPermission(List.of());
 
+    // TODO should this return RemoteIndicesPermission?
     public IndicesPermission indicesPermissionFor(final String remoteClusterAlias) {
-        final var builder = new IndicesPermission.Builder(restrictedIndices);
-        for (var permissionWithRemoteClusterAlias : indicesPermissions) {
-            if (false == permissionWithRemoteClusterAlias.checkRemoteClusterAlias(remoteClusterAlias)) {
+        final var builder = new IndicesPermission.Builder(new RestrictedIndices(Automatons.EMPTY));
+        for (var remoteIndicesGroup : remoteIndicesGroups) {
+            if (false == remoteIndicesGroup.checkRemoteClusterAlias(remoteClusterAlias)) {
                 continue;
             }
             // TODO we can merge groups by `indices` here
-            for (var group : permissionWithRemoteClusterAlias.indicesPermission().groups()) {
-                builder.addGroup(
-                    group.privilege(),
-                    group.getFieldPermissions(),
-                    group.getQuery(),
-                    group.allowRestrictedIndices(),
-                    group.indices()
-                );
-            }
+            final var group = remoteIndicesGroup.indicesPermissionGroup();
+            builder.addGroup(
+                group.privilege(),
+                group.getFieldPermissions(),
+                group.getQuery(),
+                group.allowRestrictedIndices(),
+                group.indices()
+            );
         }
         // TODO cache result
         return builder.build();
     }
 
     public static class Builder {
-        final RestrictedIndices restrictedIndices;
-        final List<IndicesPermissionWithRemoteClusterAliases> indicesPermissions;
+        final List<RemoteIndicesGroup> remoteIndicesGroups;
 
-        public Builder(RestrictedIndices restrictedIndices) {
-            this.restrictedIndices = restrictedIndices;
-            this.indicesPermissions = new ArrayList<>();
+        public Builder() {
+            this.remoteIndicesGroups = new ArrayList<>();
         }
 
-        public Builder addIndicesPermission(
+        public Builder addRemoteIndicesGroup(
             final Set<String> remoteClusterAliases,
             final IndexPrivilege privilege,
             final FieldPermissions fieldPermissions,
@@ -66,25 +59,36 @@ public record RemoteIndicesPermission(
             final boolean allowRestrictedIndices,
             final String... indices
         ) {
-            final IndicesPermission.Builder indicesBuilder = new IndicesPermission.Builder(restrictedIndices);
-            indicesBuilder.addGroup(privilege, fieldPermissions, query, allowRestrictedIndices, indices);
-            indicesPermissions.add(new IndicesPermissionWithRemoteClusterAliases(remoteClusterAliases, indicesBuilder.build()));
+            remoteIndicesGroups.add(
+                new RemoteIndicesGroup(
+                    remoteClusterAliases,
+                    new IndicesPermission.Group(
+                        privilege,
+                        fieldPermissions,
+                        query,
+                        allowRestrictedIndices,
+                        new RestrictedIndices(Automatons.EMPTY),
+                        indices
+                    )
+                )
+            );
             return this;
         }
 
         public RemoteIndicesPermission build() {
-            return new RemoteIndicesPermission(restrictedIndices, Collections.unmodifiableList(indicesPermissions));
+            return new RemoteIndicesPermission(Collections.unmodifiableList(remoteIndicesGroups));
         }
     }
 
-    public record IndicesPermissionWithRemoteClusterAliases(
+    public record RemoteIndicesGroup(
         Set<String> remoteClusterAliases,
         StringMatcher remoteClusterAliasMatcher,
-        IndicesPermission indicesPermission
+        // List<>?
+        IndicesPermission.Group indicesPermissionGroup
     ) {
 
-        public IndicesPermissionWithRemoteClusterAliases(Set<String> remoteClusterAliases, IndicesPermission indicesPermission) {
-            this(remoteClusterAliases, StringMatcher.of(remoteClusterAliases), indicesPermission);
+        public RemoteIndicesGroup(Set<String> remoteClusterAliases, IndicesPermission.Group indicesPermissionGroup) {
+            this(remoteClusterAliases, StringMatcher.of(remoteClusterAliases), indicesPermissionGroup);
         }
 
         public boolean checkRemoteClusterAlias(final String remoteClusterAlias) {

@@ -181,7 +181,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
             .shardSize(shardSize)
             .subAggregation(new TermsAggregationBuilder("terms").field("id"));
 
-        InternalSampler result = searchAndReduce(new AggTestConfig(indexSearcher, query, builder, genreFieldType, idFieldType));
+        InternalSampler result = searchAndReduce(new AggTestConfig(indexSearcher, builder, genreFieldType, idFieldType).withQuery(query));
         verify.accept(result);
     }
 

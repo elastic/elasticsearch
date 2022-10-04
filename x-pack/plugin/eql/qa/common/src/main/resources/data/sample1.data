@@ -1,6 +1,5 @@
 [
   {
-    "@timestamp": "1234567891",
     "@timestamp_pretty": "12-12-2022",
     "missing_keyword": "test",
     "type_test": "abc",
@@ -14,7 +13,6 @@
     "id": 11
   },
   {
-    "@timestamp": "1234567892",
     "@timestamp_pretty": "13-12-2022",
     "event_type": "alert",
     "type_test": "abc",
@@ -26,7 +24,6 @@
     "id": 12
   },
   {
-    "@timestamp": "1234567893",
     "@timestamp_pretty": "12-12-2022",
     "event_type": "alert",
     "type_test": "abc",
@@ -39,7 +36,6 @@
     "id": 13
   },
   {
-    "@timestamp": "1234567894",
     "@timestamp_pretty": "13-12-2022",
     "event_type": "alert",
     "type_test": "abc",
@@ -51,7 +47,6 @@
     "id": 14
   },
   {
-    "@timestamp": "1234567895",
     "@timestamp_pretty": "17-12-2022",
     "event_type": "alert",
     "host": "sniper 3d",
@@ -62,7 +57,6 @@
     "id": 15
   },
   {
-    "@timestamp": "1234568896",
     "@timestamp_pretty": "17-12-2022",
     "event_type": "alert",
     "host": "doom",
@@ -73,7 +67,6 @@
     "id": 16
   },
   {
-    "@timestamp": "1234567897",
     "@timestamp_pretty": "17-12-2022",
     "missing_keyword": "yyy",
     "event_type": "failure",
@@ -86,7 +79,6 @@
     "id": 17
   },
   {
-    "@timestamp": "1234567898",
     "@timestamp_pretty": "12-12-2022",
     "missing_keyword": "test",
     "event_type": "success",
@@ -98,7 +90,6 @@
     "id": 18
   },
   {
-    "@timestamp": "1234567899",
     "@timestamp_pretty": "15-12-2022",
     "missing_keyword": "test",
     "event_type": "success",
@@ -110,7 +101,6 @@
     "id": 19
   },
   {
-    "@timestamp": "1234567893",
     "missing_keyword": null,
     "ip": "10.0.0.5",
     "event_type": "alert",

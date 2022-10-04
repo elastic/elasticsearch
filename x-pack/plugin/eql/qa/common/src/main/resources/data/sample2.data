@@ -1,6 +1,5 @@
 [
   {
-    "@timestamp": "1234567991",
     "type_test": "abc",
     "ip": "10.0.0.1",
     "event_type": "alert",
@@ -11,7 +10,6 @@
     "id": 21
   },
   {
-    "@timestamp": "1234567992",
     "type_test": "abc",
     "event_type": "alert",
     "host": "CS",
@@ -21,7 +19,6 @@
     "id": 22
   },
   {
-    "@timestamp": "1234567993",
     "type_test": "abc",
     "@timestamp_pretty": "2022-12-17",
     "event_type": "alert",
@@ -33,7 +30,6 @@
     "id": 23
   },
   {
-    "@timestamp": "1234567994",
     "event_type": "alert",
     "host": "GTA",
     "uptime": 3,
@@ -42,7 +38,6 @@
     "id": 24
   },
   {
-    "@timestamp": "1234567995",
     "event_type": "alert",
     "host": "sniper 3d",
     "uptime": 6,
@@ -51,7 +46,6 @@
     "id": 25
   },
   {
-    "@timestamp": "1234568996",
     "@timestamp_pretty": "2022-12-17",
     "ip": "10.0.0.5",
     "event_type": "alert",
@@ -62,7 +56,6 @@
     "id": 26
   },
   {
-    "@timestamp": "1234567997",
     "@timestamp_pretty": "2022-12-17",
     "event_type": "failure",
     "host": "doom",
@@ -73,7 +66,6 @@
     "id": 27
   },
   {
-    "@timestamp": "1234567998",
     "ip": "10.0.0.1",
     "event_type": "success",
     "host": "doom",
@@ -83,7 +75,6 @@
     "id": 28
   },
   {
-    "@timestamp": "1234567999",
     "ip": "10.0.0.1",
     "event_type": "success",
     "host": "GTA",

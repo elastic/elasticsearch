@@ -62,7 +62,9 @@ public class KeyedFilter extends UnaryPlan {
     public List<? extends NamedExpression> extractionAttributes() {
         List<NamedExpression> out = new ArrayList<>();
 
-        out.add(timestamp);
+        if (Expressions.isPresent(timestamp)) {
+            out.add(timestamp);
+        }
         if (Expressions.isPresent(tiebreaker)) {
             out.add(tiebreaker);
         }

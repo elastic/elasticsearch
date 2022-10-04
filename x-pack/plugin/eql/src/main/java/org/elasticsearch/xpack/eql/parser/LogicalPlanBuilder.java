@@ -196,7 +196,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         List<KeyedFilter> queries = new ArrayList<>(ctx.joinTerm().size());
 
         for (JoinTermContext joinTermCtx : ctx.joinTerm()) {
-            KeyedFilter joinTerm = visitJoinTerm(joinTermCtx, parentJoinKeys);
+            KeyedFilter joinTerm = visitJoinTerm(joinTermCtx, parentJoinKeys, fieldTimestamp());
             int keySize = joinTerm.keys().size();
             if (numberOfKeys < 0) {
                 numberOfKeys = keySize;
@@ -231,14 +231,20 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         return new KeyedFilter(source, new LocalRelation(source, emptyList()), emptyList(), UNSPECIFIED_FIELD, UNSPECIFIED_FIELD);
     }
 
-    public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys) {
-        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery());
+    public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys, Attribute timestampField) {
+        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery(), timestampField);
     }
 
-    private KeyedFilter keyedFilter(List<Attribute> joinKeys, ParseTree ctx, JoinKeysContext joinCtx, SubqueryContext subqueryCtx) {
+    private KeyedFilter keyedFilter(
+        List<Attribute> joinKeys,
+        ParseTree ctx,
+        JoinKeysContext joinCtx,
+        SubqueryContext subqueryCtx,
+        Attribute timestampField
+    ) {
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(joinCtx));
         LogicalPlan eventQuery = visitEventFilter(subqueryCtx.eventFilter());
-        return new KeyedFilter(source(ctx), eventQuery, keys, fieldTimestamp(), fieldTiebreaker());
+        return new KeyedFilter(source(ctx), eventQuery, keys, timestampField, fieldTiebreaker());
     }
 
     @Override
@@ -327,7 +333,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {
-        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery());
+        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery(), fieldTimestamp());
     }
 
     @Override
@@ -391,7 +397,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         Source missingJoinKeysSource = null;
 
         for (JoinTermContext joinTermCtx : ctx.joinTerm()) {
-            KeyedFilter joinTerm = visitJoinTerm(joinTermCtx, parentJoinKeys);
+            KeyedFilter joinTerm = visitJoinTerm(joinTermCtx, parentJoinKeys, UNSPECIFIED_FIELD);
             int keySize = joinTerm.keys().size();
             if (numberOfKeys < 0) {
                 numberOfKeys = keySize;

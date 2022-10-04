@@ -9,9 +9,6 @@
 		"missing_keyword": {
 			"type": "keyword"
 		},
-	    "@timestamp": {
-	      "type": "date"
-	    },
 	    "type_test": {
 	    	"type": "keyword"
 	    },

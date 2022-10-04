@@ -1,6 +1,5 @@
 [
   {
-    "@timestamp": "1334567891",
     "host_ip": "10.0.0.1",
     "event_type": "alert",
     "host": "doom",
@@ -10,14 +9,12 @@
     "id": 31
   },
   {
-    "@timestamp": "1334567892",
     "event_type": "alert",
     "host": "CS",
     "os": "win10",
     "id": 32
   },
   {
-    "@timestamp": "1334567893",
     "event_type": "alert",
     "host": "farcry",
     "bool": true,
@@ -25,7 +22,6 @@
     "id": 33
   },
   {
-    "@timestamp": "1334567894",
     "event_type": "alert",
     "host": "GTA",
     "os": "slack",
@@ -33,14 +29,12 @@
     "id": 34
   },
   {
-    "@timestamp": "1234567895",
     "event_type": "alert",
     "host": "sniper 3d",
     "os": "fedora",
     "id": 35
   },
   {
-    "@timestamp": "1234578896",
     "host_ip": "10.0.0.1",
     "event_type": "alert",
     "host": "doom",
@@ -49,7 +43,6 @@
     "id": 36
   },
   {
-    "@timestamp": "1234567897",
     "event_type": "failure",
     "missing_keyword": "test",
     "host": "doom",
@@ -58,7 +51,6 @@
     "id": 37
   },
   {
-    "@timestamp": "1234577898",
     "event_type": "success",
     "host": "doom",
     "os": "win10",
@@ -66,7 +58,6 @@
     "date": "1671235200000"
   },
   {
-    "@timestamp": "1234577899",
     "host_ip": "10.0.0.5",
     "event_type": "success",
     "host": "GTA",

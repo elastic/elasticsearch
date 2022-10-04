@@ -40,7 +40,8 @@ public class StoredScriptsIT extends ESIntegTestCase {
     }
 
     public void testBasics() {
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(String.format(java.util.Locale.ROOT, """
+        assertAcked(client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(
+                String.format(java.util.Locale.ROOT, """
             {"script": {"lang": "%s", "source": "1"} }
             """, LANG)), XContentType.JSON));
         String script = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource().getSource();
@@ -53,7 +54,8 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().cluster().preparePutStoredScript().setId("id#").setContent(new BytesArray(String.format(java.util.Locale.ROOT, """
+            () -> client().admin().cluster().preparePutStoredScript().setId("id#").setContent(new BytesArray(
+                    String.format(java.util.Locale.ROOT, """
                 {"script": {"lang": "%s", "source": "1"} }
                 """, LANG)), XContentType.JSON).get()
         );
@@ -63,7 +65,8 @@ public class StoredScriptsIT extends ESIntegTestCase {
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(String.format(java.util.Locale.ROOT, """
+            () -> client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray(
+                    String.format(java.util.Locale.ROOT, """
                 {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
                 """, LANG)), XContentType.JSON).get()
         );

@@ -607,8 +607,6 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     private void parseValue(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context) {
         try {
             fieldParser.parser.parse(parser, value, context);
-        } catch (XContentParseException e) {
-            throw e;
         } catch (Exception ex) {
             throwFailedToParse(parser, currentFieldName, ex);
         }

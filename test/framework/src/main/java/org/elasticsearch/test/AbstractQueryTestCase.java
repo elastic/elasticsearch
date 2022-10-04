@@ -129,7 +129,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 IllegalArgumentException.class,
                 () -> parseQuery(Strings.toString(createQueryWithInnerQuery(q)))
             );
-            if (iae.getCause() != null) {
+            //there may be nested XContentParseExceptions coming from ObjectParser, we just extract the root cause
+            while (iae.getCause() != null) {
                 assertThat(iae.getCause(), Matchers.instanceOf(IllegalArgumentException.class));
                 iae = (IllegalArgumentException) iae.getCause();
             }

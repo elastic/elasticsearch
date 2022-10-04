@@ -134,7 +134,7 @@
   # Search the downsample target index including runtime fields
   - do:
       search:
-        index: source
+        index: target
         body:
           fields: [ tx_kb, rx_kb, sent_kb, received_kb ]
           sort: [ "_tsid", "@timestamp" ]

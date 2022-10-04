@@ -37,6 +37,8 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -299,9 +301,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
                 return (cache, breakerService) -> {
+                    ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.counter ?
+                        TimeSeriesValuesSourceType.COUNTER : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
                     final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
                         name(),
                         IndexNumericFieldData.NumericType.LONG,
+                        valuesSourceType,
                         (dv, n) -> { throw new UnsupportedOperationException(); }
                     ).build(cache, breakerService);
                     return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new);

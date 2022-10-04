@@ -33,9 +33,10 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
 
     private static File locateElasticsearchWorkspace(Gradle project) {
         if (project.getParent() == null) {
-            // See if "elasticsearch" is one of the included builds, if so use that project directory
+            // See if any of these included builds is the Elasticsearch project
             for (IncludedBuild includedBuild : project.getIncludedBuilds()) {
-                if (includedBuild.getName().equals("elasticsearch")) {
+                File versionProperties = new File(includedBuild.getProjectDir(), "build-tools-internal/version.properties");
+                if (versionProperties.exists()) {
                     return includedBuild.getProjectDir();
                 }
             }

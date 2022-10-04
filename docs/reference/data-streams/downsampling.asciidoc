@@ -120,15 +120,21 @@ on a downsampled index that has been downsampled at an hourly resolution
 minute 0, then 59 empty buckets, and then a bucket with data again for the next
 hour.
 
-NOTE: When runnning queries in {kib} and through Elastic solutions, a normal
+NOTE:
+
+There are a few things to note when querying downsampled indices:
+
+* When you run queries in {kib} and through Elastic solutions, a normal
 response is returned without notification that some of the queried indices are
 downsampled.
+* For <<search-aggregations-bucket-datehistogram-aggregation,date histogram aggregations>>, only `fixed_intervals` (and not calendar-aware intervals) are supported.
+* Only Coordinated Universal Time (UTC) date-times are supported.
 
 [discrete]
 [[downsampling-restrictions]]
 === Restrictions and limitations
 
-Note the following restrictions and limitations for downsampling:
+The following restrictions and limitations apply for downsampling:
 
 * Only indices in a <<tsds,time series data stream>> are supported. 
 

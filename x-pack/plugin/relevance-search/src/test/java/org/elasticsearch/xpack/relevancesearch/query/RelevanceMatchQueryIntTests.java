@@ -14,7 +14,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.relevancesearch.RelevanceSearchPlugin;
-import org.elasticsearch.xpack.relevancesearch.relevance.RelevanceSettingsService;
+import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
+import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 
 import java.util.Collection;
 import java.util.List;
@@ -46,7 +47,7 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
         createIndex(RelevanceSettingsService.ENT_SEARCH_INDEX);
     }
 
-    public void testTextFieldsWitoutSettings() {
+    public void testTextFieldsWithoutSettings() {
         indexDocument(
             DOCUMENTS_INDEX,
             "1",
@@ -97,6 +98,33 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
 
         relevanceMatchQueryBuilder.setQuery("text example");
         relevanceMatchQueryBuilder.setRelevanceSettingsId(settingsId);
+        SearchResponse response = client().prepareSearch(DOCUMENTS_INDEX).setQuery(relevanceMatchQueryBuilder).get();
+
+        assertHitCount(response, 1);
+        assertSearchHits(response, "1");
+    }
+
+    public void testCuration() {
+        final String curationId = "test-curation";
+        indexDocument(
+            CurationsService.ENT_SEARCH_INDEX,
+            CurationsService.CURATIONS_SETTINGS_PREFIX + curationId,
+            Map.of("fields", List.of("textField"))
+        );
+
+        indexDocument(
+            DOCUMENTS_INDEX,
+            "1",
+            Map.of("textField", "text example", "intField", 12, "doubleField", 13.45, "anotherTextField", "should match")
+        );
+        indexDocument(
+            DOCUMENTS_INDEX,
+            "2",
+            Map.of("textField", "other document", "intField", 12, "doubleField", 13.45, "anotherTextField", "text example")
+        );
+
+        relevanceMatchQueryBuilder.setQuery("text example");
+        relevanceMatchQueryBuilder.setRelevanceSettingsId(curationId);
         SearchResponse response = client().prepareSearch(DOCUMENTS_INDEX).setQuery(relevanceMatchQueryBuilder).get();
 
         assertHitCount(response, 1);

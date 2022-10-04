@@ -10,6 +10,7 @@ esplugin {
 dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
+  implementation project(path: xpackModule('search-business-rules'))
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }

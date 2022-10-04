@@ -33,6 +33,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     description = 'Generated a suitable checkstyle config for IDEs'
 
     String resources = "${elasticsearchProject.left()}/build-tools-internal/src/main/resources"
+    String buildConventionsJar = "${elasticsearchProject.left()}/build-conventions/build/libs/build-conventions.jar"
     String checkstyleConfig = "${resources}/checkstyle.xml"
     String checkstyleSuppressions = "${resources}/checkstyle_suppressions.xml"
     String checkstyleIdeFragment = "${resources}/checkstyle_ide_fragment.xml"
@@ -55,11 +56,11 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       // Configure the IntelliJ Checkstyle plugin by copying a standard file. We don't simply commit
       // the result to version control, because the plugin has a habit of modifying the file and
       // replacing the `$PROJECT_DIR$` placeholders, which developers must then revert.
-      Files.copy(
-        Paths.get(file(checkstylePluginConfigTemplate).getPath()),
-        Paths.get(file(checkstylePluginConfig).getPath()),
-        StandardCopyOption.REPLACE_EXISTING
-      )
+      project.copy {
+        from(checkstylePluginConfigTemplate)
+        into("${rootDir}/.idea")
+        expand(jarLocation: buildConventionsJar, configLocation: checkstyleIdeConfig)
+      }
 
       // Create an IDE-specific checkstyle config by first copying the standard config
       Files.copy(

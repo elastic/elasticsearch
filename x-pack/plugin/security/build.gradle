@@ -412,12 +412,15 @@ tasks.named("thirdPartyAudit").configure {
           'com.google.crypto.tink.subtle.X25519',
           'com.google.crypto.tink.subtle.XChaCha20Poly1305',
           'com.nimbusds.common.contenttype.ContentType',
-          'javax.activation.ActivationDataFlavor',
-          'javax.activation.DataContentHandler',
-          'javax.activation.DataHandler',
-          'javax.activation.DataSource',
-          'javax.activation.FileDataSource',
-          'javax.activation.FileTypeMap'
+          'jakarta.activation.ActivationDataFlavor',
+          'jakarta.activation.DataContentHandler',
+          'jakarta.activation.DataHandler',
+          'jakarta.activation.DataSource',
+          'jakarta.activation.FileDataSource',
+          'jakarta.activation.FileTypeMap',
+          'jakarta.servlet.ServletRequest',
+          'jakarta.servlet.http.HttpServletRequest',
+          'jakarta.servlet.http.HttpServletResponse'
   )
 }
 

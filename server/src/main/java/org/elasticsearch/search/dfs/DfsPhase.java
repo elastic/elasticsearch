@@ -57,13 +57,7 @@ public class DfsPhase {
     }
 
     private void collectStatistics(SearchContext context) throws IOException {
-        final DfsProfiler profiler;
-
-        if (context.getProfilers() == null) {
-            profiler = null;
-        } else {
-            profiler = context.getProfilers().getDfsProfiler();
-        }
+        final DfsProfiler profiler = context.getProfilers() == null ? null : context.getProfilers().getDfsProfiler();
 
         Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
         Map<Term, TermStatistics> stats = new HashMap<>();

@@ -57,9 +57,4 @@ public class SearchProfileResultsTests extends AbstractSerializingTestCase<Searc
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return ProfileResultTests.RANDOM_FIELDS_EXCLUDE_FILTER;
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90392")
-    public void testFromXContent() throws IOException {
-        super.testFromXContent();
-    }
 }

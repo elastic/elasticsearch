@@ -42,6 +42,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -93,8 +94,8 @@ import static org.elasticsearch.action.support.ContextPreservingActionListener.w
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
+import static org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.allowAll;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.core.security.user.User.isInternal;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
@@ -120,6 +121,7 @@ public class AuthorizationService {
     private final IndicesAndAliasesResolver indicesAndAliasesResolver;
     private final AuthenticationFailureHandler authcFailureHandler;
     private final ThreadContext threadContext;
+    private final SecurityContext securityContext;
     private final AnonymousUser anonymousUser;
     private final AuthorizationEngine rbacEngine;
     private final AuthorizationEngine authorizationEngine;
@@ -152,6 +154,7 @@ public class AuthorizationService {
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
+        this.securityContext = new SecurityContext(settings, this.threadContext);
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
@@ -394,7 +397,7 @@ public class AuthorizationService {
         if (ClusterPrivilegeResolver.isClusterAction(action)) {
             final ActionListener<AuthorizationResult> clusterAuthzListener = wrapPreservingContext(
                 new AuthorizationResultListener<>(result -> {
-                    threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.allowAll());
+                    securityContext.putIndicesAccessControl(allowAll());
                     listener.onResponse(null);
                 }, listener::onFailure, requestInfo, requestId, authzInfo),
                 threadContext
@@ -483,9 +486,7 @@ public class AuthorizationService {
         final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
-        if (result.getIndicesAccessControl() != null) {
-            threadContext.putTransient(INDICES_PERMISSIONS_KEY, result.getIndicesAccessControl());
-        }
+        securityContext.putIndicesAccessControl(result.getIndicesAccessControl());
         // if we are creating an index we need to authorize potential aliases created at the same time
         if (IndexPrivilege.CREATE_INDEX_MATCHER.test(action)) {
             assert (request instanceof CreateIndexRequest)
@@ -614,7 +615,7 @@ public class AuthorizationService {
     ) {
         final AuditTrail auditTrail = auditTrailService.get();
         if (SystemUser.isAuthorized(action)) {
-            threadContext.putTransient(INDICES_PERMISSIONS_KEY, IndicesAccessControl.allowAll());
+            securityContext.putIndicesAccessControl(allowAll());
             threadContext.putTransient(AUTHORIZATION_INFO_KEY, SYSTEM_AUTHZ_INFO);
             auditTrail.accessGranted(requestId, authentication, action, request, SYSTEM_AUTHZ_INFO);
             listener.onResponse(null);
@@ -766,7 +767,7 @@ public class AuthorizationService {
                         final IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(
                             resolvedIndex
                         );
-                        if (indexAccessControl == null || indexAccessControl.isGranted() == false) {
+                        if (indexAccessControl == null) {
                             auditTrail.explicitIndexAccessEvent(
                                 requestId,
                                 AuditLevel.ACCESS_DENIED,
@@ -964,7 +965,7 @@ public class AuthorizationService {
                     failureConsumer.accept(e);
                 }
             } else {
-                handleFailure(result.isAuditable(), result.getFailureContext(restrictedIndices), null);
+                handleFailure(result.isAuditable(), result.getFailureContext(requestInfo, restrictedIndices), null);
             }
         }
 

@@ -35,9 +35,4 @@ public class SearchProfileDfsPhaseResultTests extends AbstractSerializingTestCas
     protected SearchProfileDfsPhaseResult doParseInstance(XContentParser parser) throws IOException {
         return SearchProfileDfsPhaseResult.fromXContent(parser);
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90392")
-    public void testFromXContent() throws IOException {
-        super.testFromXContent();
-    }
 }

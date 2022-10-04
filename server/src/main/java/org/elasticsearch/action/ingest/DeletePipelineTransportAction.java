@@ -22,6 +22,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Optional;
+import java.util.Set;
+
 public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNodeAction<DeletePipelineRequest> {
 
     private final IngestService ingestService;
@@ -62,4 +65,13 @@ public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNo
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedPipelineAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(DeletePipelineRequest request) {
+        return Set.of(request.getId());
+    }
 }

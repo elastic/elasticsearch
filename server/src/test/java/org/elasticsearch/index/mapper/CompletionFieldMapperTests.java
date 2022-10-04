@@ -93,6 +93,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "standard"));
         checker.registerConflictCheck("preserve_separators", b -> b.field("preserve_separators", false));

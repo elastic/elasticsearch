@@ -303,6 +303,11 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         throw new AssumptionViolatedException("not supported");
     }

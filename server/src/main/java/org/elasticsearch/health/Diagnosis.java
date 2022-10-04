@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
 
@@ -149,5 +150,24 @@ public record Diagnosis(Definition definition, @Nullable Resource... affectedRes
 
         builder.field("help_url", definition.helpURL);
         return builder.endObject();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        Diagnosis diagnosis = (Diagnosis) o;
+        return definition.equals(diagnosis.definition) && Arrays.equals(affectedResources, diagnosis.affectedResources);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(definition);
+        result = 31 * result + Arrays.hashCode(affectedResources);
+        return result;
     }
 }

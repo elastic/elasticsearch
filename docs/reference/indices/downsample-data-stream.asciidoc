@@ -17,7 +17,7 @@ stored as a single document and stored in the downsample index.
 [[downsample-api-process]]
 ==== The downsampling process
 
-The downsample action traverses the source TSDS index and performs the following
+The downsampling operation traverses the source TSDS index and performs the following
 steps:
 
 . Creates a new document for each value of the `_tsid` field and each

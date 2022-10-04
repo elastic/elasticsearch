@@ -71,7 +71,7 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
 
     @Override
     public String configRoles() {
-        return """
+        return String.format(java.util.Locale.ROOT, """
             %s
             anonymous:
               cluster: [ manage_token ]
@@ -79,7 +79,7 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
                 - names: '*'
                   privileges: [ READ ]
               run_as: [ test_user ]
-            """.formatted(super.configRoles());
+            """, super.configRoles());
     }
 
     public void testAnonymousViaHttp() throws Exception {

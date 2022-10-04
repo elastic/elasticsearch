@@ -103,8 +103,8 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                 response.getSuccessfulShards(),
                 response.getSkippedShards(),
                 response.getFailedShards(),
-                response.getCompletionStatus() == null ? "" : """
-                    ,"completion_status" : %s""".formatted(response.getCompletionStatus().getStatus())
+                response.getCompletionStatus() == null ? "" : String.format(java.util.Locale.ROOT, """
+                    ,"completion_status" : %s""", response.getCompletionStatus().getStatus())
             );
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));

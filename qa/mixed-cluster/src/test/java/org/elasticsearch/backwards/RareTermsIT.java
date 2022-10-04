@@ -62,7 +62,7 @@ public class RareTermsIT extends ESRestTestCase {
 
     private void assertNumRareTerms(int maxDocs, int rareTerms) throws IOException {
         final Request request = new Request("POST", index + "/_search");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {
               "aggs": {
                 "rareTerms": {
@@ -72,7 +72,7 @@ public class RareTermsIT extends ESRestTestCase {
                   }
                 }
               }
-            }""".formatted(maxDocs));
+            }""", maxDocs));
         final Response response = client().performRequest(request);
         assertOK(response);
         final Object o = XContentMapValues.extractValue("aggregations.rareTerms.buckets", responseAsMap(response));

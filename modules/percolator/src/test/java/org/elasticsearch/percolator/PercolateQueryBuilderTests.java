@@ -252,9 +252,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     public void testFromJsonNoDocumentType() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder queryBuilder = parseQuery("""
+        QueryBuilder queryBuilder = parseQuery(String.format(java.util.Locale.ROOT, """
             {"percolate" : { "document": {}, "field":"%s"}}
-            """.formatted(queryField));
+            """, queryField));
         queryBuilder.toQuery(searchExecutionContext);
     }
 
@@ -272,9 +272,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testBothDocumentAndDocumentsSpecified() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery("""
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(String.format(java.util.Locale.ROOT, """
             {"percolate" : { "document": {}, "documents": [{}, {}], "field":"%s"}}
-            """.formatted(queryField)));
+            """, queryField)));
         assertThat(e.getMessage(), containsString("The following fields are not allowed together: [document, documents]"));
     }
 

@@ -308,9 +308,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "backing index [%s] in tsdb mode doesn't have the [index.time_series.end_time] index setting".formatted(
-                    DataStream.getDefaultBackingIndexName(dataStreamName, 1, twoHoursAgo.toEpochMilli())
-                )
+                String.format(java.util.Locale.ROOT, "backing index [%s] in tsdb mode doesn't have the [index.time_series.end_time] index setting", DataStream.getDefaultBackingIndexName(dataStreamName, 1, twoHoursAgo.toEpochMilli()))
             )
         );
     }

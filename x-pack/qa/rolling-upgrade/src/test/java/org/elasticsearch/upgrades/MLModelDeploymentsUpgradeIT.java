@@ -204,9 +204,9 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             { "vocabulary": [%s] }
-            """.formatted(quotedWords));
+            """, quotedWords));
         client().performRequest(request);
     }
 
@@ -276,9 +276,9 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);
@@ -287,9 +287,9 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private Response newInfer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
         var response = client().performRequest(request);
         assertOK(response);
         return response;

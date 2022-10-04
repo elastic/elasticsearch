@@ -104,9 +104,9 @@ public class InferenceIT extends InferenceTestCase {
 
     private Response infer(String modelId, String body) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {  "docs": [%s] }
-            """.formatted(body));
+            """, body));
         return client().performRequest(request);
     }
 

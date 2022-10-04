@@ -299,12 +299,12 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private void assertRefreshTokenInvalidated(String refreshToken) throws IOException {
         for (RestClient client : twoClients) {
             Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
-            refreshTokenRequest.setJsonEntity("""
+            refreshTokenRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
                 {
                   "refresh_token": "%s",
                   "grant_type": "refresh_token"
                 }
-                """.formatted(refreshToken));
+                """, refreshToken));
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(refreshTokenRequest));
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
@@ -368,11 +368,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private Map<String, Object> refreshToken(RestClient client, String refreshToken) throws IOException {
         final Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity("""
+        refreshTokenRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {
               "refresh_token": "%s",
               "grant_type": "refresh_token"
-            }""".formatted(refreshToken));
+            }""", refreshToken));
         Response refreshResponse = client.performRequest(refreshTokenRequest);
         assertOK(refreshResponse);
         return entityAsMap(refreshResponse);

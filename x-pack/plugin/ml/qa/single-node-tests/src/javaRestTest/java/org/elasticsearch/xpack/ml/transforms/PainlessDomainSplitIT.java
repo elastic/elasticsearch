@@ -205,7 +205,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             logger.info("params={}", mapAsJson);
 
             Request searchRequest = new Request("GET", "/painless/_search");
-            searchRequest.setJsonEntity("""
+            searchRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
                 {
                     "query" : {
                         "match_all": {}
@@ -219,7 +219,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                             }
                         }
                     }
-                }""".formatted(mapAsJson));
+                }""", mapAsJson));
             String responseBody = EntityUtils.toString(client().performRequest(searchRequest).getEntity());
             Matcher m = pattern.matcher(responseBody);
 
@@ -305,9 +305,9 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 // Anomaly has 100 docs, but we don't care about the value
                 for (int j = 0; j < 100; j++) {
                     Request createDocRequest = new Request("POST", "/painless/_doc");
-                    createDocRequest.setJsonEntity("""
+                    createDocRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
                         {"domain": "bar.bar.com", "time": "%s"}
-                        """.formatted(formattedTime));
+                        """, formattedTime));
                     client().performRequest(createDocRequest);
                 }
             } else {

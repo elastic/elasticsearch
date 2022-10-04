@@ -157,7 +157,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
 
         // indexStatsSummary()
         final String expected = stripWhitespace(
-            """
+            String.format(Locale.ROOT, """
                 {
                   "cluster_uuid": "_cluster",
                   "timestamp": "2017-08-09T08:18:59.402Z",
@@ -293,10 +293,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                       "avg_size_in_bytes": 0
                     }
                   }
-                }}""".formatted(
-                // Since the summary is being merged with other data, remove the enclosing braces.
-                indexStatsSummary().replaceAll("(^\\{|}$)", "")
-            )
+                }}""", indexStatsSummary().replaceAll("(^\\{|}$)", ""))
         );
         assertThat(xContent.utf8ToString(), equalTo(expected));
     }
@@ -325,7 +322,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = stripWhitespace("""
+        final String expected = stripWhitespace(String.format(Locale.ROOT, """
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-09T08:18:59.402Z",
@@ -340,7 +337,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                 "timestamp": "2017-08-31T08:46:30.855Z"
               },
               "index_stats": %s
-            }""".formatted(indexStatsSummary()));
+            }""", indexStatsSummary()));
         assertEquals(expected, xContent.utf8ToString());
     }
 

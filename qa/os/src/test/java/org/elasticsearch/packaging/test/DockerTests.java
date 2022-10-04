@@ -282,14 +282,14 @@ public class DockerTests extends PackagingTestCase {
             for (boolean useConfigFile : List.of(true, false)) {
                 mockServer.clearExpectations();
 
-                final String config = """
+                final String config = String.format(java.util.Locale.ROOT, """
                     plugins:
                         # This is the new plugin to install. We don't use an official plugin because then Elasticsearch
                         # will attempt an SSL connection and that just makes everything more complicated.
                       - id: my-plugin
                         location: http://example.com/my-plugin.zip
                     %s
-                    """.formatted(useConfigFile ? "proxy: mockserver:" + mockServer.getPort() : "");
+                    """, useConfigFile ? "proxy: mockserver:" + mockServer.getPort() : "");
 
                 final String filename = "elasticsearch-plugins.yml";
                 final Path pluginsConfigPath = tempDir.resolve(filename);

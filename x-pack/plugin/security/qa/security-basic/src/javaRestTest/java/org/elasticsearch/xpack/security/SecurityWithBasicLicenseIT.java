@@ -512,7 +512,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         // Profile hasPrivileges
         final Request hasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
         hasPrivilegesRequest.setOptions(requestOptions);
-        hasPrivilegesRequest.setJsonEntity("""
+        hasPrivilegesRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {
               "uids": [
                 "%s"
@@ -530,7 +530,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
                   }
                 ]
               }
-            }""".formatted(uid));
+            }""", uid));
         if (clusterHasTrialLicense) {
             assertOK(client.performRequest(hasPrivilegesRequest));
         } else {

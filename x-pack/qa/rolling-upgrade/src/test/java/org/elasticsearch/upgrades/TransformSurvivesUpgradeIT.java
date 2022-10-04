@@ -256,7 +256,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             TRANSFORM_INTERNAL_INDEX_PREFIX + "*," + TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED + "*" + "/_search"
         );
 
-        getStatsDocsRequest.setJsonEntity("""
+        getStatsDocsRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {
                "query": {
                  "bool": {
@@ -269,7 +269,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                },
                "sort": [ { "_index": { "order": "desc" } } ],
                "size": 1
-             }""".formatted(id));
+             }""", id));
         assertBusy(() -> {
             // Want to make sure we get the latest docs
             client().performRequest(new Request("POST", TRANSFORM_INTERNAL_INDEX_PREFIX + "*/_refresh"));

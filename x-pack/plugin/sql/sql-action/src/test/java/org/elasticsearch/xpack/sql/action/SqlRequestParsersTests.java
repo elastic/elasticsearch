@@ -57,14 +57,14 @@ public class SqlRequestParsersTests extends ESTestCase {
             {"cursor" : "whatever", "fetch_size":123}""", "unknown field [fetch_size]", SqlClearCursorRequest::fromXContent);
         Mode randomMode = randomFrom(Mode.values());
 
-        SqlClearCursorRequest request = generateRequest("""
+        SqlClearCursorRequest request = generateRequest(String.format(java.util.Locale.ROOT, """
             {
               "cursor": "whatever",
               "mode": "%s",
               "client_id": "bla",
               "version": "1.2.3",
               "binary_format": true
-            }""".formatted(randomMode), SqlClearCursorRequest::fromXContent);
+            }""", randomMode), SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
         assertNull(request.version());
         assertEquals(randomMode, request.mode());
@@ -72,13 +72,13 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertTrue(request.binaryCommunication());
 
         randomMode = randomFrom(Mode.values());
-        request = generateRequest("""
+        request = generateRequest(String.format(java.util.Locale.ROOT, """
             {
               "cursor": "whatever",
               "mode": "%s",
               "client_id": "bla",
               "binary_format": false
-            }""".formatted(randomMode.toString()), SqlClearCursorRequest::fromXContent);
+            }""", randomMode.toString()), SqlClearCursorRequest::fromXContent);
         assertNull(request.clientId());
         assertEquals(randomMode, request.mode());
         assertEquals("whatever", request.getCursor());
@@ -117,12 +117,12 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertEquals(Mode.PLAIN, request.mode());
 
         Mode randomMode = randomFrom(Mode.values());
-        request = generateRequest("""
+        request = generateRequest(String.format(java.util.Locale.ROOT, """
             {
               "query": "whatever",
               "client_id": "foo",
               "mode": "%s"
-            }""".formatted(randomMode.toString()), SqlTranslateRequest::fromXContent);
+            }""", randomMode.toString()), SqlTranslateRequest::fromXContent);
         assertNull(request.clientId());
         assertEquals(randomMode, request.mode());
     }
@@ -190,7 +190,7 @@ public class SqlRequestParsersTests extends ESTestCase {
 
     public void testParamsSuccessfulParsingInDriverMode() throws IOException {
         Mode driverMode = randomValueOtherThanMany((m) -> Mode.isDriver(m) == false, () -> randomFrom(Mode.values()));
-        String json = """
+        String json = String.format(java.util.Locale.ROOT, """
             {
               "params": [
                 {
@@ -211,7 +211,7 @@ public class SqlRequestParsersTests extends ESTestCase {
                 }
               ],
               "mode": "%s"
-            }""".formatted(driverMode);
+            }""", driverMode);
         SqlQueryRequest request = generateRequest(json, SqlQueryRequest::fromXContent);
         List<SqlTypedParamValue> params = request.params();
         assertEquals(4, params.size());
@@ -235,11 +235,11 @@ public class SqlRequestParsersTests extends ESTestCase {
 
     public void testParamsSuccessfulParsingInNonDriverMode() throws IOException {
         Mode nonDriverMode = randomValueOtherThanMany(Mode::isDriver, () -> randomFrom(Mode.values()));
-        String json = """
+        String json = String.format(java.util.Locale.ROOT, """
             {
               "params": [ 35000, "1960-01-01", false, "foo" ],
               "mode": "%s"
-            }""".formatted(nonDriverMode);
+            }""", nonDriverMode);
         SqlQueryRequest request = generateRequest(json, SqlQueryRequest::fromXContent);
         List<SqlTypedParamValue> params = request.params();
         assertEquals(4, params.size());
@@ -263,22 +263,22 @@ public class SqlRequestParsersTests extends ESTestCase {
 
     public void testParamsParsingFailure_QueryRequest_NonDriver() throws IOException {
         Mode m = randomValueOtherThanMany(Mode::isDriver, () -> randomFrom(Mode.values()));
-        assertXContentParsingErrorMessage("""
+        assertXContentParsingErrorMessage(String.format(java.util.Locale.ROOT, """
             {
               "params": [ { "whatever": 35000 }, "1960-01-01", false, "foo" ],
               "mode": "%s"
-            }""".formatted(m), "[sql/query] failed to parse field [params]", SqlQueryRequest::fromXContent);
-        assertXContentParsingErrorMessage("""
+            }""", m), "[sql/query] failed to parse field [params]", SqlQueryRequest::fromXContent);
+        assertXContentParsingErrorMessage(String.format(java.util.Locale.ROOT, """
             {
               "params": [ 350.123, "1960-01-01", { "foobar": false }, "foo" ],
               "mode": "}%s"
-            }""".formatted(m), "[sql/query] failed to parse field [params]", SqlQueryRequest::fromXContent);
+            }""", m), "[sql/query] failed to parse field [params]", SqlQueryRequest::fromXContent);
         assertXContentParsingErrorMessage(
-            """
+            String.format(java.util.Locale.ROOT, """
                 {
                   "mode": "%s",
                   "params": [ 350.123, "1960-01-01", false, { "type": "keyword", "value": "foo" } ]
-                }""".formatted(m),
+                }""", m),
             "[params] must be an array where each entry is a single field (no objects supported)",
             SqlQueryRequest::fromXContent
         );
@@ -286,22 +286,22 @@ public class SqlRequestParsersTests extends ESTestCase {
 
     public void testParamsParsingFailure_TranslateRequest_NonDriver() throws IOException {
         Mode m = randomValueOtherThanMany(Mode::isDriver, () -> randomFrom(Mode.values()));
-        assertXContentParsingErrorMessage("""
+        assertXContentParsingErrorMessage(String.format(java.util.Locale.ROOT, """
             {
               "params": [ { "whatever": 35000 }, "1960-01-01", false, "foo" ],
               "mode": "%s"
-            }""".formatted(m), "[sql/query] failed to parse field [params]", SqlTranslateRequest::fromXContent);
-        assertXContentParsingErrorMessage("""
+            }""", m), "[sql/query] failed to parse field [params]", SqlTranslateRequest::fromXContent);
+        assertXContentParsingErrorMessage(String.format(java.util.Locale.ROOT, """
             {
               "params": [ 350.123, "1960-01-01", { "foobar": false }, "foo" ],
               "mode": "}%s"
-            }""".formatted(m), "[sql/query] failed to parse field [params]", SqlTranslateRequest::fromXContent);
+            }""", m), "[sql/query] failed to parse field [params]", SqlTranslateRequest::fromXContent);
         assertXContentParsingErrorMessage(
-            """
+            String.format(java.util.Locale.ROOT, """
                 {
                   "mode": "%s",
                   "params": [ 350.123, "1960-01-01", false, { "type": "keyword", "value": "foo" } ]
-                }""".formatted(m),
+                }""", m),
             "[params] must be an array where each entry is a single field (no objects supported)",
             SqlTranslateRequest::fromXContent
         );
@@ -310,7 +310,7 @@ public class SqlRequestParsersTests extends ESTestCase {
     public void testParamsParsingFailure_Driver() throws IOException {
         Mode m = randomValueOtherThanMany((t) -> Mode.isDriver(t) == false, () -> randomFrom(Mode.values()));
         assertXContentParsingErrorMessage(
-            """
+            String.format(java.util.Locale.ROOT, """
                 {
                   "params": [
                     35000,
@@ -324,12 +324,12 @@ public class SqlRequestParsersTests extends ESTestCase {
                     }
                   ],
                   "mode": "%s"
-                }""".formatted(m),
+                }""", m),
             "[params] must be an array where each entry is an object with a value/type pair",
             SqlQueryRequest::fromXContent
         );
         assertXContentParsingErrorMessage(
-            """
+            String.format(java.util.Locale.ROOT, """
                 {
                   "params": [
                     {
@@ -344,11 +344,11 @@ public class SqlRequestParsersTests extends ESTestCase {
                     "foo"
                   ],
                   "mode": "%s"
-                }""".formatted(m),
+                }""", m),
             "[params] must be an array where each entry is an object with a value/type pair",
             SqlQueryRequest::fromXContent
         );
-        assertXContentParsingErrorMessage("""
+        assertXContentParsingErrorMessage(String.format(java.util.Locale.ROOT, """
             {
               "mode": "%s",
               "params": [
@@ -364,7 +364,7 @@ public class SqlRequestParsersTests extends ESTestCase {
                   "foo": "bar"
                 }
               ]
-            }""".formatted(m), "[sql/query] failed to parse field [params]", SqlQueryRequest::fromXContent);
+            }""", m), "[sql/query] failed to parse field [params]", SqlQueryRequest::fromXContent);
     }
 
     private <R extends AbstractSqlRequest> R generateRequest(String json, Function<XContentParser, R> fromXContent) throws IOException {

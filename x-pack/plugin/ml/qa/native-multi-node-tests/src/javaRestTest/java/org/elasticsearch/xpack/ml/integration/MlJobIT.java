@@ -219,8 +219,8 @@ public class MlJobIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 String aliasesResponse = getAliases();
-                assertThat(aliasesResponse, containsString("""
-                    "%s":{"aliases":{""".formatted(AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName))));
+                assertThat(aliasesResponse, containsString(String.format(Locale.ROOT, """
+                    "%s":{"aliases":{""", AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName))));
                 assertThat(
                     aliasesResponse,
                     containsString(
@@ -231,8 +231,8 @@ public class MlJobIT extends ESRestTestCase {
                         )
                     )
                 );
-                assertThat(aliasesResponse, containsString("""
-                    "%s":{"is_hidden":true}""".formatted(AnomalyDetectorsIndex.resultsWriteAlias(jobId1))));
+                assertThat(aliasesResponse, containsString(String.format(Locale.ROOT, """
+                    "%s":{"is_hidden":true}""", AnomalyDetectorsIndex.resultsWriteAlias(jobId1))));
                 assertThat(
                     aliasesResponse,
                     containsString(
@@ -243,8 +243,8 @@ public class MlJobIT extends ESRestTestCase {
                         )
                     )
                 );
-                assertThat(aliasesResponse, containsString("""
-                    "%s":{"is_hidden":true}""".formatted(AnomalyDetectorsIndex.resultsWriteAlias(jobId2))));
+                assertThat(aliasesResponse, containsString(String.format(Locale.ROOT, """
+                    "%s":{"is_hidden":true}""", AnomalyDetectorsIndex.resultsWriteAlias(jobId2))));
             } catch (ResponseException e) {
                 throw new AssertionError(e);
             }
@@ -924,8 +924,8 @@ public class MlJobIT extends ESRestTestCase {
             AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
             jobId
         );
-        String expectedWriteAliasString = """
-            "%s":{"is_hidden":true}""".formatted(AnomalyDetectorsIndex.resultsWriteAlias(jobId));
+        String expectedWriteAliasString = String.format(Locale.ROOT, """
+            "%s":{"is_hidden":true}""", AnomalyDetectorsIndex.resultsWriteAlias(jobId));
         try {
             // The idea of the code above is that the deletion is sufficiently time-consuming that
             // all threads enter the deletion call before the first one exits it. Usually this happens,

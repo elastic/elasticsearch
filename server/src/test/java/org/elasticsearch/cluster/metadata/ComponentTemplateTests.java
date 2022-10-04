@@ -206,20 +206,20 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
 
         {
             String randomString = randomAlphaOfLength(10);
-            CompressedXContent m1 = new CompressedXContent("""
+            CompressedXContent m1 = new CompressedXContent(String.format(java.util.Locale.ROOT, """
                 {"properties":{"%s":{"type":"keyword"}}}
-                """.formatted(randomString));
-            CompressedXContent m2 = new CompressedXContent("""
+                """, randomString));
+            CompressedXContent m2 = new CompressedXContent(String.format(java.util.Locale.ROOT, """
                 {"properties":{"%s":{"type":"keyword"}}}
-                """.formatted(randomString));
+                """, randomString));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
         }
 
         {
             CompressedXContent m1 = randomMappings();
-            CompressedXContent m2 = new CompressedXContent("""
+            CompressedXContent m2 = new CompressedXContent(String.format(java.util.Locale.ROOT, """
                 {"properties":{"%s":{"type":"keyword"}}}
-                """.formatted(randomAlphaOfLength(10)));
+                """, randomAlphaOfLength(10)));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(false));
         }
 

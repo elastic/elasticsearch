@@ -317,7 +317,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(String.format(java.util.Locale.ROOT, """
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -370,7 +370,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""".formatted(Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentGateway_FlatSettingFalse_ReduceMappingTrue() throws IOException {

@@ -298,7 +298,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String pipelineId = "my-pivot-pipeline";
         int pipelineValue = 42;
         Request pipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
-        pipelineRequest.setJsonEntity("""
+        pipelineRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {
                "description" : "my pivot pipeline",
                "processors" : [
@@ -309,7 +309,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                    }
                  }
                ]
-            }""".formatted(pipelineValue));
+            }""", pipelineValue));
         client().performRequest(pipelineRequest);
 
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
@@ -929,7 +929,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = String.format(java.util.Locale.ROOT, """
             {
               "source": {
                 "index": "%s"
@@ -956,7 +956,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME);
+            }""", REVIEWS_INDEX_NAME);
 
         createPreviewRequest.setJsonEntity(config);
 
@@ -980,7 +980,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String pipelineId = "my-preview-pivot-pipeline";
         int pipelineValue = 42;
         Request pipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
-        pipelineRequest.setJsonEntity("""
+        pipelineRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {
               "description": "my pivot preview pipeline",
               "processors": [
@@ -992,7 +992,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                 }
               ]
             }
-            """.formatted(pipelineValue));
+            """, pipelineValue));
         client().performRequest(pipelineRequest);
 
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);

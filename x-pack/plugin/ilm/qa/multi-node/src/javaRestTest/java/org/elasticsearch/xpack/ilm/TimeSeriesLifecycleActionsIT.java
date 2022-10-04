@@ -552,7 +552,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testNonexistentPolicy() throws Exception {
         String indexPrefix = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
-        final StringEntity template = new StringEntity("""
+        final StringEntity template = new StringEntity(String.format(Locale.ROOT, """
             {
               "index_patterns": "%s*",
               "settings": {
@@ -563,7 +563,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                   }
                 }
               }
-            }""".formatted(indexPrefix), ContentType.APPLICATION_JSON);
+            }""", indexPrefix), ContentType.APPLICATION_JSON);
         Request templateRequest = new Request("PUT", "_template/test");
         templateRequest.setEntity(template);
         templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
@@ -780,14 +780,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // update policy on index
         updatePolicy(client(), originalIndex, policy);
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity("""
+        createIndexTemplate.setJsonEntity(String.format(Locale.ROOT, """
             {"index_patterns": ["%s-*"],
               "settings": {
                 "number_of_shards": 1,
                 "number_of_replicas": 142,
                 "index.write.wait_for_active_shards": "all"
               }
-            }""".formatted(index));
+            }""", index));
         createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
@@ -1170,7 +1170,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 success,
                 indexName,
                 stepName,
-                phase == null ? "" : ",{\"term\": {\"state.phase\": \"%s\"}}".formatted(phase),
+                phase == null ? "" : String.format(Locale.ROOT, ",{\"term\": {\"state.phase\": \"%s\"}}", phase),
                 action == null ? "" : ",{\"term\": {\"state.action\": \"" + action + "\"}}"
             )
         );

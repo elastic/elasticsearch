@@ -464,9 +464,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             long business = i % 50;
             String dateString = dateStringProvider.apply(i);
 
-            sourceBuilder.append("""
+            sourceBuilder.append(String.format(Locale.ROOT, """
                 {"create":{"_index":"%s"}}
-                """.formatted(indexName));
+                """, indexName));
 
             sourceBuilder.append("{");
             if (user != null) {

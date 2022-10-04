@@ -81,17 +81,17 @@ public class ProfileHasPrivilegesResponseTests extends AbstractWireSerializingTe
                 final String errorString;
                 final Exception e = response.errors().get(k);
                 if (e instanceof IllegalArgumentException illegalArgumentException) {
-                    errorString = """
+                    errorString = String.format(java.util.Locale.ROOT, """
                         {
                           "type": "illegal_argument_exception",
                           "reason": "%s"
-                        }""".formatted(illegalArgumentException.getMessage());
+                        }""", illegalArgumentException.getMessage());
                 } else if (e instanceof ResourceNotFoundException resourceNotFoundException) {
-                    errorString = """
+                    errorString = String.format(java.util.Locale.ROOT, """
                         {
                           "type": "resource_not_found_exception",
                           "reason": "%s"
-                        }""".formatted(resourceNotFoundException.getMessage());
+                        }""", resourceNotFoundException.getMessage());
                 } else if (e instanceof ElasticsearchException elasticsearchException) {
                     errorString = """
                         {

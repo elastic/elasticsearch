@@ -138,11 +138,11 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
     protected void setUserPassword(String username, SecureString password) throws IOException {
         final String endpoint = "/_security/user/" + username + "/_password";
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        final String body = """
+        final String body = String.format(java.util.Locale.ROOT, """
             {
                 "password": "%s"
             }
-            """.formatted(password.toString());
+            """, password.toString());
         request.setJsonEntity(body);
         request.setOptions(RequestOptions.DEFAULT);
         adminClient().performRequest(request);

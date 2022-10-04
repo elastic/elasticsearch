@@ -482,9 +482,9 @@ public class TransformIT extends TransformRestTestCase {
     private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {
         StringBuilder bulkBuilder = new StringBuilder();
         for (int i = 0; i < 25; i++) {
-            bulkBuilder.append("""
+            bulkBuilder.append(String.format(java.util.Locale.ROOT, """
                 {"create":{"_index":"%s"}}
-                """.formatted(index));
+                """, index));
 
             int stars = (i + 20) % 5;
             long business = (i + 100) % 50;

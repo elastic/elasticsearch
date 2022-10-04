@@ -58,7 +58,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
      */
     @BeforeClass
     public static void registerClients() throws Exception {
-        String codeClient = """
+        String codeClient = String.format(java.util.Locale.ROOT, """
             {
               "grant_types": [ "authorization_code" ],
               "response_types": [ "code" ],
@@ -66,16 +66,16 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
               "preferred_client_secret": "%s",
               "redirect_uris": [ "https://my.fantastic.rp/cb" ],
               "token_endpoint_auth_method": "client_secret_basic"
-            }""".formatted(CLIENT_SECRET);
-        String implicitClient = """
+            }""", CLIENT_SECRET);
+        String implicitClient = String.format(java.util.Locale.ROOT, """
             {
               "grant_types": [ "implicit" ],
               "response_types": [ "token id_token" ],
               "preferred_client_id": "elasticsearch-rp",
               "preferred_client_secret": "%s",
               "redirect_uris": [ "https://my.fantastic.rp/cb" ]
-            }""".formatted(CLIENT_SECRET);
-        String postClient = """
+            }""", CLIENT_SECRET);
+        String postClient = String.format(java.util.Locale.ROOT, """
             {
               "grant_types": [ "authorization_code" ],
               "response_types": [ "code" ],
@@ -83,8 +83,8 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
               "preferred_client_secret": "%s",
               "redirect_uris": [ "https://my.fantastic.rp/cb" ],
               "token_endpoint_auth_method": "client_secret_post"
-            }""".formatted(CLIENT_SECRET);
-        String jwtClient = """
+            }""", CLIENT_SECRET);
+        String jwtClient = String.format(java.util.Locale.ROOT, """
             {
               "grant_types": [ "authorization_code" ],
               "response_types": [ "code" ],
@@ -92,7 +92,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
               "preferred_client_secret": "%s",
               "redirect_uris": [ "https://my.fantastic.rp/cb" ],
               "token_endpoint_auth_method": "client_secret_jwt"
-            }""".formatted(CLIENT_SECRET);
+            }""", CLIENT_SECRET);
         registerClients(codeClient, implicitClient, postClient, jwtClient);
     }
 
@@ -269,8 +269,8 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
                 { "cluster" : ["manage_oidc", "manage_token"] }""");
             restClient.performRequest(createRoleRequest);
             Request createUserRequest = new Request("PUT", "/_security/user/facilitator");
-            createUserRequest.setJsonEntity("""
-                { "password" : "%s", "roles" : ["facilitator"] }""".formatted(FACILITATOR_PASSWORD));
+            createUserRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+                { "password" : "%s", "roles" : ["facilitator"] }""", FACILITATOR_PASSWORD));
             restClient.performRequest(createUserRequest);
         }
     }
@@ -310,7 +310,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
             restClient.performRequest(createRoleMappingRequest);
 
             createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_limited");
-            createRoleMappingRequest.setJsonEntity("""
+            createRoleMappingRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
                 {
                   "roles": [ "limited_user" ],
                   "enabled": true,
@@ -319,7 +319,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
                       "realm.name": "%s"
                     }
                   }
-                }""".formatted(REALM_NAME_IMPLICIT));
+                }""", REALM_NAME_IMPLICIT));
             restClient.performRequest(createRoleMappingRequest);
 
             createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_auditor");

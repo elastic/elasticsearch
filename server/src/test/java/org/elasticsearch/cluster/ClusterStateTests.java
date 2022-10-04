@@ -803,7 +803,7 @@ public class ClusterStateTests extends ESTestCase {
         clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(String.format(java.util.Locale.ROOT, """
             {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
@@ -869,7 +869,7 @@ public class ClusterStateTests extends ESTestCase {
                 "unassigned" : [ ],
                 "nodes" : { }
               }
-            }""".formatted(Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id), Strings.toString(builder));
     }
 
     private ClusterState buildClusterState() throws IOException {

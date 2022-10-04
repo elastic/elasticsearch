@@ -162,11 +162,11 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
             """.formatted(indexName, indexName, indexName, indexName, indexName, indexName, indexName));
 
         // missing value for cpu
-        bulk.append("""
+        bulk.append(String.format(java.util.Locale.ROOT, """
             {"index":{"_index":"%s"}}
             {"host":"host-3"}
 
-            """.formatted(indexName));
+            """, indexName));
         final Request bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.setJsonEntity(bulk.toString());

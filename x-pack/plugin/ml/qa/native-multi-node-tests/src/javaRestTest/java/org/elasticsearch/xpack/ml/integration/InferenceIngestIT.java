@@ -390,7 +390,7 @@ public class InferenceIngestIT extends ESRestTestCase {
     public void testSimulateWithDefaultMappedField() throws IOException {
         String classificationModelId = "test_classification_default_mapped_field";
         putModel(classificationModelId, CLASSIFICATION_CONFIG);
-        String source = """
+        String source = String.format(java.util.Locale.ROOT, """
             {
               "pipeline": {
                 "processors": [
@@ -420,7 +420,7 @@ public class InferenceIngestIT extends ESRestTestCase {
                   }
                 }
               ]
-            }""".formatted(classificationModelId);
+            }""", classificationModelId);
 
         Response response = client().performRequest(simulateRequest(source));
         String responseString = EntityUtils.toString(response.getEntity());
@@ -674,7 +674,7 @@ public class InferenceIngestIT extends ESRestTestCase {
           }
         }""";
 
-    private static final String REGRESSION_CONFIG = """
+    private static final String REGRESSION_CONFIG = String.format(java.util.Locale.ROOT, """
         {
             "input": {
                 "field_names": [
@@ -689,14 +689,14 @@ public class InferenceIngestIT extends ESRestTestCase {
                 "regression": {}
             },
             "definition": %s
-        }""".formatted(REGRESSION_DEFINITION);
+        }""", REGRESSION_DEFINITION);
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
-    private static final String CLASSIFICATION_CONFIG = """
+    private static final String CLASSIFICATION_CONFIG = String.format(java.util.Locale.ROOT, """
         {
           "input": {
             "field_names": [ "col1", "col2", "col3", "col4" ]
@@ -709,7 +709,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "classification": {}
           },
           "definition": %s
-        }""".formatted(InferenceDefinitionTests.getClassificationDefinition(false));
+        }""", InferenceDefinitionTests.getClassificationDefinition(false));
 
     private static String pipelineDefinition(String modelId, String inferenceConfig) {
         return """

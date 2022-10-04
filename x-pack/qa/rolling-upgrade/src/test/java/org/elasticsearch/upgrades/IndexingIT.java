@@ -127,8 +127,8 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("""
+        assertEquals(String.format(java.util.Locale.ROOT, """
             {"hits":{"total":%s}}\
-            """.formatted(count), EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+            """, count), EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
     }
 }

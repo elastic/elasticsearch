@@ -287,5 +287,209 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     .build()
             )
             .build();
+<<<<<<< HEAD
+=======
+        Metadata metadata = Metadata.builder().indices(Map.of("index", indexMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(nodes).metadata(metadata).build();
+
+        RoutingExplanations routingExplanations = new RoutingExplanations();
+        routingExplanations.add(new RerouteExplanation(new AllocateReplicaAllocationCommand("index", 0, "node0"), Decision.YES));
+        ClusterRerouteResponse clusterRerouteResponse = new ClusterRerouteResponse(true, clusterState, routingExplanations);
+        {
+            XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+            clusterRerouteResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertEquals(
+                XContentHelper.stripWhitespace(String.format(Locale.ROOT, """
+                    {
+                      "acknowledged": true,
+                      "state": {
+                        "cluster_uuid": "_na_",
+                        "version": 0,
+                        "state_uuid": "%s",
+                        "master_node": "node0",
+                        "blocks": {},
+                        "nodes": {
+                          "node0": {
+                            "name": "",
+                            "ephemeral_id": "%s",
+                            "transport_address": "0.0.0.0:9000",
+                            "external_id": "",
+                            "attributes": {},
+                            "roles": [
+                              "data",
+                              "data_cold",
+                              "data_content",
+                              "data_frozen",
+                              "data_hot",
+                              "data_warm",
+                              "ingest",
+                              "master",
+                              "ml",
+                              "remote_cluster_client",
+                              "transform",
+                              "voting_only"
+                            ]
+                          }
+                        },
+                        "metadata": {
+                          "cluster_uuid": "_na_",
+                          "cluster_uuid_committed": false,
+                          "cluster_coordination": {
+                            "term": 0,
+                            "last_committed_config": [],
+                            "last_accepted_config": [],
+                            "voting_config_exclusions": []
+                          },
+                          "templates": {},
+                          "indices": {
+                            "index": {
+                              "version": 1,
+                              "mapping_version": 1,
+                              "settings_version": 1,
+                              "aliases_version": 1,
+                              "routing_num_shards": 1,
+                              "state": "open",
+                              "settings": {
+                                "index": {
+                                  "shard": {
+                                    "check_on_startup": "true"
+                                  },
+                                  "number_of_shards": "1",
+                                  "number_of_replicas": "0",
+                                  "version": {
+                                    "created": "%s"
+                                  },
+                                  "max_script_fields": "10"
+                                }
+                              },
+                              "mappings": {},
+                              "aliases": [],
+                              "primary_terms": {
+                                "0": 0
+                              },
+                              "in_sync_allocations": {
+                                "0": []
+                              },
+                              "rollover_info": {},
+                              "system": false,
+                              "timestamp_range": {
+                                "shards": []
+                              }
+                            }
+                          },
+                          "index-graveyard": {
+                            "tombstones": []
+                          },
+                          "reserved_state":{}
+                        },
+                        "routing_table": {
+                          "indices": {}
+                        },
+                        "routing_nodes": {
+                          "unassigned": [],
+                          "nodes": {
+                            "node0": []
+                          }
+                        }
+                      }
+                    }""", clusterState.stateUUID(), node0.getEphemeralId(), Version.CURRENT.id)),
+                XContentHelper.stripWhitespace(Strings.toString(builder))
+            );
+        }
+        {
+            XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+            Map<String, String> params = new HashMap<>();
+            params.put("explain", "true");
+            params.put("metric", "version,master_node");
+            clusterRerouteResponse.toXContent(builder, new ToXContent.MapParams(params));
+            assertEquals(XContentHelper.stripWhitespace(String.format(java.util.Locale.ROOT, """
+                {
+                  "acknowledged": true,
+                  "state": {
+                    "cluster_uuid": "_na_",
+                    "version": 0,
+                    "state_uuid": "%s",
+                    "master_node": "node0"
+                  },
+                  "explanations": [
+                    {
+                      "command": "allocate_replica",
+                      "parameters": {
+                        "index": "index",
+                        "shard": 0,
+                        "node": "node0"
+                      },
+                      "decisions": [
+                        {
+                          "decider": null,
+                          "decision": "YES",
+                          "explanation": "none"
+                        }
+                      ]
+                    }
+                  ]
+                }""", clusterState.stateUUID())), XContentHelper.stripWhitespace(Strings.toString(builder)));
+        }
+        {
+            XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+            Map<String, String> params = new HashMap<>();
+            params.put("metric", "metadata");
+            params.put("settings_filter", "index.number*,index.version.created");
+            clusterRerouteResponse.toXContent(builder, new ToXContent.MapParams(params));
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "acknowledged" : true,
+                  "state" : {
+                    "cluster_uuid" : "_na_",
+                    "metadata" : {
+                      "cluster_uuid" : "_na_",
+                      "cluster_uuid_committed" : false,
+                      "cluster_coordination" : {
+                        "term" : 0,
+                        "last_committed_config" : [ ],
+                        "last_accepted_config" : [ ],
+                        "voting_config_exclusions" : [ ]
+                      },
+                      "templates" : { },
+                      "indices" : {
+                        "index" : {
+                          "version" : 1,
+                          "mapping_version" : 1,
+                          "settings_version" : 1,
+                          "aliases_version" : 1,
+                          "routing_num_shards" : 1,
+                          "state" : "open",
+                          "settings" : {
+                            "index" : {
+                              "max_script_fields" : "10",
+                              "shard" : {
+                                "check_on_startup" : "true"
+                              }
+                            }
+                          },
+                          "mappings" : { },
+                          "aliases" : [ ],
+                          "primary_terms" : {
+                            "0" : 0
+                          },
+                          "in_sync_allocations" : {
+                            "0" : [ ]
+                          },
+                          "rollover_info" : { },
+                          "system" : false,
+                          "timestamp_range" : {
+                            "shards" : [ ]
+                          }
+                        }
+                      },
+                      "index-graveyard" : {
+                        "tombstones" : [ ]
+                      },
+                      "reserved_state":{}
+                    }
+                  }
+                }"""), XContentHelper.stripWhitespace(Strings.toString(builder)));
+        }
+>>>>>>> b1040dbfd2f1 (Replace String.formatted())
     }
 }

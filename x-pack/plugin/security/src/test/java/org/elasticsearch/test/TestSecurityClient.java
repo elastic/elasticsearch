@@ -111,11 +111,11 @@ public class TestSecurityClient {
     public void changePassword(String username, SecureString password) throws IOException {
         final String endpoint = "/_security/user/" + username + "/_password";
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        final String body = """
+        final String body = String.format(java.util.Locale.ROOT, """
             {
                 "password": "%s"
             }
-            """.formatted(password.toString());
+            """, password.toString());
         request.setJsonEntity(body);
         execute(request);
     }
@@ -159,11 +159,11 @@ public class TestSecurityClient {
     public void invalidateApiKeysForUser(String username) throws IOException {
         final String endpoint = "/_security/api_key/";
         final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {
                 "username":"%s"
             }
-            """.formatted(username));
+            """, username));
         execute(request);
     }
 
@@ -308,12 +308,12 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction
      */
     public OAuth2Token refreshToken(String refreshToken) throws IOException {
-        return createToken("""
+        return createToken(String.format(java.util.Locale.ROOT, """
             {
               "grant_type":"refresh_token",
               "refresh_token":"%s"
             }
-            """.formatted(refreshToken));
+            """, refreshToken));
     }
 
     /**
@@ -345,11 +345,11 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateAccessToken(String accessToken) throws IOException {
-        return invalidateTokens("""
+        return invalidateTokens(String.format(java.util.Locale.ROOT, """
             {
               "token":"%s"
             }
-            """.formatted(accessToken));
+            """, accessToken));
     }
 
     /**
@@ -357,11 +357,11 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateRefreshToken(String refreshToken) throws IOException {
-        return invalidateTokens("""
+        return invalidateTokens(String.format(java.util.Locale.ROOT, """
             {
               "refresh_token":"%s"
             }
-            """.formatted(refreshToken));
+            """, refreshToken));
     }
 
     /**
@@ -369,11 +369,11 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateTokensForUser(String username) throws IOException {
-        return invalidateTokens("""
+        return invalidateTokens(String.format(java.util.Locale.ROOT, """
             {
               "username":"%s"
             }
-            """.formatted(username));
+            """, username));
     }
 
     /**
@@ -381,11 +381,11 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateTokensForRealm(String realmName) throws IOException {
-        return invalidateTokens("""
+        return invalidateTokens(String.format(java.util.Locale.ROOT, """
             {
               "realm_name":"%s"
             }
-            """.formatted(realmName));
+            """, realmName));
     }
 
     @SuppressWarnings("unchecked")

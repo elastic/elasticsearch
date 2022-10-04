@@ -198,9 +198,9 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
             int numDocs = randomIntBetween(1000, 20000);
             Set<String> modifiedEvents = new HashSet<>();
-            String action = """
+            String action = String.format(Locale.ROOT, """
                 {"create":{"_index":"%s"}}
-                """.formatted(sourceIndexName);
+                """, sourceIndexName);
             for (int numDoc = 0; numDoc < numDocs; numDoc++) {
                 source.append(action);
                 source.append("{");

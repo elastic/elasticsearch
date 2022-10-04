@@ -467,7 +467,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 intervalType = "interval";
             }
 
-            createRollupJobRequest.setJsonEntity("""
+            createRollupJobRequest.setJsonEntity(String.format(Locale.ROOT, """
                 {
                   "index_pattern": "rollup-*",
                   "rollup_index": "results-rollup",
@@ -485,7 +485,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                       "metrics": [ "min", "max", "sum" ]
                     }
                   ]
-                }""".formatted(intervalType));
+                }""", intervalType));
 
             Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));

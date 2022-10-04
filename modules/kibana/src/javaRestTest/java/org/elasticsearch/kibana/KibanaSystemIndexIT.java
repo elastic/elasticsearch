@@ -69,20 +69,20 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testBulkToKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
-            """.formatted(indexName));
+            """, indexName));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testRefresh() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
-            """.formatted(indexName));
+            """, indexName));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 
@@ -100,10 +100,10 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testGetFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
-            """.formatted(indexName));
+            """, indexName));
         request.addParameter("refresh", "true");
 
         Response response = client().performRequest(request);

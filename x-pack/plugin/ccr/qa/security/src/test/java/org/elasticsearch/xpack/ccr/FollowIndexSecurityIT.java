@@ -290,9 +290,9 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 for (var i = 0; i < numDocs; i++) {
                     var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                     indexRequest.addParameter("refresh", "true");
-                    indexRequest.setJsonEntity("""
+                    indexRequest.setJsonEntity(String.format(Locale.ROOT, """
                         {"@timestamp": "%s","message":"abc"}
-                        """.formatted(dateFormat.format(new Date())));
+                        """, dateFormat.format(new Date())));
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));

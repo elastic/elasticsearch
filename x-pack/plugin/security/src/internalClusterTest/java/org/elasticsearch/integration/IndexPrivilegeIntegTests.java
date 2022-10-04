@@ -129,7 +129,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         final Hasher passwdHasher = getFastStoredHashAlgoForTests();
         final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
-        return super.configUsers() + """
+        return super.configUsers() + String.format(Locale.ROOT, """
             admin:%1$s
             u1:%1$s
             u2:%1$s
@@ -145,7 +145,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
             u13:%1$s
             u14:%1$s
             u15:%1$s
-            """.formatted(usersPasswdHashed);
+            """, usersPasswdHashed);
     }
 
     @Override
@@ -662,30 +662,30 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     // test auto mapping update is allowed but deprecated
-                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", """
-                        { "%s" : "foo" }""".formatted(UUIDs.randomBase64UUID()));
+                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", String.format(Locale.ROOT, """
+                        { "%s" : "foo" }""", UUIDs.randomBase64UUID()));
                     String warningHeader = response.getHeader("Warning");
-                    assertThat(warningHeader, containsString("""
+                    assertThat(warningHeader, containsString(String.format(Locale.ROOT, """
                         the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index [%s], \
                         this privilege will not permit mapping updates in the next major release - users who require access to update \
-                        mappings must be granted explicit privileges""".formatted(index)));
+                        mappings must be granted explicit privileges""", index)));
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
                         { "doc" : { "foo" : "baz" } }
                         """);
-                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
+                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", String.format(Locale.ROOT, """
                         { "doc" : { "%s" : "baz" } }
-                        """.formatted(UUIDs.randomBase64UUID()));
+                        """, UUIDs.randomBase64UUID()));
                     warningHeader = response.getHeader("Warning");
-                    assertThat(warningHeader, containsString("""
+                    assertThat(warningHeader, containsString(String.format(Locale.ROOT, """
                         the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index [%s], \
                         this privilege will not permit mapping updates in the next major release - users who require access to update \
                         mappings must be granted explicit privileges\
-                        """.formatted(index)));
-                    assertThat(warningHeader, containsString("""
+                        """, index)));
+                    assertThat(warningHeader, containsString(String.format(Locale.ROOT, """
                         the index privilege [index] allowed the update mapping action [indices:admin/mapping/auto_put] on index [%s], \
                         this privilege will not permit mapping updates in the next major release - users who require access to update \
                         mappings must be granted explicit privileges\
-                        """.formatted(index)));
+                        """, index)));
                 } else {
                     assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
@@ -712,8 +712,8 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
 
                     assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
                     // test auto mapping update is allowed but deprecated
-                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", """
-                        { "%s" : "foo" }""".formatted(UUIDs.randomBase64UUID()));
+                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", String.format(Locale.ROOT, """
+                        { "%s" : "foo" }""", UUIDs.randomBase64UUID()));
                     String warningHeader = response.getHeader("Warning");
                     assertThat(
                         warningHeader,
@@ -727,9 +727,9 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
                         { "doc" : { "foo" : "baz" } }
                         """);
-                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", """
+                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", String.format(Locale.ROOT, """
                         { "doc" : { "%s" : "baz" } }
-                        """.formatted(UUIDs.randomBase64UUID()));
+                        """, UUIDs.randomBase64UUID()));
                     warningHeader = response.getHeader("Warning");
                     assertThat(
                         warningHeader,

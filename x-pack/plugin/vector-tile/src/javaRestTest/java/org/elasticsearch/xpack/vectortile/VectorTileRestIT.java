@@ -677,7 +677,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         {
             // desc order, polygon should be the first hit
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity("""
+            mvtRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
                 {
                   "size" : 100,
                   "grid_precision" : 0,
@@ -688,7 +688,7 @@ public class VectorTileRestIT extends ESRestTestCase {
                       }
                     }
                 ]}
-                """.formatted(runtimeMapping));
+                """, runtimeMapping));
 
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(2));
@@ -700,7 +700,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         {
             // asc order, polygon should be the last hit
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity("""
+            mvtRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
                 {
                   "size" : 100,
                   "grid_precision" : 0,
@@ -712,7 +712,7 @@ public class VectorTileRestIT extends ESRestTestCase {
                       }
                     }
                   ]}
-                """.formatted(runtimeMapping));
+                """, runtimeMapping));
 
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(2));

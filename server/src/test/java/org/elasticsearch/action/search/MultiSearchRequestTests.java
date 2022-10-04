@@ -194,7 +194,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             tookInMillis
         );
 
-        assertEquals(XContentHelper.stripWhitespace("""
+        assertEquals(XContentHelper.stripWhitespace(String.format(java.util.Locale.ROOT, """
             {
               "took": %s,
               "responses": [
@@ -215,7 +215,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                   "status": 500
                 }
               ]
-            }""".formatted(tookInMillis)), Strings.toString(response));
+            }""", tookInMillis)), Strings.toString(response));
     }
 
     public void testMaxConcurrentSearchRequests() {

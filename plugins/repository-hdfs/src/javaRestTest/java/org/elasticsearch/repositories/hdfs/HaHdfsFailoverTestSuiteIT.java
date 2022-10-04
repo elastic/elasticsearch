@@ -139,8 +139,8 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
 
     private String securityCredentials(boolean securityEnabled, String kerberosPrincipal) {
         if (securityEnabled) {
-            return """
-                "security.principal": "%s","conf.dfs.data.transfer.protection": "authentication",""".formatted(kerberosPrincipal);
+            return String.format(java.util.Locale.ROOT, """
+                "security.principal": "%s","conf.dfs.data.transfer.protection": "authentication",""", kerberosPrincipal);
         } else {
             return "";
         }

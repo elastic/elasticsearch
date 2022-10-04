@@ -52,13 +52,13 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
     }
 
     private String defaultRole(String roleName) {
-        return """
+        return String.format(java.util.Locale.ROOT, """
             %s:
               cluster: [ none ]
               indices:
                 - names: 'a'
                   privileges: [ all ]
-            """.formatted(roleName);
+            """, roleName);
     }
 
     @Override

@@ -224,9 +224,9 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResults() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        GroupConfig groupBy = parseGroupConfig("""
+        GroupConfig groupBy = parseGroupConfig(String.format(java.util.Locale.ROOT, """
             { "%s" : {"terms" : {   "field" : "doesn't_matter_for_this_test"} } }
-            """.formatted(targetField));
+            """, targetField));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -295,14 +295,14 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        GroupConfig groupBy = parseGroupConfig("""
+        GroupConfig groupBy = parseGroupConfig(String.format(java.util.Locale.ROOT, """
             {
               "%s": {
                 "terms": {
                   "field": "doesn't_matter_for_this_test"
                 }
               }
-            }""".formatted(targetField));
+            }""", targetField));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;

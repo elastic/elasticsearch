@@ -121,7 +121,7 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
                         executingPolicy.getTaskInfo().runningTimeNanos(),
                         executingPolicy.getTaskInfo().cancellable(),
                         executingPolicy.getTaskInfo().cancellable()
-                            ? "\"cancelled\": %s,".formatted(executingPolicy.getTaskInfo().cancelled())
+                            ? String.format(Locale.ROOT, "\"cancelled\": %s,", executingPolicy.getTaskInfo().cancelled())
                             : "",
                         header.map(entry -> String.format(Locale.ROOT, """
                             {"%s":"%s"}""", entry.getKey(), entry.getValue())).orElse("{}")

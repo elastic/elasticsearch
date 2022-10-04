@@ -101,7 +101,7 @@ public class ProfileIT extends ESRestTestCase {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String profileUid = (String) activateProfileMap.get("uid");
         final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
-        profileHasPrivilegesRequest.setJsonEntity("""
+        profileHasPrivilegesRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {
               "uids": ["some_missing_profile", "%s"],
               "privileges": {
@@ -115,7 +115,7 @@ public class ProfileIT extends ESRestTestCase {
                   "cluster:monitor/health"
                 ]
               }
-            }""".formatted(profileUid));
+            }""", profileUid));
 
         final Response profileHasPrivilegesResponse = adminClient().performRequest(profileHasPrivilegesRequest);
         assertOK(profileHasPrivilegesResponse);
@@ -263,17 +263,17 @@ public class ProfileIT extends ESRestTestCase {
         final String payload;
         switch (randomIntBetween(0, 2)) {
             case 0 -> {
-                payload = """
+                payload = String.format(java.util.Locale.ROOT, """
                     {
                       "name": "rac",
                       "hint": {
                         "uids": ["%s"]
                       }
                     }
-                    """.formatted("not-" + uid);
+                    """, "not-" + uid);
             }
             case 1 -> {
-                payload = """
+                payload = String.format(java.util.Locale.ROOT, """
                     {
                       "name": "rac",
                       "hint": {
@@ -282,7 +282,7 @@ public class ProfileIT extends ESRestTestCase {
                         }
                       }
                     }
-                    """.formatted(randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+                    """, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
             }
             default -> {
                 payload = """

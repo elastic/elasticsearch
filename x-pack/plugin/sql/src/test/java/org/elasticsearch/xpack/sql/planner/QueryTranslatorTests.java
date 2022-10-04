@@ -770,7 +770,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 + randomFunction.name()
                 + "(date + INTERVAL 1 YEAR)"
         );
-        assertESQuery(p, containsString("""
+        assertESQuery(p, containsString(String.format(Locale.ROOT, """
             {
               "terms": {
                 "script": {
@@ -791,7 +791,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 "order": "asc"
               }
             }}]}}}}
-            """.formatted(randomFunction.name()).replaceAll("\\s", "")));
+            """, randomFunction.name()).replaceAll("\\s", "")));
     }
 
     public void testDateTimeFunctionsWithMathIntervalAndGroupBy() {
@@ -803,7 +803,7 @@ public class QueryTranslatorTests extends ESTestCase {
         );
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("""
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(String.format(Locale.ROOT, """
             {
               "terms": {
                 "script": {
@@ -818,7 +818,7 @@ public class QueryTranslatorTests extends ESTestCase {
                     "v3": "Z"
                   }
                 },
-                "missing_bucket": true,""".formatted(scriptMethods[pos]).replaceAll("\\s", "")));
+                "missing_bucket": true,""", scriptMethods[pos]).replaceAll("\\s", "")));
     }
 
     // Like/RLike/StartsWith
@@ -1203,9 +1203,9 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(((MetricAggRef) fe).property(), metricToAgg.get(funcName));
 
             String aggName = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations().iterator().next().getName();
-            assertESQuery(p, endsWith("""
+            assertESQuery(p, endsWith(String.format(Locale.ROOT, """
                 "aggregations":{"%s":{"extended_stats":{"field":"int","sigma":2.0}}}}}}\
-                """.formatted(aggName)));
+                """, aggName)));
         }
 
     }

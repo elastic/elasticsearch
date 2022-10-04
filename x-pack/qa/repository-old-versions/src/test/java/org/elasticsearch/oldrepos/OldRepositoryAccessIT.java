@@ -179,11 +179,11 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
         // register repo on old ES and take snapshot
         Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
-        createRepoRequest.setJsonEntity(sourceOnlyRepository ? """
+        createRepoRequest.setJsonEntity(sourceOnlyRepository ? String.format(Locale.ROOT, """
             {"type":"source","settings":{"location":"%s","delegate_type":"fs"}}
-            """.formatted(repoLocation) : """
+            """, repoLocation) : String.format(Locale.ROOT, """
             {"type":"fs","settings":{"location":"%s"}}
-            """.formatted(repoLocation));
+            """, repoLocation));
         assertOK(oldEs.performRequest(createRepoRequest));
 
         Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);

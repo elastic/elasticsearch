@@ -98,12 +98,12 @@ public class RolloverActionIT extends ESRestTestCase {
         );
 
         Request updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        updateSettingsRequest.setJsonEntity("""
+        updateSettingsRequest.setJsonEntity(String.format(Locale.ROOT, """
             {
               "settings": {
                 "%s": true
               }
-            }""".formatted(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
+            }""", LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
         client().performRequest(updateSettingsRequest);
         Request updateAliasRequest = new Request("POST", "/_aliases");
         updateAliasRequest.setJsonEntity("""

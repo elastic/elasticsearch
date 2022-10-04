@@ -217,14 +217,14 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
     }
 
     public void testQueryFailsWithWrongFieldType() {
-        String query = """
+        String query = String.format(java.util.Locale.ROOT, """
             {
               "distance_feature": {
                 "field": "%s",
                 "origin": 40,
                 "pivot": "random_string"
               }
-            }""".formatted(INT_FIELD_NAME);
+            }""", INT_FIELD_NAME);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> parseQuery(query).toQuery(createSearchExecutionContext())

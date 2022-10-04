@@ -100,9 +100,9 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
 
     @Override
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        String eventAgg = """
+        String eventAgg = String.format(java.util.Locale.ROOT, """
             , "aggs" : {"event": {"terms": {"field": "%s", "size": 1000, "order": {"_key": "asc"}}}}
-            """.formatted(termsField);
+            """, termsField);
 
         String querySource = """
             {

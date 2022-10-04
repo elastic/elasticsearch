@@ -135,10 +135,10 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     public void testAutoIdWithOpTypeCreate() throws IOException {
         final String indexName = "auto_id_and_op_type_create_index";
-        String b = """
+        String b = String.format(java.util.Locale.ROOT, """
             {"create": {"_index": "%s"}}
             {"f1": "v"}
-            """.formatted(indexName);
+            """, indexName);
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
         bulk.setJsonEntity(b);

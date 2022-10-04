@@ -21,8 +21,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class GeoTileGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, """
-            {"field":"my_loc", "precision":%s, "size": 500, "shard_size": 550}""".formatted(precision));
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, String.format(java.util.Locale.ROOT, """
+            {"field":"my_loc", "precision":%s, "size": 500, "shard_size": 550}""", precision));
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
@@ -31,9 +31,9 @@ public class GeoTileGridParserTests extends ESTestCase {
 
     public void testParseValidFromStrings() throws Exception {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, """
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, String.format(java.util.Locale.ROOT, """
             {"field":"my_loc", "precision":"%s", "size": "500", "shard_size": "550"}
-            """.formatted(precision));
+            """, precision));
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory

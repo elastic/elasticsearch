@@ -248,18 +248,18 @@ public class Archives {
         if (parameters != null && parameters.isEmpty() == false) {
             command.addAll(parameters);
         }
-        String keystoreScript = keystorePassword == null ? "" : """
+        String keystoreScript = keystorePassword == null ? "" : String.format(Locale.ROOT, """
             expect "Elasticsearch keystore password:"
             send "%s\\r"
-            """.formatted(keystorePassword);
-        String checkStartupScript = daemonize ? "expect eof" : """
+            """, keystorePassword);
+        String checkStartupScript = daemonize ? "expect eof" : String.format(Locale.ROOT, """
             expect {
               "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
               timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }
               eof { send_user "\\nFailed to determine if startup succeeded\\n"; exit 1 }
               %s
             }
-            """.formatted(null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started\"" : "\"" + outputStringToMatch + "\"");
+            """, null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started\"" : "\"" + outputStringToMatch + "\"");
         String expectScript = """
             expect - <<EXPECT
             set timeout 60

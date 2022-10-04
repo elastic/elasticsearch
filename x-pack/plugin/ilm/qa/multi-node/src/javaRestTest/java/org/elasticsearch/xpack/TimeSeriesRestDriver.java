@@ -329,7 +329,7 @@ public final class TimeSeriesRestDriver {
         if (useWriteIndex) {
             writeIndexSnippet = "\"is_write_index\": true";
         }
-        String m = mapping != null ? "\"mappings\": %s, ".formatted(mapping) : "";
+        String m = mapping != null ? String.format(Locale.ROOT, "\"mappings\": %s, ", mapping) : "";
         request.setJsonEntity("""
             {
              "settings": %s,
@@ -343,10 +343,10 @@ public final class TimeSeriesRestDriver {
 
     public static void createIndexWithSettings(RestClient client, String index, Settings.Builder settings) throws IOException {
         Request request = new Request("PUT", "/" + index);
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
              "settings": %s
-            }""".formatted(Strings.toString(settings.build())));
+            }""", Strings.toString(settings.build())));
         client.performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);

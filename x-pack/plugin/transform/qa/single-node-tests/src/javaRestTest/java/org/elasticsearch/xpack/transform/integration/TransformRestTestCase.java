@@ -73,9 +73,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         int hour = 10;
         int min = 10;
         for (int i = 0; i < numDocs; i++) {
-            bulk.append("""
+            bulk.append(String.format(Locale.ROOT, """
                 {"create":{"_index":"%s"}}
-                """.formatted(indexName));
+                """, indexName));
             long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % numUsers);
             int stars = distributionTable[(i * 33) % distributionTable.length];
             long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
@@ -297,16 +297,16 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             config += """
                 "dest": {"index":"%s", "pipeline":"%s"},""".formatted(transformIndex, pipeline);
         } else {
-            config += """
-                "dest": {"index":"%s"},""".formatted(transformIndex);
+            config += String.format(Locale.ROOT, """
+                "dest": {"index":"%s"},""", transformIndex);
         }
 
         if (query != null) {
             config += """
                 "source": {"index":"%s", "query":{%s}},""".formatted(sourceIndex, query);
         } else {
-            config += """
-                "source": {"index":"%s"},""".formatted(sourceIndex);
+            config += String.format(Locale.ROOT, """
+                "source": {"index":"%s"},""", sourceIndex);
         }
 
         config += """
@@ -588,7 +588,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected void setupDataAccessRole(String role, String... indices) throws IOException {
         String indicesStr = Arrays.stream(indices).collect(Collectors.joining("\",\"", "\"", "\""));
         Request request = new Request("PUT", "/_security/role/" + role);
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "indices": [
                 {
@@ -596,7 +596,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                   "privileges": [ "create_index", "read", "write", "view_index_metadata" ]
                 }
               ]
-            }""".formatted(indicesStr));
+            }""", indicesStr));
         client().performRequest(request);
     }
 

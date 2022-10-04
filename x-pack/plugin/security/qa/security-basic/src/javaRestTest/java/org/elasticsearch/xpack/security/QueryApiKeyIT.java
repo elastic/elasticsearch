@@ -113,10 +113,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 var subset = randomSubsetOf(randomIntBetween(1, 5), apiKeys);
                 assertQuery(
                     API_KEY_ADMIN_AUTH_HEADER,
-                    """
-                        { "query": { "ids": { "values": [%s] } } }""".formatted(
-                        subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(","))
-                    ),
+                    String.format(Locale.ROOT, """
+                        { "query": { "ids": { "values": [%s] } } }""", subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(","))),
                     keys -> {
                         assertThat(keys, hasSize(subset.size()));
                         keys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
@@ -165,10 +163,10 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
         final String invalidatedApiKeyId1 = createAndInvalidateApiKey("temporary-key-1", authHeader);
         final String queryString = randomFrom("""
-            {"query": { "term": {"name": "temporary-key-1"} } }""", """
+            {"query": { "term": {"name": "temporary-key-1"} } }""", String.format(Locale.ROOT, """
             {"query":{"bool":{"must":[{"term":{"name":{"value":"temporary-key-1"}}},\
             {"term":{"invalidated":{"value":"%s"}}}]}}}
-            """.formatted(randomBoolean()));
+            """, randomBoolean()));
 
         assertQuery(authHeader, queryString, apiKeys -> {
             if (queryString.contains("""
@@ -618,8 +616,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final Tuple<String, String> tuple = createApiKey(name, null, authHeader);
         final Request request = new Request("DELETE", "/_security/api_key");
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
-        request.setJsonEntity("""
-            {"ids": ["%s"],"owner":true}""".formatted(tuple.v1()));
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {"ids": ["%s"],"owner":true}""", tuple.v1()));
         assertOK(client().performRequest(request));
         return tuple.v1();
     }

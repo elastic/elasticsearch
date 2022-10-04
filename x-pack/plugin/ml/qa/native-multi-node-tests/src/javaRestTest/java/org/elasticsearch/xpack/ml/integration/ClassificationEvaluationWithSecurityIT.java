@@ -35,9 +35,9 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
 
     private static void setupDataAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {  "indices" : [    { "names": ["%s"], "privileges": ["read"] }  ]}
-            """.formatted(index));
+            """, index));
         client().performRequest(request);
     }
 
@@ -79,7 +79,7 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
 
     private static Request buildRegressionEval(String index, String primaryHeader, String secondaryHeader) {
         Request evaluateRequest = new Request("POST", "_ml/data_frame/_evaluate");
-        evaluateRequest.setJsonEntity("""
+        evaluateRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
             {
               "index": "%s",
               "evaluation": {
@@ -89,7 +89,7 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
                 }
               }
             }
-            """.formatted(index));
+            """, index));
         RequestOptions.Builder options = evaluateRequest.getOptions().toBuilder();
         options.addHeader("Authorization", primaryHeader);
         options.addHeader("es-secondary-authorization", secondaryHeader);

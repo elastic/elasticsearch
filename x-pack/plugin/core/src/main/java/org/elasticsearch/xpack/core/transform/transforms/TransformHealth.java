@@ -20,6 +20,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -29,22 +31,28 @@ public class TransformHealth implements Writeable, ToXContentObject {
 
     public static final String NAME = "data_frame_transform_health";
 
-    public static final TransformHealth EMPTY = new TransformHealth(HealthStatus.GREEN, null);
+    public static final TransformHealth OK = new TransformHealth(HealthStatus.GREEN, null);
 
     public static final TransformHealth UNKNOWN = new TransformHealth(HealthStatus.UNKNOWN, null);
 
     public static final ParseField STATUS = new ParseField("status");
-    public static final ParseField REASON = new ParseField("reason");
+    public static final ParseField ISSUES = new ParseField("issues");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<TransformHealth, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new TransformHealth((HealthStatus) a[0], (String) a[1])
+        a -> new TransformHealth((HealthStatus) a[0], (List<TransformHealthIssue>) a[1])
     );
 
     static {
-        PARSER.declareField(constructorArg(), p -> HealthStatus.valueOf(p.text()), STATUS, ObjectParser.ValueType.STRING);
-        PARSER.declareString(optionalConstructorArg(), REASON);
+        PARSER.declareField(
+            constructorArg(),
+            p -> HealthStatus.valueOf(p.text().toUpperCase(Locale.ROOT)),
+            STATUS,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> TransformHealthIssue.fromXContent(p), ISSUES);
     }
 
     public static TransformHealth fromXContent(XContentParser parser) throws IOException {
@@ -52,24 +60,24 @@ public class TransformHealth implements Writeable, ToXContentObject {
     }
 
     private final HealthStatus status;
-    private final String reason;
+    private final List<TransformHealthIssue> issues;
 
-    public TransformHealth(HealthStatus status, String reason) {
+    public TransformHealth(HealthStatus status, List<TransformHealthIssue> issues) {
         this.status = status;
-        this.reason = reason;
+        this.issues = issues;
     }
 
     public TransformHealth(StreamInput in) throws IOException {
         this.status = in.readEnum(HealthStatus.class);
-        this.reason = in.readOptionalString();
+        this.issues = in.readOptionalList(TransformHealthIssue::new);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(STATUS.getPreferredName(), status.xContentValue());
-        if (Strings.isNullOrEmpty(reason) == false) {
-            builder.field(REASON.getPreferredName(), reason);
+        if (issues != null && issues.isEmpty() == false) {
+            builder.field(ISSUES.getPreferredName(), issues);
         }
 
         return builder.endObject();
@@ -78,7 +86,7 @@ public class TransformHealth implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         status.writeTo(out);
-        out.writeOptionalString(reason);
+        out.writeOptionalCollection(issues);
     }
 
     @Override
@@ -93,12 +101,12 @@ public class TransformHealth implements Writeable, ToXContentObject {
 
         TransformHealth that = (TransformHealth) other;
 
-        return this.status.value() == that.status.value() && Objects.equals(this.reason, that.reason);
+        return this.status.value() == that.status.value() && Objects.equals(this.issues, that.issues);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(status, reason);
+        return Objects.hash(status, issues);
     }
 
     public String toString() {

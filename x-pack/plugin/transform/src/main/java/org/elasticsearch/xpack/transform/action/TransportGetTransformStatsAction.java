@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.TransformHealthChecker;
 import org.elasticsearch.xpack.transform.transforms.TransformNodeAssignments;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
@@ -240,7 +241,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             null,
             task.getStats(),
             checkpointingInfo == null ? TransformCheckpointingInfo.EMPTY : checkpointingInfo,
-            TransformHealth.UNKNOWN
+            TransformHealthChecker.checkTransform(task)
         );
     }
 
@@ -344,7 +345,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             null,
                             stat.getTransformStats(),
                             checkpointingInfo,
-                            TransformHealth.UNKNOWN
+                            TransformHealthChecker.checkUnassignedTransform(stat.getId(), clusterState)
                         )
                     );
                 } else {
@@ -356,7 +357,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             null,
                             stat.getTransformStats(),
                             checkpointingInfo,
-                            TransformHealth.UNKNOWN
+                            TransformHealth.OK
                         )
                     );
                 }

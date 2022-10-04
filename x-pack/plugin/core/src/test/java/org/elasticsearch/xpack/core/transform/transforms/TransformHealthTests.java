@@ -17,7 +17,10 @@ import java.io.IOException;
 public class TransformHealthTests extends AbstractSerializingTestCase<TransformHealth> {
 
     public static TransformHealth randomTransformHealth() {
-        return new TransformHealth(randomFrom(HealthStatus.values()), randomBoolean() ? null : randomAlphaOfLength(10));
+        return new TransformHealth(
+            randomFrom(HealthStatus.values()),
+            randomBoolean() ? null : randomList(1,10, TransformHealthIssueTests::randomTransformHealthIssue)
+        );
     }
 
     @Override

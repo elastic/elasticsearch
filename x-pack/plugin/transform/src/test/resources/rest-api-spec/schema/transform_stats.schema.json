@@ -65,24 +65,7 @@
       "description": "reason if failed"
     },
     "health": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "status": {
-          "type": "string",
-            "enum": [
-              "green",
-              "yellow",
-              "red",
-              "unknown"
-            ],
-            "description": "The transform health status"
-        },
-        "reason": {
-          "type": "string",
-          "description":  "reason for the health status"
-        }
-      }
+      "$ref": "file:transform_health.schema.json"
     }
   }
 }

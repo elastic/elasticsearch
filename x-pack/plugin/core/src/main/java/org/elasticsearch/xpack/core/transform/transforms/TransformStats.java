@@ -87,7 +87,7 @@ public class TransformStats implements Writeable, ToXContentObject {
     }
 
     public static TransformStats stoppedStats(String id, TransformIndexerStats indexerTransformStats) {
-        return new TransformStats(id, State.STOPPED, null, null, indexerTransformStats, TransformCheckpointingInfo.EMPTY, TransformHealth.EMPTY);
+        return new TransformStats(id, State.STOPPED, null, null, indexerTransformStats, TransformCheckpointingInfo.EMPTY, TransformHealth.OK);
     }
 
     public TransformStats(
@@ -121,9 +121,13 @@ public class TransformStats implements Writeable, ToXContentObject {
         this.checkpointingInfo = new TransformCheckpointingInfo(in);
 
         if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
-            this.health = new TransformHealth(in);
+            if (in.readBoolean()) {
+                this.health = new TransformHealth(in);
+            } else {
+                this.health = null;
+            }
         } else {
-            this.health = TransformHealth.UNKNOWN;
+            this.health = null;
         }
     }
 
@@ -140,7 +144,9 @@ public class TransformStats implements Writeable, ToXContentObject {
         }
         builder.field(TransformField.STATS_FIELD.getPreferredName(), indexerStats, params);
         builder.field(CHECKPOINTING_INFO_FIELD.getPreferredName(), checkpointingInfo, params);
-        builder.field(HEALTH_FIELD.getPreferredName(), health);
+        if (health != null) {
+            builder.field(HEALTH_FIELD.getPreferredName(), health);
+        }
         builder.endObject();
         return builder;
     }
@@ -159,7 +165,12 @@ public class TransformStats implements Writeable, ToXContentObject {
         indexerStats.writeTo(out);
         checkpointingInfo.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
-            health.writeTo(out);
+            if (health != null) {
+                out.writeBoolean(true);
+                health.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
     }
 

@@ -1101,7 +1101,7 @@ search query. For this example we use a term query.
 
 [source,console]
 --------------------------------------------------
-GET /my-dfs-index/_search?search_type=dfs_query_then_fetch&pretty <1>
+GET /my-dfs-index/_search?search_type=dfs_query_then_fetch&pretty&size=0 <1>
 {
   "profile": true, <2>
   "query": {
@@ -1142,6 +1142,8 @@ One of the `dfs` sections for a shard looks like the following:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ "$body.$_path", {\n"id": "$body.$_path",\n/]
+// TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path}]}}/]
 // TESTRESPONSE[s/(\-)?[0-9]+/ $body.$_path/]
 
 In the `dfs.statistics` portion of this response we see a `time_in_nanos`
@@ -1211,52 +1213,50 @@ One of the `dfs.knn` sections for a shard looks like the following:
 
 [source,js]
 --------------------------------------------------
-{
-    ...
-    "dfs" : {
-        ...
-        "knn" : {
-            "query" : [
-                {
-                    "type" : "DocAndScoreQuery",
-                    "description" : "DocAndScore[100]",
-                    "time_in_nanos" : 444414,
-                    "breakdown" : {
-                      "set_min_competitive_score_count" : 0,
-                      "match_count" : 0,
-                      "shallow_advance_count" : 0,
-                      "set_min_competitive_score" : 0,
-                      "next_doc" : 1688,
-                      "match" : 0,
-                      "next_doc_count" : 3,
-                      "score_count" : 3,
-                      "compute_max_score_count" : 0,
-                      "compute_max_score" : 0,
-                      "advance" : 4153,
-                      "advance_count" : 1,
-                      "score" : 2099,
-                      "build_scorer_count" : 2,
-                      "create_weight" : 128879,
-                      "shallow_advance" : 0,
-                      "create_weight_count" : 1,
-                      "build_scorer" : 307595
-                    }
+"dfs" : {
+    "knn" : {
+        "query" : [
+            {
+                "type" : "DocAndScoreQuery",
+                "description" : "DocAndScore[100]",
+                "time_in_nanos" : 444414,
+                "breakdown" : {
+                  "set_min_competitive_score_count" : 0,
+                  "match_count" : 0,
+                  "shallow_advance_count" : 0,
+                  "set_min_competitive_score" : 0,
+                  "next_doc" : 1688,
+                  "match" : 0,
+                  "next_doc_count" : 3,
+                  "score_count" : 3,
+                  "compute_max_score_count" : 0,
+                  "compute_max_score" : 0,
+                  "advance" : 4153,
+                  "advance_count" : 1,
+                  "score" : 2099,
+                  "build_scorer_count" : 2,
+                  "create_weight" : 128879,
+                  "shallow_advance" : 0,
+                  "create_weight_count" : 1,
+                  "build_scorer" : 307595
                 }
-            ],
-            "rewrite_time" : 1275732,
-            "collector" : [
-                {
-                    "name" : "SimpleTopScoreDocCollector",
-                    "reason" : "search_top_hits",
-                    "time_in_nanos" : 17163
-                }
-            ]
-        }
+            }
+        ],
+        "rewrite_time" : 1275732,
+        "collector" : [
+            {
+                "name" : "SimpleTopScoreDocCollector",
+                "reason" : "search_top_hits",
+                "time_in_nanos" : 17163
+            }
+        ]
     }
-    ...
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n/]
+// TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path, "fetch": $body.$_path}]}}/]
+// TESTRESPONSE[s/ (\-)?[0-9]+/ $body.$_path/]
+// TESTRESPONSE[s/"dfs" : \{/"dfs" : {"statistics": $body.$_path,/]
 
 In the `dfs.knn` portion of the response we can see the output
 the of timings for <<query-section, query>>, <<rewrite-section, rewrite>>,

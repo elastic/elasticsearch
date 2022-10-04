@@ -246,10 +246,9 @@ setup:
           }
 
   # Downsample using `1h` fixed interval
-  # NOTE: this operation succedes even if we have specific permissions setup on the `source` index. Ideally we would like to fail
-  # downsampling in this scenario and allow it only if the source index has no permissions defined.
   - do:
       headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      catch: '/Rollup forbidden for index \[source\] with document level or field level security settings./'
       indices.downsample:
         index: source
         target_index: target
@@ -257,25 +256,6 @@ setup:
           {
             "fixed_interval": "1h"
           }
-
-  - is_true: acknowledged
-
-  - do:
-      headers: { Authorization: "Basic dXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" }
-      search:
-        index: source
-        body:
-          sort: [ "_tsid", "@timestamp" ]
-
-  - length: { hits.hits: 8 }
-
-  - do:
-      headers: { Authorization: "Basic dXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" }
-      catch: '/action \[indices:data/read/search\] is unauthorized for user \[user\] with effective roles \[user-role\] on indices \[target\], this action is granted by the index privileges \[read,all\]/'
-      search:
-        index: target
-        body:
-          sort: [ "_tsid", "@timestamp" ]
 
 ---
 "User with limited permissions on a set of fields in the source and target index (field level security)":
@@ -337,10 +317,9 @@ setup:
           }
 
   # Downsample using `1h` fixed interval
-  # NOTE: this operation succedes even if we have specific permissions setup on the `source` index. Ideally we would like to fail
-  # downsampling in this scenario and allow it only if the source index has no permissions defined.
   - do:
       headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      catch: '/Rollup forbidden for index \[source\] with document level or field level security settings./'
       indices.downsample:
         index: source
         target_index: target
@@ -348,59 +327,3 @@ setup:
           {
             "fixed_interval": "1h"
           }
-
-  - is_true: acknowledged
-
-  - do:
-      headers: { Authorization: "Basic dXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" }
-      search:
-        index: source
-        body:
-          sort: [ "_tsid", "@timestamp" ]
-
-  - length: { hits.hits: 8 }
-  - match: { hits.hits.0._source.@timestamp: null }
-  - match: { hits.hits.0._source.metricset: null }
-  - match: { hits.hits.0._source.k8s.pod.uid: null }
-  - match: { hits.hits.1._source.@timestamp: null }
-  - match: { hits.hits.1._source.metricset: null }
-  - match: { hits.hits.1._source.k8s.pod.uid: null }
-  - match: { hits.hits.2._source.@timestamp: null }
-  - match: { hits.hits.2._source.metricset: null }
-  - match: { hits.hits.2._source.k8s.pod.uid: null }
-  - match: { hits.hits.3._source.@timestamp: null }
-  - match: { hits.hits.3._source.metricset: null }
-  - match: { hits.hits.3._source.k8s.pod.uid: null }
-  - match: { hits.hits.4._source.@timestamp: null }
-  - match: { hits.hits.4._source.metricset: null }
-  - match: { hits.hits.4._source.k8s.pod.uid: null }
-  - match: { hits.hits.5._source.@timestamp: null }
-  - match: { hits.hits.5._source.metricset: null }
-  - match: { hits.hits.5._source.k8s.pod.uid: null }
-  - match: { hits.hits.6._source.@timestamp: null }
-  - match: { hits.hits.6._source.metricset: null }
-  - match: { hits.hits.6._source.k8s.pod.uid: null }
-  - match: { hits.hits.7._source.@timestamp: null }
-  - match: { hits.hits.7._source.metricset: null }
-  - match: { hits.hits.7._source.k8s.pod.uid: null }
-
-  - do:
-      headers: { Authorization: "Basic dXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" }
-      search:
-        index: target
-        body:
-          sort: [ "_tsid", "@timestamp" ]
-
-  - length: { hits.hits: 4 }
-  - match: { hits.hits.0._source.@timestamp: null }
-  - match: { hits.hits.0._source.metricset: null }
-  - match: { hits.hits.0._source.k8s.pod.uid: null }
-  - match: { hits.hits.1._source.@timestamp: null }
-  - match: { hits.hits.1._source.metricset: null }
-  - match: { hits.hits.1._source.k8s.pod.uid: null }
-  - match: { hits.hits.2._source.@timestamp: null }
-  - match: { hits.hits.2._source.metricset: null }
-  - match: { hits.hits.2._source.k8s.pod.uid: null }
-  - match: { hits.hits.3._source.@timestamp: null }
-  - match: { hits.hits.3._source.metricset: null }
-  - match: { hits.hits.3._source.k8s.pod.uid: null }

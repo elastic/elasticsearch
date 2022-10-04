@@ -338,7 +338,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("scaled_float doesn't support ignore_above with synthetic _source", ignoreMalformed);
+        assumeFalse("scaled_float doesn't support ignore_malformed with synthetic _source", ignoreMalformed);
         return new ScaledFloatSyntheticSourceSupport();
     }
 

@@ -184,7 +184,7 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
         throw new AssumptionViolatedException("not supported");
     }
 

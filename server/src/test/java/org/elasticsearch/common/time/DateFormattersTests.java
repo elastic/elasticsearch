@@ -324,7 +324,23 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "1234567890", 1234567890999L);
     }
 
-    private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
+    public void testYearWithoutMonthRoundUp() {
+        assertRoundupFormatter("1500", "1500-01-01T23:59:59.999", "uuuu");
+        assertRoundupFormatter("2022", "2022-01-01T23:59:59.999", "uuuu");
+        assertRoundupFormatter("2022", "2022-01-01T23:59:59.999", "yyyy");
+        // cannot reliably default week based years due to locale changing. See JavaDateFormatter javadocs
+        assertRoundupFormatter("2022", "2022-01-03T23:59:59.999", "YYYY", Locale.ROOT);
+    }
+
+    private void assertRoundupFormatter(String input, String expectedDate, String format) {
+        long expectedMillis = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time")
+            .parse(expectedDate))
+            .toInstant()
+            .toEpochMilli();
+        assertRoundupFormatter(format, input, expectedMillis);
+    }
+
+        private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
         JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
         dateFormatter.parse(input);
         JavaDateFormatter roundUpFormatter = dateFormatter.getRoundupParser();

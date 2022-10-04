@@ -85,7 +85,11 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
         }
 
         public RemoteIndicesPermission build() {
-            return new RemoteIndicesPermission(Collections.unmodifiableList(remoteIndicesGroups));
+            if (remoteIndicesGroups.isEmpty()) {
+                return NONE;
+            } else {
+                return new RemoteIndicesPermission(Collections.unmodifiableList(remoteIndicesGroups));
+            }
         }
     }
 

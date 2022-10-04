@@ -9,11 +9,12 @@
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class PrevalidateNodeRemovalResponseSerializationTests extends AbstractWireSerializingTestCase<PrevalidateNodeRemovalResponse> {
+public class PrevalidateNodeRemovalResponseSerializationTests extends AbstractSerializingTestCase<PrevalidateNodeRemovalResponse> {
 
     @Override
     protected Writeable.Reader<PrevalidateNodeRemovalResponse> instanceReader() {
@@ -28,5 +29,10 @@ public class PrevalidateNodeRemovalResponseSerializationTests extends AbstractWi
     @Override
     protected PrevalidateNodeRemovalResponse mutateInstance(PrevalidateNodeRemovalResponse instance) throws IOException {
         return new PrevalidateNodeRemovalResponse(NodesRemovalPrevalidationSerializationTests.mutateNodes(instance.getPrevalidation()));
+    }
+
+    @Override
+    protected PrevalidateNodeRemovalResponse doParseInstance(XContentParser parser) throws IOException {
+        return PrevalidateNodeRemovalResponse.fromXContent(parser);
     }
 }

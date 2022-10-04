@@ -87,11 +87,12 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
     public static Set<DiscoveryNode> resolveNodes(PrevalidateNodeRemovalRequest request, DiscoveryNodes discoveryNodes) {
         // Only one of the three arrays must be non-empty.
         assert Stream.of(request.getNames(), request.getIds(), request.getExternalIds())
-            .filter(a -> a != null && a.length > 0)
+            .filter(TransportPrevalidateNodeRemovalAction::notEmpty)
             .toList()
             .size() == 1;
         // Resolve by name
         if (notEmpty(request.getNames())) {
+            logger.debug("resolving nodes for prevalidation using name");
             var names = new HashSet<>(Arrays.asList(request.getNames()));
             var resolvedNodes = discoveryNodes.stream().filter(n -> names.contains(n.getName())).collect(Collectors.toSet());
             if (resolvedNodes.size() < names.size()) {
@@ -105,6 +106,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         }
         // Resolve by ID
         if (notEmpty(request.getIds())) {
+            logger.debug("resolving nodes for prevalidation using ID");
             var ids = request.getIds();
             var resolvedNode = Arrays.stream(ids).map(discoveryNodes::get).filter(Objects::nonNull).collect(Collectors.toSet());
             if (resolvedNode.size() < ids.length) {
@@ -116,6 +118,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             return resolvedNode;
         }
         // Resolve by external ID
+        logger.debug("resolving nodes for prevalidation using external ID");
         var externalIds = new HashSet<>(Arrays.asList(request.getExternalIds()));
         var resolvedNodes = discoveryNodes.stream().filter(n -> externalIds.contains(n.getExternalId())).collect(Collectors.toSet());
         if (resolvedNodes.size() < externalIds.size()) {
@@ -145,6 +148,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
     ) {
         assert nodes != null && nodes.isEmpty() == false;
 
+        logger.debug(() -> "prevalidate node removal for nodes " + nodes);
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
         Metadata metadata = clusterState.metadata();
         switch (clusterStateHealth.getStatus()) {

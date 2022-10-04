@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -43,6 +44,10 @@ public class PrevalidateNodeRemovalResponse extends ActionResponse implements To
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         prevalidation.toXContent(builder, params);
         return builder;
+    }
+
+    public static PrevalidateNodeRemovalResponse fromXContent(XContentParser parser) throws IOException {
+        return new PrevalidateNodeRemovalResponse(NodesRemovalPrevalidation.PARSER.parse(parser, null));
     }
 
     @Override

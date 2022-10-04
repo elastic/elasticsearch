@@ -9,7 +9,9 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +29,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
+
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
  * and a map of shard ids to shard sizes, see
@@ -36,13 +41,15 @@ import java.util.Set;
 public class ClusterInfo implements ToXContentFragment, Writeable {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
+
     public static final Version DATA_SET_SIZE_SIZE_VERSION = Version.V_7_13_0;
+    public static final Version DATA_PATH_NEW_KEY_VERSION = Version.V_8_6_0;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     final Map<String, Long> shardSizes;
     final Map<ShardId, Long> shardDataSetSizes;
-    final Map<ShardRouting, String> routingToDataPath;
+    final Map<NodeAndShard, String> dataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
 
     protected ClusterInfo() {
@@ -56,7 +63,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * @param mostAvailableSpaceUsage  a node id to disk usage mapping for the path that has the most available space on the node.
      * @param shardSizes a shardkey to size in bytes mapping per shard.
      * @param shardDataSetSizes a shard id to data set size in bytes mapping per shard
-     * @param routingToDataPath the shard routing to datapath mapping
+     * @param dataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
      * @see #shardIdentifierFromRouting
      */
@@ -65,14 +72,14 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         Map<String, DiskUsage> mostAvailableSpaceUsage,
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizes,
-        Map<ShardRouting, String> routingToDataPath,
+        Map<NodeAndShard, String> dataPath,
         Map<NodeAndPath, ReservedSpace> reservedSpace
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.shardSizes = Map.copyOf(shardSizes);
         this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
-        this.routingToDataPath = Map.copyOf(routingToDataPath);
+        this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
     }
 
@@ -85,7 +92,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         } else {
             this.shardDataSetSizes = Map.of();
         }
-        this.routingToDataPath = in.readImmutableMap(ShardRouting::new, StreamInput::readString);
+        if (in.getVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
+            this.dataPath = in.readImmutableMap(NodeAndShard::new, StreamInput::readString);
+        } else {
+            this.dataPath = in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
+        }
         if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
         } else {
@@ -101,10 +112,29 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         if (out.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
             out.writeMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), StreamOutput::writeLong);
         }
-        out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+        if (out.getVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
+            out.writeMap(this.dataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+        } else {
+            out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
+        }
         if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             out.writeMap(this.reservedSpace);
         }
+    }
+
+    /**
+     * This creates a fake ShardRouting from limited info available in NodeAndShard.
+     * This will not be the same as real shard, however this is fine as ClusterInfo is only written
+     * in TransportClusterAllocationExplainAction when handling an allocation explain request with includeDiskInfo during upgrade
+     * that is later presented to the user and is not used by any code.
+     */
+    private static ShardRouting createFakeShardRoutingFromNodeAndShard(NodeAndShard nodeAndShard) {
+        return newUnassigned(
+            nodeAndShard.shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(REINITIALIZED, "fake")
+        ).initialize(nodeAndShard.nodeId, null, 0L).moveToStarted(0L);
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -148,7 +178,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         builder.endObject(); // end "shard_data_set_sizes"
         builder.startObject("shard_paths");
         {
-            for (Map.Entry<ShardRouting, String> c : this.routingToDataPath.entrySet()) {
+            for (Map.Entry<NodeAndShard, String> c : this.dataPath.entrySet()) {
                 builder.field(c.getKey().toString(), c.getValue());
             }
         }
@@ -211,7 +241,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
      * Returns the nodes absolute data-path the given shard is allocated on or <code>null</code> if the information is not available.
      */
     public String getDataPath(ShardRouting shardRouting) {
-        return routingToDataPath.get(shardRouting);
+        return dataPath.get(NodeAndShard.from(shardRouting));
+    }
+
+    public String getDataPath(NodeAndShard nodeAndShard) {
+        return dataPath.get(nodeAndShard);
     }
 
     public Optional<Long> getShardDataSetSize(ShardId shardId) {
@@ -247,25 +281,40 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             && mostAvailableSpaceUsage.equals(that.mostAvailableSpaceUsage)
             && shardSizes.equals(that.shardSizes)
             && shardDataSetSizes.equals(that.shardDataSetSizes)
-            && routingToDataPath.equals(that.routingToDataPath)
+            && dataPath.equals(that.dataPath)
             && reservedSpace.equals(that.reservedSpace);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            leastAvailableSpaceUsage,
-            mostAvailableSpaceUsage,
-            shardSizes,
-            shardDataSetSizes,
-            routingToDataPath,
-            reservedSpace
-        );
+        return Objects.hash(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, shardDataSetSizes, dataPath, reservedSpace);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this, true, false);
+    }
+
+    public record NodeAndShard(String nodeId, ShardId shardId) implements Writeable {
+
+        public NodeAndShard {
+            Objects.requireNonNull(nodeId);
+            Objects.requireNonNull(shardId);
+        }
+
+        public NodeAndShard(StreamInput in) throws IOException {
+            this(in.readString(), new ShardId(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(nodeId);
+            shardId.writeTo(out);
+        }
+
+        public static NodeAndShard from(ShardRouting shardRouting) {
+            return new NodeAndShard(shardRouting.currentNodeId(), shardRouting.shardId());
+        }
     }
 
     /**

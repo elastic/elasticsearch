@@ -734,6 +734,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @return updated instance
      */
     public IndexMetadata withInSyncAllocationIds(int shardId, Set<String> inSyncSet) {
+        assert shardId < inSyncAllocationIds.size();
         if (inSyncSet.equals(inSyncAllocationIds.get(shardId))) {
             return this;
         }

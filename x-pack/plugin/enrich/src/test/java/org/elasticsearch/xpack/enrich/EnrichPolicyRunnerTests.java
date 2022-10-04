@@ -619,16 +619,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         int numberOfSourceIndices = 3;
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
-            IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(String.format(java.util.Locale.ROOT, """
-                {
-                  "idx": %s,
-                  "key": "key",
-                  "field1": "value1",
-                  "field2": 2,
-                  "field3": "ignored",
-                  "field4": "ignored",
-                  "field5": "value5"
-                }""", idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
+            IndexResponse indexRequest = client().index(
+                new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(String.format(java.util.Locale.ROOT, """
+                    {
+                      "idx": %s,
+                      "key": "key",
+                      "field1": "value1",
+                      "field2": 2,
+                      "field3": "ignored",
+                      "field4": "ignored",
+                      "field5": "value5"
+                    }""", idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ).actionGet();
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
             SearchResponse sourceSearchResponse = client().search(

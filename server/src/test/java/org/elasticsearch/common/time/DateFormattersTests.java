@@ -340,7 +340,7 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter(format, input, expectedMillis);
     }
 
-        private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
+    private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
         JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
         dateFormatter.parse(input);
         JavaDateFormatter roundUpFormatter = dateFormatter.getRoundupParser();

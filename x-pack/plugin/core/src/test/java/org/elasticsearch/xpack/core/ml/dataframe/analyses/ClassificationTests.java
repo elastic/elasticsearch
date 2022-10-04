@@ -411,7 +411,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(constraints.size(), equalTo(1));
         assertThat(constraints.get(0).getField(), equalTo(classification.getDependentVariable()));
         assertThat(constraints.get(0).getLowerBound(), equalTo(2L));
-        assertThat(constraints.get(0).getUpperBound(), equalTo(30L));
+        assertThat(constraints.get(0).getUpperBound(), equalTo(100L));
     }
 
     public void testGetResultMappings_DependentVariableMappingIsAbsent() {

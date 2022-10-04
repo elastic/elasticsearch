@@ -160,7 +160,7 @@ the `user_dictionary_rules` option:
 
 [source,console]
 --------------------------------------------------
-PUT nori_sample
+PUT kuromoji_sample
 {
   "settings": {
     "index": {

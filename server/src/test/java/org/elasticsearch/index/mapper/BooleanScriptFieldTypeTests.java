@@ -422,7 +422,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
                         emit((Boolean) foo);
                     }
                 }
@@ -430,7 +430,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             case "xor_param" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
                         emit((Boolean) foo ^ ((Boolean) getParams().get("param")));
                     }
                 }

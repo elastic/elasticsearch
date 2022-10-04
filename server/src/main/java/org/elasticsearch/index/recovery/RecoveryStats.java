@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -114,6 +115,21 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         out.writeVInt(currentAsSource.get());
         out.writeVInt(currentAsTarget.get());
         out.writeLong(throttleTimeInNanos.get());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RecoveryStats that = (RecoveryStats) o;
+        return currentAsSource() == that.currentAsSource()
+            && currentAsTarget() == that.currentAsTarget()
+            && Objects.equals(throttleTime(), that.throttleTime());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(currentAsSource(), currentAsTarget(), throttleTime());
     }
 
     @Override

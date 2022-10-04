@@ -120,7 +120,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
         if (randomBoolean()) {
             key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
         } else {
-            nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            nextKey = new Step.StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
         }
 
         return new CloseFollowerIndexStep(key, nextKey, instance.getClient());

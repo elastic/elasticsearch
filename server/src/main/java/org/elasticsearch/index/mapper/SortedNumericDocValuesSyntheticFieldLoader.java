@@ -64,6 +64,11 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
     }
 
     @Override
+    public boolean hasValue() {
+        return values.count() > 0;
+    }
+
+    @Override
     public void write(XContentBuilder b) throws IOException {
         switch (values.count()) {
             case 0:

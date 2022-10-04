@@ -98,3 +98,82 @@ setup:
   - length: { aggregations.histo.buckets: 2 }
   - match: { profile.shards.0.aggregations.0.type: AutoDateHistogramAggregator.FromSingle }
   - match: { profile.shards.0.aggregations.0.debug.surviving_buckets: 4 }
+
+---
+"Auto date histogram on two indices with same field but different date type":
+  - do:
+      indices.create:
+        index: date_field_type_date
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date_field:
+                type: date
+
+  - do:
+      indices.create:
+        index: date_field_type_date_nanos
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date_field:
+                type: date_nanos
+
+  - do:
+      index:
+        index: date_field_type_date
+        refresh: true
+        id: "1"
+        body:
+          date_field: "2017-10-20T03:08:45"
+
+  - do:
+      index:
+        index: date_field_type_date_nanos
+        refresh: true
+        id: "2"
+        body:
+          date_field: "2017-10-20T04:10:15"
+
+  - do:
+      search:
+        index: date_field_type_date,date_field_type_date_nanos
+        body:
+          aggs:
+            auto_date_histogram:
+              auto_date_histogram:
+                field: date_field
+                buckets: 2
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+  - length: { hits.hits: 2 }
+  - length: { aggregations.auto_date_histogram.buckets: 2 }
+  - match: { aggregations.auto_date_histogram.buckets.0.key_as_string: "2017-10-20T03:00:00.000Z" }
+  - match: { aggregations.auto_date_histogram.buckets.0.key: 1508468400000 }
+  - match: { aggregations.auto_date_histogram.buckets.0.doc_count: 1 }
+  - match: { aggregations.auto_date_histogram.buckets.1.key_as_string: "2017-10-20T04:00:00.000Z" }
+  - match: { aggregations.auto_date_histogram.buckets.1.key: 1508472000000 }
+  - match: { aggregations.auto_date_histogram.buckets.1.doc_count: 1 }
+
+  - do:
+      search:
+        index: date_field_type_date,date_field_type_date_nanos
+        body:
+          aggs:
+            date_histogram:
+              auto_date_histogram:
+                field: date_field
+                buckets: 1
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+  - length: { hits.hits: 2 }
+  - length: { aggregations.date_histogram.buckets: 1 }
+  - match: { aggregations.date_histogram.buckets.0.key_as_string: "2017-10-20T03:00:00.000Z" }
+  - match: { aggregations.date_histogram.buckets.0.key: 1508468400000 }
+  - match: { aggregations.date_histogram.buckets.0.doc_count: 2 }

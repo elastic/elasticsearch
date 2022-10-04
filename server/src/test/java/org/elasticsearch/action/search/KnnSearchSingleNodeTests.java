@@ -56,6 +56,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         float[] queryVector = randomVector();
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50).boost(5.0f);
         SearchResponse response = client().prepareSearch("index")
+            .setProfile(true)
             .setKnnSearch(knnSearch)
             .setQuery(QueryBuilders.matchQuery("text", "goodnight"))
             .addFetchField("*")
@@ -148,6 +149,46 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
 
         assertHitCount(response, 5);
         assertEquals(5, response.getHits().getHits().length);
+    }
+
+    public void testKnnFilteredAlias() throws IOException {
+        int numShards = 1 + randomInt(3);
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("vector")
+            .field("type", "dense_vector")
+            .field("dims", VECTOR_DIMENSION)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .startObject("field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("index", indexSettings, builder);
+        client().admin().indices().prepareAliases().addAlias("index", "test-alias", QueryBuilders.termQuery("field", "hit")).get();
+
+        int expectedHits = 0;
+        for (int doc = 0; doc < 10; doc++) {
+            if (randomBoolean()) {
+                client().prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "hit").get();
+                ++expectedHits;
+            } else {
+                client().prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "not hit").get();
+            }
+        }
+        client().admin().indices().prepareRefresh("index").get();
+
+        float[] queryVector = randomVector();
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 10, 50);
+        SearchResponse response = client().prepareSearch("test-alias").setKnnSearch(knnSearch).setSize(10).get();
+
+        assertHitCount(response, expectedHits);
+        assertEquals(expectedHits, response.getHits().getHits().length);
     }
 
     public void testKnnSearchAction() throws IOException {

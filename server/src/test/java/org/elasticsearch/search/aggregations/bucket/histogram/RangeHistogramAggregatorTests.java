@@ -57,12 +57,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(
-                    searcher,
-                    new MatchAllDocsQuery(),
-                    aggBuilder,
-                    rangeField("field", rangeType)
-                );
+                InternalHistogram histogram = searchAndReduce(new AggTestConfig(searcher, aggBuilder, rangeField("field", rangeType)));
                 assertEquals(7, histogram.getBuckets().size());
 
                 assertEquals(-5d, histogram.getBuckets().get(0).getKey());
@@ -108,12 +103,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(
-                    searcher,
-                    new MatchAllDocsQuery(),
-                    aggBuilder,
-                    rangeField("field", rangeType)
-                );
+                InternalHistogram histogram = searchAndReduce(new AggTestConfig(searcher, aggBuilder, rangeField("field", rangeType)));
                 assertEquals(7, histogram.getBuckets().size());
 
                 assertEquals(-5d, histogram.getBuckets().get(0).getKey());
@@ -159,12 +149,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(
-                    searcher,
-                    new MatchAllDocsQuery(),
-                    aggBuilder,
-                    rangeField("field", rangeType)
-                );
+                InternalHistogram histogram = searchAndReduce(new AggTestConfig(searcher, aggBuilder, rangeField("field", rangeType)));
                 assertEquals(7, histogram.getBuckets().size());
 
                 assertEquals(-5d, histogram.getBuckets().get(0).getKey());
@@ -211,12 +196,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(
-                    searcher,
-                    new MatchAllDocsQuery(),
-                    aggBuilder,
-                    rangeField("field", rangeType)
-                );
+                InternalHistogram histogram = searchAndReduce(new AggTestConfig(searcher, aggBuilder, rangeField("field", rangeType)));
                 assertEquals(3, histogram.getBuckets().size());
 
                 assertEquals(0d, histogram.getBuckets().get(0).getKey());
@@ -250,12 +230,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(
-                    searcher,
-                    new MatchAllDocsQuery(),
-                    aggBuilder,
-                    rangeField("field", rangeType)
-                );
+                InternalHistogram histogram = searchAndReduce(new AggTestConfig(searcher, aggBuilder, rangeField("field", rangeType)));
                 assertEquals(6, histogram.getBuckets().size());
 
                 assertEquals(-1 * Math.PI, histogram.getBuckets().get(0).getKey());
@@ -298,12 +273,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(
-                    searcher,
-                    new MatchAllDocsQuery(),
-                    aggBuilder,
-                    rangeField("field", rangeType)
-                );
+                InternalHistogram histogram = searchAndReduce(new AggTestConfig(searcher, aggBuilder, rangeField("field", rangeType)));
                 assertEquals(2, histogram.getBuckets().size());
 
                 assertEquals(5d, histogram.getBuckets().get(0).getKey());
@@ -334,12 +304,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(
-                    searcher,
-                    new MatchAllDocsQuery(),
-                    aggBuilder,
-                    rangeField("field", rangeType)
-                );
+                InternalHistogram histogram = searchAndReduce(new AggTestConfig(searcher, aggBuilder, rangeField("field", rangeType)));
                 assertEquals(8, histogram.getBuckets().size());
 
                 assertEquals(-6d, histogram.getBuckets().get(0).getKey());
@@ -396,12 +361,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(
-                    searcher,
-                    new MatchAllDocsQuery(),
-                    aggBuilder,
-                    rangeField("field", rangeType)
-                );
+                InternalHistogram histogram = searchAndReduce(new AggTestConfig(searcher, aggBuilder, rangeField("field", rangeType)));
                 assertEquals(7, histogram.getBuckets().size());
 
                 assertEquals(-5d + expectedOffset, histogram.getBuckets().get(0).getKey());
@@ -452,7 +412,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 Exception e = expectThrows(
                     IllegalArgumentException.class,
-                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, rangeField("field", rangeType))
+                    () -> searchAndReduce(new AggTestConfig(searcher, aggBuilder, rangeField("field", rangeType)))
                 );
                 assertThat(e.getMessage(), equalTo("Expected numeric range type but found non-numeric range [ip_range]"));
             }

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class SegmentsStats implements Writeable, ToXContentFragment {
 
@@ -171,6 +172,24 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SegmentsStats that = (SegmentsStats) o;
+        return count == that.count
+            && indexWriterMemoryInBytes == that.indexWriterMemoryInBytes
+            && versionMapMemoryInBytes == that.versionMapMemoryInBytes
+            && maxUnsafeAutoIdTimestamp == that.maxUnsafeAutoIdTimestamp
+            && bitsetMemoryInBytes == that.bitsetMemoryInBytes
+            && Objects.equals(files, that.files);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(count, indexWriterMemoryInBytes, versionMapMemoryInBytes, maxUnsafeAutoIdTimestamp, bitsetMemoryInBytes, files);
+    }
+
     static final class Fields {
         static final String SEGMENTS = "segments";
         static final String COUNT = "count";
@@ -305,6 +324,19 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FileStats that = (FileStats) o;
+            return Objects.equals(ext, that.ext) && total == that.total && count == that.count && min == that.min && max == that.max;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(ext, total, count, min, max);
         }
 
         public static FileStats merge(FileStats o1, FileStats o2) {

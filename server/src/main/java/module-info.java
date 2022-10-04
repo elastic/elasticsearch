@@ -22,6 +22,8 @@ module org.elasticsearch.server {
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.plugin.api;
+    requires org.elasticsearch.plugin.analysis.api;
 
     requires com.sun.jna;
     requires hppc;
@@ -301,7 +303,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search;
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
-    exports org.elasticsearch.search.aggregations.bucket.adjacency;
     exports org.elasticsearch.search.aggregations.bucket.composite;
     exports org.elasticsearch.search.aggregations.bucket.filter;
     exports org.elasticsearch.search.aggregations.bucket.geogrid;

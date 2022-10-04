@@ -105,7 +105,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric (`integer`, `short`, `long`, `byte`),
-categorical (`ip` or `keyword`), or boolean. There must be no more than 30
+categorical (`ip` or `keyword`), or boolean. There must be no more than 100
 different values in this field.
 
 `downsample_factor`::::

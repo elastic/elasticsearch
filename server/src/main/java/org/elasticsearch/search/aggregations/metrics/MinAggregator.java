@@ -123,7 +123,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new Min(name, Double.POSITIVE_INFINITY, format, metadata());
+        return Min.createEmptyMin(name, format, metadata());
     }
 
     @Override

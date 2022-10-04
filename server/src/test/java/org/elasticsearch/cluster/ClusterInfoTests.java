@@ -10,17 +10,24 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ClusterInfoTests extends ESTestCase {
+public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInfo> {
 
-    public void testSerialization() throws Exception {
-        ClusterInfo clusterInfo = new ClusterInfo(
+    @Override
+    protected Writeable.Reader<ClusterInfo> instanceReader() {
+        return ClusterInfo::new;
+    }
+
+    @Override
+    protected ClusterInfo createTestInstance() {
+        return new ClusterInfo(
             randomDiskUsage(),
             randomDiskUsage(),
             randomShardSizes(),
@@ -28,16 +35,11 @@ public class ClusterInfoTests extends ESTestCase {
             randomRoutingToDataPath(),
             randomReservedSpace()
         );
-        BytesStreamOutput output = new BytesStreamOutput();
-        clusterInfo.writeTo(output);
+    }
 
-        ClusterInfo result = new ClusterInfo(output.bytes().streamInput());
-        assertEquals(clusterInfo.getNodeLeastAvailableDiskUsages(), result.getNodeLeastAvailableDiskUsages());
-        assertEquals(clusterInfo.getNodeMostAvailableDiskUsages(), result.getNodeMostAvailableDiskUsages());
-        assertEquals(clusterInfo.shardSizes, result.shardSizes);
-        assertEquals(clusterInfo.shardDataSetSizes, result.shardDataSetSizes);
-        assertEquals(clusterInfo.routingToDataPath, result.routingToDataPath);
-        assertEquals(clusterInfo.reservedSpace, result.reservedSpace);
+    @Override
+    protected ClusterInfo mutateInstance(ClusterInfo instance) throws IOException {
+        return createTestInstance();
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

@@ -223,7 +223,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             ) {
 
                 final IndexSearcher searcher = new IndexSearcher(multiReader);
-                final InternalStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, ft);
+                final InternalStats stats = searchAndReduce(new AggTestConfig(searcher, builder, ft));
 
                 assertEquals(expected.count, stats.getCount(), 0);
                 assertEquals(expected.sum, stats.getSum(), TOLERANCE);

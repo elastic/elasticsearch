@@ -451,6 +451,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return MetadataSnapshot.loadFromIndexCommit(null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
+        } catch (CorruptIndexException ex) {
+            logger.info(() -> format("%s: corrupted", shardId), ex);
         } catch (FileNotFoundException | NoSuchFileException ex) {
             logger.info("Failed to open / find files while reading metadata snapshot", ex);
         } catch (ShardLockObtainFailedException ex) {

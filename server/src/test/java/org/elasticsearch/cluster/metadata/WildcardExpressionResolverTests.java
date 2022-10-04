@@ -224,6 +224,83 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
     }
 
+    public void testResolveEmpty() {
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(
+                indexBuilder("index_open").state(State.OPEN)
+                    .putAlias(AliasMetadata.builder("alias_open"))
+                    .putAlias(AliasMetadata.builder("alias_hidden").isHidden(true))
+            )
+            .put(
+                indexBuilder("index_closed").state(State.CLOSE)
+                    .putAlias(AliasMetadata.builder("alias_closed"))
+                    .putAlias(AliasMetadata.builder("alias_hidden").isHidden(true))
+            )
+            .put(
+                indexBuilder("index_hidden_open", true).state(State.OPEN)
+                    .putAlias(AliasMetadata.builder("alias_open"))
+                    .putAlias(AliasMetadata.builder("alias_hidden").isHidden(true))
+            )
+            .put(
+                indexBuilder("index_hidden_closed", true).state(State.CLOSE)
+                    .putAlias(AliasMetadata.builder("alias_closed"))
+                    .putAlias(AliasMetadata.builder("alias_hidden").isHidden(true))
+            )
+            .put(
+                indexBuilder(".dot_index_hidden_open", true).state(State.OPEN)
+                    .putAlias(AliasMetadata.builder("alias_open"))
+                    .putAlias(AliasMetadata.builder("alias_hidden").isHidden(true))
+            )
+            .put(
+                indexBuilder(".dot_index_hidden_closed", true).state(State.CLOSE)
+                    .putAlias(AliasMetadata.builder("alias_closed"))
+                    .putAlias(AliasMetadata.builder("alias_hidden").isHidden(true))
+            );
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        IndicesOptions onlyOpenIndicesAndAliasesDisallowNoIndicesOption = IndicesOptions.fromOptions(
+            randomBoolean(),
+            false,
+            true,
+            false,
+            false,
+            randomBoolean(),
+            randomBoolean(),
+            false,
+            randomBoolean()
+        );
+        IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(
+            state,
+            onlyOpenIndicesAndAliasesDisallowNoIndicesOption,
+            randomFrom(SystemIndexAccessLevel.values())
+        );
+        assertWildcardResolvesToEmpty(indicesAndAliasesContext, "index_closed*");
+        assertWildcardResolvesToEmpty(indicesAndAliasesContext, "index_hidden_open*");
+        assertWildcardResolvesToEmpty(indicesAndAliasesContext, "index_hidden_closed*");
+        assertWildcardResolvesToEmpty(indicesAndAliasesContext, ".dot_index_hidden_closed*");
+        assertWildcardResolvesToEmpty(indicesAndAliasesContext, "alias_closed*");
+        assertWildcardResolvesToEmpty(indicesAndAliasesContext, "alias_hidden*");
+        IndicesOptions closedAndHiddenIndicesAndAliasesDisallowNoIndicesOption = IndicesOptions.fromOptions(
+            randomBoolean(),
+            false,
+            false,
+            true,
+            true,
+            randomBoolean(),
+            randomBoolean(),
+            false,
+            randomBoolean()
+        );
+        indicesAndAliasesContext = new IndexNameExpressionResolver.Context(
+            state,
+            closedAndHiddenIndicesAndAliasesDisallowNoIndicesOption,
+            randomFrom(SystemIndexAccessLevel.values())
+        );
+        assertWildcardResolvesToEmpty(indicesAndAliasesContext, "index_open*");
+        assertWildcardResolvesToEmpty(indicesAndAliasesContext, "index_hidden_open*");
+        assertWildcardResolvesToEmpty(indicesAndAliasesContext, ".dot_hidden_open*");
+        assertWildcardResolvesToEmpty(indicesAndAliasesContext, "alias_open*");
+    }
+
     public void testResolveAliases() {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(indexBuilder("foo_foo").state(State.OPEN))
@@ -551,10 +628,24 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         );
     }
 
-    private static IndexMetadata.Builder indexBuilder(String index) {
+    private static IndexMetadata.Builder indexBuilder(String index, boolean hidden) {
         return IndexMetadata.builder(index)
             .settings(
-                settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.INDEX_HIDDEN_SETTING.getKey(), hidden)
             );
+    }
+
+    private static IndexMetadata.Builder indexBuilder(String index) {
+        return indexBuilder(index, false);
+    }
+
+    private static void assertWildcardResolvesToEmpty(IndexNameExpressionResolver.Context context, String wildcardExpression) {
+        IndexNotFoundException infe = expectThrows(
+            IndexNotFoundException.class,
+            () -> IndexNameExpressionResolver.WildcardExpressionResolver.resolve(context, List.of(wildcardExpression))
+        );
+        assertEquals(wildcardExpression, infe.getIndex().getName());
     }
 }

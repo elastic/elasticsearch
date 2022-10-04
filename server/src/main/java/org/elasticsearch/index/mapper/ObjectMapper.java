@@ -604,19 +604,34 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     loaders.add(loader);
                 }
             }
-            return docId -> {
+            if (loaders.isEmpty()) {
+                return null;
+            }
+            return new ObjectDocValuesLoader(loaders);
+        }
+
+        private class ObjectDocValuesLoader implements DocValuesLoader {
+            private final List<SourceLoader.SyntheticFieldLoader.DocValuesLoader> loaders;
+
+            private ObjectDocValuesLoader(List<DocValuesLoader> loaders) {
+                this.loaders = loaders;
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                boolean anyLeafHasDocValues = false;
                 for (SourceLoader.SyntheticFieldLoader.DocValuesLoader docValueLoader : loaders) {
                     boolean leafHasValue = docValueLoader.advanceToDoc(docId);
-                    hasValue |= leafHasValue;
+                    anyLeafHasDocValues |= leafHasValue;
                 }
-                /*
-                 * Important and kind of sneaky note: this will return true
-                 * if there were any values loaded from stored fields as
-                 * well. That *is* how we "wake up" objects that contain just
-                 * stored field.
-                 */
-                return hasValue;
-            };
+                hasValue |= anyLeafHasDocValues;
+                return anyLeafHasDocValues;
+            }
+        }
+
+        @Override
+        public boolean hasValue() {
+            return hasValue;
         }
 
         @Override
@@ -626,7 +641,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
             startSyntheticField(b);
             for (SourceLoader.SyntheticFieldLoader field : fields) {
-                field.write(b);
+                if (field.hasValue()) {
+                    field.write(b);
+                }
             }
             b.endObject();
             hasValue = false;

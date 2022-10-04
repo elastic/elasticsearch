@@ -529,7 +529,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         this.metricType = builder.metric.getValue();
     }
 
-    boolean ignoreMalformed() {
+    @Override
+    public boolean ignoreMalformed() {
         return ignoreMalformed.value();
     }
 

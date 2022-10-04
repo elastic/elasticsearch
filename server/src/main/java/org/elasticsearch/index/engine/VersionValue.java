@@ -70,7 +70,7 @@ abstract class VersionValue implements Accountable {
 
     @Override
     public String toString() {
-        return "VersionValue{" + "version=" + version + ", seqNo=" + seqNo + ", term=" + term + '}';
+        return "VersionValue{version=" + version + ", seqNo=" + seqNo + ", term=" + term + '}';
     }
 
     /**

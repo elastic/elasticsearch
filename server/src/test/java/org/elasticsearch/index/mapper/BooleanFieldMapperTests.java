@@ -54,6 +54,14 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
     public void testDefaults() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapperService.documentMapper().parse(source(this::writeField));
@@ -192,6 +200,11 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             b.field("null_value", true);
         })));
         assertThat(e.getMessage(), equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+    }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
     }
 
     @Override

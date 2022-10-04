@@ -46,6 +46,7 @@ public class ApmIT extends ESRestTestCase {
      * </ul>
      * <p>This proves that the hierarchy of spans is being correctly captured.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89340")
     public void testCapturesTracesForHttpTraffic() throws Exception {
         checkTracesDataStream();
 

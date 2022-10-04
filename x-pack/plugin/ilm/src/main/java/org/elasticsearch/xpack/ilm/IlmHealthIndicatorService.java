@@ -15,6 +15,7 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
@@ -40,13 +41,16 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     public static final String HELP_URL = "https://ela.st/fix-ilm";
     public static final Diagnosis ILM_NOT_RUNNING = new Diagnosis(
         new Diagnosis.Definition(
-            "ilm-not-running",
+            NAME,
+            "ilm_disabled",
             "Index Lifecycle Management is stopped",
             "Start Index Lifecycle Management using [POST /_ilm/start].",
             HELP_URL
         ),
         null
     );
+
+    public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";
 
     private final ClusterService clusterService;
 
@@ -60,7 +64,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean explain) {
+    public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
         var ilmMetadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
@@ -73,6 +77,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         } else if (ilmMetadata.getOperationMode() != OperationMode.RUNNING) {
             List<HealthIndicatorImpact> impacts = Collections.singletonList(
                 new HealthIndicatorImpact(
+                    NAME,
+                    AUTOMATION_DISABLED_IMPACT_ID,
                     3,
                     "Automatic index lifecycle and data retention management is disabled. The performance and stability of the cluster "
                         + "could be impacted.",

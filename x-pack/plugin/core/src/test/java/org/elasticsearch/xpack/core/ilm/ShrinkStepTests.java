@@ -54,7 +54,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
 
         switch (between(0, 2)) {
             case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
             case 2 -> {
                 if (numberOfShards != null) {
                     numberOfShards = numberOfShards + 1;

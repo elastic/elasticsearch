@@ -94,10 +94,18 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 long outerFilterDocCount = agg.getDocCount();
                 Filter innerAgg = agg.getAggregations().get("filter_inner");
                 long innerFilterDocCount = innerAgg.getDocCount();
-                // subaggs should be scaled along with upper level aggs
-                assertThat(outerFilterDocCount, equalTo(innerFilterDocCount));
-                // sampled doc count is NOT scaled, and thus should be lower
-                assertThat(outerFilterDocCount, greaterThan(sampledDocCount));
+                if (sampledDocCount == 0) {
+                    // in case 0 docs get sampled, which can rarely happen
+                    // in case the test index has many segments.
+                    assertThat(sampledDocCount, equalTo(0L));
+                    assertThat(innerFilterDocCount, equalTo(0L));
+                    assertThat(outerFilterDocCount, equalTo(0L));
+                } else {
+                    // subaggs should be scaled along with upper level aggs
+                    assertThat(outerFilterDocCount, equalTo(innerFilterDocCount));
+                    // sampled doc count is NOT scaled, and thus should be lower
+                    assertThat(outerFilterDocCount, greaterThan(sampledDocCount));
+                }
             },
             longField(NUMERIC_FIELD_NAME),
             keywordField(KEYWORD_FIELD_NAME)

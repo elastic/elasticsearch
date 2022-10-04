@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -44,6 +45,8 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
         assertAddRoleWithDLS(false);
         assertAddRoleWithFLS(false);
+
+        assertUserProfileFeatures(false);
     }
 
     public void testWithTrialLicense() throws Exception {
@@ -72,6 +75,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             apiKeyCredentials2 = tuple.v1();
             keyRoleHasDlsFls = tuple.v2();
             assertReadWithApiKey(apiKeyCredentials2, "/index*/_search", true);
+            assertUserProfileFeatures(true);
         } finally {
             revertTrial();
             assertAuthenticateWithToken(accessToken, false);
@@ -85,6 +89,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertReadWithApiKey(apiKeyCredentials2, "/index41/_search", false == keyRoleHasDlsFls);
             assertReadWithApiKey(apiKeyCredentials2, "/index42/_search", true);
             assertReadWithApiKey(apiKeyCredentials2, "/index1/_doc/1", false);
+            assertUserProfileFeatures(false);
         }
     }
 
@@ -439,6 +444,99 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("current license is non-compliant for [field and document level security]"));
             assertThat(e.getMessage(), containsString("indices_with_dls_or_fls"));
+        }
+    }
+
+    private void assertUserProfileFeatures(boolean clusterHasTrialLicense) throws IOException {
+        final RestClient client = client();
+        final RequestOptions.Builder requestOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader(HttpHeaders.AUTHORIZATION, basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray())));
+
+        // Activate Profile
+        final Request activateRequest = new Request("POST", "_security/profile/_activate");
+        activateRequest.setOptions(requestOptions);
+        activateRequest.setJsonEntity("""
+            {
+              "grant_type": "password",
+              "username": "admin_user",
+              "password": "admin-password"
+            }""");
+        final Response activateResponse = client.performRequest(activateRequest);
+        assertOK(activateResponse);
+        final String uid = (String) responseAsMap(activateResponse).get("uid");
+
+        // Get Profile
+        final Request getProfileRequest = new Request("GET", "_security/profile/" + uid);
+        getProfileRequest.setOptions(requestOptions);
+        assertOK(client.performRequest(getProfileRequest));
+
+        // Update profile data
+        final Request putDataRequest = new Request("PUT", "_security/profile/" + uid + "/_data");
+        putDataRequest.setOptions(requestOptions);
+        putDataRequest.setJsonEntity("""
+            {
+              "labels": {
+                "my_app": {
+                  "tag": "prod"
+                }
+              },
+              "data": {
+                "my_app": {
+                  "theme": "default"
+                }
+              }
+            }""");
+        assertOK(client.performRequest(putDataRequest));
+
+        // Disable profile
+        final Request disableProfileRequest = new Request("PUT", "_security/profile/" + uid + "/_disable");
+        disableProfileRequest.setOptions(requestOptions);
+        assertOK(client.performRequest(disableProfileRequest));
+
+        // Enable profile
+        final Request enableProfileRequest = new Request("PUT", "_security/profile/" + uid + "/_enable");
+        enableProfileRequest.setOptions(requestOptions);
+        assertOK(client.performRequest(enableProfileRequest));
+
+        // Suggest profiles
+        final Request suggestProfilesRequest = new Request("GET", "_security/profile/_suggest");
+        suggestProfilesRequest.setOptions(requestOptions);
+        if (clusterHasTrialLicense) {
+            assertOK(client.performRequest(suggestProfilesRequest));
+        } else {
+            final ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(suggestProfilesRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
+        }
+
+        // Profile hasPrivileges
+        final Request hasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
+        hasPrivilegesRequest.setOptions(requestOptions);
+        hasPrivilegesRequest.setJsonEntity("""
+            {
+              "uids": [
+                "%s"
+              ],
+              "privileges": {
+                "applications": [
+                  {
+                    "application": "app-1",
+                    "privileges": [
+                      "all"
+                    ],
+                    "resources": [
+                      "foo"
+                    ]
+                  }
+                ]
+              }
+            }""".formatted(uid));
+        if (clusterHasTrialLicense) {
+            assertOK(client.performRequest(hasPrivilegesRequest));
+        } else {
+            final ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(hasPrivilegesRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
         }
     }
 }

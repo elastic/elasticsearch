@@ -387,7 +387,7 @@ public class AllocationService {
         allocation.ignoreDisable(true);
 
         if (retryFailed) {
-            allocation.routingNodes().unassigned().resetFailedAllocationCounter(allocation.changes());
+            allocation.routingNodes().resetFailedCounter(allocation.changes());
         }
 
         RoutingExplanations explanations = commands.execute(allocation, explain);
@@ -571,8 +571,10 @@ public class AllocationService {
                     + startedShard
                     + " but was: "
                     + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
-
-            routingNodes.startShard(logger, startedShard, routingAllocation.changes());
+            long expectedShardSize = routingAllocation.metadata().getIndexSafe(startedShard.index()).isSearchableSnapshot()
+                ? startedShard.getExpectedShardSize()
+                : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
+            routingNodes.startShard(logger, startedShard, routingAllocation.changes(), expectedShardSize);
         }
     }
 

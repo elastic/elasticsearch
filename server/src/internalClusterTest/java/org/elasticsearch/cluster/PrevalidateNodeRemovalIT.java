@@ -34,9 +34,16 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
         );
         ensureGreen();
+        // Prevalidate removal of one of the two nodes
         String nodeName = randomFrom(node1, node2);
-        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(nodeName).build();
-        PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
+        PrevalidateNodeRemovalRequest.Builder req = PrevalidateNodeRemovalRequest.builder();
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> req.setNames(nodeName);
+            case 1 -> req.setIds(internalCluster().clusterService(nodeName).localNode().getId());
+            case 2 -> req.setExternalIds(internalCluster().clusterService(nodeName).localNode().getExternalId());
+            default -> throw new IllegalStateException("Unexpected value");
+        }
+        PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req.build()).get();
 
         assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.YES));
         assertThat(resp.getPrevalidation().getNodes().size(), equalTo(1));
@@ -85,10 +92,10 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         // since that node might have the last copy of the unassigned index.
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
-        assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.UNKNOWN));
+        assertThat(resp.getPrevalidation().getResult().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.NO));
         assertThat(resp.getPrevalidation().getNodes().size(), equalTo(1));
         NodesRemovalPrevalidation.NodeResult nodeResult = resp.getPrevalidation().getNodes().get(0);
         assertThat(nodeResult.name(), equalTo(node2));
-        assertThat(nodeResult.result().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.UNKNOWN));
+        assertThat(nodeResult.result().isSafe(), equalTo(NodesRemovalPrevalidation.IsSafe.NO));
     }
 }

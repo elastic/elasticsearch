@@ -149,7 +149,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         ActionListener<AcknowledgedResponse> listener
     ) {
         String sourceIndexName = request.getSourceIndex();
-        IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
 
         final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl != null) {
@@ -167,6 +166,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             }
         }
         // Assert source index exists
+        IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
         if (sourceIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(sourceIndexName));
             return;

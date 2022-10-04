@@ -26,14 +26,22 @@ public class PrevalidateNodeRemovalRestIT extends HttpSmokeTestCase {
 
     public void testRestStatusCode() throws IOException {
         String node1Name = internalCluster().getRandomNodeName();
+        String node1Id = internalCluster().clusterService(node1Name).localNode().getId();
         ensureGreen();
         RestClient client = getRestClient();
 
-        final Request req = new Request(HttpPost.METHOD_NAME, "/_internal/prevalidate_node_removal?names=" + node1Name);
+        int i = randomIntBetween(0, 2);
+        final Request req = switch (i) {
+            case 0 -> new Request(HttpPost.METHOD_NAME, "/_internal/prevalidate_node_removal?names=" + node1Name);
+            case 1 -> new Request(HttpPost.METHOD_NAME, "/_internal/prevalidate_node_removal?ids=" + node1Id);
+            case 2 -> new Request(HttpPost.METHOD_NAME, "/_internal/prevalidate_node_removal?external_ids=" + node1Name);
+            default -> throw new IllegalStateException("unexpected value " + i);
+        };
         assertThat(client.performRequest(req).getStatusLine().getStatusCode(), equalTo(200));
 
         try {
-            client.performRequest(new Request(HttpPost.METHOD_NAME, "/_internal/prevalidate_node_removal?names=nonExistingNode"));
+            String queryParam = randomFrom("names", "ids", "external_ids") + "=nonExistingNode";
+            client.performRequest(new Request(HttpPost.METHOD_NAME, "/_internal/prevalidate_node_removal?" + queryParam));
             fail("request should have failed");
         } catch (ResponseException e) {
             Response resp = e.getResponse();

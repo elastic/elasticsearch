@@ -98,7 +98,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 // find out which one wasn't found
                 var existingNodeNames = discoveryNodes.stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
                 names.removeAll(existingNodeNames);
-                throw new ResourceNotFoundException("could not resolve node names [{}]", names);
+                throw new ResourceNotFoundException("could not resolve node names {}", names);
             }
             assert resolvedNodes.size() == request.getNames().length;
             return resolvedNodes;
@@ -111,7 +111,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 // find out which one wasn't found
                 var existingNodeIds = discoveryNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
                 var idsNotFound = Arrays.stream(ids).filter(id -> existingNodeIds.contains(id) == false).collect(Collectors.toSet());
-                throw new ResourceNotFoundException("could not resolve node IDs [{}]", idsNotFound);
+                throw new ResourceNotFoundException("could not resolve node IDs {}", idsNotFound);
             }
             return resolvedNode;
         }
@@ -122,7 +122,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             // find out which one wasn't found
             var existingExternalIds = discoveryNodes.stream().map(DiscoveryNode::getExternalId).collect(Collectors.toSet());
             externalIds.removeAll(existingExternalIds);
-            throw new ResourceNotFoundException("could not resolve node external IDs [{}]", externalIds);
+            throw new ResourceNotFoundException("could not resolve node external IDs {}", externalIds);
         }
         assert resolvedNodes.size() == request.getExternalIds().length;
         return resolvedNodes;
@@ -176,14 +176,14 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                         .map(dn -> new NodeResult(dn.getName(), dn.getId(), dn.getExternalId(), new Result(IsSafe.YES, "")))
                         .toList();
                 } else {
-                    result = new Result(IsSafe.UNKNOWN, "cluster health is RED");
+                    result = new Result(IsSafe.NO, "cluster health is RED");
                     nodeResults = nodes.stream()
                         .map(
                             dn -> new NodeResult(
                                 dn.getName(),
                                 dn.getId(),
                                 dn.getExternalId(),
-                                new Result(IsSafe.UNKNOWN, "node may contain a copy of a red index shard")
+                                new Result(IsSafe.NO, "node may contain a copy of a red index shard")
                             )
                         )
                         .toList();

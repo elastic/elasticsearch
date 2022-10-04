@@ -26,6 +26,14 @@ public class PrevalidateNodeRemovalRequestTests extends ESTestCase {
         assertNotNull(ex2);
         assertThat(ex2.validationErrors(), equalTo(List.of(PrevalidateNodeRemovalRequest.VALIDATION_ERROR_MSG_ONLY_ONE_QUERY_PARAM)));
 
+        ActionRequestValidationException ex3 = PrevalidateNodeRemovalRequest.builder()
+            .setNames("name1")
+            .setExternalIds("id1")
+            .build()
+            .validate();
+        assertNotNull(ex3);
+        assertThat(ex3.validationErrors(), equalTo(List.of(PrevalidateNodeRemovalRequest.VALIDATION_ERROR_MSG_ONLY_ONE_QUERY_PARAM)));
+
         assertNull(PrevalidateNodeRemovalRequest.builder().setNames("name1").build().validate());
         assertNull(PrevalidateNodeRemovalRequest.builder().setIds("id1").build().validate());
         assertNull(PrevalidateNodeRemovalRequest.builder().setExternalIds("external_id1").build().validate());

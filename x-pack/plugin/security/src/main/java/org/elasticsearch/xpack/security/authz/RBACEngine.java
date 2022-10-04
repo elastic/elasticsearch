@@ -386,12 +386,14 @@ public class RBACEngine implements AuthorizationEngine {
                             assert resolvedIndices.getLocal().stream().noneMatch(Regex::isSimpleMatchPattern)
                                 || ((IndicesRequest) request).indicesOptions().expandWildcardExpressions() == false
                                 : "expanded wildcards for local indices OR the request should not expand wildcards at all";
-                            listener.onResponse(buildIndicesAccessControl(
-                                action,
-                                authorizationInfo,
-                                Sets.newHashSet(resolvedIndices.getLocal()),
-                                aliasOrIndexLookup
-                            ));
+                            listener.onResponse(
+                                buildIndicesAccessControl(
+                                    action,
+                                    authorizationInfo,
+                                    Sets.newHashSet(resolvedIndices.getLocal()),
+                                    aliasOrIndexLookup
+                                )
+                            );
                         }
                     }, listener::onFailure));
                 } else {

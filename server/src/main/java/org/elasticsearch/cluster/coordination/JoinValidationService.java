@@ -349,13 +349,13 @@ public class JoinValidationService {
                 newBytes.length()
             );
             final var previousBytes = statesByVersion.put(version, newBytes);
-            success = true;
             assert previousBytes == null;
+            success = true;
             return newBytes;
         } finally {
             if (success == false) {
-                assert false;
                 bytesStream.close();
+                assert false;
             }
         }
     }

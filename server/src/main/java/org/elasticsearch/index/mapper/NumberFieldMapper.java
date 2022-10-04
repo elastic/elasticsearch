@@ -1647,7 +1647,8 @@ public class NumberFieldMapper extends FieldMapper {
         return coerce.value();
     }
 
-    boolean ignoreMalformed() {
+    @Override
+    public boolean ignoreMalformed() {
         return ignoreMalformed.value();
     }
 

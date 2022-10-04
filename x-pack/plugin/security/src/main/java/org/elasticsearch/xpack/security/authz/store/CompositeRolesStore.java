@@ -478,7 +478,6 @@ public class CompositeRolesStore {
                     )
                 );
             } else {
-                // TODO ungrouping unnecessarily here
                 indicesPrivilegesMapForCluster.forEach(
                     (key, privilege) -> builder.addRemoteGroup(
                         clusterAliasKey,
@@ -633,11 +632,8 @@ public class CompositeRolesStore {
                 final var clusterAlias = indicesPrivilege.hasRemoteClusters()
                     ? newHashSet(indicesPrivilege.getRemoteClusters())
                     : LOCAL_CLUSTER_ALIAS_KEY;
-                if (false == indicesPrivilegesMapByClusterAlias.containsKey(clusterAlias)) {
-                    indicesPrivilegesMapByClusterAlias.put(clusterAlias, new HashMap<>());
-                }
-                final Set<String> key = newHashSet(indicesPrivilege.getIndices());
-                indicesPrivilegesMapByClusterAlias.get(clusterAlias).compute(key, (k, value) -> {
+                final Set<String> indicesKey = newHashSet(indicesPrivilege.getIndices());
+                indicesPrivilegesMapByClusterAlias.computeIfAbsent(clusterAlias, k -> new HashMap<>()).compute(indicesKey, (k, value) -> {
                     if (value == null) {
                         return new MergeableIndicesPrivilege(
                             indicesPrivilege.getIndices(),

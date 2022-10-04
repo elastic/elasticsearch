@@ -7,10 +7,17 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGroups) {
@@ -28,19 +35,38 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
     }
 
     public static class Builder {
-        final List<RemoteIndicesGroup> remoteIndicesGroups;
+        final Map<Set<String>, List<IndicesPermission.Group>> remoteIndicesGroups;
 
         public Builder() {
-            this.remoteIndicesGroups = new ArrayList<>();
+            this.remoteIndicesGroups = new HashMap<>();
         }
 
-        public Builder addGroup(final Set<String> remoteClusterAliases, final List<IndicesPermission.Group> groups) {
-            remoteIndicesGroups.add(new RemoteIndicesGroup(remoteClusterAliases, groups));
+        public Builder addGroup(
+            final Set<String> remoteClusterAliases,
+            final IndexPrivilege privilege,
+            final FieldPermissions fieldPermissions,
+            final @Nullable Set<BytesReference> query,
+            final boolean allowRestrictedIndices,
+            final String... indices
+        ) {
+            remoteIndicesGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
+                .add(
+                    new IndicesPermission.Group(
+                        privilege,
+                        fieldPermissions,
+                        query,
+                        allowRestrictedIndices,
+                        new RestrictedIndices(Automatons.EMPTY),
+                        indices
+                    )
+                );
             return this;
         }
 
         public RemoteIndicesPermission build() {
-            return remoteIndicesGroups.isEmpty() ? NONE : new RemoteIndicesPermission(remoteIndicesGroups);
+            return new RemoteIndicesPermission(
+                remoteIndicesGroups.entrySet().stream().map(entry -> new RemoteIndicesGroup(entry.getKey(), entry.getValue())).toList()
+            );
         }
     }
 

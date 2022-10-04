@@ -46,8 +46,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             "Index Lifecycle Management is stopped",
             "Start Index Lifecycle Management using [POST /_ilm/start].",
             HELP_URL
-        ),
-        null
+        )
     );
 
     public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";

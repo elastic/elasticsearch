@@ -54,8 +54,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             "Snapshot Lifecycle Management is stopped",
             "Start Snapshot Lifecycle Management using [POST /_slm/start].",
             HELP_URL
-        ),
-        null
+        )
     );
 
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("iso8601").withZone(ZoneOffset.UTC);
@@ -174,7 +173,10 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     List.of(
                         new Diagnosis(
                             checkRecentlyFailedSnapshots(cause, action),
-                            unhealthyPolicies.stream().map(SnapshotLifecyclePolicyMetadata::getName).toList()
+                            new Diagnosis.Resource(
+                                Diagnosis.Resource.Type.SLM_POLICY,
+                                unhealthyPolicies.stream().map(SnapshotLifecyclePolicyMetadata::getName).toList()
+                            )
                         )
                     )
                 );

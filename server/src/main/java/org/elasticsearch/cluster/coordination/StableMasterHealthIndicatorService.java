@@ -48,8 +48,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             "The Elasticsearch cluster does not have a stable master node.",
             "Get help at " + GET_HELP_GUIDE,
             GET_HELP_GUIDE
-        ),
-        null
+        )
     );
 
     private final CoordinationDiagnosticsService coordinationDiagnosticsService;

@@ -40,10 +40,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.are;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getSortedUniqueValuesString;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indices;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indicesComparatorByPriorityAndName;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.regularNoun;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.regularVerb;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.these;
@@ -317,6 +319,37 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             List<Diagnosis> diagnosisList = new ArrayList<>();
             if (hasBlockedIndices() || hasUnhealthyDataNodes()) {
                 Set<String> affectedIndices = Sets.union(blockedIndices, indicesAtRisk);
+                int affectedTypesCount = 0;
+                Diagnosis.Resource nodeResources = null;
+                if (dataNodes.size() > 0) {
+                    affectedTypesCount++;
+                    nodeResources = new Diagnosis.Resource(
+                        dataNodes.stream().sorted(DISCOVERY_NODE_COMPARATOR).collect(Collectors.toList())
+                    );
+                }
+                Diagnosis.Resource indexResources = null;
+                if (affectedIndices.size() > 0) {
+                    affectedTypesCount++;
+                    indexResources = new Diagnosis.Resource(
+                        Diagnosis.Resource.Type.INDEX,
+                        affectedIndices.stream()
+                            .sorted(indicesComparatorByPriorityAndName(clusterState.metadata()))
+                            .collect(Collectors.toList())
+                    );
+                }
+                Diagnosis.Resource[] affectedResources = affectedTypesCount > 0 ? new Diagnosis.Resource[affectedTypesCount] : null;
+                if (nodeResources != null) {
+                    assert affectedResources != null;
+                    affectedResources[0] = nodeResources;
+                    if (indexResources != null) {
+                        affectedResources[1] = indexResources;
+                    }
+                } else {
+                    if (indexResources != null) {
+                        assert affectedResources != null;
+                        affectedResources[0] = indexResources;
+                    }
+                }
                 diagnosisList.add(
                     new Diagnosis(
                         new Diagnosis.Definition(
@@ -336,21 +369,37 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                                 + "this. If you have already taken action please wait for the rebalancing to complete.",
                             "https://ela.st/fix-data-disk"
                         ),
-                        dataNodes.stream().map(DiscoveryNode::getId).sorted().toList()
+                        affectedResources
                     )
                 );
             }
             if (masterNodes.containsKey(HealthStatus.RED)) {
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, masterNodes.get(HealthStatus.RED), true));
+                List<DiscoveryNode> redMasterNodes = masterNodes.get(HealthStatus.RED)
+                    .stream()
+                    .sorted(DISCOVERY_NODE_COMPARATOR)
+                    .collect(Collectors.toList());
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, redMasterNodes, true));
             }
             if (masterNodes.containsKey(HealthStatus.YELLOW)) {
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, masterNodes.get(HealthStatus.YELLOW), true));
+                List<DiscoveryNode> yellowMasterNodes = masterNodes.get(HealthStatus.YELLOW)
+                    .stream()
+                    .sorted(DISCOVERY_NODE_COMPARATOR)
+                    .collect(Collectors.toList());
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, yellowMasterNodes, true));
             }
             if (otherNodes.containsKey(HealthStatus.RED)) {
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, otherNodes.get(HealthStatus.RED), false));
+                List<DiscoveryNode> redNodes = otherNodes.get(HealthStatus.RED)
+                    .stream()
+                    .sorted(DISCOVERY_NODE_COMPARATOR)
+                    .collect(Collectors.toList());
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, redNodes, false));
             }
             if (otherNodes.containsKey(HealthStatus.YELLOW)) {
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, otherNodes.get(HealthStatus.YELLOW), false));
+                List<DiscoveryNode> yellowNodes = otherNodes.get(HealthStatus.YELLOW)
+                    .stream()
+                    .sorted(DISCOVERY_NODE_COMPARATOR)
+                    .collect(Collectors.toList());
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, yellowNodes, false));
             }
             return diagnosisList;
         }
@@ -416,7 +465,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
                     isMaster ? "https://ela.st/fix-master-disk" : "https://ela.st/fix-disk-space"
                 ),
-                nodes.stream().map(DiscoveryNode::getId).sorted().toList()
+                new Diagnosis.Resource(nodes)
             );
         }
 

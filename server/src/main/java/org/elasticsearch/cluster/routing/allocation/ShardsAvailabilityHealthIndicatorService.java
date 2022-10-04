@@ -68,6 +68,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQ
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -913,10 +914,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         .map(
                             e -> new Diagnosis(
                                 e.getKey(),
-                                e.getValue()
-                                    .stream()
-                                    .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
-                                    .collect(Collectors.toList())
+                                new Diagnosis.Resource(
+                                    INDEX,
+                                    e.getValue()
+                                        .stream()
+                                        .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
+                                        .collect(Collectors.toList())
+                                )
                             )
                         )
                         .collect(Collectors.toList());

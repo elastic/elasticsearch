@@ -329,6 +329,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.lookup;
     exports org.elasticsearch.search.profile;
     exports org.elasticsearch.search.profile.aggregation;
+    exports org.elasticsearch.search.profile.dfs;
     exports org.elasticsearch.search.profile.query;
     exports org.elasticsearch.search.query;
     exports org.elasticsearch.search.rescore;
@@ -354,8 +355,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.watcher;
 
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
-
-    exports org.elasticsearch.search.profile.dfs;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

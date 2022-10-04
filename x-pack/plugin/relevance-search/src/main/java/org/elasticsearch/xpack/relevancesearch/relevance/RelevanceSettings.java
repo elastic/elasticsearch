@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.relevancesearch.relevance;
 
 public class RelevanceSettings {
 
+    // TODO - Are these needed later on?
     private final String TYPE = "relevance_settings";
     private final String QUERY_TYPE = "combined_fields";
-    private String name;
 
     private QueryConfiguration queryConfiguration;
 

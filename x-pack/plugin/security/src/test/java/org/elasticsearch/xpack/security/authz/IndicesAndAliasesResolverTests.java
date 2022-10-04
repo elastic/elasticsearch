@@ -618,6 +618,31 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
+    public void testResolveWildcardsNoExpand() {
+        SearchRequest request = new SearchRequest("*", "-foofoo*");
+        // no wildcard expand and no ignore unavailable
+        request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), false, false));
+        ResolvedIndices indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME));
+        String[] replacedIndices = new String[] { "*", "-foofoo*" };
+        assertThat(indices.getLocal(), hasSize(replacedIndices.length));
+        assertThat(request.indices().length, equalTo(replacedIndices.length));
+        assertThat(indices.getLocal(), hasItems(replacedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
+        // no wildcard expand but ignore unavailable
+        request = new SearchRequest("*", "-foofoo*");
+        request.indicesOptions(IndicesOptions.fromOptions(true, true, false, false));
+        indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME));
+        assertNoIndices(request, indices);
+        request = new SearchRequest("*", "-foofoo*");
+        request.indicesOptions(IndicesOptions.fromOptions(true, false, false, false));
+        SearchRequest finalRequest = request;
+        IndexNotFoundException e = expectThrows(
+            IndexNotFoundException.class,
+            () -> resolveIndices(finalRequest, buildAuthorizedIndices(user, SearchAction.NAME))
+        );
+        assertEquals("no such index [[*, -foofoo*]]", e.getMessage());
+    }
+
     public void testResolveWildcardsExclusionsExpandWilcardsOpenStrict() {
         SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz", "foob*");
         request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));

@@ -15,7 +15,7 @@ import java.util.Map;
 
 public class QueryConfigurationTests extends ESTestCase {
 
-    public void testParsingFieldsAndBoosts() {
+    public void testParsingFieldsAndBoosts() throws RelevanceSettingsService.RelevanceSettingsInvalidException {
         List<String> fields = List.of("foo^2.5", "bar^5", "foobar");
         QueryConfiguration queryConfiguration = new QueryConfiguration();
         queryConfiguration.parseFieldsAndBoosts(fields);
@@ -23,6 +23,15 @@ public class QueryConfigurationTests extends ESTestCase {
         Map<String, Float> expectedFieldsAndBoosts = Map.of("foo", 2.5f, "bar", 5f, "foobar", AbstractQueryBuilder.DEFAULT_BOOST);
         Map<String, Float> fieldsAndBoosts = queryConfiguration.getFieldsAndBoosts();
         assertEquals(expectedFieldsAndBoosts, fieldsAndBoosts);
+    }
+
+    public void testParsingFieldsAndBoostsWithInvalidBoost() throws RelevanceSettingsService.RelevanceSettingsInvalidException {
+        List<String> fields = List.of("foo^bar");
+        QueryConfiguration queryConfiguration = new QueryConfiguration();
+        RelevanceSettingsService.RelevanceSettingsInvalidException e = expectThrows(
+            RelevanceSettingsService.RelevanceSettingsInvalidException.class,
+            () -> queryConfiguration.parseFieldsAndBoosts(fields)
+        );
     }
 
 }

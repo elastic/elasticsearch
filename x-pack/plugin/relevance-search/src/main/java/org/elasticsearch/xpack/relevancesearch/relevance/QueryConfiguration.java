@@ -25,14 +25,20 @@ public class QueryConfiguration {
         this.fieldsAndBoosts = fieldsAndBoosts;
     }
 
-    public void parseFieldsAndBoosts(List<String> inputFields) {
-        this.fieldsAndBoosts = inputFields.stream()
-            .map(s -> s.split("\\^"))
-            .collect(
-                Collectors.toMap(
-                    field -> field[0],
-                    boost -> boost.length > 1 ? Float.parseFloat(boost[1]) : AbstractQueryBuilder.DEFAULT_BOOST
-                )
+    public void parseFieldsAndBoosts(List<String> inputFields) throws RelevanceSettingsService.RelevanceSettingsInvalidException {
+        try {
+            this.fieldsAndBoosts = inputFields.stream()
+                .map(s -> s.split("\\^"))
+                .collect(
+                    Collectors.toMap(
+                        field -> field[0],
+                        boost -> boost.length > 1 ? Float.parseFloat(boost[1]) : AbstractQueryBuilder.DEFAULT_BOOST
+                    )
+                );
+        } catch (NumberFormatException e) {
+            throw new RelevanceSettingsService.RelevanceSettingsInvalidException(
+                "Invalid boost detected in relevance settings, must be numeric"
             );
+        }
     }
 }

@@ -19,6 +19,8 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.relevancesearch.relevance.RelevanceSettings;
+import org.elasticsearch.xpack.relevancesearch.relevance.RelevanceSettingsService;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -31,31 +33,42 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
     public static final String NAME = "relevance_match";
 
-    private static final ParseField FIELD_QUERY = new ParseField("query");
+    private static final ParseField QUERY_FIELD = new ParseField("query");
+    private static final ParseField RELEVANCE_SETTINGS_FIELD = new ParseField("relevance_settings");
 
     private static final ObjectParser<RelevanceMatchQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, RelevanceMatchQueryBuilder::new);
+
+    private RelevanceSettingsService relevanceSettingsService;
 
     private final QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
 
     static {
         declareStandardFields(PARSER);
 
-        PARSER.declareString(RelevanceMatchQueryBuilder::setQuery, FIELD_QUERY);
+        PARSER.declareString(RelevanceMatchQueryBuilder::setQuery, QUERY_FIELD);
+        PARSER.declareStringOrNull(RelevanceMatchQueryBuilder::setRelevanceSettingsId, RELEVANCE_SETTINGS_FIELD);
     }
 
     private String query;
+
+    private String relevanceSettingsId;
 
     public RelevanceMatchQueryBuilder() {
         super();
     }
 
-    public RelevanceMatchQueryBuilder(StreamInput in) throws IOException {
+    public RelevanceMatchQueryBuilder(RelevanceSettingsService relevanceSettingsService, StreamInput in) throws IOException {
         super(in);
 
+        this.relevanceSettingsService = relevanceSettingsService;
         query = in.readString();
     }
 
-    public static RelevanceMatchQueryBuilder fromXContent(final XContentParser parser) {
+    public void setRelevanceSettingsService(RelevanceSettingsService relevanceSettingsService) {
+        this.relevanceSettingsService = relevanceSettingsService;
+    }
+
+    public static RelevanceMatchQueryBuilder fromXContent(final XContentParser parser, RelevanceSettingsService relevanceSettingsService) {
 
         final RelevanceMatchQueryBuilder builder;
         try {
@@ -67,31 +80,49 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         if (builder.query == null) {
             throw new ParsingException(parser.getTokenLocation(), "[relevance_match] requires a query, none specified");
         }
+
+        builder.setRelevanceSettingsService(relevanceSettingsService);
+
         return builder;
     }
 
     @Override
     protected void doWriteTo(final StreamOutput out) throws IOException {
         out.writeString(query);
+        out.writeOptionalString(relevanceSettingsId);
     }
 
     @Override
     protected void doXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject(NAME);
 
-        builder.field(FIELD_QUERY.getPreferredName(), query);
+        builder.field(QUERY_FIELD.getPreferredName(), query);
+        if (relevanceSettingsId != null) {
+            builder.field(RELEVANCE_SETTINGS_FIELD.getPreferredName(), relevanceSettingsId);
+        }
 
         builder.endObject();
     }
 
     @Override
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
-        Collection<String> fields = queryFieldsResolver.getQueryFields(context);
-        if (fields.isEmpty()) {
-            throw new IllegalArgumentException("[relevance_match] query cannot find text fields in the index");
+
+        Collection<String> fields;
+        if (relevanceSettingsId != null) {
+            try {
+                RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
+                fields = relevanceSettings.getFields();
+            } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
+                throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
+            }
+        } else {
+            fields = queryFieldsResolver.getQueryFields(context);
+            if (fields.isEmpty()) {
+                throw new IllegalArgumentException("[relevance_match] query cannot find text fields in the index");
+            }
         }
 
-        final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fields.toArray(new String[fields.size()]));
+        final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fields.toArray(new String[0]));
 
         return builder.toQuery(context);
     }
@@ -118,5 +149,9 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
     public void setQuery(String query) {
         this.query = query;
+    }
+
+    public void setRelevanceSettingsId(String relevanceSettingsId) {
+        this.relevanceSettingsId = relevanceSettingsId;
     }
 }

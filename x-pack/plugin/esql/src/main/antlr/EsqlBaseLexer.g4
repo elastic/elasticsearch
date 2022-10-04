@@ -8,7 +8,6 @@ STATS : 'stats' -> pushMode(EXPRESSION);
 WHERE : 'where' -> pushMode(EXPRESSION);
 SORT : 'sort' -> pushMode(EXPRESSION);
 LIMIT : 'limit' -> pushMode(EXPRESSION);
-UNKNOWN_COMMAND : ~[ \r\n\t]+ -> pushMode(EXPRESSION);
 
 LINE_COMMENT
     : '//' ~[\r\n]* '\r'? '\n'? -> channel(HIDDEN)
@@ -127,7 +126,7 @@ SRC_CLOSING_BRACKET : ']' -> popMode, popMode, type(CLOSING_BRACKET);
 SRC_COMMA : ',' -> type(COMMA);
 
 SRC_UNQUOTED_IDENTIFIER
-    : ~[`|., \t\r\n]+
+    : ~[`|., [\]\t\r\n]+
     ;
 
 SRC_QUOTED_IDENTIFIER

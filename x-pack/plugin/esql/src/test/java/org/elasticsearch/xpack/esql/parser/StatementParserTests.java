@@ -299,6 +299,10 @@ public class StatementParserTests extends ESTestCase {
         );
     }
 
+    public void testSubquerySpacing() {
+        assertEquals(statement("explain [ explain [ from a ] | where b == 1 ]"), statement("explain[explain[from a]|where b==1]"));
+    }
+
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(UnresolvedRelation.class));

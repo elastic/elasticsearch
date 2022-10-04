@@ -13,9 +13,6 @@ import org.objectweb.asm.ClassReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -29,8 +26,13 @@ import java.util.zip.ZipFile;
  * @see ClassReader
  */
 public class ClassReaders {
-    // TODO javadoc on closing a stream
+    private static final String MODULE_INFO = "module-info.class";
 
+    /**
+     * @apiNote
+     * This method must be used within a try-with-resources statement or similar
+     * control structure.
+     */
     public static Stream<ClassReader> ofDirWithJars(String path) {
         if (path == null) {
             return Stream.empty();
@@ -43,6 +45,11 @@ public class ClassReaders {
         }
     }
 
+    /**
+     * @apiNote
+     * This method must be used within a try-with-resources statement or similar
+     * control structure.
+     */
     public static Stream<ClassReader> ofPaths(Stream<Path> list) {
         return list.filter(Files::exists).flatMap(p -> {
             if (p.toString().endsWith(".jar")) {
@@ -53,13 +60,7 @@ public class ClassReaders {
         });
     }
 
-    private static final String MODULE_INFO = "module-info.class";
-
     private static Stream<ClassReader> classesInJar(Path jar) {
-        // try {
-        // FileSystem jarFs = FileSystems.newFileSystem(jar);
-        // Path root = jarFs.getPath("/");
-
         try {
             JarFile jf = new JarFile(jar.toFile(), true, ZipFile.OPEN_READ, Runtime.version());
 
@@ -75,13 +76,12 @@ public class ClassReaders {
                 });
             return classReaderStream;
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new UncheckedIOException(e);
         }
-        return Stream.empty();
     }
 
     private static Stream<ClassReader> classesInPath(Path root) {
-        try { // todo what to do on exception
+        try {
             Stream<Path> stream = Files.walk(root);
             return stream.filter(p -> p.toString().endsWith(".class"))
                 .filter(p -> p.toString().endsWith("module-info.class") == false)
@@ -94,17 +94,7 @@ public class ClassReaders {
                     }
                 });
         } catch (IOException e) {
-            // e.printStackTrace();
-        }
-        return Stream.empty();
-    }
-
-    // Duplication from PluginsService::uncheckedToURI
-    public static final URI uncheckedToURI(URL url) {
-        try {
-            return url.toURI();
-        } catch (URISyntaxException e) {
-            throw new AssertionError(new IOException(e));
+            throw new UncheckedIOException(e);
         }
     }
 }

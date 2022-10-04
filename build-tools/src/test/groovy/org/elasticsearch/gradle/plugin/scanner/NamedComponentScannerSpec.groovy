@@ -196,7 +196,6 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
         namedComponent.inject(jar.toFile());
     }
 
-    // todo how better handle exceptions?
     private Supplier<Stream<ClassReader>> classReaderStream(Class<?>... classes) {
 
         return () -> {
@@ -214,11 +213,10 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
                             throw new UncheckedIOException(e);
                         }
                     }
-                )/*.filter(cr -> cr != null)*/;
+                )
             } catch (Exception e) {
-
+                throw new RuntimeException(e);
             }
-            return Stream.empty();
         };
     }
 

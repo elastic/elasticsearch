@@ -110,7 +110,6 @@ class ClassReadersSpec extends AbstractGradleFuncTest{
         final Path dirWithJar = tmp.resolve("jars-dir");
         Files.createDirectories(dirWithJar);
 
-        // System.setProperty("jdk.module.path", dirWithJar.toString());
 
         Path jar = dirWithJar.resolve("a_b.jar");
         JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """

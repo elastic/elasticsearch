@@ -19,7 +19,9 @@ import java.util.stream.Stream;
 
 public class NamedComponentScanner {
 
-    // Map<String, Map<String,String> - extensible interface -> map{ namedName -> className }
+    /**
+     * returns a Map<String, Map<String,String>  - extensible interface -> map{ namedName -> className }
+     */
     public Map<String, Map<String, String>> scanForNamedClasses(Supplier<Stream<ClassReader>> classReaderStream) {
         // TODO I don't have access to stable-plugin-api here so I have to hardcode class descriptors
         ClassScanner extensibleClassScanner = new ClassScanner("Lorg/elasticsearch/plugin/api/Extensible;", (classname, map) -> {
@@ -61,5 +63,4 @@ public class NamedComponentScanner {
     private String pathToClassName(String classWithSlashes) {
         return classWithSlashes.replace('/', '.');
     }
-
 }

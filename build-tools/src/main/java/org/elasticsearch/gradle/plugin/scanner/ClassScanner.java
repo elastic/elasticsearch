@@ -20,15 +20,9 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
-public class ClassScanner { // rename to registry?
+public class ClassScanner {
     private final Map<String, String> foundClasses;
     private final AnnotatedHierarchyVisitor annotatedHierarchyVisitor;
-
-    // copying
-    public ClassScanner(ClassScanner classScanner) {
-        this.annotatedHierarchyVisitor = classScanner.annotatedHierarchyVisitor;
-        this.foundClasses = classScanner.foundClasses;
-    }
 
     public ClassScanner(String targetAnnotation, BiFunction<String, Map<String, String>, AnnotationVisitor> biConsumer) {
         this.foundClasses = new HashMap<>();
@@ -71,11 +65,4 @@ public class ClassScanner { // rename to registry?
         return foundClasses;
     }
 
-    public Map<String, Set<String>> getClassHierarchy() {
-        return this.annotatedHierarchyVisitor.getClassHierarchy();
-    }
-
-    public void addFoundClasses(Map<String, String> fromFile) {
-        foundClasses.putAll(fromFile);
-    }
 }

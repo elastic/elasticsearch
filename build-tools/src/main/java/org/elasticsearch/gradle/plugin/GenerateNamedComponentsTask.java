@@ -39,10 +39,10 @@ import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
-//asm here?
 public abstract class GenerateNamedComponentsTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(GenerateNamedComponentsTask.class);
     private static final String NAMED_COMPONENTS_FILE = "named_components.json";
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final WorkerExecutor workerExecutor;
     private FileCollection classpath;
@@ -52,7 +52,6 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
     public GenerateNamedComponentsTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
         this.workerExecutor = workerExecutor;
         getOutputFile().convention(projectLayout.getBuildDirectory().file("generated-named-components/" + NAMED_COMPONENTS_FILE));
-
     }
 
     @TaskAction
@@ -103,9 +102,8 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
         }
 
         private void writeToFile(Map<String, Map<String, String>> namedComponentsMap) {
-
             try {
-                String json = new ObjectMapper().writeValueAsString(namedComponentsMap);
+                String json = OBJECT_MAPPER.writeValueAsString(namedComponentsMap);
                 File file = getParameters().getOutputFile().getAsFile().get();
                 Path of = Path.of(file.getAbsolutePath());
                 Files.writeString(of, json);

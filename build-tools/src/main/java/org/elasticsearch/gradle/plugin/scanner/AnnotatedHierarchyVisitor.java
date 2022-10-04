@@ -27,13 +27,12 @@ public class AnnotatedHierarchyVisitor extends ClassVisitor {
     // a function taking the current class name the target annotation appeared on, and returning an AnnotationVisitor
     // that can be used to capture annotation specific args
     private final Function<String, AnnotationVisitor> visitor;
-    private final Map<String, String> visitedAnnotations = new HashMap<>();
     private final Map<String, Set<String>> classToSubclasses = new HashMap<>();
     private static final String OBJECT_NAME = Object.class.getCanonicalName().replace('.', '/');
 
     AnnotatedHierarchyVisitor(String targetAnnotation, Function<String, AnnotationVisitor> annotationVisitor) {
         super(Opcodes.ASM9);
-        this.targetAnnotationDescriptor = targetAnnotation;// Type.getDescriptor(targetAnnotation);
+        this.targetAnnotationDescriptor = targetAnnotation;
         this.visitor = annotationVisitor;
     }
 

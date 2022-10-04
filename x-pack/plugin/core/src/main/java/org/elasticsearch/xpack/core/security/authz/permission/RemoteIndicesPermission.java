@@ -23,16 +23,18 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
 
     public static final RemoteIndicesPermission NONE = new RemoteIndicesPermission(List.of());
 
-    // TODO should this return RemoteIndicesPermission?
-    public IndicesPermission indicesPermissionFor(final String remoteClusterAlias) {
-        final var builder = new IndicesPermission.Builder(new RestrictedIndices(Automatons.EMPTY));
+    public RemoteIndicesPermission forCluster(final String remoteClusterAlias) {
+        final var remoteClusterAliases = Set.of(remoteClusterAlias);
+        final var builder = new RemoteIndicesPermission.Builder();
+        // TODO handle empty
         for (var remoteIndicesGroup : remoteIndicesGroups) {
             if (false == remoteIndicesGroup.checkRemoteClusterAlias(remoteClusterAlias)) {
                 continue;
             }
             // TODO we can merge groups by `indices` here
             final var group = remoteIndicesGroup.indicesPermissionGroup();
-            builder.addGroup(
+            builder.addRemoteIndicesGroup(
+                remoteClusterAliases,
                 group.privilege(),
                 group.getFieldPermissions(),
                 group.getQuery(),
@@ -42,6 +44,11 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
         }
         // TODO cache result
         return builder.build();
+    }
+
+    public IndicesPermission.Group[] groups() {
+        // TODO
+        return remoteIndicesGroups.stream().map(it -> it.indicesPermissionGroup).toList().toArray(IndicesPermission.Group.EMPTY_ARRAY);
     }
 
     public static class Builder {
@@ -83,7 +90,6 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
     public record RemoteIndicesGroup(
         Set<String> remoteClusterAliases,
         StringMatcher remoteClusterAliasMatcher,
-        // List<>?
         IndicesPermission.Group indicesPermissionGroup
     ) {
 

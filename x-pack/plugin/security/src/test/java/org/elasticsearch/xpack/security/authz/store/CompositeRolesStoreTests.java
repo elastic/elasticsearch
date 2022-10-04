@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ActionClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -1126,10 +1127,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        assertThat(role.remoteIndices().indicesPermissionFor("remote1").groups(), not(is(emptyArray())));
-        assertThat(role.remoteIndices().indicesPermissionFor("remote2").groups(), not(is(emptyArray())));
-        assertThat(role.remoteIndices().indicesPermissionFor("remote-a").groups(), not(is(emptyArray())));
-        assertThat(role.remoteIndices().indicesPermissionFor(randomAlphaOfLengthBetween(2, 10)).groups(), emptyArray());
+        assertThat(role.remoteIndices().forCluster("remote1").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices().forCluster("remote2").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices().forCluster("remote-a").groups(), not(is(emptyArray())));
+        assertThat(role.remoteIndices().forCluster(randomAlphaOfLengthBetween(2, 10)).groups(), emptyArray());
 
         final Predicate<IndexAbstraction> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
         assertThat(allowedWrite.test(mockIndexAbstraction("abc-123")), equalTo(true));
@@ -1208,19 +1209,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        assertHasIndices(
-            List.of("abc-*", "remote-xyz-*", "remote-abc-*", "baz-*", "bar-*"),
-            role.remoteIndices().indicesPermissionFor("remote1")
-        );
+        assertHasIndices(List.of("abc-*", "remote-xyz-*", "remote-abc-*", "baz-*", "bar-*"), role.remoteIndices().forCluster("remote1"));
         assertHasIndices(
             List.of("remote-abc-*", "xyz-*", "abc-*", "remote-xyz-*", "remote-abc-*", "bar-*"),
-            role.remoteIndices().indicesPermissionFor("remote-a")
+            role.remoteIndices().forCluster("remote-a")
         );
-        assertHasIndices(List.of(), role.remoteIndices().indicesPermissionFor(randomAlphaOfLengthBetween(2, 10)));
-        assertHasIndices(List.of(), role.remoteIndices().indicesPermissionFor("remote2"));
+        assertHasIndices(List.of(), role.remoteIndices().forCluster(randomAlphaOfLengthBetween(2, 10)));
+        assertHasIndices(List.of(), role.remoteIndices().forCluster("remote2"));
     }
 
-    private void assertHasIndices(final List<String> expectedIndexNames, final IndicesPermission indicesPermission) {
+    private void assertHasIndices(final List<String> expectedIndexNames, final RemoteIndicesPermission indicesPermission) {
         assertThat(
             Arrays.stream(indicesPermission.groups()).flatMap(group -> Arrays.stream(group.indices())).toList(),
             containsInAnyOrder(expectedIndexNames.toArray())

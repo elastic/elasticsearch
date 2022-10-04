@@ -26,7 +26,6 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
     public RemoteIndicesPermission forCluster(final String remoteClusterAlias) {
         final var remoteClusterAliases = Set.of(remoteClusterAlias);
         final var builder = new RemoteIndicesPermission.Builder();
-        // TODO handle empty
         for (var remoteIndicesGroup : remoteIndicesGroups) {
             if (false == remoteIndicesGroup.checkRemoteClusterAlias(remoteClusterAlias)) {
                 continue;
@@ -48,7 +47,10 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
 
     public IndicesPermission.Group[] groups() {
         // TODO
-        return remoteIndicesGroups.stream().map(it -> it.indicesPermissionGroup).toList().toArray(IndicesPermission.Group.EMPTY_ARRAY);
+        return remoteIndicesGroups.stream()
+            .map(RemoteIndicesGroup::indicesPermissionGroup)
+            .toList()
+            .toArray(IndicesPermission.Group.EMPTY_ARRAY);
     }
 
     public static class Builder {

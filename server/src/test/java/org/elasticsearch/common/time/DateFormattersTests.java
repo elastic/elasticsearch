@@ -328,7 +328,12 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("1500", "1500-01-01T23:59:59.999", "uuuu");
         assertRoundupFormatter("2022", "2022-01-01T23:59:59.999", "uuuu");
         assertRoundupFormatter("2022", "2022-01-01T23:59:59.999", "yyyy");
-        // cannot reliably default week based years due to locale changing. See JavaDateFormatter javadocs
+        assumeFalse(
+            "won't work in jdk8 " + "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",
+            JavaVersion.current().equals(JavaVersion.parse("8"))
+        );
+        // cannot reliably default week based years due to locale changing. This is always using the same locale anyway
+        // See JavaDateFormatter javadocs
         assertRoundupFormatter("2022", "2022-01-03T23:59:59.999", "YYYY");
     }
 

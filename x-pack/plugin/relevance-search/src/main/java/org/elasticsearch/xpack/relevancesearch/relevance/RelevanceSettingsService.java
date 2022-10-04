@@ -18,7 +18,7 @@ import java.util.Map;
 public class RelevanceSettingsService {
 
     public static final String ENT_SEARCH_INDEX = ".ent-search";
-    public static final String RELEVANCE_SETTINGS_PREFIX = "ent-search-settings-";
+    public static final String RELEVANCE_SETTINGS_PREFIX = "relevance_settings-";
     private final Client client;
 
     public RelevanceSettingsService(final Client client) {

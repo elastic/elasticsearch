@@ -286,22 +286,28 @@ public interface Role {
                 }
                 indices = indicesBuilder.build();
             }
-            final RemoteIndicesPermission.Builder remoteIndicesBuilder = new RemoteIndicesPermission.Builder(restrictedIndices);
-            for (final RemoteIndicesPermissionGroupDefinition remoteGroup : remoteGroups) {
-                final IndicesPermissionGroupDefinition group = remoteGroup.group();
-                remoteIndicesBuilder.addIndicesPermission(
-                    remoteGroup.remoteClusterAliases(),
-                    group.privilege,
-                    group.fieldPermissions,
-                    group.query,
-                    group.allowRestrictedIndices,
-                    group.indices
-                );
+            final RemoteIndicesPermission remoteIndices;
+            if (remoteGroups.isEmpty()) {
+                remoteIndices = RemoteIndicesPermission.NONE;
+            } else {
+                final RemoteIndicesPermission.Builder remoteIndicesBuilder = new RemoteIndicesPermission.Builder(restrictedIndices);
+                for (final RemoteIndicesPermissionGroupDefinition remoteGroup : remoteGroups) {
+                    final IndicesPermissionGroupDefinition group = remoteGroup.group();
+                    remoteIndicesBuilder.addIndicesPermission(
+                        remoteGroup.remoteClusterAliases(),
+                        group.privilege,
+                        group.fieldPermissions,
+                        group.query,
+                        group.allowRestrictedIndices,
+                        group.indices
+                    );
+                }
+                remoteIndices = remoteIndicesBuilder.build();
             }
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
                 ? ApplicationPermission.NONE
                 : new ApplicationPermission(applicationPrivs);
-            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndicesBuilder.build());
+            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices);
         }
 
         Builder indices(

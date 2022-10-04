@@ -1127,10 +1127,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        assertThat(role.remoteIndices().forCluster("remote1").groups(), not(is(emptyArray())));
-        assertThat(role.remoteIndices().forCluster("remote2").groups(), not(is(emptyArray())));
-        assertThat(role.remoteIndices().forCluster("remote-a").groups(), not(is(emptyArray())));
-        assertThat(role.remoteIndices().forCluster(randomAlphaOfLengthBetween(2, 10)).groups(), emptyArray());
+        // TODO
+        assertThat(role.remoteIndices().forCluster("remote1").remoteIndicesGroups().stream().flatMap(it3 -> it3.indicesPermissionGroups().stream()).toArray(IndicesPermission.Group[]::new), not(is(emptyArray())));
+        // TODO
+        assertThat(role.remoteIndices().forCluster("remote2").remoteIndicesGroups().stream().flatMap(it2 -> it2.indicesPermissionGroups().stream()).toArray(IndicesPermission.Group[]::new), not(is(emptyArray())));
+        // TODO
+        assertThat(role.remoteIndices().forCluster("remote-a").remoteIndicesGroups().stream().flatMap(it1 -> it1.indicesPermissionGroups().stream()).toArray(IndicesPermission.Group[]::new), not(is(emptyArray())));
+        // TODO
+        assertThat(role.remoteIndices().forCluster(randomAlphaOfLengthBetween(2, 10)).remoteIndicesGroups().stream().flatMap(it -> it.indicesPermissionGroups().stream()).toArray(IndicesPermission.Group[]::new), emptyArray());
 
         final Predicate<IndexAbstraction> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
         assertThat(allowedWrite.test(mockIndexAbstraction("abc-123")), equalTo(true));
@@ -1218,9 +1222,39 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasIndices(List.of(), role.remoteIndices().forCluster("remote2"));
     }
 
+    public void testMergingRolesWithOnlyRemoteClustersSingleRd() {
+        RoleDescriptor role1 = new RoleDescriptor(
+            "r1",
+            null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("index-1").privileges("all").remoteClusters("remote-1").build(),
+                IndicesPrivileges.builder().indices("index-1").privileges("read").remoteClusters("remote-1").build(),
+                IndicesPrivileges.builder().indices("index-2").privileges("all").remoteClusters("remote-1").build(), },
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            Sets.newHashSet(role1),
+            cache,
+            privilegeStore,
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            future
+        );
+        final Role role = future.actionGet();
+        assertHasIndices(List.of("index-1", "index-2"), role.remoteIndices().forCluster("remote-1"));
+    }
+
     private void assertHasIndices(final List<String> expectedIndexNames, final RemoteIndicesPermission indicesPermission) {
+        // TODO
         assertThat(
-            Arrays.stream(indicesPermission.groups()).flatMap(group -> Arrays.stream(group.indices())).toList(),
+            Arrays.stream(indicesPermission.remoteIndicesGroups().stream().flatMap(it -> it.indicesPermissionGroups().stream()).toArray(IndicesPermission.Group[]::new)).flatMap(group -> Arrays.stream(group.indices())).toList(),
             containsInAnyOrder(expectedIndexNames.toArray())
         );
     }

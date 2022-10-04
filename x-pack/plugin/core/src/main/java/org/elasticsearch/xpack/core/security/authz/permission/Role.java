@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -186,7 +187,7 @@ public interface Role {
         private ClusterPermission cluster = ClusterPermission.NONE;
         private RunAsPermission runAs = RunAsPermission.NONE;
         private final List<IndicesPermissionGroupDefinition> groups = new ArrayList<>();
-        private final List<RemoteIndicesPermissionGroupDefinition> remoteGroups = new ArrayList<>();
+        private final Map<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroups = new HashMap<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
         private final RestrictedIndices restrictedIndices;
 
@@ -255,12 +256,11 @@ public interface Role {
             final boolean allowRestrictedIndices,
             final String... indices
         ) {
-            remoteGroups.add(
-                new RemoteIndicesPermissionGroupDefinition(
-                    remoteClusterAliases,
-                    new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices)
-                )
-            );
+            if (false == remoteGroups.containsKey(remoteClusterAliases)) {
+                remoteGroups.put(remoteClusterAliases, new ArrayList<>());
+            }
+            remoteGroups.get(remoteClusterAliases)
+                .add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
             return this;
         }
 
@@ -286,28 +286,31 @@ public interface Role {
                 }
                 indices = indicesBuilder.build();
             }
-            final RemoteIndicesPermission remoteIndices;
-            if (remoteGroups.isEmpty()) {
-                remoteIndices = RemoteIndicesPermission.NONE;
-            } else {
-                final RemoteIndicesPermission.Builder remoteIndicesBuilder = new RemoteIndicesPermission.Builder();
-                for (final RemoteIndicesPermissionGroupDefinition remoteGroup : remoteGroups) {
-                    final IndicesPermissionGroupDefinition group = remoteGroup.group();
-                    remoteIndicesBuilder.addRemoteIndicesGroup(
-                        remoteGroup.remoteClusterAliases(),
-                        group.privilege,
-                        group.fieldPermissions,
-                        group.query,
-                        group.allowRestrictedIndices,
-                        group.indices
-                    );
-                }
-                remoteIndices = remoteIndicesBuilder.build();
+            final RemoteIndicesPermission.Builder remoteIndicesBuilder = new RemoteIndicesPermission.Builder();
+            for (final var remoteGroupEntry : remoteGroups.entrySet()) {
+                remoteIndicesBuilder.addGroup(
+                    remoteGroupEntry.getKey(),
+                    remoteGroupEntry.getValue()
+                        .stream()
+                        .map(
+                            // Leaky
+                            group -> new IndicesPermission.Group(
+                                group.privilege,
+                                group.fieldPermissions,
+                                group.query,
+                                group.allowRestrictedIndices,
+                                restrictedIndices,
+                                group.indices
+                            )
+                        )
+                        .toList()
+                );
             }
+
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
                 ? ApplicationPermission.NONE
                 : new ApplicationPermission(applicationPrivs);
-            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices);
+            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndicesBuilder.build());
         }
 
         Builder indices(

@@ -7,15 +7,9 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -24,33 +18,13 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
     public static final RemoteIndicesPermission NONE = new RemoteIndicesPermission(List.of());
 
     public RemoteIndicesPermission forCluster(final String remoteClusterAlias) {
-        final var remoteClusterAliases = Set.of(remoteClusterAlias);
-        final var builder = new RemoteIndicesPermission.Builder();
-        for (var remoteIndicesGroup : remoteIndicesGroups) {
-            if (false == remoteIndicesGroup.checkRemoteClusterAlias(remoteClusterAlias)) {
-                continue;
-            }
-            // TODO we can merge groups by `indices` here
-            final var group = remoteIndicesGroup.indicesPermissionGroup();
-            builder.addRemoteIndicesGroup(
-                remoteClusterAliases,
-                group.privilege(),
-                group.getFieldPermissions(),
-                group.getQuery(),
-                group.allowRestrictedIndices(),
-                group.indices()
-            );
-        }
         // TODO cache result
-        return builder.build();
-    }
-
-    public IndicesPermission.Group[] groups() {
-        // TODO
-        return remoteIndicesGroups.stream()
-            .map(RemoteIndicesGroup::indicesPermissionGroup)
-            .toList()
-            .toArray(IndicesPermission.Group.EMPTY_ARRAY);
+        return new RemoteIndicesPermission(
+            remoteIndicesGroups.stream()
+                // TODO we can merge `indicesPermissionGroups` by `indices` here
+                .filter(remoteIndicesGroup -> remoteIndicesGroup.checkRemoteClusterAlias(remoteClusterAlias))
+                .toList()
+        );
     }
 
     public static class Builder {
@@ -60,43 +34,23 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
             this.remoteIndicesGroups = new ArrayList<>();
         }
 
-        public Builder addRemoteIndicesGroup(
-            final Set<String> remoteClusterAliases,
-            final IndexPrivilege privilege,
-            final FieldPermissions fieldPermissions,
-            final @Nullable Set<BytesReference> query,
-            final boolean allowRestrictedIndices,
-            final String... indices
-        ) {
-            remoteIndicesGroups.add(
-                new RemoteIndicesGroup(
-                    remoteClusterAliases,
-                    new IndicesPermission.Group(
-                        privilege,
-                        fieldPermissions,
-                        query,
-                        allowRestrictedIndices,
-                        new RestrictedIndices(Automatons.EMPTY),
-                        indices
-                    )
-                )
-            );
+        public Builder addGroup(final Set<String> remoteClusterAliases, final List<IndicesPermission.Group> groups) {
+            remoteIndicesGroups.add(new RemoteIndicesGroup(remoteClusterAliases, groups));
             return this;
         }
 
         public RemoteIndicesPermission build() {
-            return remoteIndicesGroups.isEmpty() ? NONE : new RemoteIndicesPermission(Collections.unmodifiableList(remoteIndicesGroups));
+            return remoteIndicesGroups.isEmpty() ? NONE : new RemoteIndicesPermission(remoteIndicesGroups);
         }
     }
 
     public record RemoteIndicesGroup(
         Set<String> remoteClusterAliases,
         StringMatcher remoteClusterAliasMatcher,
-        IndicesPermission.Group indicesPermissionGroup
+        List<IndicesPermission.Group> indicesPermissionGroups
     ) {
-
-        public RemoteIndicesGroup(Set<String> remoteClusterAliases, IndicesPermission.Group indicesPermissionGroup) {
-            this(remoteClusterAliases, StringMatcher.of(remoteClusterAliases), indicesPermissionGroup);
+        public RemoteIndicesGroup(Set<String> remoteClusterAliases, List<IndicesPermission.Group> indicesPermissionGroups) {
+            this(remoteClusterAliases, StringMatcher.of(remoteClusterAliases), indicesPermissionGroups);
         }
 
         public boolean checkRemoteClusterAlias(final String remoteClusterAlias) {

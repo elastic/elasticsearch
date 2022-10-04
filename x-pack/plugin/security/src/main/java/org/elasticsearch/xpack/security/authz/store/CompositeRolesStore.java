@@ -425,7 +425,7 @@ public class CompositeRolesStore {
         // Keyed by application + resource
         final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
 
-        List<String> roleNames = new ArrayList<>(roleDescriptors.size());
+        final List<String> roleNames = new ArrayList<>(roleDescriptors.size());
         for (RoleDescriptor descriptor : roleDescriptors) {
             roleNames.add(descriptor.getName());
             if (descriptor.getClusterPrivileges() != null) {
@@ -478,6 +478,7 @@ public class CompositeRolesStore {
                     )
                 );
             } else {
+                // TODO ungrouping unnecessarily here
                 indicesPrivilegesMapForCluster.forEach(
                     (key, privilege) -> builder.addRemoteGroup(
                         clusterAliasKey,

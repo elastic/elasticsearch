@@ -81,7 +81,7 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
         indexDocument(
             RelevanceSettingsService.ENT_SEARCH_INDEX,
             RelevanceSettingsService.RELEVANCE_SETTINGS_PREFIX + settingsId,
-            Map.of("fields", List.of("textField"))
+            Map.of("query_configuration", Map.of("fields", List.of("textField")))
         );
 
         indexDocument(
@@ -101,6 +101,38 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
 
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
+    }
+
+    public void testFieldSettingsWithBoosts() {
+        final String settingsId = "test-settings-with-boosts";
+        indexDocument(
+            RelevanceSettingsService.ENT_SEARCH_INDEX,
+            RelevanceSettingsService.RELEVANCE_SETTINGS_PREFIX + settingsId,
+            Map.of("query_configuration", Map.of("fields", List.of("textField^2.5", "anotherTextField^3")))
+        );
+
+        indexDocument(
+            DOCUMENTS_INDEX,
+            "1",
+            Map.of("textField", "text example", "intField", 12, "doubleField", 13.45, "anotherTextField", "should match")
+        );
+        indexDocument(
+            DOCUMENTS_INDEX,
+            "2",
+            Map.of("textField", "other document", "intField", 12, "doubleField", 13.45, "anotherTextField", "text example")
+        );
+        indexDocument(
+            DOCUMENTS_INDEX,
+            "3",
+            Map.of("textField", "nope", "intField", 12, "doubleField", 13.45, "anotherTextField", "no match here")
+        );
+
+        relevanceMatchQueryBuilder.setQuery("text example");
+        relevanceMatchQueryBuilder.setRelevanceSettingsId(settingsId);
+        SearchResponse response = client().prepareSearch(DOCUMENTS_INDEX).setQuery(relevanceMatchQueryBuilder).get();
+
+        assertHitCount(response, 2);
+        assertSearchHits(response, "1", "2");
     }
 
     public void testFieldSettingsNotFound() {

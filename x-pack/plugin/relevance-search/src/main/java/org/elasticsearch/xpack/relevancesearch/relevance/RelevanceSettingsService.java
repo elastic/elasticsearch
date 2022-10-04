@@ -46,6 +46,11 @@ public class RelevanceSettingsService {
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> queryConfiguration = (Map<String, Object>) source.get("query_configuration");
+        if (queryConfiguration == null) {
+            throw new RelevanceSettingsInvalidException(
+                "[relevance_match] query configuration not specified in relevance settings. Source: " + source
+            );
+        }
         @SuppressWarnings("unchecked")
         final List<String> fields = (List<String>) queryConfiguration.get("fields");
         if (fields == null || fields.isEmpty()) {

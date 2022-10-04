@@ -115,7 +115,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     if (allSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
                         List<String> routingPaths = findRoutingPaths(indexName, allSettings, combinedTemplateMappings);
-                        if (routingPaths != null) {
+                        if (routingPaths.isEmpty() == false) {
                             builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
                         }
                     }
@@ -162,9 +162,9 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
             }
 
-            List<String> routingPaths = null;
+            List<String> routingPaths = new ArrayList<>();
             for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
-                routingPaths = extractPath(routingPaths, fieldMapper);
+                extractPath(routingPaths, fieldMapper);
             }
             for (var template : mapperService.getAllDynamicTemplates()) {
                 var templateName = "__dynamic__" + template.name();
@@ -174,7 +174,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 var mapper = parserContext.typeParser(KeywordFieldMapper.CONTENT_TYPE)
                     .parse(template.pathMatch(), mappingSnippet, parserContext)
                     .build(MapperBuilderContext.ROOT);
-                routingPaths = extractPath(routingPaths, mapper);
+                extractPath(routingPaths, mapper);
             }
             return routingPaths;
         } catch (IOException e) {
@@ -182,16 +182,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         }
     }
 
-    private static List<String> extractPath(List<String> routingPaths, Mapper mapper) {
+    /**
+     * Helper method that adds the name of the mapper to the provided list if it is a keyword dimension field.
+     */
+    private static void extractPath(List<String> routingPaths, Mapper mapper) {
         if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
             if (keywordFieldMapper.fieldType().isDimension()) {
-                if (routingPaths == null) {
-                    routingPaths = new ArrayList<>();
-                }
                 routingPaths.add(mapper.name());
             }
         }
-        return routingPaths;
     }
 
 }

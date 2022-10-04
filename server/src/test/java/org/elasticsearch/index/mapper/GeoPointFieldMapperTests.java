@@ -452,7 +452,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeFalse("synthetic _source for geo_point doesn't support ignore_malformed", ignoreMalformed);
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
             private final GeoPoint nullValue = usually() ? null : randomGeoPoint();

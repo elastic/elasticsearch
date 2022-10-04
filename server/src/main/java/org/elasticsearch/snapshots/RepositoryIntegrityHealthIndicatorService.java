@@ -133,7 +133,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 )
                 : HealthIndicatorDetails.EMPTY,
             impacts,
-            List.of(new Diagnosis(CORRUPTED_REPOSITORY, new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corrupted)))
+            List.of(new Diagnosis(CORRUPTED_REPOSITORY, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corrupted))))
         );
     }
 

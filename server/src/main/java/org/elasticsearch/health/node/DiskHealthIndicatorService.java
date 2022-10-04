@@ -319,36 +319,21 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             List<Diagnosis> diagnosisList = new ArrayList<>();
             if (hasBlockedIndices() || hasUnhealthyDataNodes()) {
                 Set<String> affectedIndices = Sets.union(blockedIndices, indicesAtRisk);
-                int affectedTypesCount = 0;
-                Diagnosis.Resource nodeResources = null;
+                List<Diagnosis.Resource> affectedResources = new ArrayList<>();
                 if (dataNodes.size() > 0) {
-                    affectedTypesCount++;
-                    nodeResources = new Diagnosis.Resource(
+                    Diagnosis.Resource nodeResources = new Diagnosis.Resource(
                         dataNodes.stream().sorted(DISCOVERY_NODE_COMPARATOR).collect(Collectors.toList())
                     );
+                    affectedResources.add(nodeResources);
                 }
-                Diagnosis.Resource indexResources = null;
                 if (affectedIndices.size() > 0) {
-                    affectedTypesCount++;
-                    indexResources = new Diagnosis.Resource(
+                    Diagnosis.Resource indexResources = new Diagnosis.Resource(
                         Diagnosis.Resource.Type.INDEX,
                         affectedIndices.stream()
                             .sorted(indicesComparatorByPriorityAndName(clusterState.metadata()))
                             .collect(Collectors.toList())
                     );
-                }
-                Diagnosis.Resource[] affectedResources = affectedTypesCount > 0 ? new Diagnosis.Resource[affectedTypesCount] : null;
-                if (nodeResources != null) {
-                    assert affectedResources != null;
-                    affectedResources[0] = nodeResources;
-                    if (indexResources != null) {
-                        affectedResources[1] = indexResources;
-                    }
-                } else {
-                    if (indexResources != null) {
-                        assert affectedResources != null;
-                        affectedResources[0] = indexResources;
-                    }
+                    affectedResources.add(indexResources);
                 }
                 diagnosisList.add(
                     new Diagnosis(
@@ -465,7 +450,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     "Please add capacity to the current nodes, or replace them with ones with higher capacity.",
                     isMaster ? "https://ela.st/fix-master-disk" : "https://ela.st/fix-disk-space"
                 ),
-                new Diagnosis.Resource(nodes)
+                List.of(new Diagnosis.Resource(nodes))
             );
         }
 

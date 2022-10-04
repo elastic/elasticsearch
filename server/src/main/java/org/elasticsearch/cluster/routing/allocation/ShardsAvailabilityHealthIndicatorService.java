@@ -127,7 +127,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             status.getSummary(),
             status.getDetails(explain),
             status.getImpacts(),
-            status.getUserActions(explain)
+            status.getDiagnosis(explain)
         );
     }
 
@@ -891,11 +891,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         /**
-         * Summarizes the user actions that are needed to solve unassigned primary and replica shards.
+         * Returns the diagnosis for unassigned primary and replica shards.
          * @param explain true if user actions should be generated, false if they should be omitted.
          * @return A summary of user actions. Alternatively, an empty list if none were found or explain is false.
          */
-        public List<Diagnosis> getUserActions(boolean explain) {
+        public List<Diagnosis> getDiagnosis(boolean explain) {
             if (explain) {
                 Map<Diagnosis.Definition, Set<String>> actionsToAffectedIndices = new HashMap<>(primaries.userActions);
                 replicas.userActions.forEach((actionDefinition, indicesWithReplicasUnassigned) -> {
@@ -914,12 +914,14 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         .map(
                             e -> new Diagnosis(
                                 e.getKey(),
-                                new Diagnosis.Resource(
-                                    INDEX,
-                                    e.getValue()
-                                        .stream()
-                                        .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
-                                        .collect(Collectors.toList())
+                                List.of(
+                                    new Diagnosis.Resource(
+                                        INDEX,
+                                        e.getValue()
+                                            .stream()
+                                            .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
+                                            .collect(Collectors.toList())
+                                    )
                                 )
                             )
                         )

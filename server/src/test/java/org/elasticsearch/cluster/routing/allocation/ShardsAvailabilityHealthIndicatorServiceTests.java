@@ -162,7 +162,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, new Diagnosis.Resource(INDEX, List.of("yellow-index"))))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("yellow-index"))))
+                    )
                 )
             )
         );
@@ -191,7 +193,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, new Diagnosis.Resource(INDEX, List.of("red-index"))))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("red-index"))))
+                    )
                 )
             )
         );
@@ -217,7 +221,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, new Diagnosis.Resource(INDEX, List.of("red-index"))))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("red-index"))))
+                    )
                 )
             )
         );
@@ -408,7 +414,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new Diagnosis(
                             DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS,
-                            new Diagnosis.Resource(INDEX, List.of("restarting" + "-index"))
+                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting" + "-index")))
                         )
                     )
                 )
@@ -489,7 +495,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new Diagnosis(
                             DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS,
-                            new Diagnosis.Resource(INDEX, List.of("restarting" + "-index"))
+                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting" + "-index")))
                         )
                     )
                 )

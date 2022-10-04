@@ -90,7 +90,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    List.of(new Diagnosis(CORRUPTED_REPOSITORY, new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedRepos)))
+                    List.of(new Diagnosis(CORRUPTED_REPOSITORY, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedRepos))))
                 )
             )
         );

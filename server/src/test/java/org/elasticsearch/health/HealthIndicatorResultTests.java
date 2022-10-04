@@ -51,7 +51,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
                 randomAlphaOfLength(50),
                 randomAlphaOfLength(30)
             ),
-            resource1
+            List.of(resource1)
         );
         diagnosisList.add(diagnosis1);
         Diagnosis.Resource resource2 = new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of(randomAlphaOfLength(10)));
@@ -63,7 +63,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
                 randomAlphaOfLength(50),
                 randomAlphaOfLength(30)
             ),
-            resource2
+            List.of(resource2)
         );
         diagnosisList.add(diagnosis2);
         HealthIndicatorResult result = new HealthIndicatorResult(name, status, symptom, details, impacts, diagnosisList);

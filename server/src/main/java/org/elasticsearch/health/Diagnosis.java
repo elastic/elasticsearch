@@ -15,8 +15,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.health.HealthService.HEALTH_API_ID_PREFIX;
@@ -27,7 +27,7 @@ import static org.elasticsearch.health.HealthService.HEALTH_API_ID_PREFIX;
  * @param definition The definition of the diagnosis (e.g. message, helpURL)
  * @param affectedResources Optional list of "things" that are affected by this condition (e.g. shards, indices, or policies).
  */
-public record Diagnosis(Definition definition, @Nullable Resource... affectedResources) implements ToXContentObject {
+public record Diagnosis(Definition definition, @Nullable List<Resource> affectedResources) implements ToXContentObject {
 
     /**
      * Represents a type of affected resource, together with the resources/abstractions that
@@ -140,7 +140,7 @@ public record Diagnosis(Definition definition, @Nullable Resource... affectedRes
         builder.field("cause", definition.cause);
         builder.field("action", definition.action);
 
-        if (affectedResources != null && affectedResources.length > 0) {
+        if (affectedResources != null && affectedResources.size() > 0) {
             builder.startObject("affected_resources");
             for (Resource affectedResource : affectedResources) {
                 affectedResource.toXContent(builder, params);
@@ -150,24 +150,5 @@ public record Diagnosis(Definition definition, @Nullable Resource... affectedRes
 
         builder.field("help_url", definition.helpURL);
         return builder.endObject();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        Diagnosis diagnosis = (Diagnosis) o;
-        return definition.equals(diagnosis.definition) && Arrays.equals(affectedResources, diagnosis.affectedResources);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = Objects.hash(definition);
-        result = 31 * result + Arrays.hashCode(affectedResources);
-        return result;
     }
 }

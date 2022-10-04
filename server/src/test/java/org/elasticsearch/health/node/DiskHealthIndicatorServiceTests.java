@@ -192,8 +192,9 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 assertThat(affectedResources.length, equalTo(2));
                 assertThat(affectedResources[0].getType(), is(Diagnosis.Resource.Type.NODE));
                 assertThat(affectedResources[0].getNodes().size(), is(dataNodes.size()));
-                List<DiscoveryNode> affectedNodes =
-                    dataNodes.stream().sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR).collect(Collectors.toList());
+                List<DiscoveryNode> affectedNodes = dataNodes.stream()
+                    .sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR)
+                    .collect(Collectors.toList());
                 assertThat(affectedResources[0].getNodes(), equalTo(affectedNodes));
                 assertThat(affectedResources[1].getType(), is(Diagnosis.Resource.Type.INDEX));
                 assertThat(affectedResources[1].getValues(), containsInAnyOrder(indexNameToNodeIdsMap.keySet().toArray(new String[0])));
@@ -204,8 +205,9 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 assertThat(affectedResources.length, equalTo(1));
                 assertThat(affectedResources[0].getType(), is(Diagnosis.Resource.Type.NODE));
                 assertThat(affectedResources[0].getNodes().size(), is(masterNodes.size()));
-                List<DiscoveryNode> affectedNodes =
-                    masterNodes.stream().sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR).collect(Collectors.toList());
+                List<DiscoveryNode> affectedNodes = masterNodes.stream()
+                    .sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR)
+                    .collect(Collectors.toList());
                 assertThat(affectedResources[0].getNodes(), equalTo(affectedNodes));
             }
             {
@@ -214,8 +216,9 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 assertThat(affectedResources.length, equalTo(1));
                 assertThat(affectedResources[0].getType(), is(Diagnosis.Resource.Type.NODE));
                 assertThat(affectedResources[0].getNodes().size(), is(otherNodes.size()));
-                List<DiscoveryNode> affectedNodes =
-                    otherNodes.stream().sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR).collect(Collectors.toList());
+                List<DiscoveryNode> affectedNodes = otherNodes.stream()
+                    .sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR)
+                    .collect(Collectors.toList());
                 assertThat(affectedResources[0].getNodes(), equalTo(affectedNodes));
             }
             Map<String, Object> details = xContentToMap(result.details());

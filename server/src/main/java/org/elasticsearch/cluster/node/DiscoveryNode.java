@@ -43,7 +43,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     public static final Comparator<DiscoveryNode> DISCOVERY_NODE_COMPARATOR = Comparator.comparing(DiscoveryNode::getName)
         .thenComparing(DiscoveryNode::getId);
 
-
     public static boolean hasRole(final Settings settings, final DiscoveryNodeRole role) {
         // this method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is initialized
         if (settings.hasValue("node.roles")) {

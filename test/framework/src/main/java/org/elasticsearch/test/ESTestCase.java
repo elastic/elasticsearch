@@ -129,6 +129,7 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1819,5 +1820,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         final boolean currentVersionHasFix = Version.CURRENT.luceneVersion.onOrAfter(luceneVersionWithFix);
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
+    }
+
+    public static SecureRandom secureRandom() {
+        return secureRandom(randomByteArrayOfLength(32));
+    }
+
+    public static SecureRandom secureRandom(final byte[] seed) {
+        return new SecureRandom(seed);
     }
 }

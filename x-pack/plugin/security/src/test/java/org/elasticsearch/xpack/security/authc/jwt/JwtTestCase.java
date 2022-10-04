@@ -59,6 +59,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -613,5 +614,10 @@ public abstract class JwtTestCase extends ESTestCase {
             throw new IllegalArgumentException("resource not found: " + relativePath, e);
         }
         return null;
+    }
+
+    public static SecureRandom secureRandom(final byte[] seed) {
+        LOGGER.warn("Seed: {}", Base64.getEncoder().encodeToString(seed));
+        return ESTestCase.secureRandom(seed);
     }
 }

@@ -10,17 +10,14 @@ import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 
-import org.apache.kerby.kerberos.kerb.crypto.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.junit.Assert;
 
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -33,12 +30,8 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
     private static final Logger LOGGER = LogManager.getLogger(Logger.class);
 
     public void testJwtAuthenticationTokenParse() throws Exception {
-        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
-        byte[] seed = Random.makeBytes(32);
-        LOGGER.warn("Seed: {}", Base64.getEncoder().encodeToString(seed));
-        secureRandom.setSeed(seed);
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
-        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, secureRandom, randomBoolean());
+        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, secureRandom(), randomBoolean());
 
         final SecureString jwt = JwtTestCase.randomBespokeJwt(jwk, signatureAlgorithm); // bespoke JWT, not tied to any JWT realm
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());
@@ -76,11 +69,7 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
         final String principalClaimValue = randomAlphaOfLengthBetween(8, 32);
 
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
-        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
-        byte[] seed = Random.makeBytes(32);
-        LOGGER.warn("Seed: {}", Base64.getEncoder().encodeToString(seed));
-        secureRandom.setSeed(seed);
-        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, secureRandom, randomBoolean());
+        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm, secureRandom(), randomBoolean());
 
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final SignedJWT unsignedJwt = JwtTestCase.buildUnsignedJwt(

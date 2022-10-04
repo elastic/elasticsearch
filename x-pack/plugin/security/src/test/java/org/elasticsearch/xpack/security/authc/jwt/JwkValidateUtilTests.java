@@ -10,15 +10,12 @@ import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 
-import org.apache.kerby.kerberos.kerb.crypto.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 
@@ -49,12 +46,8 @@ public class JwkValidateUtilTests extends JwtTestCase {
     }
 
     public void testComputeBitLengthRsa() throws Exception {
-        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
-        byte[] seed = Random.makeBytes(32);
-        LOGGER.warn("Seed: {}", Base64.getEncoder().encodeToString(seed));
-        secureRandom.setSeed(seed);
         for (final String signatureAlgorithmRsa : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA) {
-            final JWK jwk = JwtTestCase.randomJwkRsa(JWSAlgorithm.parse(signatureAlgorithmRsa), secureRandom);
+            final JWK jwk = JwtTestCase.randomJwkRsa(JWSAlgorithm.parse(signatureAlgorithmRsa), secureRandom());
             final int minLength = JwkValidateUtil.computeBitLengthRsa(jwk.toRSAKey().toPublicKey());
             assertThat(minLength, is(anyOf(equalTo(2048), equalTo(3072))));
         }
@@ -73,12 +66,8 @@ public class JwkValidateUtilTests extends JwtTestCase {
     }
 
     private void filterJwksAndAlgorithmsTestHelper(final List<String> candidateAlgs) throws Exception {
-        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
-        byte[] seed = Random.makeBytes(32);
-        LOGGER.warn("Seed: {}", Base64.getEncoder().encodeToString(seed));
-        secureRandom.setSeed(seed);
         final List<String> algsRandom = randomOfMinUnique(2, candidateAlgs); // duplicates allowed
-        final List<JwtIssuer.AlgJwkPair> algJwkPairsAll = JwtTestCase.randomJwks(algsRandom, secureRandom, randomBoolean());
+        final List<JwtIssuer.AlgJwkPair> algJwkPairsAll = JwtTestCase.randomJwks(algsRandom, secureRandom(), randomBoolean());
         final List<JWK> jwks = algJwkPairsAll.stream().map(JwtIssuer.AlgJwkPair::jwk).toList();
         final List<String> algsAll = algJwkPairsAll.stream().map(JwtIssuer.AlgJwkPair::alg).toList();
         final List<JWK> jwksAll = algJwkPairsAll.stream().map(JwtIssuer.AlgJwkPair::jwk).toList();

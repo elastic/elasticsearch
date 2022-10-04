@@ -13,7 +13,6 @@ import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.SignedJWT;
 
-import org.apache.kerby.kerberos.kerb.crypto.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
@@ -34,10 +33,8 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -160,11 +157,7 @@ public class JwtRealmGenerateTests extends JwtRealmTestCase {
      */
     public void testCreateJwtIntegrationTestRealm1() throws Exception {
         // Create RSA key for algorithm RS256
-        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
-        byte[] seed = Random.makeBytes(32);
-        LOGGER.warn("Seed: {}", Base64.getEncoder().encodeToString(seed));
-        secureRandom.setSeed(seed);
-        final JWK jwk = new RSAKey.Builder(JwtTestCase.randomJwkRsa(JWSAlgorithm.RS256, secureRandom)).keyID("test-rsa-key").build();
+        final JWK jwk = new RSAKey.Builder(JwtTestCase.randomJwkRsa(JWSAlgorithm.RS256, secureRandom())).keyID("test-rsa-key").build();
         final JwtIssuer.AlgJwkPair algJwkPairPkc = new JwtIssuer.AlgJwkPair("RS256", jwk);
 
         final String principalClaimName = "sub";

@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -64,10 +63,6 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
-        checker.registerUpdateCheck(
-            b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((ScaledFloatFieldMapper) m).ignoreMalformed())
-        );
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -217,40 +212,19 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("passed as String"));
     }
 
-    public void testIgnoreMalformed() throws Exception {
-        doTestIgnoreMalformed("a", "For input string: \"a\"");
-
-        List<String> values = Arrays.asList("NaN", "Infinity", "-Infinity");
-        for (String value : values) {
-            doTestIgnoreMalformed(value, "[scaled_float] only supports finite values, but got [" + value + "]");
-        }
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
     }
 
-    private void doTestIgnoreMalformed(String value, String exceptionMessageContains) throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ThrowingRunnable runnable = () -> mapper.parse(
-            new SourceToParse(
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
-                XContentType.JSON
-            )
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue("a").errorMatches("For input string: \"a\""),
+            exampleMalformedValue("NaN").errorMatches("[scaled_float] only supports finite values, but got [NaN]"),
+            exampleMalformedValue("Infinity").errorMatches("[scaled_float] only supports finite values, but got [Infinity]"),
+            exampleMalformedValue("-Infinity").errorMatches("[scaled_float] only supports finite values, but got [-Infinity]")
         );
-        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), containsString(exceptionMessageContains));
-
-        DocumentMapper mapper2 = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("ignore_malformed", true))
-        );
-        ParsedDocument doc = mapper2.parse(
-            new SourceToParse(
-                "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
-                XContentType.JSON
-            )
-        );
-
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
     }
 
     public void testNullValue() throws IOException {

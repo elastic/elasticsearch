@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -57,10 +56,6 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(
-            b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((UnsignedLongFieldMapper) m).ignoreMalformed())
-        );
     }
 
     public void testDefaults() throws Exception {
@@ -174,38 +169,17 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testIgnoreMalformed() throws Exception {
-        // test ignore_malformed is false by default
-        {
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-            Object malformedValue1 = "a";
-            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", malformedValue1)));
-            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
 
-            Object malformedValue2 = Boolean.FALSE;
-            runnable = () -> mapper.parse(source(b -> b.field("field", malformedValue2)));
-            e = expectThrows(MapperParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("For input string: \"false\""));
-        }
-
-        // test ignore_malformed when set to true ignored malformed documents
-        {
-            DocumentMapper mapper = createDocumentMapper(
-                fieldMapping(b -> b.field("type", "unsigned_long").field("ignore_malformed", true))
-            );
-            Object malformedValue1 = "a";
-            ParsedDocument doc = mapper.parse(source(b -> b.field("field", malformedValue1)));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(0, fields.length);
-            assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
-
-            Object malformedValue2 = Boolean.FALSE;
-            ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", malformedValue2)));
-            IndexableField[] fields2 = doc2.rootDoc().getFields("field");
-            assertEquals(0, fields2.length);
-            assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc2.rootDoc().getFields("_ignored")));
-        }
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue("a").errorMatches("For input string: \"a\""),
+            exampleMalformedValue(b -> b.value(false)).errorMatches("For input string: \"false\"")
+        );
     }
 
     public void testDecimalParts() throws IOException {

@@ -132,8 +132,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         // Search for fields that are not allowed in Query DSL but used internally by the service itself
         final String fieldName = randomFrom("doc_type", "api_key_invalidated");
-        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, """
-            { "query": { "term": {"%s": "%s"} } }""".formatted(fieldName, randomAlphaOfLengthBetween(3, 8)));
+        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, String.format(Locale.ROOT, """
+            { "query": { "term": {"%s": "%s"} } }""", fieldName, randomAlphaOfLengthBetween(3, 8)));
 
         // Search for api keys won't return other entities
         assertQuery(API_KEY_ADMIN_AUTH_HEADER, """
@@ -260,9 +260,9 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             } else {
                 searchAfter.append(sortValues.get(0));
             }
-            request2.setJsonEntity("""
+            request2.setJsonEntity(String.format(Locale.ROOT, """
                 {"size":%s,"sort":["%s"],"search_after":[%s]}
-                """.formatted(size, sortField, searchAfter));
+                """, size, sortField, searchAfter));
             actualSize = collectApiKeys(apiKeyInfos, request2, total, size);
             if (actualSize == 0 && apiKeyInfos.size() < remaining) {
                 fail("fail to retrieve all API keys, expect [" + remaining + "] keys, got [" + apiKeyInfos + "]");
@@ -599,12 +599,12 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final String metadataString = XContentTestUtils.convertToXContent(metadata == null ? Map.of() : metadata, XContentType.JSON)
             .utf8ToString();
         if (expiration == null) {
-            request.setJsonEntity("""
-                {"name":"%s", "role_descriptors":%s, "metadata":%s}""".formatted(name, roleDescriptorsString, metadataString));
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {"name":"%s", "role_descriptors":%s, "metadata":%s}""", name, roleDescriptorsString, metadataString));
         } else {
-            request.setJsonEntity("""
+            request.setJsonEntity(String.format(Locale.ROOT, """
                 {"name":"%s", "expiration": "%s", "role_descriptors":%s,\
-                "metadata":%s}""".formatted(name, expiration, roleDescriptorsString, metadataString));
+                "metadata":%s}""", name, expiration, roleDescriptorsString, metadataString));
         }
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
         final Response response = client().performRequest(request);

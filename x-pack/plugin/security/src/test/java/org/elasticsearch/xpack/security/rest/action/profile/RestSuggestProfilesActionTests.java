@@ -98,7 +98,10 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
         )
             .withPath("/_security/profile/_suggest")
             .withParams(new HashMap<>(Map.of("data", randomAlphaOfLengthBetween(3, 8))))
-            .withContent(new BytesArray(String.format(java.util.Locale.ROOT, "{\"data\": \"%s\"}", randomAlphaOfLengthBetween(3, 8))), XContentType.JSON)
+            .withContent(
+                new BytesArray(String.format(java.util.Locale.ROOT, "{\"data\": \"%s\"}", randomAlphaOfLengthBetween(3, 8))),
+                XContentType.JSON
+            )
             .build();
 
         final IllegalArgumentException e = expectThrows(

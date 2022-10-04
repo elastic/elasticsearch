@@ -43,6 +43,7 @@ import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -294,13 +295,13 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction
      */
     public OAuth2Token createToken(UsernamePasswordToken grant) throws IOException {
-        return createToken("""
+        return createToken(String.format(Locale.ROOT, """
             {
               "grant_type":"password",
               "username":"%s",
               "password":"%s"
             }
-            """.formatted(grant.principal(), grant.credentials()));
+            """, grant.principal(), grant.credentials()));
     }
 
     /**

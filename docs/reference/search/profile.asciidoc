@@ -1073,7 +1073,7 @@ that uses `dfs_query_then_fetch`:
 Let's first setup an index with multiple shards and index
 a pair of documents with different values on a `keyword` field.
 
-[source,console]
+[source,console,id=profile_dfs]
 --------------------------------------------------
 PUT my-dfs-index
 {
@@ -1122,31 +1122,27 @@ In the response, we see a profile which includes a `dfs` section
 for each shard along with profile output for the rest of the search phases.
 One of the `dfs` sections for a shard looks like the following:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
-{
-    ...
-    "dfs" : {
-        "statistics" : {
-            "type" : "statistics",
-            "description" : "collect term statistics",
-            "time_in_nanos" : 236955,
-            "breakdown" : {
-                "term_statistics" : 4815,
-                "collection_statistics" : 27081,
-                "collection_statistics_count" : 1,
-                "create_weight" : 153278,
-                "term_statistics_count" : 1,
-                "rewrite_count" : 0,
-                "create_weight_count" : 1,
-                "rewrite" : 0
-            }
+"dfs" : {
+    "statistics" : {
+        "type" : "statistics",
+        "description" : "collect term statistics",
+        "time_in_nanos" : 236955,
+        "breakdown" : {
+            "term_statistics" : 4815,
+            "collection_statistics" : 27081,
+            "collection_statistics_count" : 1,
+            "create_weight" : 153278,
+            "term_statistics_count" : 1,
+            "rewrite_count" : 0,
+            "create_weight_count" : 1,
+            "rewrite" : 0
         }
     }
-    ...
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE[s/(\-)?[0-9]+/ $body.$_path/]
 
 In the `dfs.statistics` portion of this response we see a `time_in_nanos`
 which is the total time it took to collect term statistics for this
@@ -1163,7 +1159,7 @@ that has a knn section:
 
 Let's first setup an index with several dense vectors.
 
-[source,console]
+[source,console,id=profile_knn]
 --------------------------------------------------
 PUT my-knn-index
 {

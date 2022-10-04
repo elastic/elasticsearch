@@ -1,13 +1,13 @@
 ---
-"Unable to define a runtime field as a time series dimension":
+"Unable to create a time series index with @timestamp runtime field":
   - skip:
       version: " - 8.4.99"
       reason: "downsample introduced in 8.5.0"
 
   - do:
-      catch: '/unknown parameter \[time_series_dimension\] on runtime field \[metricset\] of type \[keyword\]/'
+      catch: '/docvalues not found for index sort field:\[\@timestamp\]/'
       indices.create:
-        index: test_2
+        index: test_1
         body:
           settings:
             number_of_shards: 1
@@ -20,13 +20,10 @@
                 end_time: 2021-04-29T00:00:00Z
           mappings:
             runtime:
-              metricset:
-                type: keyword
-                time_series_dimension: true
-                script:
-                  source: "emit('pod');"
+              "@timestamp":
+                type: date
             properties:
-              time:
+              "@timestamp":
                 type: date
               metricset:
                 type: keyword
@@ -48,4 +45,3 @@
                           rx:
                             type: long
                             time_series_metric: gauge
-

@@ -53,7 +53,10 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
             args,
             "--Description",
             pinfo.envVars()
-                .getOrDefault("SERVICE_DESCRIPTION", String.format(java.util.Locale.ROOT, "Elasticsearch %s Windows Service - https://elastic.co", Version.CURRENT))
+                .getOrDefault(
+                    "SERVICE_DESCRIPTION",
+                    String.format(java.util.Locale.ROOT, "Elasticsearch %s Windows Service - https://elastic.co", Version.CURRENT)
+                )
         );
         addQuotedArg(args, "--Jvm", quote(getJvmDll(getJavaHome(pinfo.sysprops())).toString()));
         addArg(args, "--StartMode", "jvm");

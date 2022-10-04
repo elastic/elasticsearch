@@ -209,18 +209,21 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
     }
 
     private void putTrainedModelIngestPipeline(String pipelineId, String modelId) throws Exception {
-        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(pipelineId, new BytesArray(String.format(java.util.Locale.ROOT, """
-            {
-                "processors": [
-                  {
-                    "inference": {
-                      "inference_config": {"classification":{}},
-                      "model_id": "%s",
-                      "field_map": {}
-                    }
-                  }
-                ]
-              }""", modelId)), XContentType.JSON)).actionGet();
+        client().execute(
+            PutPipelineAction.INSTANCE,
+            new PutPipelineRequest(pipelineId, new BytesArray(String.format(java.util.Locale.ROOT, """
+                {
+                    "processors": [
+                      {
+                        "inference": {
+                          "inference_config": {"classification":{}},
+                          "model_id": "%s",
+                          "field_map": {}
+                        }
+                      }
+                    ]
+                  }""", modelId)), XContentType.JSON)
+        ).actionGet();
     }
 
 }

@@ -273,15 +273,11 @@ public class SqlRequestParsersTests extends ESTestCase {
               "params": [ 350.123, "1960-01-01", { "foobar": false }, "foo" ],
               "mode": "}%s"
             }""", m), "[sql/query] failed to parse field [params]", SqlQueryRequest::fromXContent);
-        assertXContentParsingErrorMessage(
-            String.format(java.util.Locale.ROOT, """
-                {
-                  "mode": "%s",
-                  "params": [ 350.123, "1960-01-01", false, { "type": "keyword", "value": "foo" } ]
-                }""", m),
-            "[params] must be an array where each entry is a single field (no objects supported)",
-            SqlQueryRequest::fromXContent
-        );
+        assertXContentParsingErrorMessage(String.format(java.util.Locale.ROOT, """
+            {
+              "mode": "%s",
+              "params": [ 350.123, "1960-01-01", false, { "type": "keyword", "value": "foo" } ]
+            }""", m), "[params] must be an array where each entry is a single field (no objects supported)", SqlQueryRequest::fromXContent);
     }
 
     public void testParamsParsingFailure_TranslateRequest_NonDriver() throws IOException {
@@ -309,45 +305,37 @@ public class SqlRequestParsersTests extends ESTestCase {
 
     public void testParamsParsingFailure_Driver() throws IOException {
         Mode m = randomValueOtherThanMany((t) -> Mode.isDriver(t) == false, () -> randomFrom(Mode.values()));
-        assertXContentParsingErrorMessage(
-            String.format(java.util.Locale.ROOT, """
+        assertXContentParsingErrorMessage(String.format(java.util.Locale.ROOT, """
+            {
+              "params": [
+                35000,
                 {
-                  "params": [
-                    35000,
-                    {
-                      "value": "1960-01-01",
-                      "type": "date"
-                    },
-                    {
-                      "value": "foo",
-                      "type": "keyword"
-                    }
-                  ],
-                  "mode": "%s"
-                }""", m),
-            "[params] must be an array where each entry is an object with a value/type pair",
-            SqlQueryRequest::fromXContent
-        );
-        assertXContentParsingErrorMessage(
-            String.format(java.util.Locale.ROOT, """
+                  "value": "1960-01-01",
+                  "type": "date"
+                },
                 {
-                  "params": [
-                    {
-                      "value": 10,
-                      "type": "integer"
-                    },
-                    {
-                      "value": "1960-01-01",
-                      "type": "date"
-                    },
-                    false,
-                    "foo"
-                  ],
-                  "mode": "%s"
-                }""", m),
-            "[params] must be an array where each entry is an object with a value/type pair",
-            SqlQueryRequest::fromXContent
-        );
+                  "value": "foo",
+                  "type": "keyword"
+                }
+              ],
+              "mode": "%s"
+            }""", m), "[params] must be an array where each entry is an object with a value/type pair", SqlQueryRequest::fromXContent);
+        assertXContentParsingErrorMessage(String.format(java.util.Locale.ROOT, """
+            {
+              "params": [
+                {
+                  "value": 10,
+                  "type": "integer"
+                },
+                {
+                  "value": "1960-01-01",
+                  "type": "date"
+                },
+                false,
+                "foo"
+              ],
+              "mode": "%s"
+            }""", m), "[params] must be an array where each entry is an object with a value/type pair", SqlQueryRequest::fromXContent);
         assertXContentParsingErrorMessage(String.format(java.util.Locale.ROOT, """
             {
               "mode": "%s",

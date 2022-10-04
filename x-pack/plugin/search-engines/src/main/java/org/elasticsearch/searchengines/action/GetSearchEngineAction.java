@@ -114,6 +114,8 @@ public class GetSearchEngineAction extends ActionType<GetSearchEngineAction.Resp
         public static final ParseField NAME_FIELD = new ParseField("name");
         public static final ParseField INDICES_FIELD = new ParseField("indices");
 
+        public static final ParseField RELEVANCE_SETTINGS_ID_FIELD = new ParseField("relevance_settings_id");
+
         private final List<SearchEngine> searchEngines;
 
         public Response(List<SearchEngine> searchEngines) {
@@ -150,11 +152,13 @@ public class GetSearchEngineAction extends ActionType<GetSearchEngineAction.Resp
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
 
+            // TODO: can't we reuse searchEngine.toXContent?
             for (SearchEngine searchEngine : searchEngines) {
                 builder.field(searchEngine.getName());
                 builder.startObject();
 
                 builder.field(NAME_FIELD.getPreferredName(), searchEngine.getName());
+                builder.field(RELEVANCE_SETTINGS_ID_FIELD.getPreferredName(), searchEngine.getRelevanceSettingsId());
 
                 builder.startArray(INDICES_FIELD.getPreferredName());
                 for (Index index : searchEngine.getIndices()) {

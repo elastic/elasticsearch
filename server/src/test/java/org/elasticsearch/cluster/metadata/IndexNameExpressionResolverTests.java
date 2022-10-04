@@ -2802,8 +2802,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .build();
 
         HashMap<String, SearchEngine> searchEngines = new HashMap<>();
-        searchEngines.put(engineName1, new SearchEngine(engineName1, Collections.singletonList(index1.getIndex()), false, false));
-        searchEngines.put(engineName2, new SearchEngine(engineName2, Collections.singletonList(index2.getIndex()), false, false));
+        searchEngines.put(
+            engineName1,
+            new SearchEngine(engineName1, Collections.singletonList(index1.getIndex()), false, false, "settings-1")
+        );
+        searchEngines.put(
+            engineName2,
+            new SearchEngine(engineName2, Collections.singletonList(index2.getIndex()), false, false, "settings-2")
+        );
 
         SearchEngineMetadata engineMeta = new SearchEngineMetadata(searchEngines);
 

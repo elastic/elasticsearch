@@ -46,6 +46,8 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
 
         private String[] indices;
 
+        private String relevanceSettingsId;
+
         private static final ObjectParser<Request, RestRequest> PARSER;
         static {
             PARSER = new ObjectParser<>("create_search_engine");
@@ -58,20 +60,30 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
                 }
                 return indices;
             }, new ParseField("indices"), ObjectParser.ValueType.OBJECT_ARRAY);
+            PARSER.declareString(Request::setRelevanceSettingsId, new ParseField("relevance_settings_id"));
         }
 
         public Request(String name) {
-            this(name, System.currentTimeMillis(), new String[0]);
+            this(name, System.currentTimeMillis(), new String[0], null);
         }
 
-        public Request(String name, long startTime, String[] indices) {
+        public Request(String name, long startTime, String[] indices, String relevanceSettingsId) {
             this.name = name;
             this.startTime = startTime;
             this.indices = indices;
+            this.relevanceSettingsId = relevanceSettingsId;
         }
 
         public String getName() {
             return name;
+        }
+
+        public String getRelevanceSettingsId() {
+            return relevanceSettingsId;
+        }
+
+        public void setRelevanceSettingsId(String relevanceSettingsId) {
+            this.relevanceSettingsId = relevanceSettingsId;
         }
 
         public long getStartTime() {
@@ -99,6 +111,9 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
                     validationException = ValidateActions.addValidationError("index name can't be empty", validationException);
                 }
             }
+            if (Strings.hasText(relevanceSettingsId) == false) {
+                validationException = ValidateActions.addValidationError("relevance_settings_id is missing", validationException);
+            }
 
             return validationException;
         }
@@ -108,6 +123,7 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
             this.name = in.readString();
             this.startTime = in.readVLong();
             this.indices = in.readStringArray();
+            this.relevanceSettingsId = in.readString();
         }
 
         @Override
@@ -116,6 +132,7 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
             out.writeString(name);
             out.writeVLong(startTime);
             out.writeStringArray(indices);
+            out.writeString(relevanceSettingsId);
         }
 
         @Override

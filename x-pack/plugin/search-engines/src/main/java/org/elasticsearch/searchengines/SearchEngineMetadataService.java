@@ -129,13 +129,12 @@ public class SearchEngineMetadataService {
 
             Map<String, SearchEngine> searchEngines = new HashMap<>(currentMetadata.searchEngines());
 
-            // TODO: is this right?
             List<Index> indices = new ArrayList<>();
             for (String indexName : request.indices()) {
                 indices.add(state.getMetadata().index(indexName).getIndex());
             }
 
-            SearchEngine searchEngine = new SearchEngine(request.getName(), indices, false, false);
+            SearchEngine searchEngine = new SearchEngine(request.getName(), indices, false, false, request.getRelevanceSettingsId());
             searchEngines.put(request.getName(), searchEngine);
 
             return new SearchEngineMetadata(searchEngines);

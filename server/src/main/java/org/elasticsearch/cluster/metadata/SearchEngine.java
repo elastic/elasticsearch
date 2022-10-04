@@ -30,10 +30,12 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
 
+    public static final ParseField RELEVANCE_SETTINGS_ID_FIELD = new ParseField("relevance_settings_id");
+
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SearchEngine, Void> PARSER = new ConstructingObjectParser<>(
         "search_engine",
-        args -> new SearchEngine((String) args[0], (List<Index>) args[1], (boolean) args[2], (boolean) args[3])
+        args -> new SearchEngine((String) args[0], (List<Index>) args[1], (boolean) args[2], (boolean) args[3], (String) args[4])
     );
 
     static {
@@ -41,6 +43,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), RELEVANCE_SETTINGS_ID_FIELD);
     }
 
     public static SearchEngine fromXContent(XContentParser parser) throws IOException {
@@ -55,16 +58,18 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     private final List<Index> indices;
     private final boolean isHidden;
     private final boolean isSystem;
+    private final String relevanceSettingsId;
 
-    public SearchEngine(String name, List<Index> indices, boolean isHidden, boolean isSystem) {
+    public SearchEngine(String name, List<Index> indices, boolean isHidden, boolean isSystem, String relevanceSettingsId) {
         this.name = name;
         this.indices = indices;
         this.isHidden = isHidden;
         this.isSystem = isSystem;
+        this.relevanceSettingsId = relevanceSettingsId;
     }
 
     public SearchEngine(StreamInput in) throws IOException {
-        this(in.readString(), in.readList(Index::new), in.readBoolean(), in.readBoolean());
+        this(in.readString(), in.readList(Index::new), in.readBoolean(), in.readBoolean(), in.readString());
     }
 
     public String getName() {
@@ -83,6 +88,10 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         return isSystem;
     }
 
+    public String getRelevanceSettingsId() {
+        return relevanceSettingsId;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -90,6 +99,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
         builder.field(HIDDEN_FIELD.getPreferredName(), isHidden);
         builder.field(SYSTEM_FIELD.getPreferredName(), isSystem);
+        builder.field(RELEVANCE_SETTINGS_ID_FIELD.getPreferredName(), relevanceSettingsId);
         builder.endObject();
         return builder;
     }
@@ -100,6 +110,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         out.writeList(indices);
         out.writeBoolean(isHidden);
         out.writeBoolean(isSystem);
+        out.writeString(relevanceSettingsId);
     }
 
     @Override
@@ -110,11 +121,12 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         return name.equals(that.name)
             && indices.equals(that.indices)
             && Objects.equals(isHidden, that.isHidden)
-            && Objects.equals(isSystem, that.isSystem);
+            && Objects.equals(isSystem, that.isSystem)
+            && relevanceSettingsId.equals(that.relevanceSettingsId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, indices, isHidden, isSystem);
+        return Objects.hash(name, indices, isHidden, isSystem, relevanceSettingsId);
     }
 }

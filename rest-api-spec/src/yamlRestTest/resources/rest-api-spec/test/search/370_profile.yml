@@ -244,21 +244,6 @@ dfs without knn vector profiling:
             properties:
               keyword:
                 type: "keyword"
-  - do:
-      index:
-        index: keywords
-        id: "1"
-        refresh: true
-        body:
-          keyword: "a"
-
-  - do:
-      index:
-        index: keywords
-        id: "2"
-        refresh: true
-        body:
-          keyword: "b"
 
   - do:
       search:
@@ -273,11 +258,11 @@ dfs without knn vector profiling:
   - match: { hits.total.value: 1 }
   - match: { profile.shards.0.dfs.statistics.type: "statistics" }
   - match: { profile.shards.0.dfs.statistics.description: "collect term statistics" }
-  - gt: { profile.shards.0.dfs.statistics.time_in_nanos: 0 }
+  - gte: { profile.shards.0.dfs.statistics.time_in_nanos: 0 }
   - is_true: profile.shards.0.dfs.statistics.breakdown
   - match: { profile.shards.1.dfs.statistics.type: "statistics" }
   - match: { profile.shards.1.dfs.statistics.description: "collect term statistics" }
-  - gt: { profile.shards.1.dfs.statistics.time_in_nanos: 0 }
+  - gte: { profile.shards.1.dfs.statistics.time_in_nanos: 0 }
   - is_true: profile.shards.1.dfs.statistics.breakdown
 
   - do:

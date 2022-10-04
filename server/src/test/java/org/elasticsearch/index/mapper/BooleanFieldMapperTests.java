@@ -203,6 +203,11 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport() {
             Boolean nullValue = usually() ? null : randomBoolean();

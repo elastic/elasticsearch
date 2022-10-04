@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
-import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -25,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -55,7 +55,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
 
         if (allowsIndexTimeScript()) {
             checker.registerConflictCheck("script", b -> b.field("script", "foo"));
@@ -177,27 +176,19 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("passed as String"));
     }
 
-    public void testIgnoreMalformed() throws Exception {
-        DocumentMapper notIgnoring = createDocumentMapper(fieldMapping(this::minimalMapping));
-        DocumentMapper ignoring = createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("ignore_malformed", true);
-        }));
-        for (Object malformedValue : new Object[] { "a", Boolean.FALSE }) {
-            SourceToParse source = source(b -> b.field("field", malformedValue));
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> notIgnoring.parse(source));
-            if (malformedValue instanceof String) {
-                assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
-            } else {
-                assertThat(e.getCause().getMessage(), containsString("Current token"));
-                assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
-            }
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
 
-            ParsedDocument doc = ignoring.parse(source);
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(0, fields.length);
-            assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
-        }
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue("a").errorMatches("For input string: \"a\""),
+            exampleMalformedValue(b -> b.value(false)).errorMatches(
+                both(containsString("Current token")).and(containsString("not numeric, can not use numeric value accessors"))
+            )
+        );
     }
 
     /**

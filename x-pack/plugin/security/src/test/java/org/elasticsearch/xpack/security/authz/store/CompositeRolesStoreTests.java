@@ -1127,14 +1127,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("other-remote")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("remote-abc-123")), equalTo(false));
 
-        // TODO
-        assertThat(role.remoteIndices().forCluster("remote1").remoteIndicesGroups().stream().flatMap(it3 -> it3.indicesPermissionGroups().stream()).toArray(IndicesPermission.Group[]::new), not(is(emptyArray())));
-        // TODO
-        assertThat(role.remoteIndices().forCluster("remote2").remoteIndicesGroups().stream().flatMap(it2 -> it2.indicesPermissionGroups().stream()).toArray(IndicesPermission.Group[]::new), not(is(emptyArray())));
-        // TODO
-        assertThat(role.remoteIndices().forCluster("remote-a").remoteIndicesGroups().stream().flatMap(it1 -> it1.indicesPermissionGroups().stream()).toArray(IndicesPermission.Group[]::new), not(is(emptyArray())));
-        // TODO
-        assertThat(role.remoteIndices().forCluster(randomAlphaOfLengthBetween(2, 10)).remoteIndicesGroups().stream().flatMap(it -> it.indicesPermissionGroups().stream()).toArray(IndicesPermission.Group[]::new), emptyArray());
+        assertThat(getIndexGroups(role.remoteIndices().forCluster("remote1")), not(is(emptyArray())));
+        assertThat(getIndexGroups(role.remoteIndices().forCluster("remote2")), not(is(emptyArray())));
+        assertThat(getIndexGroups(role.remoteIndices().forCluster("remote-a")), not(is(emptyArray())));
+        assertThat(getIndexGroups(role.remoteIndices().forCluster(randomAlphaOfLengthBetween(2, 10))), emptyArray());
 
         final Predicate<IndexAbstraction> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
         assertThat(allowedWrite.test(mockIndexAbstraction("abc-123")), equalTo(true));
@@ -1150,6 +1146,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
         role.application().grants(new ApplicationPrivilege("app1", "app1-read", "read"), "settings/hostname");
         role.application().grants(new ApplicationPrivilege("app2a", "app2a-all", "all"), "user/joe");
         role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
+    }
+
+    private IndicesPermission.Group[] getIndexGroups(final RemoteIndicesPermission remoteIndices) {
+        return remoteIndices.remoteIndicesGroups()
+            .stream()
+            .flatMap(it -> it.indicesPermissionGroups().stream())
+            .toArray(IndicesPermission.Group[]::new);
     }
 
     public void testMergingRolesWithOnlyRemoteClusters() {
@@ -1254,7 +1257,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     private void assertHasIndices(final List<String> expectedIndexNames, final RemoteIndicesPermission indicesPermission) {
         // TODO
         assertThat(
-            Arrays.stream(indicesPermission.remoteIndicesGroups().stream().flatMap(it -> it.indicesPermissionGroups().stream()).toArray(IndicesPermission.Group[]::new)).flatMap(group -> Arrays.stream(group.indices())).toList(),
+            Arrays.stream(getIndexGroups(indicesPermission)).flatMap(group -> Arrays.stream(group.indices())).toList(),
             containsInAnyOrder(expectedIndexNames.toArray())
         );
     }

@@ -293,7 +293,7 @@ public interface Role {
                     remoteGroupEntry.getValue()
                         .stream()
                         .map(
-                            // Leaky
+                            // TODO leaky
                             group -> new IndicesPermission.Group(
                                 group.privilege,
                                 group.fieldPermissions,
@@ -356,8 +356,6 @@ public interface Role {
                 Sets.newHashSet(arp.getResources())
             );
         }
-
-        private record RemoteIndicesPermissionGroupDefinition(Set<String> remoteClusterAliases, IndicesPermissionGroupDefinition group) {}
 
         private static class IndicesPermissionGroupDefinition {
             private final IndexPrivilege privilege;

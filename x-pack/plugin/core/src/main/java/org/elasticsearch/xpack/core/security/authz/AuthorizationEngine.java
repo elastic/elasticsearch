@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -295,11 +296,19 @@ public interface AuthorizationEngine {
             if (index == null) {
                 validationException = addValidationError("indexPrivileges must not be null", validationException);
             } else {
-                for (int i = 0; i < index.length; i++) {
-                    BytesReference query = index[i].getQuery();
+                for (RoleDescriptor.IndicesPrivileges indicesPrivileges : index) {
+                    BytesReference query = indicesPrivileges.getQuery();
                     if (query != null) {
                         validationException = addValidationError(
                             "may only check index privileges without any DLS query [" + query.utf8ToString() + "]",
+                            validationException
+                        );
+                    }
+                    if (indicesPrivileges.hasRemoteClusters()) {
+                        validationException = addValidationError(
+                            "cannot check index privileges with remote clusters ["
+                                + Strings.arrayToCommaDelimitedString(indicesPrivileges.getRemoteClusters())
+                                + "]",
                             validationException
                         );
                     }

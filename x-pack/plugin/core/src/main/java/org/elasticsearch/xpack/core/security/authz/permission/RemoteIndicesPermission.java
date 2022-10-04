@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.util.ArrayList;
@@ -23,6 +24,9 @@ public record RemoteIndicesPermission(
     RestrictedIndices restrictedIndices,
     List<IndicesPermissionWithRemoteClusterAliases> indicesPermissions
 ) {
+
+    // TODO use this
+    public static final RemoteIndicesPermission NONE = new RemoteIndicesPermission(new RestrictedIndices(Automatons.EMPTY), List.of());
 
     public IndicesPermission indicesPermissionFor(final String remoteClusterAlias) {
         final var builder = new IndicesPermission.Builder(restrictedIndices);

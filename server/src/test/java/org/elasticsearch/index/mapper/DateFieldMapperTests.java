@@ -14,9 +14,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
@@ -65,7 +65,6 @@ public class DateFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("format", b -> b.field("format", "yyyy-MM-dd"));
         checker.registerConflictCheck("locale", b -> b.field("locale", "es"));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "34500000"));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((DateFieldMapper) m).getIgnoreMalformed()));
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -143,39 +142,25 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(1457654400000L, storedField.numericValue().longValue());
     }
 
-    public void testIgnoreMalformed() throws IOException {
-        testIgnoreMalformedForValue(
-            "2016-03-99",
-            "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]",
-            "strict_date_optional_time||epoch_millis"
-        );
-        testIgnoreMalformedForValue("-522000000", "long overflow", "date_optional_time");
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
     }
 
-    private void testIgnoreMalformedForValue(String value, String expectedCause, String dateFormat) throws IOException {
-
-        DocumentMapper mapper = createDocumentMapper(fieldMapping((builder) -> dateFieldMapping(builder, dateFormat)));
-
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", value))));
-        assertThat(e.getMessage(), containsString("failed to parse field [field] of type [date]"));
-        assertThat(e.getMessage(), containsString("Preview of field's value: '" + value + "'"));
-        assertThat(e.getCause().getMessage(), containsString(expectedCause));
-
-        DocumentMapper mapper2 = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "date").field("format", dateFormat).field("ignore_malformed", true))
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue("2016-03-99").mapping(mappingWithFormat("strict_date_optional_time||epoch_millis"))
+                .errorMatches("failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]"),
+            exampleMalformedValue("-522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("long overflow")
         );
-
-        ParsedDocument doc = mapper2.parse(source(b -> b.field("field", value)));
-
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
-        assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
     }
 
-    private void dateFieldMapping(XContentBuilder builder, String dateFormat) throws IOException {
-        builder.field("type", "date");
-        builder.field("format", dateFormat);
-
+    private CheckedConsumer<XContentBuilder, IOException> mappingWithFormat(String dateFormat) {
+        return b -> {
+            minimalMapping(b);
+            b.field("format", dateFormat);
+        };
     }
 
     public void testChangeFormat() throws IOException {

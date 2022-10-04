@@ -11,15 +11,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
-import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 
@@ -33,6 +28,17 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         );
         query.negativeBoost(2.0f / randomIntBetween(1, 20));
         return query;
+    }
+
+    @Override
+    protected BoostingQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (randomBoolean()) {
+            return new BoostingQueryBuilder(queryBuilder, queryBuilder).negativeBoost(1f);
+        }
+        if (randomBoolean()) {
+            return new BoostingQueryBuilder(new MatchAllQueryBuilder(), queryBuilder).negativeBoost(1f);
+        }
+        return new BoostingQueryBuilder(queryBuilder, new MatchAllQueryBuilder()).negativeBoost(1f);
     }
 
     @Override
@@ -140,30 +146,5 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         );
         e = expectThrows(IllegalStateException.class, () -> queryBuilder2.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
-    }
-
-    public void testExceedMaxNestedDepth() throws IOException {
-        BoostingQueryBuilder query = new BoostingQueryBuilder(
-            RandomQueryBuilder.createQuery(random()),
-            new BoostingQueryBuilder(
-                RandomQueryBuilder.createQuery(random()),
-                new BoostingQueryBuilder(
-                    RandomQueryBuilder.createQuery(random()),
-                    new BoostingQueryBuilder(RandomQueryBuilder.createQuery(random()), RandomQueryBuilder.createQuery(random()))
-                )
-            )
-        );
-        AbstractQueryBuilder.setMaxNestedDepth(2);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, query.toString())) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseTopLevelQuery(parser));
-            assertEquals(
-                "The nested depth of the query exceeds the maximum nested depth for queries set in ["
-                    + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
-                    + "]",
-                e.getMessage()
-            );
-        } finally {
-            AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));
-        }
     }
 }

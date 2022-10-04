@@ -307,7 +307,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
             @Override
             public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
-                T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
                 if (categoryClass.equals(QueryBuilder.class)) {
                     nestedDepth++;
                     if (nestedDepth > maxNestedDepth) {
@@ -317,6 +316,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                                 + "]"
                         );
                     }
+                }
+                T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
+                if (categoryClass.equals(QueryBuilder.class)) {
+                    nestedDepth--;
                 }
                 return namedObject;
             }

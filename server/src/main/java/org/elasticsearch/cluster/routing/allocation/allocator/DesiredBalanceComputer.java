@@ -28,7 +28,8 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Holds the desired balance and updates it as the cluster evolves.
@@ -54,9 +55,9 @@ public class DesiredBalanceComputer {
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
-        final var ignoredShards = new HashSet<>(desiredBalanceInput.ignoredShards());
         final var changes = routingAllocation.changes();
-        final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+        final var ignoredShards = desiredBalanceInput.ignoredShards();
+        final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(toSet());
         final var unassignedPrimaries = new HashSet<ShardId>();
 
         if (routingNodes.isEmpty()) {
@@ -81,13 +82,14 @@ public class DesiredBalanceComputer {
             for (final var iterator = unassigned.iterator(); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
                 if (shardRouting.primary() == primary) {
-                    if (ignoredShards.contains(shardRouting)) {
+                    var lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
+                    if (knownNodeIds.contains(lastAllocatedNodeId) || ignoredShards.contains(shardRouting) == false) {
+                        shardRoutings.computeIfAbsent(shardRouting.shardId(), ShardRoutings::new).unassigned().add(shardRouting);
+                    } else {
                         iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, changes);
                         if (shardRouting.primary()) {
                             unassignedPrimaries.add(shardRouting.shardId());
                         }
-                    } else {
-                        shardRoutings.computeIfAbsent(shardRouting.shardId(), ShardRoutings::new).unassigned().add(shardRouting);
                     }
                 }
             }
@@ -109,6 +111,13 @@ public class DesiredBalanceComputer {
 
             final var targetNodes = assignment != null ? new TreeSet<>(assignment.nodeIds()) : new TreeSet<String>();
             targetNodes.retainAll(knownNodeIds);
+            // preserving last known shard location as a starting point to avoid unnecessary relocations
+            for (ShardRouting shardRouting : routings.unassigned()) {
+                var lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
+                if (knownNodeIds.contains(lastAllocatedNodeId)) {
+                    targetNodes.add(lastAllocatedNodeId);
+                }
+            }
 
             for (final var shardRouting : routings.assigned()) {
                 assert shardRouting.started();
@@ -192,14 +201,11 @@ public class DesiredBalanceComputer {
         boolean hasChanges = false;
         for (int i = 0; true; i++) {
             if (hasChanges) {
-                final var unassigned = routingNodes.unassigned();
-
                 // Not the first iteration, so every remaining unassigned shard has been ignored, perhaps due to throttling. We must bring
                 // them all back out of the ignored list to give the allocator another go...
-                unassigned.resetIgnored();
-
+                routingNodes.unassigned().resetIgnored();
                 // ... but not if they're ignored because they're out of scope for allocation
-                for (final var iterator = unassigned.iterator(); iterator.hasNext();) {
+                for (final var iterator = routingNodes.unassigned().iterator(); iterator.hasNext();) {
                     final var shardRouting = iterator.next();
                     if (ignoredShards.contains(shardRouting)) {
                         iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, changes);

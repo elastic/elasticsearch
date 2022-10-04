@@ -75,4 +75,6 @@ include::release-notes.asciidoc[]
 
 include::dependencies-versions.asciidoc[]
 
+include::api-generated/apis.asciidoc[]
+
 include::redirects.asciidoc[]

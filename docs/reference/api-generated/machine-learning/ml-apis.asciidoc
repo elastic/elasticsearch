@@ -1,0 +1,10 @@
+[[machine-learning-apis]]
+== Machine learning APIs
+
+preview::[]
+
+////
+This file includes content that has been generated from https://github.com/elastic/elasticsearch-specification. Any modifications required must be done in those source files.
+////
+
+include::ml-apis-passthru.asciidoc[]

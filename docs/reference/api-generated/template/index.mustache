@@ -1,0 +1,170 @@
+////
+This content is generated from the open API specification.
+Any modifications made to this file will be overwritten.
+////
+
+++++
+<div class="openapi">
+  <h2>Access</h2>
+  {{#hasAuthMethods}}
+    <ol>
+    {{#authMethods}}
+      <li>{{#isBasic}}HTTP Basic Authentication{{/isBasic}}{{#isOAuth}}OAuth AuthorizationUrl:{{authorizationUrl}}TokenUrl:{{tokenUrl}}{{/isOAuth}}{{#isApiKey}}APIKey KeyParamName:{{keyParamName}} KeyInQuery:{{isKeyInQuery}} KeyInHeader:{{isKeyInHeader}}{{/isApiKey}}</li>
+    {{/authMethods}}
+    </ol>
+  {{/hasAuthMethods}}
+
+  <h2><a name="__Methods">Methods</a></h2>
+  [ Jump to <a href="#__Models">Models</a> ]
+
+  {{! for the tables of content, I cheat and don't use CSS styles.... }}
+  <h3>Table of Contents </h3>
+  <div class="method-summary">{{access}}</div>
+  {{#apiInfo}}
+  {{#apis}}
+  {{#operations}}
+  <h4><a href="#{{baseName}}">{{baseName}}</a></h4>
+  <ul>
+  {{#operation}}
+  <li><a href="#{{nickname}}"><code><span class="http-method">{{httpMethod}}</span> {{path}}</code></a></li>
+  {{/operation}}
+  </ul>
+  {{/operations}}
+  {{/apis}}
+  {{/apiInfo}}
+
+  {{#apiInfo}}
+  {{#apis}}
+  {{#operations}}
+  <h1><a name="{{baseName}}">{{baseName}}</a></h1>
+  {{#operation}}
+  <div class="method"><a name="{{nickname}}"/>
+    <div class="method-path">
+    <a class="up" href="#__Methods">Up</a>
+    <pre class="{{httpMethod}}"><code class="huge"><span class="http-method">{{httpMethod}}</span> {{path}}</code></pre></div>
+    <div class="method-summary">{{summary}} (<span class="nickname">{{nickname}}</span>)</div>
+    {{! notes is operation.description. So why rename it and make it super confusing???? }}
+    <div class="method-notes">{{notes}}</div>
+
+    {{#hasPathParams}}
+    <h3 class="field-label">Path parameters</h3>
+    <div class="field-items">
+      {{#pathParams}}{{>pathParam}}{{/pathParams}}
+    </div>  <!-- field-items -->
+    {{/hasPathParams}}
+
+    {{#hasConsumes}}
+    <h3 class="field-label">Consumes</h3>
+    This API call consumes the following media types via the <span class="header">Content-Type</span> request header:
+    <ul>
+    {{#consumes}}
+      <li><code>{{{mediaType}}}</code></li>
+    {{/consumes}}
+    </ul>
+    {{/hasConsumes}}
+
+    {{#hasBodyParam}}
+    <h3 class="field-label">Request body</h3>
+    <div class="field-items">
+      {{#bodyParams}}{{>bodyParam}}{{/bodyParams}}
+    </div>  <!-- field-items -->
+    {{/hasBodyParam}}
+
+    {{#hasHeaderParams}}
+    <h3 class="field-label">Request headers</h3>
+    <div class="field-items">
+      {{#headerParams}}{{>headerParam}}{{/headerParams}}
+    </div>  <!-- field-items -->
+    {{/hasHeaderParams}}
+
+    {{#hasQueryParams}}
+    <h3 class="field-label">Query parameters</h3>
+    <div class="field-items">
+      {{#queryParams}}{{>queryParam}}{{/queryParams}}
+    </div>  <!-- field-items -->
+    {{/hasQueryParams}}
+
+    {{#hasFormParams}}
+    <h3 class="field-label">Form parameters</h3>
+    <div class="field-items">
+      {{#formParams}}{{>formParam}}{{/formParams}}
+    </div>  <!-- field-items -->
+    {{/hasFormParams}}
+
+    {{#returnType}}
+    <h3 class="field-label">Return type</h3>
+    <div class="return-type">
+      {{#hasReference}}{{^returnSimpleType}}{{returnContainer}}[{{/returnSimpleType}}<a href="#{{returnBaseType}}">{{returnBaseType}}</a>{{^returnSimpleType}}]{{/returnSimpleType}}{{/hasReference}}
+      {{^hasReference}}{{returnType}}{{/hasReference}}
+    </div>
+    {{/returnType}}
+
+    <!--Todo: process Response Object and its headers, schema, examples -->
+
+    {{#hasExamples}}
+    {{#examples}}
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: {{{contentType}}}</div>
+    <pre class="example"><code>{{{example}}}</code></pre>
+    {{/examples}}
+    {{/hasExamples}}
+
+    {{#hasProduces}}
+    <h3 class="field-label">Produces</h3>
+    This API call produces the following media types according to the <span class="header">Accept</span> request header;
+    the media type will be conveyed by the <span class="header">Content-Type</span> response header.
+    <ul>
+    {{#produces}}
+      <li><code>{{{mediaType}}}</code></li>
+    {{/produces}}
+    </ul>
+    {{/hasProduces}}
+
+    <h3 class="field-label">Responses</h3>
+    {{#responses}}
+    <h4 class="field-label">{{code}}</h4>
+    {{message}}
+        {{^containerType}}<a href="#{{dataType}}">{{dataType}}</a>{{/containerType}}
+    {{#examples}}
+    <h3 class="field-label">Example data</h3>
+    <div class="example-data-content-type">Content-Type: {{{contentType}}}</div>
+    <pre class="example"><code>{{example}}</code></pre>
+    {{/examples}}
+    {{/responses}}
+  </div> <!-- method -->
+  <hr/>
+  {{/operation}}
+  {{/operations}}
+  {{/apis}}
+  {{/apiInfo}}
+
+  <h2><a name="__Models">Models</a></h2>
+  [ Jump to <a href="#__Methods">Methods</a> ]
+
+  <h3>Table of Contents</h3>
+  <ol>
+  {{#models}}
+  {{#model}}
+    <li><a href="#{{name}}"><code>{{name}}</code>{{#title}} - {{.}}{{/title}}</a></li>
+  {{/model}}
+  {{/models}}
+  </ol>
+
+  {{#models}}
+  {{#model}}
+  <div class="model">
+    <h3><a name="{{name}}"><code>{{name}}</code>{{#title}} - {{.}}{{/title}}</a> <a class="up" href="#__Models">Up</a></h3>
+    {{#unescapedDescription}}<div class='model-description'>{{.}}</div>{{/unescapedDescription}}
+    <div class="field-items">
+      {{#vars}}<div class="param">{{name}} {{^required}}(optional){{/required}}</div><div class="param-desc"><span class="param-type">{{^isPrimitiveType}}<a href="#{{complexType}}">{{dataType}}</a>{{/isPrimitiveType}}</span> {{unescapedDescription}} {{#dataFormat}}format: {{{.}}}{{/dataFormat}}</div>
+      {{#isEnum}}
+        <div class="param-enum-header">Enum:</div>
+        {{#_enum}}<div class="param-enum">{{this}}</div>{{/_enum}}
+      {{/isEnum}}
+      {{/vars}}
+    </div>  <!-- field-items -->
+  </div>
+  {{/model}}
+  {{/models}}
+</div>
+++++

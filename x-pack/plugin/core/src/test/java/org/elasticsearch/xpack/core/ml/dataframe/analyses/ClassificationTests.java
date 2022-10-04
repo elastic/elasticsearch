@@ -330,7 +330,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             Map.of("foo", 10L, "bar", 20L, "baz", 30L)
         );
         assertThat(
-            new Classification("foo").getParams(fieldInfo),
+            new Classification("foo", BoostedTreeParams.builder().build(), null, null, null, null, 42L, null, null).getParams(fieldInfo),
             equalTo(
                 Map.of(
                     "dependent_variable",
@@ -348,12 +348,14 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "training_percent",
                     100.0,
                     "early_stopping_enabled",
-                    true
+                    true,
+                    "randomize_seed",
+                    42L
                 )
             )
         );
         assertThat(
-            new Classification("bar").getParams(fieldInfo),
+            new Classification("bar", BoostedTreeParams.builder().build(), null, null, null, null, 42L, null, null).getParams(fieldInfo),
             equalTo(
                 Map.of(
                     "dependent_variable",
@@ -371,12 +373,14 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "training_percent",
                     100.0,
                     "early_stopping_enabled",
-                    true
+                    true,
+                    "randomize_seed",
+                    42L
                 )
             )
         );
         assertThat(
-            new Classification("baz", BoostedTreeParams.builder().build(), null, null, null, 50.0, null, null, null).getParams(fieldInfo),
+            new Classification("baz", BoostedTreeParams.builder().build(), null, null, null, 50.0, 42L, null, null).getParams(fieldInfo),
             equalTo(
                 Map.of(
                     "dependent_variable",
@@ -394,7 +398,9 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                     "training_percent",
                     50.0,
                     "early_stopping_enabled",
-                    true
+                    true,
+                    "randomize_seed",
+                    42L
                 )
             )
         );

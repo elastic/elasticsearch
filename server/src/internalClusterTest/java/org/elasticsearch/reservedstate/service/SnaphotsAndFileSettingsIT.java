@@ -96,10 +96,7 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
                 if (reservedState != null && reservedState.version() != 0L) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedClusterSettingsAction.NAME);
-                    if (handlerMetadata == null) {
-                        fail("Should've found cluster settings in this metadata");
-                    }
-                    if (handlerMetadata.keys().contains("indices.recovery.max_bytes_per_sec")) {
+                    if (handlerMetadata != null && handlerMetadata.keys().contains("indices.recovery.max_bytes_per_sec")) {
                         clusterService.removeListener(this);
                         metadataVersion.set(event.state().metadata().version());
                         savedClusterState.countDown();
@@ -115,87 +112,84 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        return clusterAdmin().state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())).actionGet();
+        return clusterAdmin().state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())).get();
     }
 
     public void testRestoreWithRemovedFileSettings() throws Exception {
-        try {
-            createRepository("test-repo", "fs");
+        createRepository("test-repo", "fs");
 
-            logger.info("--> set some persistent cluster settings");
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder()
-                            .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(25))
-                            .build()
-                    )
-            );
+        logger.info("--> set some persistent cluster settings");
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(25))
+                        .build()
+                )
+        );
 
-            ensureGreen();
+        ensureGreen();
 
-            String masterNode = internalCluster().getMasterName();
+        String masterNode = internalCluster().getMasterName();
 
-            var savedClusterState = setupClusterStateListener(masterNode);
-            FileSettingsService fs = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        var savedClusterState = setupClusterStateListener(masterNode);
+        FileSettingsService fs = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-            logger.info("--> write some file based settings, putting some reserved state");
-            writeJSONFile(masterNode, testFileSettingsJSON);
-            final ClusterStateResponse savedStateResponse = assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
-            assertThat(
-                savedStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
-                equalTo("50mb")
-            );
+        logger.info("--> write some file based settings, putting some reserved state");
+        writeJSONFile(masterNode, testFileSettingsJSON);
+        final ClusterStateResponse savedStateResponse = assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
+        assertThat(
+            savedStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
+            equalTo("50mb")
+        );
 
-            logger.info("--> create full snapshot");
-            createFullSnapshot("test-repo", "test-snap");
-            assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
+        logger.info("--> create full snapshot");
+        createFullSnapshot("test-repo", "test-snap");
+        assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
 
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder()
-                            .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(55))
-                            .build()
-                    )
-            );
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(55))
+                        .build()
+                )
+        );
 
-            logger.info("--> deleting operator file, no file based settings");
-            Files.delete(fs.operatorSettingsFile());
+        logger.info("--> deleting operator file, no file based settings");
+        Files.delete(fs.operatorSettingsFile());
 
-            logger.info("--> restore global state from the snapshot");
-            clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).get();
+        logger.info("--> restore global state from the snapshot");
+        clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).get();
 
-            ensureGreen();
+        ensureGreen();
 
-            final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest().metadata(true)).actionGet();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest().metadata(true)).actionGet();
 
-            // We expect no reserved metadata state for file based settings, the operator file was deleted.
-            assertNull(clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE));
+        // We expect no reserved metadata state for file based settings, the operator file was deleted.
+        assertNull(clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE));
 
-            final ClusterGetSettingsAction.Response getSettingsResponse = clusterAdmin().execute(
-                ClusterGetSettingsAction.INSTANCE,
-                new ClusterGetSettingsAction.Request()
-            ).actionGet();
+        final ClusterGetSettingsAction.Response getSettingsResponse = clusterAdmin().execute(
+            ClusterGetSettingsAction.INSTANCE,
+            new ClusterGetSettingsAction.Request()
+        ).actionGet();
 
-            assertThat(
-                getSettingsResponse.persistentSettings().get(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey()),
-                equalTo("25s")
-            );
-            // We didn't remove the setting set by file settings, we simply removed the reserved (operator) section.
-            assertThat(getSettingsResponse.persistentSettings().get("indices.recovery.max_bytes_per_sec"), equalTo("50mb"));
-        } finally {
-            // cleanup
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder()
-                            .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), (String) null)
-                            .put("indices.recovery.max_bytes_per_sec", (String) null)
-                            .build()
-                    )
-            );
-        }
+        assertThat(
+            getSettingsResponse.persistentSettings().get(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey()),
+            equalTo("25s")
+        );
+        // We didn't remove the setting set by file settings, we simply removed the reserved (operator) section.
+        assertThat(getSettingsResponse.persistentSettings().get("indices.recovery.max_bytes_per_sec"), equalTo("50mb"));
+        // cleanup
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), (String) null)
+                        .put("indices.recovery.max_bytes_per_sec", (String) null)
+                        .build()
+                )
+        );
     }
 
     private Tuple<CountDownLatch, AtomicLong> removedReservedClusterStateListener(String node) {
@@ -243,98 +237,95 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRestoreWithPersistedFileSettings() throws Exception {
-        try {
-            createRepository("test-repo", "fs");
+        createRepository("test-repo", "fs");
 
-            logger.info("--> set some persistent cluster settings");
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder()
-                            .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(25))
-                            .build()
-                    )
-            );
+        logger.info("--> set some persistent cluster settings");
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(25))
+                        .build()
+                )
+        );
 
-            ensureGreen();
+        ensureGreen();
 
-            String masterNode = internalCluster().getMasterName();
+        String masterNode = internalCluster().getMasterName();
 
-            var savedClusterState = setupClusterStateListener(masterNode);
-            FileSettingsService fs = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        var savedClusterState = setupClusterStateListener(masterNode);
+        FileSettingsService fs = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-            logger.info("--> write some file based settings, putting some reserved state");
-            writeJSONFile(masterNode, testFileSettingsJSON);
-            final ClusterStateResponse savedStateResponse = assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
-            assertThat(
-                savedStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
-                equalTo("50mb")
-            );
+        logger.info("--> write some file based settings, putting some reserved state");
+        writeJSONFile(masterNode, testFileSettingsJSON);
+        final ClusterStateResponse savedStateResponse = assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
+        assertThat(
+            savedStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),
+            equalTo("50mb")
+        );
 
-            logger.info("--> create full snapshot");
-            createFullSnapshot("test-repo", "test-snap");
-            assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
+        logger.info("--> create full snapshot");
+        createFullSnapshot("test-repo", "test-snap");
+        assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
 
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder()
-                            .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(55))
-                            .build()
-                    )
-            );
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(55))
+                        .build()
+                )
+        );
 
-            logger.info("--> restore global state from the snapshot");
-            var removedReservedState = removedReservedClusterStateListener(masterNode);
-            var restoredReservedState = setupClusterStateListener(masterNode);
+        logger.info("--> restore global state from the snapshot");
+        var removedReservedState = removedReservedClusterStateListener(masterNode);
+        var restoredReservedState = setupClusterStateListener(masterNode);
 
-            clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).get();
+        clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).get();
 
-            ensureGreen();
+        ensureGreen();
 
-            // When the target cluster of a restore has an existing operator file, we don't un-reserve the reserved
-            // cluster state for file based settings, but instead we reset the version to 0 and 'touch' the operator file
-            // so that it gets re-processed.
-            logger.info("--> reserved state version will be reset to 0, because of snapshot restore");
-            assertTrue(removedReservedState.v1().await(20, TimeUnit.SECONDS));
+        // When the target cluster of a restore has an existing operator file, we don't un-reserve the reserved
+        // cluster state for file based settings, but instead we reset the version to 0 and 'touch' the operator file
+        // so that it gets re-processed.
+        logger.info("--> reserved state version will be reset to 0, because of snapshot restore");
+        assertTrue(removedReservedState.v1().await(20, TimeUnit.SECONDS));
 
-            logger.info("--> reserved state would be restored");
-            assertTrue(restoredReservedState.v1().await(20, TimeUnit.SECONDS));
+        logger.info("--> reserved state would be restored");
+        assertTrue(restoredReservedState.v1().await(20, TimeUnit.SECONDS));
 
-            final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-                new ClusterStateRequest().metadata(true).waitForMetadataVersion(restoredReservedState.v2().get())
-            ).actionGet();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().metadata(true).waitForMetadataVersion(restoredReservedState.v2().get())
+        ).actionGet();
 
-            assertNotNull(clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE));
+        assertNotNull(clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE));
 
-            final ClusterGetSettingsAction.Response getSettingsResponse = clusterAdmin().execute(
-                ClusterGetSettingsAction.INSTANCE,
-                new ClusterGetSettingsAction.Request()
-            ).actionGet();
+        final ClusterGetSettingsAction.Response getSettingsResponse = clusterAdmin().execute(
+            ClusterGetSettingsAction.INSTANCE,
+            new ClusterGetSettingsAction.Request()
+        ).actionGet();
 
-            assertThat(
-                getSettingsResponse.persistentSettings().get(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey()),
-                equalTo("25s")
-            );
+        assertThat(
+            getSettingsResponse.persistentSettings().get(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey()),
+            equalTo("25s")
+        );
 
-            // we need to remove the reserved state, so that clean-up can happen
-            var cleanupReservedState = cleanedClusterStateListener(masterNode);
+        // we need to remove the reserved state, so that clean-up can happen
+        var cleanupReservedState = cleanedClusterStateListener(masterNode);
 
-            logger.info("--> clear the file based settings");
-            writeJSONFile(masterNode, emptyFileSettingsJSON);
-            assertClusterStateSaveOK(cleanupReservedState.v1(), cleanupReservedState.v2());
-        } finally {
-            // cleanup
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder()
-                            .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), (String) null)
-                            .put("indices.recovery.max_bytes_per_sec", (String) null)
-                            .build()
-                    )
-            );
-        }
+        logger.info("--> clear the file based settings");
+        writeJSONFile(masterNode, emptyFileSettingsJSON);
+        assertClusterStateSaveOK(cleanupReservedState.v1(), cleanupReservedState.v2());
+        // cleanup
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), (String) null)
+                        .put("indices.recovery.max_bytes_per_sec", (String) null)
+                        .build()
+                )
+        );
     }
 
 }

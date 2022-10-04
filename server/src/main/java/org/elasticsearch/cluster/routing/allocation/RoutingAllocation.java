@@ -67,10 +67,12 @@ public class RoutingAllocation {
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
+    private final ResizeSourceIndexSettingsUpdater resizeSourceIndexUpdater = new ResizeSourceIndexSettingsUpdater();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
         nodesChangedObserver,
         indexMetadataUpdater,
-        restoreInProgressUpdater
+        restoreInProgressUpdater,
+        resizeSourceIndexUpdater
     );
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
@@ -314,7 +316,8 @@ public class RoutingAllocation {
      * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
     public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
-        return indexMetadataUpdater.applyChanges(metadata(), newRoutingTable);
+        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable);
+        return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);
     }
 
     /**

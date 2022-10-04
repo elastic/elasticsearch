@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -214,6 +215,17 @@ public final class ConfigurationUtils {
         } else {
             return readBoolean(processorType, processorTag, propertyName, value).booleanValue();
         }
+    }
+
+    @Nullable
+    public static Boolean readOptionalBooleanProperty(
+        String processorType,
+        String processorTag,
+        Map<String, Object> configuration,
+        String propertyName
+    ) {
+        Object value = configuration.remove(propertyName);
+        return readBoolean(processorType, processorTag, propertyName, value);
     }
 
     private static Boolean readBoolean(String processorType, String processorTag, String propertyName, Object value) {

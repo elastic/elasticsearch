@@ -329,12 +329,11 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("2022", "2022-01-01T23:59:59.999", "uuuu");
         assertRoundupFormatter("2022", "2022-01-01T23:59:59.999", "yyyy");
         // cannot reliably default week based years due to locale changing. See JavaDateFormatter javadocs
-        assertRoundupFormatter("2022", "2022-01-03T23:59:59.999", "YYYY", Locale.ROOT);
+        assertRoundupFormatter("2022", "2022-01-03T23:59:59.999", "YYYY");
     }
 
     private void assertRoundupFormatter(String input, String expectedDate, String format) {
-        long expectedMillis = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time")
-            .parse(expectedDate))
+        long expectedMillis = DateFormatters.from(DateFormatter.forPattern("strict_date_optional_time").parse(expectedDate))
             .toInstant()
             .toEpochMilli();
         assertRoundupFormatter(format, input, expectedMillis);

@@ -343,7 +343,7 @@ public class RBACEngine implements AuthorizationEngine {
             listener.onResponse(
                 new IndexAuthorizationResult(true, requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl())
             );
-        } else if (request instanceof IndicesRequest.Replaceable && ((IndicesRequest.Replaceable) request).allowsRemoteIndices()) {
+        } else if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices()) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 assert resolvedIndices.isEmpty() == false
@@ -354,9 +354,9 @@ public class RBACEngine implements AuthorizationEngine {
                     // check action name
                     listener.onResponse(authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES));
                 } else {
-                    assert false == resolvedIndices.getLocal().stream().anyMatch(Regex::isSimpleMatchPattern)
-                        || false == ((IndicesRequest.Replaceable) request).indicesOptions().expandWildcardExpressions()
-                        : "wildcards for local indices have been expanded or the request should not expand wildcards";
+                    assert resolvedIndices.getLocal().stream().noneMatch(Regex::isSimpleMatchPattern)
+                        || replaceable.indicesOptions().expandWildcardExpressions() == false
+                        : "expanded wildcards for local indices OR the request should not expand wildcards at all";
                     listener.onResponse(
                         buildIndicesAccessControl(
                             action,
@@ -383,17 +383,15 @@ public class RBACEngine implements AuthorizationEngine {
                         if (resolvedIndices.isNoIndicesPlaceholder()) {
                             listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                         } else {
-                            assert false == resolvedIndices.getLocal().stream().anyMatch(Regex::isSimpleMatchPattern)
-                                    || false == ((IndicesRequest.Replaceable) request).indicesOptions().expandWildcardExpressions()
-                                    : "wildcards for local indices have been expanded or the request should not expand wildcards";
-                            listener.onResponse(
-                                buildIndicesAccessControl(
-                                    action,
-                                    authorizationInfo,
-                                    Sets.newHashSet(resolvedIndices.getLocal()),
-                                    aliasOrIndexLookup
-                                )
-                            );
+                            assert resolvedIndices.getLocal().stream().noneMatch(Regex::isSimpleMatchPattern)
+                                || ((IndicesRequest) request).indicesOptions().expandWildcardExpressions() == false
+                                : "expanded wildcards for local indices OR the request should not expand wildcards at all";
+                            listener.onResponse(buildIndicesAccessControl(
+                                action,
+                                authorizationInfo,
+                                Sets.newHashSet(resolvedIndices.getLocal()),
+                                aliasOrIndexLookup
+                            ));
                         }
                     }, listener::onFailure));
                 } else {
@@ -453,15 +451,15 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
+        assert Arrays.stream(indices).noneMatch(Regex::isSimpleMatchPattern)
+            || indicesRequest.indicesOptions().expandWildcardExpressions() == false
+            : "child request with action ["
+                + requestInfo.getAction()
+                + "] contains unexpanded wildcards "
+                + Arrays.stream(indices).filter(Regex::isSimpleMatchPattern).toList();
+
         // Check if the parent context has already successfully authorized access to the child's indices
-        for (String idx : indices) {
-            assert Regex.isSimpleMatchPattern(idx) == false
-                : "Wildcards should already be expanded but action [" + requestInfo.getAction() + "] has index [" + idx + "]";
-            if (indicesAccessControl.hasIndexPermissions(idx) == false) {
-                return false;
-            }
-        }
-        return true;
+        return Arrays.stream(indices).allMatch(indicesAccessControl::hasIndexPermissions);
     }
 
     private static IndexAuthorizationResult authorizeIndexActionName(

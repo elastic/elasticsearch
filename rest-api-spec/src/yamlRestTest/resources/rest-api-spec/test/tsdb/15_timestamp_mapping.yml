@@ -341,10 +341,10 @@ explicitly enable timestamp meta field:
   - match: { 'test.mappings._data_stream_timestamp.enabled': true }
 
 ---
-"Unable to create a time series index with @timestamp runtime field":
+unable to create a time series index with @timestamp runtime field:
   - skip:
-      version: " - 8.4.99"
-      reason: "downsample introduced in 8.5.0"
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       catch: '/docvalues not found for index sort field:\[\@timestamp\]/'

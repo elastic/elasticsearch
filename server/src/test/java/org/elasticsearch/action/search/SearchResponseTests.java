@@ -142,7 +142,6 @@ public class SearchResponseTests extends ESTestCase {
      * the "_shard/total/failures" section makes it impossible to directly
      * compare xContent, so we omit it here
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90407")
     public void testFromXContent() throws IOException {
         doFromXContentTestWithRandomFields(createTestItem(), false);
     }
@@ -182,7 +181,6 @@ public class SearchResponseTests extends ESTestCase {
      * Because of this, in this special test case we compare the "top level" fields for equality
      * and the subsections xContent equivalence independently
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90407")
     public void testFromXContentWithFailures() throws IOException {
         int numFailures = randomIntBetween(1, 5);
         ShardSearchFailure[] failures = new ShardSearchFailure[numFailures];

@@ -97,6 +97,18 @@ public class ReservedClusterStateService {
         stateChunkParser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReservedStateVersion.parse(p), METADATA_FIELD);
     }
 
+    ReservedStateChunk parse(String namespace, XContentParser parser) {
+        try {
+            return stateChunkParser.apply(parser, null);
+        } catch (Exception e) {
+            ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            updateErrorState(errorState);
+            logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
+
+            throw new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState, e);
+        }
+    }
+
     /**
      * Saves and reserves a chunk of the cluster state under a given 'namespace' from {@link XContentParser}
      *
@@ -109,7 +121,7 @@ public class ReservedClusterStateService {
         ReservedStateChunk stateChunk;
 
         try {
-            stateChunk = stateChunkParser.apply(parser, null);
+            stateChunk = parse(namespace, parser);
         } catch (Exception e) {
             ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
             updateErrorState(errorState);

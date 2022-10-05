@@ -1474,8 +1474,17 @@ public class IndexNameExpressionResolver {
 
         public static List<String> resolve(final Context context, List<String> expressions) {
             List<String> result = new ArrayList<>(expressions.size());
+            boolean wildcardSeen = false;
             for (String expression : expressions) {
-                result.add(resolveExpression(expression, context::getStartTime));
+                // accepts date-math exclusions that are of the form "-<...{}>", i.e. the "-" is outside the "<>" date-math template
+                if (Strings.hasLength(expression) && expression.charAt(0) == '-' && wildcardSeen) {
+                    result.add("-" + resolveExpression(expression.substring(1), context::getStartTime));
+                } else {
+                    result.add(resolveExpression(expression, context::getStartTime));
+                }
+                if (Regex.isSimpleMatchPattern(expression)) {
+                    wildcardSeen = true;
+                }
             }
             return result;
         }

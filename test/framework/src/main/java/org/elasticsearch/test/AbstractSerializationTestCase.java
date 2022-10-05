@@ -32,7 +32,7 @@ public abstract class AbstractSerializationTestCase<T extends Writeable> extends
      * Generic test that creates new instance from the test instance and checks
      * both for equality and asserts equality on the two instances.
      */
-    public void testFromXContent() throws IOException {
+    public final void testFromXContent() throws IOException {
         createXContentTester().numberOfTestRuns(NUMBER_OF_TEST_RUNS)
             .supportsUnknownFields(supportsUnknownFields())
             .shuffleFieldsExceptions(getShuffleFieldsExceptions())

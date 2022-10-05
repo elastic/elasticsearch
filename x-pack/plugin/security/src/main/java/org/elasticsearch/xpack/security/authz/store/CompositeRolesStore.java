@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
@@ -92,8 +91,6 @@ public class CompositeRolesStore {
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
-
-    private static final Set<String> LOCAL_CLUSTER_ALIAS_KEY = newHashSet(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
     private final RoleProviders roleProviders;
     private final NativePrivilegeStore privilegeStore;
@@ -665,8 +662,8 @@ public class CompositeRolesStore {
             if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
                 return;
             }
-            final Set<String> indicesKey = newHashSet(indicesPrivilege.getIndices());
-            indicesPrivilegesMap.compute(indicesKey, (k, value) -> {
+            final Set<String> key = newHashSet(indicesPrivilege.getIndices());
+            indicesPrivilegesMap.compute(key, (k, value) -> {
                 if (value == null) {
                     return new MergeableIndicesPrivilege(
                         indicesPrivilege.getIndices(),

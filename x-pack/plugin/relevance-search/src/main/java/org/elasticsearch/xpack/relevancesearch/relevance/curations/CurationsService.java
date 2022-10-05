@@ -19,6 +19,14 @@ public class CurationsService {
 
     public static final String ENT_SEARCH_INDEX = ".ent-search";
     public static final String CURATIONS_SETTINGS_PREFIX = "curations-";
+    private static final String CONDITIONS_FIELD = "conditions";
+    private static final String PINNED_DOCS_FIELD = "pinned_document_ids";
+    private static final String EXCLUDED_DOCS_IDS = "excluded_document_ids";
+    private static final String CONTEXT_ATTR = "context";
+    private static final String VALUE_ATTR = "value";
+    private static final String ID_ATTR = "_id";
+    private static final String INDEX_ATTR = "_index";
+
     private final Client client;
 
     public CurationsService(final Client client) {
@@ -43,26 +51,26 @@ public class CurationsService {
         // see org/elasticsearch/index/mapper/DocumentParser.java
 
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> sourceConditions = (List<Map<String, Object>>) source.get("conditions");
+        final List<Map<String, Object>> sourceConditions = (List<Map<String, Object>>) source.get(CONDITIONS_FIELD);
         List<Condition> conditions = sourceConditions.stream().map(this::parseCondition).toList();
 
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> sourcePinnedDocs = (List<Map<String, Object>>) source.get("pinned_document_ids");
+        final List<Map<String, Object>> sourcePinnedDocs = (List<Map<String, Object>>) source.get(PINNED_DOCS_FIELD);
         List<CurationSettings.DocumentReference> pinnedDocs = sourcePinnedDocs.stream().map(this::parseDocumentReference).toList();
 
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> sourceHiddenDocs = (List<Map<String, Object>>) source.get("excluded_document_ids");
+        final List<Map<String, Object>> sourceHiddenDocs = (List<Map<String, Object>>) source.get(EXCLUDED_DOCS_IDS);
         List<CurationSettings.DocumentReference> hiddenDocs = sourceHiddenDocs.stream().map(this::parseDocumentReference).toList();
 
         return new CurationSettings(pinnedDocs, hiddenDocs, conditions);
     }
 
     private CurationSettings.DocumentReference parseDocumentReference(Map<String, Object> sourcePinnedDoc) {
-        return new CurationSettings.DocumentReference((String) sourcePinnedDoc.get("_id"), (String) sourcePinnedDoc.get("_index"));
+        return new CurationSettings.DocumentReference((String) sourcePinnedDoc.get(ID_ATTR), (String) sourcePinnedDoc.get(INDEX_ATTR));
     }
 
     private Condition parseCondition(Map<String, Object> sourceCondition) throws IllegalArgumentException {
-        return Condition.buildCondition((String) sourceCondition.get("context"), (String) sourceCondition.get("value"));
+        return Condition.buildCondition((String) sourceCondition.get(CONTEXT_ATTR), (String) sourceCondition.get(VALUE_ATTR));
     }
 
     public static class CurationsSettingsNotFoundException extends Exception {

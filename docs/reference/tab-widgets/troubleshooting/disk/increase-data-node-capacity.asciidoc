@@ -21,7 +21,7 @@ and go to **Manage this deployment**.
 [role="screenshot"]
 image::images/troubleshooting/disk/autoscaling_banner.png[Autoscaling banner,align="center"]
 +
-Or you can go to `Actions > Edit deployment` and check the checkbox `Autoscale`.
+Or you can go to `Actions > Edit deployment`, check the checkbox `Autoscale` and click `save` at the bottom of the page.
 +
 [role="screenshot"]
 image::images/troubleshooting/disk/enable_autoscaling.png[Enabling autoscaling,align="center"]
@@ -38,10 +38,101 @@ or you can go to `Actions > Edit deployment` and check for the label `LIMIT REAC
 image::images/troubleshooting/disk/reached_autoscaling_limits.png[Autoscaling limits reached,align="center"]
 +
 If you are in the banner click `Update autoscaling settings` to go to the `Edit` page. Otherwise, you are already in the
-`Edit` page, click `Edit settings` to increase the autoscaling limits.
+`Edit` page, click `Edit settings` to increase the autoscaling limits. After you perform the change click `save` at the
+bottom of the page.
 
 // end::cloud[]
 
 // tag::self-managed[]
-Manually add nodes or extend
+In order to increase the data node capacity in your cluster, you will need to calculate the amount of extra disk space
+you need.
+
+. First, we need to retrieve the relevant disk thresholds that will indicate how much space we need to release. This
+is the <<cluster-routing-watermark-high, high watermark>> or for the frozen tier the
+<<cluster-routing-flood-stage-frozen, flood stage watermark>>. We can retrieve them via the following commands:
++
+[source,console]
+----
+GET _cluster/settings?include_defaults&filter_path=*.cluster.routing.allocation.disk.watermark.high*
+GET _cluster/settings?include_defaults&filter_path=*.cluster.routing.allocation.disk.watermark.flood_stage*
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+{
+  "defaults": {
+    "cluster": {
+      "routing": {
+        "allocation": {
+          "disk": {
+            "watermark": {
+              "high": "90%",                                <1>
+              "high.max_headroom": "150GB"                  <2>
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Frozen tier
+{
+  "defaults": {
+    "cluster": {
+      "routing": {
+        "allocation": {
+          "disk": {
+            "watermark": {
+              "flood_stage.frozen.max_headroom": "20GB",    <3>
+              "flood_stage.frozen": "95%"                   <4>
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+// TEST[skip:illustration purposes only]
++
+The above means that in order to resolve the disk shortage we need at either drop our disk usage below the 90% or have
+more than 150GB available.
+
+. The next step is to find out our current disk usage, this way we can calculate how much space we need. For simplicity,
+our example has one node, but you can apply the same for every node over relevant threshold.
++
+[source,console]
+----
+GET _cat/allocation?v&s=disk.avail&h=node,disk.percent,disk.avail,disk.total,disk.used,disk.indices,shards
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+node                disk.percent disk.avail disk.total disk.used disk.indices shards
+instance-0000000000           91     24.8gb       35gb    28.1gb       26.9gb    111
+----
+// TEST[skip:illustration purposes only]
+
+. The desirable situation is to drop all disk usages bellow the relevant threshold, in our example 90%. So calculate
+how much you need for this and allow for some padding, so it will not go over the threshold soon. To achieve this, we
+can do 2 things:
+- Add an extra data node to the cluster with the same disk size (this requires more that the used space it's occupied
+from more than one shard).
+- Extend the disk space of the current node by 20% to allow this node to drop to 70%.
+
+. In the case of adding another data node, the cluster will not recover immediately. It might take some time to
+relocate shards in order to relieve the node that is out of space. You can check the progress here:
++
+[source,console-result]
+----
+GET /_cat/shards?v&h=state,node&s=state
+----
++
+If in the response you see the word `RELOCATING` this means that shards are still moving. Wait until all shards turn
+to `STARTED` or until the health disk indicator turns to `green`.
 // end::self-managed[]

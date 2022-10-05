@@ -188,16 +188,17 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
                 final boolean conditionMatch = curationSettings.conditions().stream().anyMatch(c -> c.match(this));
                 if (conditionMatch) {
 
-                    final PinnedQueryBuilder.Item[] items = curationSettings.pinnedDocs()
-                        .stream()
-                        .map(docRef -> new PinnedQueryBuilder.Item(docRef.index(), docRef.id()))
-                        .toArray(PinnedQueryBuilder.Item[]::new);
-                    PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(combinedFieldsBuilder, items);
-                    queryBuilder = pinnedQueryBuilder;
+                    if (curationSettings.pinnedDocs().isEmpty() == false) {
+                        final PinnedQueryBuilder.Item[] items = curationSettings.pinnedDocs()
+                            .stream()
+                            .map(docRef -> new PinnedQueryBuilder.Item(docRef.index(), docRef.id()))
+                            .toArray(PinnedQueryBuilder.Item[]::new);
+                        queryBuilder = new PinnedQueryBuilder(combinedFieldsBuilder, items);
+                    }
 
                     if (curationSettings.hiddenDocs().isEmpty() == false) {
                         BoolQueryBuilder booleanQueryBuilder = new BoolQueryBuilder();
-                        booleanQueryBuilder.should(pinnedQueryBuilder);
+                        booleanQueryBuilder.should(queryBuilder);
 
                         BoolQueryBuilder hiddenDocsBuilder = new BoolQueryBuilder();
                         for (CurationSettings.DocumentReference hiddenDoc : curationSettings.hiddenDocs()) {

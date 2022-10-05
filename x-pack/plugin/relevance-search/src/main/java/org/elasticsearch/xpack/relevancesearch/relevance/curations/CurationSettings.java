@@ -28,4 +28,5 @@ public record CurationSettings(List<DocumentReference> pinnedDocs, List<Document
         }
 
     }
+
 }

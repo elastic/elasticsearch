@@ -25,6 +25,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
@@ -103,6 +104,7 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
             if (snapMeta == null) {
                 throw new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId());
             }
+            var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
             // Check that the policy exists in the first place
             snapMeta.getSnapshotConfigurations()
                 .entrySet()
@@ -125,7 +127,7 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
                             SnapshotLifecycleMetadata.TYPE,
                             new SnapshotLifecycleMetadata(
                                 newConfigs,
-                                snapMeta.getOperationMode(),
+                                currentMode,
                                 snapMeta.getStats().removePolicy(request.getLifecycleId())
                             )
                         )

@@ -108,27 +108,27 @@
   # Check downsample target index runtime fields mappings
   - do:
       indices.get_mapping:
-        index: source
+        index: target
 
-  - match: { source.mappings.runtime.tx_kb.type: double }
-  - match: { source.mappings.runtime.tx_kb.script.lang: painless }
+  - match: { target.mappings.runtime.tx_kb.type: double }
+  - match: { target.mappings.runtime.tx_kb.script.lang: painless }
   - match:
-      source.mappings.runtime.tx_kb.script.source: |
+      target.mappings.runtime.tx_kb.script.source: |
         emit(doc['k8s.pod.network.tx'].value / 1024.0d);
-  - match: { source.mappings.runtime.rx_kb.type: double }
-  - match: { source.mappings.runtime.rx_kb.script.lang: painless }
+  - match: { target.mappings.runtime.rx_kb.type: double }
+  - match: { target.mappings.runtime.rx_kb.script.lang: painless }
   - match:
-      source.mappings.runtime.rx_kb.script.source: |
+      target.mappings.runtime.rx_kb.script.source: |
         emit(doc['k8s.pod.network.rx'].value / 1024.0d);
-  - match: { source.mappings.runtime.sent_kb.type: double }
-  - match: { source.mappings.runtime.sent_kb.script.lang: painless }
+  - match: { target.mappings.runtime.sent_kb.type: double }
+  - match: { target.mappings.runtime.sent_kb.script.lang: painless }
   - match:
-      source.mappings.runtime.sent_kb.script.source: |
+      target.mappings.runtime.sent_kb.script.source: |
         emit(doc['k8s.pod.network.sent'].value / 1024.0d);
-  - match: { source.mappings.runtime.received_kb.type: double }
-  - match: { source.mappings.runtime.received_kb.script.lang: painless }
+  - match: { target.mappings.runtime.received_kb.type: double }
+  - match: { target.mappings.runtime.received_kb.script.lang: painless }
   - match:
-      source.mappings.runtime.received_kb.script.source: |
+      target.mappings.runtime.received_kb.script.source: |
         emit(doc['k8s.pod.network.received'].value / 1024.0d);
 
   # Search the downsample target index including runtime fields

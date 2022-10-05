@@ -29,8 +29,6 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQueryBuilder> {
 

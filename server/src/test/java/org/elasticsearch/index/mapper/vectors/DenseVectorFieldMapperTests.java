@@ -481,7 +481,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new DenseVectorSyntheticSourceSupport();
     }
 

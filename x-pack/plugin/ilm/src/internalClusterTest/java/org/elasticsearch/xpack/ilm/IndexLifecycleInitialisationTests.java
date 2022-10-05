@@ -479,10 +479,11 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         assertAcked(client().execute(StopILMAction.INSTANCE, new StopILMRequest()).get());
         assertBusy(
-            () -> assertThat(
-                client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get().getMode(),
-                equalTo(OperationMode.STOPPED)
-            )
+            () -> {
+                OperationMode mode = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get().getMode();
+                logger.info("--> waiting for STOPPED, currently: {}", mode);
+                assertThat(mode, equalTo(OperationMode.STOPPED));
+            }
         );
 
         logger.info("Creating lifecycle [test_lifecycle]");

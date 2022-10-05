@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
@@ -303,6 +304,11 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
                 Metadata.Custom.class,
                 new ParseField(SnapshotLifecycleMetadata.TYPE),
                 parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)
+            ),
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(LifecycleOperationMetadata.TYPE),
+                parser -> LifecycleOperationMetadata.PARSER.parse(parser, null)
             ),
             // Lifecycle Types
             new NamedXContentRegistry.Entry(

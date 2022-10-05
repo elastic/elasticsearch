@@ -67,6 +67,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo"));
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -207,7 +212,8 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse("constant_keyword doesn't support ignore_malformed", ignoreMalformed);
         String value = randomUnicodeOfLength(5);
         return new SyntheticSourceSupport() {
             @Override

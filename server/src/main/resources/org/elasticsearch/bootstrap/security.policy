@@ -172,9 +172,6 @@ grant {
   permission java.io.FilePermission "/proc/self/cgroup", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/-", "read";
 
-  // system memory on Linux systems affected by JDK bug (#66629)
-  permission java.io.FilePermission "/proc/meminfo", "read";
-
   // needed for com.nimbusds.jose.shaded.gson.Gson.toJson
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 

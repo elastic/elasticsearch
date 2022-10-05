@@ -8,6 +8,7 @@
 package org.elasticsearch.searchengines;
 
 import org.apache.logging.log4j.util.Strings;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,12 +19,13 @@ import org.elasticsearch.cluster.metadata.SearchEngine;
 import org.elasticsearch.cluster.metadata.SearchEngineMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.index.EngineNotFoundException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.searchengines.action.CreateSearchEngineAction;
+import org.elasticsearch.searchengines.action.PutSearchEngineAction;
 import org.elasticsearch.searchengines.action.DeleteSearchEngineAction;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -82,10 +84,10 @@ public class SearchEngineMetadataService {
         this.clusterService = clusterService;
     }
 
-    public void createSearchEngine(CreateSearchEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    public void putSearchEngine(PutSearchEngineAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask(
-            "create-search-engine-" + request.getName(),
-            new CreateSearchEngineClusterStateUpdateTask(listener, request),
+            "put-search-engine-" + request.getName(),
+            new PutSearchEngineClusterStateUpdateTask(listener, request),
             ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
             TASK_EXECUTOR
         );
@@ -100,15 +102,15 @@ public class SearchEngineMetadataService {
         );
     }
 
-    static class CreateSearchEngineClusterStateUpdateTask extends ClusterStateUpdateTask {
-        private final CreateSearchEngineAction.Request request;
+    static class PutSearchEngineClusterStateUpdateTask extends ClusterStateUpdateTask {
+        private final PutSearchEngineAction.Request request;
 
-        CreateSearchEngineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, CreateSearchEngineAction.Request request) {
+        PutSearchEngineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, PutSearchEngineAction.Request request) {
             super(listener);
             this.request = request;
         }
 
-        private void validate(CreateSearchEngineAction.Request request, ClusterState state) {
+        private void validate(PutSearchEngineAction.Request request, ClusterState state) {
             // - validate index names, make sure they exist
             List<String> missingIndices = new ArrayList<>();
             for (String index : request.indices()) {
@@ -152,7 +154,7 @@ public class SearchEngineMetadataService {
         @Override
         public SearchEngineMetadata execute(SearchEngineMetadata currentMetadata, ClusterState state) {
             if (request.getResolved() == null || request.getResolved().isEmpty()) {
-                throw new EngineNotFoundException(Strings.join(Arrays.asList(request.getNames()), ','));
+                throw new SearchEngineNotFoundException(Strings.join(Arrays.asList(request.getNames()), ','));
             }
 
             Map<String, SearchEngine> searchEngines = new HashMap<>(currentMetadata.searchEngines());
@@ -164,4 +166,17 @@ public class SearchEngineMetadataService {
         }
     }
 
+    static class SearchEngineNotFoundException extends ResourceNotFoundException {
+        public SearchEngineNotFoundException(String engine) {
+            this(engine, (Throwable) null);
+        }
+
+        public SearchEngineNotFoundException(String engine, Throwable cause) {
+            super("no such engine [" + engine + "]", cause);
+        }
+
+        public SearchEngineNotFoundException(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
 }

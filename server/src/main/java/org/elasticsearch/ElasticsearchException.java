@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SearchEngineNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
@@ -1585,12 +1586,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UnsupportedAggregationOnDownsampledIndex::new,
             167,
             Version.V_8_5_0
-        ),
-        ENGINE_NOT_FOUND_EXCEPTION(
-            org.elasticsearch.index.EngineNotFoundException.class,
-            org.elasticsearch.index.EngineNotFoundException::new,
-            168,
-            Version.V_8_6_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

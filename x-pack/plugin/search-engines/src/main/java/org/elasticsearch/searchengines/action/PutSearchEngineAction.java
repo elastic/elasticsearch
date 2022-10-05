@@ -7,6 +7,7 @@
 
 package org.elasticsearch.searchengines.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
@@ -19,8 +20,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.indices.InvalidEngineNameException;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,12 +31,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
+public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
 
-    public static final CreateSearchEngineAction INSTANCE = new CreateSearchEngineAction();
-    public static final String NAME = "indices:admin/search_engine/create";
+    public static final PutSearchEngineAction INSTANCE = new PutSearchEngineAction();
+    public static final String NAME = "indices:admin/search_engine/put";
 
-    private CreateSearchEngineAction() {
+    private PutSearchEngineAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
@@ -50,7 +51,7 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
 
         private static final ObjectParser<Request, RestRequest> PARSER;
         static {
-            PARSER = new ObjectParser<>("create_search_engine");
+            PARSER = new ObjectParser<>("put_search_engine");
             PARSER.declareField(Request::setIndices, (p) -> {
                 List<String> indices = new ArrayList<>();
                 while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -99,8 +100,8 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
             }
             // validate engine name using the same rules as index name
             try {
-                MetadataCreateIndexService.validateIndexOrAliasName(name, InvalidEngineNameException::new);
-            } catch (InvalidEngineNameException x) {
+                MetadataCreateIndexService.validateIndexOrAliasName(name, InvalidSearchEngineNameException::new);
+            } catch (InvalidSearchEngineNameException x) {
                 validationException = ValidateActions.addValidationError(x.getMessage(), validationException);
             }
             if (CollectionUtils.isEmpty(indices)) {
@@ -169,6 +170,21 @@ public class CreateSearchEngineAction extends ActionType<AcknowledgedResponse> {
             XContentParser contentParser = restRequest.contentParser();
             PARSER.parse(contentParser, request, restRequest);
             return request;
+        }
+    }
+
+    public static class InvalidSearchEngineNameException extends ElasticsearchException {
+        public InvalidSearchEngineNameException(String name, String desc) {
+            super("Invalid engine name [" + name + "], " + desc);
+        }
+
+        public InvalidSearchEngineNameException(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.BAD_REQUEST;
         }
     }
 }

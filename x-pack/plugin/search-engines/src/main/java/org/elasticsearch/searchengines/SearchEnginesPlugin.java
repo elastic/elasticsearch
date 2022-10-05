@@ -27,13 +27,13 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.searchengines.action.CreateSearchEngineAction;
-import org.elasticsearch.searchengines.action.CreateSearchEngineTransportAction;
+import org.elasticsearch.searchengines.action.PutSearchEngineAction;
+import org.elasticsearch.searchengines.action.PutSearchEngineTransportAction;
 import org.elasticsearch.searchengines.action.DeleteSearchEngineAction;
 import org.elasticsearch.searchengines.action.DeleteSearchEngineTransportAction;
 import org.elasticsearch.searchengines.action.GetSearchEngineAction;
 import org.elasticsearch.searchengines.action.GetSearchEngineTransportAction;
-import org.elasticsearch.searchengines.rest.RestCreateSearchEngineAction;
+import org.elasticsearch.searchengines.rest.RestPutSearchEngineAction;
 import org.elasticsearch.searchengines.rest.RestDeleteSearchEngineAction;
 import org.elasticsearch.searchengines.rest.RestGetSearchEngineAction;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,7 +72,7 @@ public class SearchEnginesPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
-            new ActionPlugin.ActionHandler<>(CreateSearchEngineAction.INSTANCE, CreateSearchEngineTransportAction.class),
+            new ActionPlugin.ActionHandler<>(PutSearchEngineAction.INSTANCE, PutSearchEngineTransportAction.class),
             new ActionPlugin.ActionHandler<>(GetSearchEngineAction.INSTANCE, GetSearchEngineTransportAction.class),
             new ActionPlugin.ActionHandler<>(DeleteSearchEngineAction.INSTANCE, DeleteSearchEngineTransportAction.class)
         );
@@ -88,6 +88,6 @@ public class SearchEnginesPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestCreateSearchEngineAction(), new RestGetSearchEngineAction(), new RestDeleteSearchEngineAction());
+        return List.of(new RestPutSearchEngineAction(), new RestGetSearchEngineAction(), new RestDeleteSearchEngineAction());
     }
 }

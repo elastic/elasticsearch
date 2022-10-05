@@ -13,18 +13,18 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.searchengines.SearchEnginesPlugin;
-import org.elasticsearch.searchengines.action.CreateSearchEngineAction;
+import org.elasticsearch.searchengines.action.PutSearchEngineAction;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestCreateSearchEngineAction extends BaseRestHandler {
+public class RestPutSearchEngineAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "create_search_engine_action";
+        return "put_search_engine_action";
     }
 
     @Override
@@ -34,7 +34,7 @@ public class RestCreateSearchEngineAction extends BaseRestHandler {
 
     @Override
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        CreateSearchEngineAction.Request createEngineRequest = CreateSearchEngineAction.Request.parseRestRequest(request);
-        return channel -> client.execute(CreateSearchEngineAction.INSTANCE, createEngineRequest, new RestToXContentListener<>(channel));
+        PutSearchEngineAction.Request createEngineRequest = PutSearchEngineAction.Request.parseRestRequest(request);
+        return channel -> client.execute(PutSearchEngineAction.INSTANCE, createEngineRequest, new RestToXContentListener<>(channel));
     }
 }

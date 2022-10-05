@@ -22,12 +22,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class CreateSearchEngineTransportAction extends AcknowledgedTransportMasterNodeAction<CreateSearchEngineAction.Request> {
+public class PutSearchEngineTransportAction extends AcknowledgedTransportMasterNodeAction<PutSearchEngineAction.Request> {
 
     private final SearchEngineMetadataService searchEngineMetadataService;
 
     @Inject
-    public CreateSearchEngineTransportAction(
+    public PutSearchEngineTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -36,12 +36,12 @@ public class CreateSearchEngineTransportAction extends AcknowledgedTransportMast
         SearchEngineMetadataService searchEngineMetadataService
     ) {
         super(
-            CreateSearchEngineAction.NAME,
+            PutSearchEngineAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            CreateSearchEngineAction.Request::new,
+            PutSearchEngineAction.Request::new,
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
@@ -52,15 +52,15 @@ public class CreateSearchEngineTransportAction extends AcknowledgedTransportMast
     @Override
     protected void masterOperation(
         Task task,
-        CreateSearchEngineAction.Request request,
+        PutSearchEngineAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        searchEngineMetadataService.createSearchEngine(request, listener);
+        searchEngineMetadataService.putSearchEngine(request, listener);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(CreateSearchEngineAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutSearchEngineAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

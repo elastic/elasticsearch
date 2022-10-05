@@ -297,10 +297,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                     Decision.single(Decision.Type.NO, "disk_threshold", "test"),
                     firstNoDecision(shardIdNodeDecisions.get(expectedShardIds.first()).canAllocateDecisions().get(0))
                 );
-                Decision canRemainDecision = shardIdNodeDecisions.get(expectedShardIds.first()).canRemainDecisions().get(0).decision();
-                assertEquals(Decision.Type.NO, canRemainDecision.type());
-                assertTrue(canRemainDecision.getDecisions().stream().anyMatch(d -> d.type() == Decision.Type.YES));
-                assertTrue(canRemainDecision.getDecisions().stream().anyMatch(d -> d.type() == Decision.Type.NO));
+                assertDebugNoDecision(shardIdNodeDecisions.get(expectedShardIds.first()).canRemainDecisions().get(0).decision());
                 return true;
             },
             mockCanAllocateDiskDecider
@@ -317,10 +314,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         verifyScale(subjectShards.size(), "not enough storage available, needs " + subjectShards.size() + "b", shardIdNodeDecisions -> {
             assertEquals(cappedShardIds(expectedShardIds), shardIdNodeDecisions.keySet());
-            Decision canRemainDecision = shardIdNodeDecisions.get(expectedShardIds.first()).canRemainDecisions().get(0).decision();
-            assertEquals(Decision.Type.NO, canRemainDecision.type());
-            assertTrue(canRemainDecision.getDecisions().stream().anyMatch(d -> d.type() == Decision.Type.YES));
-            assertTrue(canRemainDecision.getDecisions().stream().anyMatch(d -> d.type() == Decision.Type.NO));
+            assertDebugNoDecision(shardIdNodeDecisions.get(expectedShardIds.first()).canRemainDecisions().get(0).decision());
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
                 firstNoDecision(shardIdNodeDecisions.values().iterator().next().canAllocateDecisions().get(0))

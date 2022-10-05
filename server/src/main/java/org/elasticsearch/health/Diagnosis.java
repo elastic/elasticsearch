@@ -41,8 +41,8 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         public enum Type {
             INDEX("indices"),
             NODE("nodes"),
-            SLM_POLICY("slm_policy"),
-            SNAPSHOT_REPOSITORY("snapshot_repository");
+            SLM_POLICY("slm_policies"),
+            SNAPSHOT_REPOSITORY("snapshot_repositories");
 
             private final String displayValue;
 

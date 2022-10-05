@@ -3,9 +3,6 @@
 		"host_ip": {
 			"type":"ip"
 		},
-	    "@timestamp": {
-	      "type": "date"
-	    },
 	    "date": {
 	      "type": "date"
 	    },

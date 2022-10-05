@@ -3,9 +3,6 @@
 		"ip": {
 			"type":"ip"
 		},
-	    "@timestamp": {
-	      "type": "date"
-	    },
 	    "@timestamp_pretty": {
 	      "type": "date",
 	      "format": "yyyy-MM-dd"

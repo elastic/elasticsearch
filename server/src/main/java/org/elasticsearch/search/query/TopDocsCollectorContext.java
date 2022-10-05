@@ -165,12 +165,14 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
          * @param collapseContext The collapsing context
          * @param sortAndFormats The query sort
          * @param numHits The number of collapsed top hits to retrieve.
+         * @param totalNumDocs The number of total documents.
          * @param trackMaxScore True if max score should be tracked
          */
         private CollapsingTopDocsCollectorContext(
             CollapseContext collapseContext,
             @Nullable SortAndFormats sortAndFormats,
             int numHits,
+            int totalNumDocs,
             boolean trackMaxScore,
             @Nullable FieldDoc after
         ) {
@@ -179,7 +181,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             assert collapseContext != null;
             Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
             this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
-            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, after);
+            this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, totalNumDocs, after);
 
             MaxScoreCollector maxScoreCollector;
             if (trackMaxScore) {
@@ -479,6 +481,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 searchContext.collapse(),
                 searchContext.sort(),
                 numDocs,
+                totalNumDocs,
                 trackScores,
                 searchContext.searchAfter()
             );

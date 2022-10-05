@@ -55,11 +55,11 @@ public class CollapseContext {
         return collapseSort;
     }
 
-    public SinglePassGroupingCollector<?> createTopDocs(Sort sort, int topN, FieldDoc after) {
+    public SinglePassGroupingCollector<?> createTopDocs(Sort sort, int topN, int totalNumDocs, FieldDoc after) {
         if (fieldType.collapseType() == CollapseType.KEYWORD) {
-            return SinglePassGroupingCollector.createKeyword(fieldName, fieldType, sort, collapseSort, topN, after);
+            return SinglePassGroupingCollector.createKeyword(fieldName, fieldType, sort, collapseSort, topN, totalNumDocs, after);
         } else if (fieldType.collapseType() == CollapseType.NUMERIC) {
-            return SinglePassGroupingCollector.createNumeric(fieldName, fieldType, sort, collapseSort, topN, after);
+            return SinglePassGroupingCollector.createNumeric(fieldName, fieldType, sort, collapseSort, topN, totalNumDocs, after);
         } else {
             throw new IllegalStateException("collapse is not supported on this field type");
         }

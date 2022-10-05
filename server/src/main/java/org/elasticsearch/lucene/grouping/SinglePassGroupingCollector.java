@@ -35,12 +35,12 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.GroupSelector;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeSet;
 
@@ -89,6 +89,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      * @param collapseSort      {@link Sort} used to select head hit for each group. If absent, defaults to Top Sort,
      *                          which corresponds to the current behaviour.
      * @param topN              How many top groups to keep.
+     * @param totalNumDocs      How many possible top groups.
      * @param after             The field values to search after. Can be null.
      */
     public static SinglePassGroupingCollector<?> createNumeric(
@@ -97,6 +98,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         Sort topSort,
         @Nullable Sort collapseSort,
         int topN,
+        int totalNumDocs,
         @Nullable FieldDoc after
     ) {
         return new SinglePassGroupingCollector<>(
@@ -105,6 +107,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
             topSort,
             collapseSort,
             topN,
+            totalNumDocs,
             after);
     }
 
@@ -122,6 +125,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      * @param collapseSort      {@link Sort} used to select head hit for each group. If absent, defaults to Top Sort,
      *                          which corresponds to the current behaviour.
      * @param topN              How many top groups to keep.
+     * @param totalNumDocs      How many possible top groups.
      * @param after             The field values to search after. Can be null.
      */
     public static SinglePassGroupingCollector<?> createKeyword(
@@ -130,6 +134,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         Sort topSort,
         @Nullable Sort collapseSort,
         int topN,
+        int totalNumDocs,
         @Nullable FieldDoc after
     ) {
         return new SinglePassGroupingCollector<>(
@@ -138,6 +143,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
             topSort,
             collapseSort,
             topN,
+            totalNumDocs,
             after);
     }
 
@@ -160,7 +166,6 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
 
     private int totalHitCount;
 
-    // Set once we reach topNGroups unique groups:
     private TreeSet<SearchGroup<T>> orderedGroups;
 
     private int docBase;
@@ -172,6 +177,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         Sort topSort,
         @Nullable Sort collapseSort,
         int topNGroups,
+        int totalNumDocs,
         @Nullable FieldDoc after
     ) {
         assert after == null || (topSort.getSort().length == 1 && after.doc == Integer.MAX_VALUE);
@@ -199,15 +205,14 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         topReversed = new int[topSortFields.length];
         for (int i = 0; i < collapseSortFields.length; i++) {
             final SortField sortField = collapseSortFields[i];
-            // use topNGroups + 1 so we have a spare slot to use for comparing (tracked by this.spareSlot):
-            collapseComparators[i] = sortField.getComparator(topNGroups + 1, false);
+            // use totalNumDocs + 1 so we have a spare slot to use for comparing (tracked by this.spareSlot):
+            collapseComparators[i] = sortField.getComparator(totalNumDocs + 1, false);
             collapseReversed[i] = sortField.getReverse() ? -1 : 1;
         }
         for (int i = 0; i < topSortFields.length; i++) {
             final SortField sortField = topSortFields[i];
-
-            // use topNGroups + 1 so we have a spare slot to use for comparing (tracked by this.spareSlot):
-            topComparators[i] = sortField.getComparator(topNGroups + 1, false);
+            // use totalNumDocs + 1 so we have a spare slot to use for comparing (tracked by this.spareSlot):
+            topComparators[i] = sortField.getComparator(totalNumDocs, false);
             topReversed[i] = sortField.getReverse() ? -1 : 1;
         }
         if (after != null) {
@@ -216,8 +221,8 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
             topComparator.setTopValue(after.fields[0]);
         }
 
-        spareSlot = topNGroups;
-        groupMap = Maps.newMapWithExpectedSize(topNGroups);
+        spareSlot = totalNumDocs;
+        groupMap = new HashMap<>();
     }
 
     @Override
@@ -257,7 +262,8 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
             }
         }
 
-        int size = Math.max(0, orderedGroups.size() - groupOffset);
+        int orderedGroupsSize = Math.min(topNGroups, orderedGroups.size());
+        int size = Math.max(0, orderedGroupsSize - groupOffset);
         final FieldDoc[] topDocs = new FieldDoc[size];
         final FieldDoc[] collapseDocs = new FieldDoc[size];
         Object[] groupValues = new Object[size];
@@ -266,6 +272,9 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         int upto = 0;
         int pos = 0;
         for (SearchGroup<T> group : orderedGroups) {
+            if (upto > size - 1) {
+                break;
+            }
             if (upto++ < groupOffset) {
                 continue;
             }
@@ -321,77 +330,17 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
 
         final SearchGroup<T> group = groupMap.get(groupValue);
 
+        // First time we are seeing this group
         if (group == null) {
-
-            // First time we are seeing this group, or, we've seen
-            // it before but it fell out of the top N and is now
-            // coming back
-
-            if (groupMap.size() < topNGroups) {
-
-                // Still in startup transient: we have not
-                // seen enough unique groups to start pruning them;
-                // just keep collecting them
-
-                // Add a new CollectedSearchGroup:
-                SearchGroup<T> sg = new SearchGroup<>(docBase + doc, groupMap.size(), groupSelector.copyValue());
-                for (LeafFieldComparator fc : topLeafComparators) {
-                    fc.copy(sg.slot, doc);
-                }
-                for (LeafFieldComparator fc : collapseLeafComparators) {
-                    fc.copy(sg.slot, doc);
-                }
-                groupMap.put(sg.groupValue, sg);
-
-                if (groupMap.size() == topNGroups) {
-                    // End of startup transient: we now have max
-                    // number of groups; from here on we will drop
-                    // bottom group when we insert new one:
-                    buildSortedSet();
-                }
-
-                return;
-            }
-
-            for (int compIDX = 0;; compIDX++) {
-                final int c = topReversed[compIDX] * topLeafComparators[compIDX].compareBottom(doc);
-                if (c < 0) {
-                    // Definitely not competitive. So don't even bother to continue
-                    return;
-                } else if (c > 0) {
-                    // Definitely competitive.
-                    break;
-                } else if (compIDX == topCompIDXEnd) {
-                    // Here c=0. If we're at the last comparator, this doc is not
-                    // competitive, since docs are visited in doc Id order, which means
-                    // this doc cannot compete with any other document in the queue.
-                    return;
-                }
-            }
-
-            // We already tested that the document is competitive, so replace
-            // the bottom group with this new group.
-            final SearchGroup<T> bottomGroup = orderedGroups.pollLast();
-            assert orderedGroups.size() == topNGroups - 1;
-
-            groupMap.remove(bottomGroup.groupValue);
-
-            // reuse the removed CollectedSearchGroup
-            bottomGroup.groupValue = groupSelector.copyValue();
-            bottomGroup.doc = docBase + doc;
-
+            // Add a new CollectedSearchGroup:
+            SearchGroup<T> sg = new SearchGroup<>(docBase + doc, groupMap.size(), groupSelector.copyValue());
             for (LeafFieldComparator fc : topLeafComparators) {
-                fc.copy(bottomGroup.slot, doc);
+                fc.copy(sg.slot, doc);
             }
-
-            groupMap.put(bottomGroup.groupValue, bottomGroup);
-            orderedGroups.add(bottomGroup);
-            assert orderedGroups.size() == topNGroups;
-
-            final int lastComparatorSlot = orderedGroups.last().slot;
-            for (LeafFieldComparator fc : topLeafComparators) {
-                fc.setBottom(lastComparatorSlot);
+            for (LeafFieldComparator fc : collapseLeafComparators) {
+                fc.copy(sg.slot, doc);
             }
+            groupMap.put(sg.groupValue, sg);
 
             return;
         }
@@ -406,46 +355,19 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
                 return;
             } else if (c > 0) {
                 // Definitely competitive.
+                group.doc = docBase + doc;
+                for (LeafFieldComparator fc : topLeafComparators) {
+                    fc.copy(group.slot, doc);
+                }
+                for (LeafFieldComparator fc : collapseLeafComparators) {
+                    fc.copy(group.slot, doc);
+                }
                 break;
             } else if (compIDX == collapseCompIDXEnd) {
                 // Here c=0. If we're at the last comparator, this doc is not
                 // competitive, since docs are visited in doc Id order, which means
                 // this doc cannot compete with any other document in the queue.
                 return;
-            }
-        }
-
-        // Remove before updating the group since lookup is done via comparators
-        // TODO: optimize this
-
-        final SearchGroup<T> prevLast;
-        if (orderedGroups != null) {
-            prevLast = orderedGroups.last();
-            orderedGroups.remove(group);
-            assert orderedGroups.size() == topNGroups - 1;
-        } else {
-            prevLast = null;
-        }
-
-        group.doc = docBase + doc;
-        for (LeafFieldComparator fc : topLeafComparators) {
-            fc.copy(group.slot, doc);
-        }
-        for (LeafFieldComparator fc : collapseLeafComparators) {
-            fc.copy(group.slot, doc);
-        }
-
-        // Re-add the changed group
-        if (orderedGroups != null) {
-            orderedGroups.add(group);
-            assert orderedGroups.size() == topNGroups;
-            final SearchGroup<?> newLast = orderedGroups.last();
-            // If we changed the value of the last group, or changed which group was last, then update
-            // bottom:
-            if (group == newLast || prevLast != newLast) {
-                for (LeafFieldComparator fc : topLeafComparators) {
-                    fc.setBottom(newLast.slot);
-                }
             }
         }
     }
@@ -466,10 +388,6 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         orderedGroups = new TreeSet<>(comparator);
         orderedGroups.addAll(groupMap.values());
         assert orderedGroups.size() > 0;
-
-        for (LeafFieldComparator fc : topLeafComparators) {
-            fc.setBottom(orderedGroups.last().slot);
-        }
     }
 
     @Override

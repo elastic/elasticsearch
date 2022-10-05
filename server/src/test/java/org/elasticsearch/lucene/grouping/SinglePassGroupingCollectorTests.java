@@ -121,6 +121,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
                 sort,
                 null,
                 expectedNumGroups,
+                numDocs,
                 null
             );
         } else {
@@ -130,6 +131,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
                 sort,
                 null,
                 expectedNumGroups,
+                numDocs,
                 null
             );
         }
@@ -206,6 +208,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
                     sort,
                     null,
                     expectedNumGroups,
+                    numDocs,
                     null);
             } else {
                 c = SinglePassGroupingCollector.createKeyword(
@@ -214,6 +217,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
                     sort,
                     null,
                     expectedNumGroups,
+                    numDocs,
                     null);
             }
             subSearcher.search(weight, c);
@@ -404,6 +408,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             sort,
             null,
             10,
+            10,
             null
         );
         searcher.search(new MatchAllDocsQuery(), collapsingCollector);
@@ -449,6 +454,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             fieldType,
             sort,
             null,
+            10,
             10,
             null
         );
@@ -508,6 +514,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
             fieldType,
             sort,
             collapseSort,
+            10,
             10,
             null
         );

@@ -229,11 +229,9 @@ public final class TopFieldGroups extends TopFieldDocs {
 
             TreeSet<ScoreDoc> hitTree = new TreeSet<>(comparator);
             List<Object> groupList = new ArrayList<>();
-            int requestedResultWindow = start + size;
-            int numIterOnHits = Math.min(availHitCount, requestedResultWindow);
             int hitUpto = 0;
             Set<Object> seen = new HashSet<>();
-            while (hitUpto < numIterOnHits) {
+            while (hitUpto < availHitCount) {
                 if (queue.size() == 0) {
                     break;
                 }
@@ -252,10 +250,9 @@ public final class TopFieldGroups extends TopFieldDocs {
                 if (setShardIndex) {
                     hit.shardIndex = ref.shardIndex;
                 }
-                if (hitUpto >= start) {
-                    hitTree.add(hit);
-                    groupList.add(groupValue);
-                }
+
+                hitTree.add(hit);
+                groupList.add(groupValue);
 
                 hitUpto++;
 
@@ -269,7 +266,18 @@ public final class TopFieldGroups extends TopFieldDocs {
             hits = hitTree.toArray(new ScoreDoc[0]);
             values = groupList.toArray(new Object[0]);
         }
+
+        final ScoreDoc[] slicedHits;
+
+        if (hits.length <= start) {
+            slicedHits = new ScoreDoc[0];
+        } else {
+            int slicedLength = Math.min(hits.length - start, start + size);
+            slicedHits = new ScoreDoc[slicedLength];
+            System.arraycopy(hits, start, slicedHits, 0, slicedLength);
+        }
+
         TotalHits totalHits = new TotalHits(totalHitCount, totalHitsRelation);
-        return new TopFieldGroups(groupField, totalHits, hits, topSort.getSort(), values);
+        return new TopFieldGroups(groupField, totalHits, slicedHits, topSort.getSort(), values);
     }
 }

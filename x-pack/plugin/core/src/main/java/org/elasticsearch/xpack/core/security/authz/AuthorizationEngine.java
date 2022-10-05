@@ -304,14 +304,6 @@ public interface AuthorizationEngine {
                             validationException
                         );
                     }
-                    if (indicesPrivileges.hasRemoteClusters()) {
-                        validationException = addValidationError(
-                            "cannot check index privileges with remote clusters ["
-                                + Strings.arrayToCommaDelimitedString(indicesPrivileges.getRemoteClusters())
-                                + "]",
-                            validationException
-                        );
-                    }
                 }
             }
             if (application == null) {

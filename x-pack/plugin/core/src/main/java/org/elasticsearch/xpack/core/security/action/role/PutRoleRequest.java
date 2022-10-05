@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -42,6 +43,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private String[] runAs = Strings.EMPTY_ARRAY;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
+    @Nullable
+    private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges;
 
     public PutRoleRequest(StreamInput in) throws IOException {
         super(in);
@@ -57,6 +60,11 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            remoteIndicesPrivileges = in.readOptionalList(RoleDescriptor.RemoteIndicesPrivileges::new);
+        } else {
+            remoteIndicesPrivileges = null;
+        }
     }
 
     public PutRoleRequest() {}
@@ -85,6 +93,14 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
 
     public void addIndex(RoleDescriptor.IndicesPrivileges... privileges) {
         this.indicesPrivileges.addAll(Arrays.asList(privileges));
+    }
+
+    public void addRemoteIndex(RoleDescriptor.RemoteIndicesPrivileges... privileges) {
+        // TODO
+        if (remoteIndicesPrivileges == null) {
+            this.remoteIndicesPrivileges = new ArrayList<>();
+        }
+        this.remoteIndicesPrivileges.addAll(Arrays.asList(privileges));
     }
 
     public void addIndex(
@@ -176,6 +192,9 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeGenericMap(metadata);
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            out.writeOptionalCollection(remoteIndicesPrivileges);
+        }
     }
 
     public RoleDescriptor roleDescriptor() {
@@ -187,8 +206,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
             configurableClusterPrivileges,
             runAs,
             metadata,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            remoteIndicesPrivileges == null ? null : remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0])
         );
     }
-
 }

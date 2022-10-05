@@ -325,24 +325,13 @@ public interface Role {
                     );
                 }
                 final Set<BytesReference> query = privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery());
-                if (false == privilege.hasRemoteClusters()) {
-                    add(
-                        fieldPermissions,
-                        query,
-                        IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
-                        privilege.allowRestrictedIndices(),
-                        privilege.getIndices()
-                    );
-                } else {
-                    addRemoteGroup(
-                        Set.of(privilege.getRemoteClusters()),
-                        fieldPermissions,
-                        query,
-                        IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
-                        privilege.allowRestrictedIndices(),
-                        privilege.getIndices()
-                    );
-                }
+                add(
+                    fieldPermissions,
+                    query,
+                    IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
+                    privilege.allowRestrictedIndices(),
+                    privilege.getIndices()
+                );
             }
 
             return this;

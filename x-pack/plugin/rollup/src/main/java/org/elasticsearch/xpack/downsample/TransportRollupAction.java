@@ -65,6 +65,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.downsample.RollupIndexerAction;
@@ -94,6 +95,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
+    private final Settings settings;
 
     /**
      * This is the cluster state task executor for cluster state update actions.
@@ -121,7 +123,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         MetadataCreateIndexService metadataCreateIndexService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        Settings settings
     ) {
         super(
             DownsampleAction.NAME,
@@ -139,6 +142,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.threadContext = threadPool.getThreadContext();
+        this.settings = settings;
     }
 
     @Override
@@ -150,18 +154,20 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     ) {
         String sourceIndexName = request.getSourceIndex();
 
-        final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-        if (indicesAccessControl != null) {
-            final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(sourceIndexName);
-            if (indexPermissions != null) {
-                boolean hasDocumentLevelPermissions = indexPermissions.getDocumentPermissions().hasDocumentLevelPermissions();
-                boolean hasFieldLevelSecurity = indexPermissions.getFieldPermissions().hasFieldLevelSecurity();
-                if (hasDocumentLevelPermissions || hasFieldLevelSecurity) {
-                    listener.onFailure(
-                        new ElasticsearchException(
-                            "Rollup forbidden for index [" + sourceIndexName + "] with document level or field level security settings."
-                        )
-                    );
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
+            final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            if (indicesAccessControl != null) {
+                final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(sourceIndexName);
+                if (indexPermissions != null) {
+                    boolean hasDocumentLevelPermissions = indexPermissions.getDocumentPermissions().hasDocumentLevelPermissions();
+                    boolean hasFieldLevelSecurity = indexPermissions.getFieldPermissions().hasFieldLevelSecurity();
+                    if (hasDocumentLevelPermissions || hasFieldLevelSecurity) {
+                        listener.onFailure(
+                            new ElasticsearchException(
+                                "Rollup forbidden for index [" + sourceIndexName + "] with document level or field level security settings."
+                            )
+                        );
+                    }
                 }
             }
         }

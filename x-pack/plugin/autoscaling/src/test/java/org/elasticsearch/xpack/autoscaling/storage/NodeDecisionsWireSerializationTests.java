@@ -10,17 +10,22 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-
-import static org.elasticsearch.xpack.autoscaling.storage.NodeDecisionTestUtils.randomNodeDecision;
+import java.util.List;
 
 public class NodeDecisionsWireSerializationTests extends AbstractWireSerializingTestCase<NodeDecisions> {
 
     @Override
     protected NodeDecisions mutateInstance(NodeDecisions instance) throws IOException {
         if (randomBoolean()) {
-            return new NodeDecisions(randomList(8, () -> NodeDecisionTestUtils.randomNodeDecision()), instance.canRemainDecisions());
+            return new NodeDecisions(
+                randomValueOtherThan(instance.canAllocateDecisions(), () -> randomNodeDecisions()),
+                instance.canRemainDecisions()
+            );
         } else if (randomBoolean()) {
-            return new NodeDecisions(instance.canAllocateDecisions(), randomList(8, () -> NodeDecisionTestUtils.randomNodeDecision()));
+            return new NodeDecisions(
+                instance.canAllocateDecisions(),
+                randomValueOtherThan(instance.canRemainDecisions(), () -> randomNodeDecisions())
+            );
         } else {
             return randomValueOtherThan(instance, this::createTestInstance);
         }
@@ -33,7 +38,11 @@ public class NodeDecisionsWireSerializationTests extends AbstractWireSerializing
 
     @Override
     protected NodeDecisions createTestInstance() {
-        return new NodeDecisions(randomList(8, NodeDecisionTestUtils::randomNodeDecision), randomList(8, () -> randomNodeDecision()));
+        return new NodeDecisions(randomNodeDecisions(), randomNodeDecisions());
+    }
+
+    private static List<NodeDecision> randomNodeDecisions() {
+        return randomList(8, NodeDecisionTestUtils::randomNodeDecision);
     }
 
 }

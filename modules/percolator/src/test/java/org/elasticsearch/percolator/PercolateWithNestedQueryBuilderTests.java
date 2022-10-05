@@ -8,8 +8,6 @@
 
 package org.elasticsearch.percolator;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;

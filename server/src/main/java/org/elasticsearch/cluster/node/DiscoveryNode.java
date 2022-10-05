@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -362,7 +363,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.hostName = readStringLiteral.read(in);
         this.hostAddress = readStringLiteral.read(in);
         this.address = new TransportAddress(in);
-        this.attributes = Collections.unmodifiableMap(in.readMap(readStringLiteral, readStringLiteral));
+        this.attributes = in.readImmutableMap(readStringLiteral, readStringLiteral);
         int rolesSize = in.readVInt();
         final SortedSet<DiscoveryNodeRole> roles = new TreeSet<>();
         final String[] roleNames = new String[rolesSize];
@@ -373,19 +374,20 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             final Optional<DiscoveryNodeRole> maybeRole = DiscoveryNodeRole.maybeGetRoleFromRoleName(roleName);
             if (maybeRole.isEmpty()) {
                 roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
+                roleNames[i] = roleName;
             } else {
                 final DiscoveryNodeRole role = maybeRole.get();
                 assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
                 assert roleNameAbbreviation.equals(role.roleNameAbbreviation())
                     : "role name abbreviation [" + roleName + "] does not match role [" + role.roleNameAbbreviation() + "]";
                 roles.add(role);
+                roleNames[i] = role.roleName();
             }
-            roleNames[i] = roleName;
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
         this.version = Version.readVersion(in);
         if (in.getVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
-            this.externalId = in.readString();
+            this.externalId = readStringLiteral.read(in);
         } else {
             this.externalId = nodeName;
         }
@@ -609,4 +611,18 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    /**
+     * Deduplicate the given string that must be a node id or node name.
+     * This method accepts {@code null} input for which it returns {@code null} for convenience when used in deserialization code.
+     *
+     * @param nodeIdentifier node name or node id or {@code null}
+     * @return deduplicated string or {@code null} on null input
+     */
+    @Nullable
+    public static String deduplicateNodeIdentifier(@Nullable String nodeIdentifier) {
+        if (nodeIdentifier == null) {
+            return null;
+        }
+        return nodeStringDeduplicator.deduplicate(nodeIdentifier);
+    }
 }

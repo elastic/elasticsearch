@@ -29,6 +29,8 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQueryBuilder> {
 
@@ -194,13 +196,18 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             query.rewrite(createSearchExecutionContext());
             // one more level causes an exception
             WrapperQueryBuilder q = new WrapperQueryBuilder(Strings.toString(boolQueryBuilderTests.createQueryWithInnerQuery(boolQuery)));
-            XContentParseException e = expectThrows(XContentParseException.class, () -> q.rewrite(createSearchExecutionContext()));
-            assertThat(e.getCause(), Matchers.instanceOf(IllegalArgumentException.class));
+            IllegalArgumentException e = expectThrows(XContentParseException.class, () -> q.rewrite(createSearchExecutionContext()));
+            // there may be nested XContentParseExceptions coming from ObjectParser, we just extract the root cause
+            while (e.getCause() != null) {
+                assertThat(e.getCause(), Matchers.instanceOf(IllegalArgumentException.class));
+                e = (IllegalArgumentException) e.getCause();
+            }
+
             assertEquals(
                 "The nested depth of the query exceeds the maximum nested depth for queries set in ["
                     + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
                     + "]",
-                e.getCause().getMessage()
+                e.getMessage()
             );
         } finally {
             AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));

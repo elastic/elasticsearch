@@ -67,10 +67,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -295,13 +298,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 unassignedShards.stream().map(e -> e.shard.shardId()).collect(Collectors.toCollection(TreeSet::new)),
                 unassignedShards.stream()
                     .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                    .collect(
-                        toMap(snd -> snd.shard.shardId(), snd -> new NodeDecisions(snd.nodeDecisions, List.of()), (a, b) -> b, TreeMap::new)
-                    )
+                    .collect(toSortedMap(snd -> snd.shard.shardId(), snd -> new NodeDecisions(snd.nodeDecisions, List.of())))
                     .entrySet()
                     .stream()
                     .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
-                    .collect(toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .collect(toSortedMap(Map.Entry::getKey, Map.Entry::getValue))
             );
         }
 
@@ -382,21 +383,23 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 Stream.concat(unmovableShardNodeDecisions.stream(), canRemainDecisionsForUnallocatedShards.stream())
                     .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
                     .collect(
-                        toMap(
+                        toSortedMap(
                             snd -> snd.shard.shardId(),
-                            snd -> new NodeDecisions(
-                                shardAllocateDecisions.getOrDefault(snd.shard.shardId(), List.of()),
-                                snd.nodeDecisions
-                            ),
-                            (a, b) -> b,
-                            TreeMap::new
+                            snd -> new NodeDecisions(shardAllocateDecisions.getOrDefault(snd.shard.shardId(), List.of()), snd.nodeDecisions)
                         )
                     )
                     .entrySet()
                     .stream()
                     .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
-                    .collect(toMap(Map.Entry::getKey, Map.Entry::getValue))
+                    .collect(toSortedMap(Map.Entry::getKey, Map.Entry::getValue))
             );
+        }
+
+        private static <T> Collector<T, ?, SortedMap<ShardId, NodeDecisions>> toSortedMap(
+            Function<T, ShardId> keyMapper,
+            Function<T, NodeDecisions> valueMapper
+        ) {
+            return toMap(keyMapper, valueMapper, (a, b) -> b, TreeMap::new);
         }
 
         /**
@@ -905,6 +908,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 throw new UnsupportedOperationException();
             }
         }
+
     }
 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {

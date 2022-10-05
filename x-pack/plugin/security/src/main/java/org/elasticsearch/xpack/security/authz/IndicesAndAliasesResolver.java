@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 
 import java.util.ArrayList;
@@ -45,10 +46,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
-
-    // `*,-*` what we replace indices and aliases with if we need Elasticsearch to return empty responses without throwing exception
-    static final String[] NO_INDICES_OR_ALIASES_ARRAY = new String[] { "*", "-*" };
-    static final List<String> NO_INDICES_OR_ALIASES_LIST = Arrays.asList(NO_INDICES_OR_ALIASES_ARRAY);
 
     private final IndexNameExpressionResolver nameExpressionResolver;
     private final IndexAbstractionResolver indexAbstractionResolver;
@@ -243,7 +240,7 @@ class IndicesAndAliasesResolver {
                     // this is how we tell es core to return an empty response, we can let the request through being sure
                     // that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through
                     // as that would be resolved to _all by es core.
-                    replaceable.indices(NO_INDICES_OR_ALIASES_ARRAY);
+                    replaceable.indices(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
                     indicesReplacedWithNoIndices = true;
                     resolvedIndicesBuilder.addLocal(NO_INDEX_PLACEHOLDER);
                 } else {
@@ -297,7 +294,7 @@ class IndicesAndAliasesResolver {
              * on "*", the master node would not authorize the request.
              */
             if (aliasesRequest.expandAliasesWildcards() && aliasesRequest.aliases().length == 0) {
-                aliasesRequest.replaceAliases(NO_INDICES_OR_ALIASES_ARRAY);
+                aliasesRequest.replaceAliases(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY);
             }
         }
         return resolvedIndicesBuilder.build();

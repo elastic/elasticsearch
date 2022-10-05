@@ -31,6 +31,12 @@ grant {
   // needed for kerberos file permission tests to access user information
   permission java.lang.RuntimePermission "accessUserInformation";
   permission java.lang.RuntimePermission "getFileStoreAttributes";
+
+  // needed for com.nimbusds.jose.shaded.gson.Gson.toJson
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+
+  // needed for com.nimbusds.oauth2.sdk.id.Identifier#value
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 grant codeBase "${codebase.netty-common}" {

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.plugin.scanner
+package org.elasticsearch.plugin.scanner
 
 import net.bytebuddy.ByteBuddy
 import net.bytebuddy.dynamic.DynamicType
@@ -14,9 +14,11 @@ import net.bytebuddy.dynamic.DynamicType
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.elasticsearch.gradle.internal.test.InMemoryJavaCompiler
 import org.elasticsearch.gradle.internal.test.JarUtils
-import org.elasticsearch.scanner.test_classes.ExtensibleClass
-import org.elasticsearch.scanner.test_classes.ExtensibleInterface
-import org.elasticsearch.scanner.test_classes.TestNamedComponent
+import org.elasticsearch.gradle.plugin.scanner.ClassReaders
+import org.elasticsearch.gradle.plugin.scanner.NamedComponentScanner
+import org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass
+import org.elasticsearch.plugin.scanner.test_classes.ExtensibleInterface
+import org.elasticsearch.plugin.scanner.test_classes.TestNamedComponent
 import org.elasticsearch.plugin.api.Extensible
 import org.elasticsearch.plugin.api.NamedComponent
 import org.objectweb.asm.ClassReader
@@ -24,9 +26,7 @@ import org.objectweb.asm.ClassReader
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.util.function.Supplier
 import java.util.stream.Collectors
-import java.util.stream.Stream
 
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.equalTo
@@ -66,7 +66,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
             "p.A", """
             package p;
             import org.elasticsearch.plugin.api.*;
-            import org.elasticsearch.gradle.plugin.scanner.test_classes.*;
+            import org.elasticsearch.plugin.scanner.test_classes.*;
             @NamedComponent(name = "a_component")
             public class A extends ExtensibleClass {}
             """
@@ -74,7 +74,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
             "p.B", """
             package p;
             import org.elasticsearch.plugin.api.*;
-            import org.elasticsearch.gradle.plugin.scanner.test_classes.*;
+            import org.elasticsearch.plugin.scanner.test_classes.*;
             @NamedComponent(name = "b_component")
             public class B implements ExtensibleInterface{}
             """
@@ -85,7 +85,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
         createExtensibleApiJar(dirWithJar.resolve("plugin-extensible-api.jar"));//for instance analysis api
 
 
-        Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).toList()
+        Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).collect(Collectors.toList())
 
         when:
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
@@ -111,7 +111,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
             """
                 package p;
                 import org.elasticsearch.plugin.api.*;
-                import org.elasticsearch.gradle.plugin.scanner.test_classes.*;
+                import org.elasticsearch.plugin.scanner.test_classes.*;
                 public interface CustomExtensibleInterface extends ExtensibleInterface {}
                 """,
             // note that this class implements a custom interface
@@ -119,14 +119,14 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
             """
                 package p;
                 import org.elasticsearch.plugin.api.*;
-                import org.elasticsearch.gradle.plugin.scanner.test_classes.*;
+                import org.elasticsearch.plugin.scanner.test_classes.*;
                 public class CustomExtensibleClass implements CustomExtensibleInterface {}
                 """,
             "p.A",
             """
                 package p;
                 import org.elasticsearch.plugin.api.*;
-                import org.elasticsearch.gradle.plugin.scanner.test_classes.*;
+                import org.elasticsearch.plugin.scanner.test_classes.*;
                 @NamedComponent(name = "a_component")
                 public class A extends CustomExtensibleClass {}
                 """,
@@ -134,7 +134,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
             """
                 package p;
                 import org.elasticsearch.plugin.api.*;
-                import org.elasticsearch.gradle.plugin.scanner.test_classes.*;
+                import org.elasticsearch.plugin.scanner.test_classes.*;
                 @NamedComponent(name = "b_component")
                 public class B implements CustomExtensibleInterface{}
                 """
@@ -156,7 +156,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
         pluginApiJar(dirWithJar.toFile())
         createExtensibleApiJar(dirWithJar.resolve("plugin-extensible-api.jar"));//for instance analysis api
 
-        Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).toList();
+        Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).collect(Collectors.toList())
 
         when:
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
@@ -198,10 +198,8 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
     }
 
     private Collection<ClassReader> classReaderStream(Class<?>... classes) {
-
-        return () -> {
             try {
-                Path mainPath = Paths.get(NamedComponentScannerSpec.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+                Path mainPath = Paths.get(Extensible.class.getProtectionDomain().getCodeSource().getLocation().toURI());
                 return Arrays.stream(classes).map(
                     clazz -> {
                         String className = classNameToPath(clazz) + ".class";
@@ -218,7 +216,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        };
+
     }
 
     private String classNameToPath(Class<?> clazz) {

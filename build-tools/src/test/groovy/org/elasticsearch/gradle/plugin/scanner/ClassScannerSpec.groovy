@@ -15,6 +15,7 @@ import org.hamcrest.Matchers
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.Type
 
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.stream.Stream
 
@@ -40,16 +41,16 @@ class ClassScannerSpec extends Specification {
             extensibleClasses,
             Matchers.allOf(
                 Matchers.hasEntry(
-                    "org/elasticsearch/gradle/plugin/scanner/test_classes/ExtensibleClass",
-                    "org/elasticsearch/gradle/plugin/scanner/test_classes/ExtensibleClass"
+                    "org/elasticsearch/plugin/scanner/test_classes/ExtensibleClass",
+                    "org/elasticsearch/plugin/scanner/test_classes/ExtensibleClass"
                 ),
                 Matchers.hasEntry(
-                    "org/elasticsearch/gradle/plugin/scanner/test_classes/ImplementingExtensible",
-                    "org/elasticsearch/gradle/plugin/scanner/test_classes/ExtensibleInterface"
+                    "org/elasticsearch/plugin/scanner/test_classes/ImplementingExtensible",
+                    "org/elasticsearch/plugin/scanner/test_classes/ExtensibleInterface"
                 ),
                 Matchers.hasEntry(
-                    "org/elasticsearch/gradle/plugin/scanner/test_classes/SubClass",
-                    "org/elasticsearch/gradle/plugin/scanner/test_classes/ExtensibleClass"
+                    "org/elasticsearch/plugin/scanner/test_classes/SubClass",
+                    "org/elasticsearch/plugin/scanner/test_classes/ExtensibleClass"
                 )
             )
         );

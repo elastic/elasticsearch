@@ -10,10 +10,11 @@ package org.elasticsearch.gradle.plugin.scanner
 
 import spock.lang.Specification
 
-import org.elasticsearch.scanner.test_classes.ExtensibleClass
-import org.elasticsearch.scanner.test_classes.ExtensibleInterface
-import org.elasticsearch.scanner.test_classes.ImplementingExtensible
-import org.elasticsearch.scanner.test_classes.SubClass
+import org.elasticsearch.plugin.api.NamedComponent
+import org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass
+import org.elasticsearch.plugin.scanner.test_classes.ExtensibleInterface
+import org.elasticsearch.plugin.scanner.test_classes.ImplementingExtensible
+import org.elasticsearch.plugin.scanner.test_classes.SubClass
 import org.elasticsearch.plugin.api.Extensible
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.Type
@@ -39,7 +40,7 @@ class AnnotatedHierarchyVisitorSpec extends Specification {
 
     def "empty result when no classes annotated"() {
         when:
-        performScan(visitor, AnnotatedHierarchyVisitorSpec.class)
+        performScan(visitor, NamedComponent.class)
 
         then:
         foundClasses.empty
@@ -77,7 +78,7 @@ class AnnotatedHierarchyVisitorSpec extends Specification {
     }
 
     private void performScan(AnnotatedHierarchyVisitor classVisitor, Class<?>... classes) throws IOException, URISyntaxException {
-        Path mainPath = Paths.get(AnnotatedHierarchyVisitorSpec.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+        Path mainPath = Paths.get(Extensible.class.getProtectionDomain().getCodeSource().getLocation().toURI())
 
         for (Class<?> clazz : classes) {
             String className = classNameToPath(clazz) + ".class"

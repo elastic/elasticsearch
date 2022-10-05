@@ -6,9 +6,6 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.scanner.test_classes;
+package org.elasticsearch.plugin.scanner.test_classes;
 
-import org.elasticsearch.plugin.api.Extensible;
-
-@Extensible
-public class ExtensibleClass {}
+public class ImplementingExtensible implements ExtensibleInterface {}

@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
@@ -40,12 +41,11 @@ public class Strings {
     public static final String[] EMPTY_ARRAY = new String[0];
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
+        assert spaces >= 0;
         try (BufferedReader reader = new BufferedReader(new StringReader(from))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                for (int i = 0; i < spaces; i++) {
-                    to.append(' ');
-                }
+                to.append(" ".repeat(spaces));
                 to.append(line).append('\n');
             }
         }
@@ -126,7 +126,7 @@ public class Strings {
      * @see #hasText(String)
      */
     public static boolean hasLength(CharSequence str) {
-        return (str != null && str.length() > 0);
+        return (str != null && str.isEmpty() == false);
     }
 
     /**
@@ -191,13 +191,7 @@ public class Strings {
         if (hasLength(str) == false) {
             return false;
         }
-        int strLen = str.length();
-        for (int i = 0; i < strLen; i++) {
-            if (Character.isWhitespace(str.charAt(i)) == false) {
-                return true;
-            }
-        }
-        return false;
+        return str.chars().anyMatch(c -> Character.isWhitespace(c) == false);
     }
 
     /**
@@ -225,11 +219,11 @@ public class Strings {
         if (hasLength(str) == false) {
             return str;
         }
-        StringBuilder sb = new StringBuilder(str);
-        while (sb.length() > 0 && sb.charAt(0) == leadingCharacter) {
-            sb.deleteCharAt(0);
+        int i = 0;
+        while (i < str.length() && str.charAt(i) == leadingCharacter) {
+            i++;
         }
-        return sb.toString();
+        return str.substring(i);
     }
 
     /**
@@ -269,7 +263,7 @@ public class Strings {
         // the index of an occurrence we've found, or -1
         int patLen = oldPattern.length();
         while (index >= 0) {
-            sb.append(inString.substring(pos, index));
+            sb.append(inString, pos, index);
             sb.append(newPattern);
             pos = index + patLen;
             index = inString.indexOf(oldPattern, pos);
@@ -288,17 +282,29 @@ public class Strings {
      * @return the resulting String
      */
     public static String deleteAny(String inString, String charsToDelete) {
+        return deleteAny((CharSequence) inString, charsToDelete).toString();
+    }
+
+    /**
+     * Delete any character in a given CharSequence.
+     *
+     * @param inString      the original CharSequence
+     * @param charsToDelete a set of characters to delete.
+     *                      E.g. "az\n" will delete 'a's, 'z's and new lines.
+     * @return the resulting CharSequence
+     */
+    public static CharSequence deleteAny(CharSequence inString, String charsToDelete) {
         if (hasLength(inString) == false || hasLength(charsToDelete) == false) {
             return inString;
         }
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(inString.length());
         for (int i = 0; i < inString.length(); i++) {
             char c = inString.charAt(i);
             if (charsToDelete.indexOf(c) == -1) {
                 sb.append(c);
             }
         }
-        return sb.toString();
+        return sb;
     }
 
     // ---------------------------------------------------------------------
@@ -321,37 +327,24 @@ public class Strings {
         if (str == null || str.length() == 0) {
             return str;
         }
-        StringBuilder sb = new StringBuilder(str.length());
-        if (capitalize) {
-            sb.append(Character.toUpperCase(str.charAt(0)));
-        } else {
-            sb.append(Character.toLowerCase(str.charAt(0)));
+        char newChar = capitalize ? Character.toUpperCase(str.charAt(0)) : Character.toLowerCase(str.charAt(0));
+        if (newChar == str.charAt(0)) {
+            return str; // nothing changed
         }
-        sb.append(str.substring(1));
-        return sb.toString();
+
+        return newChar + str.substring(1);
     }
 
-    public static final String INVALID_FILENAME_CHARS = "["
-        + Stream.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',').map(c -> "'" + c + "'").collect(Collectors.joining(","))
-        + "]";
+    public static final String INVALID_FILENAME_CHARS = Stream.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')
+        .map(c -> "'" + c + "'")
+        .collect(Collectors.joining(",", "[", "]"));
 
     public static boolean validFileName(String fileName) {
-        for (int i = 0; i < fileName.length(); i++) {
-            if (isInvalidFileNameCharacter(fileName.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
+        return fileName.chars().noneMatch(c -> isInvalidFileNameCharacter((char) c));
     }
 
     public static boolean validFileNameExcludingAstrix(String fileName) {
-        for (int i = 0; i < fileName.length(); i++) {
-            char c = fileName.charAt(i);
-            if (c != '*' && isInvalidFileNameCharacter(c)) {
-                return false;
-            }
-        }
-        return true;
+        return fileName.chars().noneMatch(c -> c != '*' && isInvalidFileNameCharacter((char) c));
     }
 
     private static boolean isInvalidFileNameCharacter(char c) {
@@ -373,7 +366,7 @@ public class Strings {
         if (collection == null) {
             return null;
         }
-        return collection.toArray(new String[collection.size()]);
+        return collection.toArray(String[]::new);
     }
 
     /**
@@ -531,12 +524,20 @@ public class Strings {
         if (delimiter == null) {
             return new String[] { str };
         }
-        List<String> result = new ArrayList<>();
-        if ("".equals(delimiter)) {
+        List<String> result;
+        if (delimiter.isEmpty()) {
+            // split on every character
+            result = new ArrayList<>(str.length());
+            if (charsToDelete == null) {
+                charsToDelete = "";
+            }
             for (int i = 0; i < str.length(); i++) {
-                result.add(deleteAny(str.substring(i, i + 1), charsToDelete));
+                if (charsToDelete.indexOf(str.charAt(i)) == -1) {
+                    result.add(Character.toString(str.charAt(i)));
+                }
             }
         } else {
+            result = new ArrayList<>();
             int pos = 0;
             int delPos;
             while ((delPos = str.indexOf(delimiter, pos)) != -1) {
@@ -545,7 +546,7 @@ public class Strings {
             }
             if (str.length() > 0 && pos <= str.length()) {
                 // Add rest of String, but not in case of empty input.
-                result.add(deleteAny(str.substring(pos), charsToDelete));
+                result.add(deleteAny(str.subSequence(pos, str.length()), charsToDelete).toString());
             }
         }
         return toStringArray(result);
@@ -569,10 +570,8 @@ public class Strings {
      * @return a Set of String entries in the list
      */
     public static Set<String> commaDelimitedListToSet(String str) {
-        Set<String> set = new TreeSet<>();
         String[] tokens = commaDelimitedListToStringArray(str);
-        set.addAll(Arrays.asList(tokens));
-        return set;
+        return new TreeSet<>(Arrays.asList(tokens));
     }
 
     /**
@@ -917,38 +916,27 @@ public class Strings {
         return s == null || s.isBlank();
     }
 
+    /**
+     * @deprecated Use RequireNonNullElse instead
+     */
+    @Deprecated
     public static String coalesceToEmpty(@Nullable String s) {
-        return s == null ? "" : s;
+        return Objects.requireNonNullElse(s, "");
     }
 
     public static String padStart(String s, int minimumLength, char c) {
-        if (s == null) {
-            throw new NullPointerException("s");
-        }
+        Objects.requireNonNull(s, "s");
         if (s.length() >= minimumLength) {
             return s;
         } else {
-            StringBuilder sb = new StringBuilder(minimumLength);
-            for (int i = s.length(); i < minimumLength; i++) {
-                sb.append(c);
-            }
-
-            sb.append(s);
-            return sb.toString();
+            return Character.toString(c).repeat(minimumLength - s.length()) + s;
         }
     }
 
     public static String toLowercaseAscii(String in) {
-        StringBuilder out = new StringBuilder();
-        Iterator<Integer> iter = in.codePoints().iterator();
-        while (iter.hasNext()) {
-            int codepoint = iter.next();
-            if (codepoint > 128) {
-                out.appendCodePoint(codepoint);
-            } else {
-                out.appendCodePoint(Character.toLowerCase(codepoint));
-            }
-        }
-        return out.toString();
+        return in.codePoints()
+            .map(cp -> cp <= 128 ? Character.toLowerCase(cp) : cp)
+            .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+            .toString();
     }
 }

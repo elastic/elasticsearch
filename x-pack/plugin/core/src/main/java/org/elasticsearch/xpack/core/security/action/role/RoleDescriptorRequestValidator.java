@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
+import java.util.Arrays;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -46,6 +48,25 @@ public class RoleDescriptorRequestValidator {
             for (RoleDescriptor.IndicesPrivileges idp : roleDescriptor.getIndicesPrivileges()) {
                 try {
                     IndexPrivilege.get(Set.of(idp.getPrivileges()));
+                } catch (IllegalArgumentException ile) {
+                    validationException = addValidationError(ile.getMessage(), validationException);
+                }
+            }
+        }
+        final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndicesPrivileges = roleDescriptor.getRemoteIndicesPrivileges();
+        if (remoteIndicesPrivileges != null) {
+            for (RoleDescriptor.RemoteIndicesPrivileges ridp : remoteIndicesPrivileges) {
+                if (ridp.remoteClusters().length == 0) {
+                    validationException = addValidationError("at least one remote cluster is required", validationException);
+                }
+                if (Arrays.asList(ridp.remoteClusters()).contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    validationException = addValidationError(
+                        "cannot use [" + RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY + "] as remote cluster for remote indices privilege",
+                        validationException
+                    );
+                }
+                try {
+                    IndexPrivilege.get(Set.of(ridp.indicesPrivileges().getPrivileges()));
                 } catch (IllegalArgumentException ile) {
                     validationException = addValidationError(ile.getMessage(), validationException);
                 }

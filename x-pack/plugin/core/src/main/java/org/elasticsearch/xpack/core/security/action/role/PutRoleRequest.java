@@ -96,8 +96,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     }
 
     public void addRemoteIndex(RoleDescriptor.RemoteIndicesPrivileges... privileges) {
-        // TODO
-        if (remoteIndicesPrivileges == null) {
+        if (this.remoteIndicesPrivileges == null) {
             this.remoteIndicesPrivileges = new ArrayList<>();
         }
         this.remoteIndicesPrivileges.addAll(Arrays.asList(privileges));

@@ -149,7 +149,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         this.transientMetadata = transientMetadata != null
             ? Collections.unmodifiableMap(transientMetadata)
             : Collections.singletonMap("enabled", true);
-        // TODO Should we use NONE here?
         this.remoteIndicesPrivileges = remoteIndicesPrivileges;
     }
 
@@ -232,8 +231,15 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         sb.append("], runAs=[").append(Strings.arrayToCommaDelimitedString(runAs));
         sb.append("], metadata=[");
         sb.append(metadata);
-        sb.append("]]");
-        // TODO
+        sb.append("]");
+        if (remoteIndicesPrivileges != null) {
+            sb.append(", remoteIndicesPrivileges=[");
+            for (RemoteIndicesPrivileges group : remoteIndicesPrivileges) {
+                sb.append(group.toString()).append(",");
+            }
+            sb.append("]");
+        }
+        sb.append("]");
         return sb.toString();
     }
 

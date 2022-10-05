@@ -50,7 +50,7 @@ public class RoutingAllocation {
 
     private final ClusterState clusterState;
 
-    private final ClusterInfo clusterInfo;
+    private ClusterInfo clusterInfo;
 
     private final SnapshotShardSizeInfo shardSizeInfo;
 
@@ -405,6 +405,11 @@ public class RoutingAllocation {
      */
     public boolean isSimulating() {
         return isSimulating;
+    }
+
+    public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
+        assert isSimulating : "Should be called only while simulating";
+        this.clusterInfo = clusterInfo;
     }
 
     public RoutingAllocation immutableClone() {

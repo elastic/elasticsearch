@@ -22,7 +22,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class RoleWithRemoteIndexPrivilegesRestIT extends SecurityOnTrialLicenseRestTestCase {
+public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     private static final String REMOTE_SEARCH_USER = "remote_search_user";
     private static final SecureString PASSWORD = new SecureString("super-secret-password".toCharArray());
@@ -40,14 +40,14 @@ public class RoleWithRemoteIndexPrivilegesRestIT extends SecurityOnTrialLicenseR
         deleteIndex(adminClient(), "index-a");
     }
 
-    public void testIndexPrivilegesWithRemoteClusters() throws IOException {
+    public void testRemoteIndexPrivileges() throws IOException {
         var putRoleRequest = new Request("PUT", "_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
               "remote_indices": [
                 {
                   "names": ["index-a", "*"],
-                  "privileges": ["all"],
+                  "privileges": ["read"],
                   "remote_clusters": ["remote-a", "*"]
                 }
               ]
@@ -72,14 +72,14 @@ public class RoleWithRemoteIndexPrivilegesRestIT extends SecurityOnTrialLicenseR
             {
               "indices": [
                 {
-                  "names": ["index-a", "*"],
+                  "names": ["index-a"],
                   "privileges": ["all"]
                 }
               ],
               "remote_indices": [
                 {
                   "names": ["index-a", "*"],
-                  "privileges": ["all"],
+                  "privileges": ["read"],
                   "remote_clusters": ["remote-a", "*"]
                 }
               ]
@@ -89,4 +89,5 @@ public class RoleWithRemoteIndexPrivilegesRestIT extends SecurityOnTrialLicenseR
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
     }
+
 }

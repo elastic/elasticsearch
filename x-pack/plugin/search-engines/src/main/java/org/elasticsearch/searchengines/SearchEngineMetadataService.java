@@ -167,15 +167,15 @@ public class SearchEngineMetadataService {
     }
 
     static class SearchEngineNotFoundException extends ResourceNotFoundException {
-        public SearchEngineNotFoundException(String engine) {
+        SearchEngineNotFoundException(String engine) {
             this(engine, (Throwable) null);
         }
 
-        public SearchEngineNotFoundException(String engine, Throwable cause) {
+        SearchEngineNotFoundException(String engine, Throwable cause) {
             super("no such engine [" + engine + "]", cause);
         }
 
-        public SearchEngineNotFoundException(StreamInput in) throws IOException {
+        SearchEngineNotFoundException(StreamInput in) throws IOException {
             super(in);
         }
     }

@@ -60,7 +60,6 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -296,8 +295,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 unassignedShards.stream().map(e -> e.shard.shardId()).collect(Collectors.toCollection(TreeSet::new)),
                 unassignedShards.stream()
                     .filter(shardNodeDecisions -> shardNodeDecisions.nodeDecisions.size() > 0)
-                    .sorted(Comparator.comparing((ShardNodeDecisions shd) -> shd.shard.shardId()))
-                    .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
                     .collect(
                         toMap(snd -> snd.shard.shardId(), snd -> new NodeDecisions(snd.nodeDecisions, List.of()), (a, b) -> b, TreeMap::new)
                     )

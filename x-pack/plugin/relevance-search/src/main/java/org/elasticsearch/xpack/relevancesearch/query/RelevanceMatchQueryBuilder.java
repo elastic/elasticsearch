@@ -52,7 +52,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     private RelevanceSettingsService relevanceSettingsService;
     private CurationsService curationsService;
 
-    private final QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
+    private QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
 
     static {
         declareStandardFields(PARSER);
@@ -76,9 +76,12 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         throws IOException {
         super(in);
 
+        query = in.readString();
+        relevanceSettingsId = in.readOptionalString();
+        curationsSettingsId = in.readOptionalString();
+
         this.relevanceSettingsService = relevanceSettingsService;
         this.curationsService = curationsService;
-        query = in.readString();
     }
 
     public void setRelevanceSettingsService(RelevanceSettingsService relevanceSettingsService) {
@@ -124,6 +127,21 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         return query;
     }
 
+    @Override
+    protected void doXContent(final XContentBuilder builder, final Params params) throws IOException {
+        builder.startObject(NAME);
+
+        builder.field(QUERY_FIELD.getPreferredName(), query);
+        if (relevanceSettingsId != null) {
+            builder.field(RELEVANCE_SETTINGS_FIELD.getPreferredName(), relevanceSettingsId);
+        }
+        if (curationsSettingsId != null) {
+            builder.field(CURATIONS_SETTINGS_FIELD.getPreferredName(), curationsSettingsId);
+        }
+        boostAndQueryNameToXContent(builder);
+        builder.endObject();
+    }
+
     public void setRelevanceSettingsId(String relevanceSettingsId) {
         this.relevanceSettingsId = relevanceSettingsId;
     }
@@ -135,19 +153,8 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         out.writeOptionalString(curationsSettingsId);
     }
 
-    @Override
-    protected void doXContent(final XContentBuilder builder, final Params params) throws IOException {
-        builder.startObject(NAME);
-
-        builder.field(QUERY_FIELD.getPreferredName(), query);
-        if (relevanceSettingsId != null) {
-            builder.field(RELEVANCE_SETTINGS_FIELD.getPreferredName(), relevanceSettingsId);
-        }
-        if (curationsSettingsId != null) {
-            builder.field(RELEVANCE_SETTINGS_FIELD.getPreferredName(), curationsSettingsId);
-        }
-
-        builder.endObject();
+    String getRelevanceSettingsId() {
+        return relevanceSettingsId;
     }
 
     @Override
@@ -214,14 +221,24 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         return queryBuilder.toQuery(context);
     }
 
+    String getCurationsSettingsId() {
+        return curationsSettingsId;
+    }
+
     @Override
     protected boolean doEquals(final RelevanceMatchQueryBuilder other) {
-        return Objects.equals(this.query, other.query);
+        return Objects.equals(this.query, other.query)
+            && Objects.equals(this.relevanceSettingsId, other.relevanceSettingsId)
+            && Objects.equals(this.curationsSettingsId, other.curationsSettingsId);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query);
+        return Objects.hash(query, relevanceSettingsId, curationsSettingsId);
+    }
+
+    RelevanceSettingsService getRelevanceSettingsService() {
+        return relevanceSettingsService;
     }
 
     @Override
@@ -234,4 +251,15 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         return Version.V_8_6_0;
     }
 
+    CurationsService getCurationsService() {
+        return curationsService;
+    }
+
+    QueryFieldsResolver getQueryFieldsResolver() {
+        return queryFieldsResolver;
+    }
+
+    void setQueryFieldsResolver(QueryFieldsResolver queryFieldsResolver) {
+        this.queryFieldsResolver = queryFieldsResolver;
+    }
 }

@@ -88,13 +88,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        private void add(String name, Mapper mapper) {
-            add(new Mapper.Builder(name) {
-                @Override
-                public Mapper build(MapperBuilderContext context) {
-                    return mapper;
-                }
-            });
+        public List<Mapper.Builder> subBuilders() {
+            return mappersBuilders;
         }
 
         /**
@@ -105,11 +100,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
          * @param mapper    the mapper to add
          * @param context   the DocumentParserContext in which the mapper has been built
          */
-        public final void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
+        public final void addDynamic(String name, String prefix, Mapper.Builder mapper, DocumentParserContext context) {
             // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
             // we just add it as it is for sure a leaf mapper
             if (name.contains(".") == false || subobjects.value() == false) {
-                add(name, mapper);
+                add(mapper);
             }
             // otherwise we strip off the first object path of the mapper name, load or create
             // the relevant object mapper, and then recurse down into it, passing the remainder
@@ -132,9 +127,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
             // has the object mapper been added as a dynamic update already?
-            objectMapper = context.getDynamicObjectMapper(fullName);
-            if (objectMapper != null) {
-                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+            ObjectMapper.Builder builder = context.getDynamicObjectMapper(fullName);
+            if (builder != null) {
+                return builder;
             }
             throw new IllegalStateException("Missing intermediate object " + fullName);
         }

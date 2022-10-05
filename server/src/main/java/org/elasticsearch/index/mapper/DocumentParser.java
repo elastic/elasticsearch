@@ -238,9 +238,7 @@ public final class DocumentParser {
             return null;
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
-        for (Mapper mapper : context.getDynamicMappers()) {
-            rootBuilder.addDynamic(mapper.name(), null, mapper, context);
-        }
+        context.getDynamicMappers().forEach((name, builder) -> rootBuilder.addDynamic(name, null, builder, context));
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
@@ -487,8 +485,14 @@ public final class DocumentParser {
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             } else {
-                dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
-                context.addDynamicMapper(dynamicObjectMapper);
+                Mapper.Builder dynamicObjectBuilder = DynamicFieldsBuilder.findTemplateBuilderForObject(context, currentFieldName);
+                if (dynamicObjectBuilder == null) {
+                    dynamicObjectBuilder = new ObjectMapper.Builder(currentFieldName, ObjectMapper.Defaults.SUBOBJECTS).enabled(
+                        ObjectMapper.Defaults.ENABLED
+                    );
+                }
+                dynamicObjectMapper = dynamicObjectBuilder.build(context.createMapperBuilderContext());
+                context.addDynamicMapper(dynamicObjectMapper.name(), dynamicObjectBuilder);
             }
             if (parentObjectMapper.subobjects() == false) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
@@ -549,12 +553,13 @@ public final class DocumentParser {
             } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
                 context.parser().skipChildren();
             } else {
-                Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, lastFieldName);
-                if (objectMapperFromTemplate == null) {
+                Mapper.Builder objectBuilderFromTemplate = DynamicFieldsBuilder.findTemplateBuilderForObject(context, lastFieldName);
+                if (objectBuilderFromTemplate == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, lastFieldName);
                 } else {
+                    Mapper objectMapperFromTemplate = objectBuilderFromTemplate.build(context.createMapperBuilderContext());
                     if (parsesArrayValue(objectMapperFromTemplate)) {
-                        context.addDynamicMapper(objectMapperFromTemplate);
+                        context.addDynamicMapper(objectMapperFromTemplate.name(), objectBuilderFromTemplate);
                         context.path().add(lastFieldName);
                         parseObjectOrField(context, objectMapperFromTemplate);
                         context.path().remove();
@@ -695,23 +700,26 @@ public final class DocumentParser {
     // find what the dynamic setting is given the current parse context and parent
     private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper parentMapper, DocumentParserContext context) {
         ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
+        String parentName = parentMapper.name();
         while (dynamic == null) {
-            int lastDotNdx = parentMapper.name().lastIndexOf('.');
+            int lastDotNdx = parentName.lastIndexOf('.');
             if (lastDotNdx == -1) {
                 // no dot means we the parent is the root, so just delegate to the default outside the loop
                 break;
             }
-            String parentName = parentMapper.name().substring(0, lastDotNdx);
+            parentName = parentName.substring(0, lastDotNdx);
             parentMapper = context.mappingLookup().objectMappers().get(parentName);
             if (parentMapper == null) {
                 // If parentMapper is null, it means the parent of the current mapper is being dynamically created right now
-                parentMapper = context.getDynamicObjectMapper(parentName);
-                if (parentMapper == null) {
+                ObjectMapper.Builder parentBuilder = context.getDynamicObjectMapper(parentName);
+                if (parentBuilder == null) {
                     // it can still happen that the path is ambiguous and we are not able to locate the parent
                     break;
                 }
+                dynamic = parentBuilder.dynamic;
+            } else {
+                dynamic = parentMapper.dynamic();
             }
-            dynamic = parentMapper.dynamic();
         }
         if (dynamic == null) {
             return context.root().dynamic() == null ? ObjectMapper.Dynamic.TRUE : context.root().dynamic();

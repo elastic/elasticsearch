@@ -84,9 +84,9 @@ public abstract class DocumentParserContext {
     private final Function<DateFormatter, MappingParserContext> parserContextFunction;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
-    private final List<Mapper> dynamicMappers;
+    private final Map<String, Mapper.Builder> dynamicMappers;
     private final Set<String> newFieldsSeen;
-    private final Map<String, ObjectMapper> dynamicObjectMappers;
+    private final Map<String, ObjectMapper.Builder> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
     private final DocumentDimensions dimensions;
     private String id;
@@ -123,7 +123,7 @@ public abstract class DocumentParserContext {
         this.parserContextFunction = parserContextFunction;
         this.sourceToParse = source;
         this.ignoredFields = new HashSet<>();
-        this.dynamicMappers = new ArrayList<>();
+        this.dynamicMappers = new HashMap<>();
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
@@ -225,29 +225,38 @@ public abstract class DocumentParserContext {
     /**
      * Add a new mapper dynamically created while parsing.
      */
-    public final void addDynamicMapper(Mapper mapper) {
+    public final void addDynamicMapper(String fullName, Mapper.Builder builder) {
         // eagerly check object depth limit here to avoid stack overflow errors
-        if (mapper instanceof ObjectMapper) {
-            MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), mapper.name());
+        if (builder instanceof ObjectMapper.Builder) {
+            MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), fullName);
         }
         // eagerly check field name limit here to avoid OOM errors
         // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting
         // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
-        if (mappingLookup.getMapper(mapper.name()) == null
-            && mappingLookup.objectMappers().containsKey(mapper.name()) == false
-            && newFieldsSeen.add(mapper.name())) {
+        if (mappingLookup.getMapper(fullName) == null
+            && mappingLookup.objectMappers().containsKey(fullName) == false
+            && newFieldsSeen.add(fullName)) {
             mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
         }
-        if (mapper instanceof ObjectMapper objectMapper) {
-            dynamicObjectMappers.put(objectMapper.name(), objectMapper);
+        if (builder instanceof ObjectMapper.Builder objectMapper) {
+            dynamicObjectMappers.put(fullName, objectMapper);
             // dynamic object mappers may have been obtained from applying a dynamic template, in which case their definition may contain
             // sub-fields as well as sub-objects that need to be added to the mappings
-            for (Mapper submapper : objectMapper.mappers.values()) {
+            for (Mapper.Builder submapper : objectMapper.subBuilders()) {
                 // we could potentially skip the step of adding these to the dynamic mappers, because their parent is already added to
                 // that list, and what is important is that all of the intermediate objects are added to the dynamic object mappers so that
                 // they can be looked up once sub-fields need to be added to them. For simplicity, we treat these like any other object
-                addDynamicMapper(submapper);
+                addDynamicMapper(fullName + "." + submapper.name, submapper);
             }
+        }
+        if (dynamicMappers.containsKey(fullName)) {
+            // we've got the same dynamic mapper added in two ways, maybe due to a difference
+            // in dot notation: { "a" : { "b" : "value1" }, "a.b" : "value2" }
+            // we merge them together here to check that they are compatible
+            MapperBuilderContext mbc = createMapperBuilderContext();
+            Mapper first = dynamicMappers.get(fullName).build(mbc);
+            Mapper second = builder.build(mbc);
+            first.merge(second, mbc);
         }
         // TODO we may want to stop adding object mappers to the dynamic mappers list: most times they will be mapped when parsing their
         // sub-fields (see ObjectMapper.Builder#addDynamic), which causes extra work as the two variants of the same object field
@@ -255,7 +264,7 @@ public abstract class DocumentParserContext {
         // dynamically mapped objects when the incoming document defines no sub-fields in them:
         // 1) by default, they would be empty containers in the mappings, is it then important to map them?
         // 2) they can be the result of applying a dynamic template which may define sub-fields or set dynamic, enabled or subobjects.
-        dynamicMappers.add(mapper);
+        dynamicMappers.put(fullName, builder);
     }
 
     /**
@@ -264,7 +273,7 @@ public abstract class DocumentParserContext {
      * Consists of a flat set of {@link Mapper}s that will need to be added to their respective parent {@link ObjectMapper}s in order
      * to become part of the resulting dynamic mapping update.
      */
-    public final List<Mapper> getDynamicMappers() {
+    public final Map<String, Mapper.Builder> getDynamicMappers() {
         return dynamicMappers;
     }
 
@@ -275,7 +284,7 @@ public abstract class DocumentParserContext {
      * Holds a flat set of object mappers, meaning that an object field named <code>foo.bar</code> can be looked up directly with its
      * dotted name.
      */
-    final ObjectMapper getDynamicObjectMapper(String name) {
+    final ObjectMapper.Builder getDynamicObjectMapper(String name) {
         return dynamicObjectMappers.get(name);
     }
 

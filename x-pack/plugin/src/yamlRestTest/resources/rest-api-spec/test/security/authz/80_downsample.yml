@@ -76,7 +76,7 @@ setup:
           index.blocks.write: true
 
 ---
-"Downsample user missing permissions on source index (document level security)":
+"Downsample user missing permissions on source index":
   - skip:
       version: " - 8.4.99"
       reason: "downsample introduced in 8.5.0"
@@ -89,9 +89,8 @@ setup:
           {
             "indices": [
               {
-                "names": ["non-existing-index"],
-                "privileges": ["read"],
-                "query": { "match_all": {} }
+                "names": ["target"],
+                "privileges": ["read"]
               }
             ]
           }

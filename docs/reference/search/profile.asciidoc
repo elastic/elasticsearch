@@ -955,8 +955,7 @@ overall time, the breakdown is inclusive of all children times.
 [[profiling-fetch]]
 ===== Profiling Fetch
 
-
-All shards the fetched documents will have a `fetch` section in the profile.
+All shards that fetched documents will have a `fetch` section in the profile.
 Let's execute a small search and have a look a the fetch profile:
 
 [source,console]
@@ -1047,6 +1046,224 @@ per hit. In that case the true cost of `_source` phase is hidden in the
 loading stored fields by setting
 `"_source": false, "stored_fields": ["_none_"]`.
 
+[[profiling-dfs]]
+===== Profiling DFS
+
+The DFS phase runs before the query phase to collect global information
+relevant to the query. It's currently used in two cases:
+
+. When the `search_type` is set to
+<<profiling-dfs-statistics, `dfs_query_then_fetch`>> and the index has
+multiple shards.
+. When the search request contains a <<profiling-knn-search, knn section>>.
+
+Both of these cases can be profiled by setting `profile` to `true` as
+part of the search request.
+
+[[profiling-dfs-statistics]]
+====== Profiling DFS Statistics
+
+When the `search_type` is set to `dfs_query_then_fetch` and the index
+has multiple shards, the dfs phase collects term statistics to improve
+the relevance of search results.
+
+The following is an example of setting `profile` to `true` on a search
+that uses `dfs_query_then_fetch`:
+
+Let's first setup an index with multiple shards and index
+a pair of documents with different values on a `keyword` field.
+
+[source,console,id=profile_dfs]
+--------------------------------------------------
+PUT my-dfs-index
+{
+  "settings": {
+    "number_of_shards": 2, <1>
+    "number_of_replicas": 1
+  },
+  "mappings": {
+      "properties": {
+        "my-keyword": { "type": "keyword" }
+      }
+    }
+}
+
+POST my-dfs-index/_bulk?refresh=true
+{ "index" : { "_id" : "1" } }
+{ "my-keyword" : "a" }
+{ "index" : { "_id" : "2" } }
+{ "my-keyword" : "b" }
+--------------------------------------------------
+<1> The `my-dfs-index` is created with multiple shards.
+
+With an index setup, we can now profile the dfs phase of a
+search query. For this example we use a term query.
+
+[source,console]
+--------------------------------------------------
+GET /my-dfs-index/_search?search_type=dfs_query_then_fetch&pretty&size=0 <1>
+{
+  "profile": true, <2>
+  "query": {
+    "term": {
+      "my-keyword": {
+        "value": "a"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+<1> The `search_type` url parameter is set to `dfs_query_then_fetch` to
+ensure the dfs phase is run.
+<2> The `profile` parameter is set to `true`.
+
+In the response, we see a profile which includes a `dfs` section
+for each shard along with profile output for the rest of the search phases.
+One of the `dfs` sections for a shard looks like the following:
+
+[source,console-result]
+--------------------------------------------------
+"dfs" : {
+    "statistics" : {
+        "type" : "statistics",
+        "description" : "collect term statistics",
+        "time_in_nanos" : 236955,
+        "breakdown" : {
+            "term_statistics" : 4815,
+            "collection_statistics" : 27081,
+            "collection_statistics_count" : 1,
+            "create_weight" : 153278,
+            "term_statistics_count" : 1,
+            "rewrite_count" : 0,
+            "create_weight_count" : 1,
+            "rewrite" : 0
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ "$body.$_path", {\n"id": "$body.$_path",\n/]
+// TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path}]}}/]
+// TESTRESPONSE[s/(\-)?[0-9]+/ $body.$_path/]
+
+In the `dfs.statistics` portion of this response we see a `time_in_nanos`
+which is the total time it took to collect term statistics for this
+shard along with a further breakdown of the individual parts.
+
+[[profiling-knn-search]]
+====== Profiling kNN Search
+
+A <<approximate-knn, k-nearest neighbor (kNN)>> search runs during
+the dfs phase.
+
+The following is an example of setting `profile` to `true` on a search
+that has a `knn` section:
+
+Let's first setup an index with several dense vectors.
+
+[source,console,id=profile_knn]
+--------------------------------------------------
+PUT my-knn-index
+{
+  "mappings": {
+    "properties": {
+      "my-vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "similarity": "l2_norm"
+      }
+    }
+  }
+}
+
+POST my-knn-index/_bulk?refresh=true
+{ "index": { "_id": "1" } }
+{ "my-vector": [1, 5, -20] }
+{ "index": { "_id": "2" } }
+{ "my-vector": [42, 8, -15] }
+{ "index": { "_id": "3" } }
+{ "my-vector": [15, 11, 23] }
+--------------------------------------------------
+
+With an index setup, we can now profile a kNN search query.
+
+[source,console]
+--------------------------------------------------
+POST my-knn-index/_search
+{
+  "profile": true, <1>
+  "knn": {
+    "field": "my-vector",
+    "query_vector": [-5, 9, -12],
+    "k": 3,
+    "num_candidates": 100
+  }
+}
+--------------------------------------------------
+// TEST[continued]
+
+<1> The `profile` parameter is set to `true`.
+
+In the response, we see a profile which includes a `knn` section
+as part of the `dfs` section for each shard along with profile output for the
+rest of the search phases.
+
+One of the `dfs.knn` sections for a shard looks like the following:
+
+[source,js]
+--------------------------------------------------
+"dfs" : {
+    "knn" : {
+        "query" : [
+            {
+                "type" : "DocAndScoreQuery",
+                "description" : "DocAndScore[100]",
+                "time_in_nanos" : 444414,
+                "breakdown" : {
+                  "set_min_competitive_score_count" : 0,
+                  "match_count" : 0,
+                  "shallow_advance_count" : 0,
+                  "set_min_competitive_score" : 0,
+                  "next_doc" : 1688,
+                  "match" : 0,
+                  "next_doc_count" : 3,
+                  "score_count" : 3,
+                  "compute_max_score_count" : 0,
+                  "compute_max_score" : 0,
+                  "advance" : 4153,
+                  "advance_count" : 1,
+                  "score" : 2099,
+                  "build_scorer_count" : 2,
+                  "create_weight" : 128879,
+                  "shallow_advance" : 0,
+                  "create_weight_count" : 1,
+                  "build_scorer" : 307595
+                }
+            }
+        ],
+        "rewrite_time" : 1275732,
+        "collector" : [
+            {
+                "name" : "SimpleTopScoreDocCollector",
+                "reason" : "search_top_hits",
+                "time_in_nanos" : 17163
+            }
+        ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n/]
+// TESTRESPONSE[s/}$/}, "aggregations": [], "searches": $body.$_path, "fetch": $body.$_path}]}}/]
+// TESTRESPONSE[s/ (\-)?[0-9]+/ $body.$_path/]
+// TESTRESPONSE[s/"dfs" : \{/"dfs" : {"statistics": $body.$_path,/]
+
+In the `dfs.knn` portion of the response we can see the output
+the of timings for <<query-section, query>>, <<rewrite-section, rewrite>>,
+and <<collectors-section, collector>>. Unlike many other queries, kNN
+search does the bulk of the work during the query rewrite. This means
+`rewrite_time` represents the time spent on kNN search.
+
 [[profiling-considerations]]
 ===== Profiling Considerations
 
@@ -1069,8 +1286,7 @@ have a drastic effect compared to other components in the profiled query.
 - Profiling also does not account for time spent in the queue, merging shard
 responses on the coordinating node, or additional work such as building global
 ordinals (an internal data structure used to speed up search).
-- Profiling statistics are currently not available for suggestions,
-highlighting, `dfs_query_then_fetch`.
+- Profiling statistics are currently not available for suggestions.
 - Profiling of the reduce phase of aggregation is currently not available.
 - The Profiler is instrumenting internals that can change from version to
 version. The resulting json should be considered mostly unstable, especially

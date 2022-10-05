@@ -66,7 +66,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
-import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
@@ -1566,15 +1565,13 @@ public class RBACEngineTests extends ESTestCase {
         when(role.indices()).thenReturn(IndicesPermission.NONE);
         when(role.application()).thenReturn(ApplicationPermission.NONE);
         when(role.runAs()).thenReturn(RunAsPermission.NONE);
-        when(role.remoteIndices()).thenReturn(RemoteIndicesPermission.NONE);
 
         final UnsupportedOperationException unsupportedOperationException = new UnsupportedOperationException();
-        switch (randomIntBetween(0, 4)) {
+        switch (randomIntBetween(0, 3)) {
             case 0 -> when(role.cluster()).thenThrow(unsupportedOperationException);
             case 1 -> when(role.indices()).thenThrow(unsupportedOperationException);
             case 2 -> when(role.application()).thenThrow(unsupportedOperationException);
             case 3 -> when(role.runAs()).thenThrow(unsupportedOperationException);
-            case 4 -> when(role.remoteIndices()).thenThrow(unsupportedOperationException);
             default -> throw new IllegalStateException("unknown case number");
         }
 

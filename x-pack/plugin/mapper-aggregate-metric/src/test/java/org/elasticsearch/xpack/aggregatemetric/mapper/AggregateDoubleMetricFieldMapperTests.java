@@ -457,7 +457,8 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeFalse("synthetic _source support for aggregate_double_metric doesn't support ignore_malformed", ignoreMalformed);
         return new AggregateDoubleMetricSyntheticSourceSupport();
     }
 

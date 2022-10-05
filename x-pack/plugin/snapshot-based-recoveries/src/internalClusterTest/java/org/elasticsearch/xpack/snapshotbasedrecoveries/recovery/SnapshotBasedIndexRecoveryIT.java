@@ -1255,6 +1255,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90665")
     public void testNodeDisconnectsDoNotOverAccountRecoveredBytes() throws Exception {
         // This test reproduces a rare (but possible scenario) where a shard is recovering using
         // snapshots, using logically equivalent index files, but half-way the connection between

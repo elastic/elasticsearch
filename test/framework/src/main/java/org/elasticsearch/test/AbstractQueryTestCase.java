@@ -63,6 +63,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
@@ -125,16 +126,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 + "]";
             QB q = query;
             // one more level causes an exception
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
+            Exception exception = expectThrows(
+                Exception.class,
                 () -> parseQuery(Strings.toString(createQueryWithInnerQuery(q)))
             );
-            //there may be nested XContentParseExceptions coming from ObjectParser, we just extract the root cause
-            while (iae.getCause() != null) {
-                assertThat(iae.getCause(), Matchers.instanceOf(IllegalArgumentException.class));
-                iae = (IllegalArgumentException) iae.getCause();
+            // there may be nested XContentParseExceptions coming from ObjectParser, we just extract the root cause
+            while (exception.getCause() != null) {
+                assertThat(exception.getCause(), either(instanceOf(IllegalArgumentException.class)).or(instanceOf(ParsingException.class)));
+                exception = (Exception) exception.getCause();
             }
-            assertEquals(expectedMessage, iae.getMessage());
+            assertEquals(expectedMessage, exception.getMessage());
         } finally {
             AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));
         }

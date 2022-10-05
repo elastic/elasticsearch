@@ -456,7 +456,8 @@ public class IpFieldMapper extends FieldMapper {
         this.dimension = builder.dimension.getValue();
     }
 
-    boolean ignoreMalformed() {
+    @Override
+    public boolean ignoreMalformed() {
         return ignoreMalformed;
     }
 

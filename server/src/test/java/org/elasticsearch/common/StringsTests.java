@@ -13,18 +13,36 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class StringsTests extends ESTestCase {
+
+    public void testSpaceify() throws IOException {
+        String[] lines = new String[] { randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5) };
+
+        // spaceify always finishes with \n regardless of input
+        StringBuilder sb = new StringBuilder();
+        Strings.spaceify(4, String.join("\n", lines), sb);
+        assertThat(sb.toString(), equalTo(Arrays.stream(lines).map(s -> " ".repeat(4) + s).collect(Collectors.joining("\n", "", "\n"))));
+
+        sb = new StringBuilder();
+        Strings.spaceify(0, String.join("\n", lines), sb);
+        assertThat(sb.toString(), equalTo(Arrays.stream(lines).collect(Collectors.joining("\n", "", "\n"))));
+    }
 
     public void testIsAllOrWildCardString() {
         assertThat(Strings.isAllOrWildcard("_all"), is(true));
@@ -60,6 +78,11 @@ public class StringsTests extends ESTestCase {
          */
         assertEquals("o", Strings.cleanTruncate("o\uD83D\uDEAB", 1));
         assertEquals("", Strings.cleanTruncate("foo", 0));
+    }
+
+    public void testTrimLeadingCharacter() {
+        assertThat(Strings.trimLeadingCharacter("abcdef", 'g'), equalTo("abcdef"));
+        assertThat(Strings.trimLeadingCharacter("aaabcdef", 'a'), equalTo("bcdef"));
     }
 
     public void testToStringToXContent() {
@@ -118,6 +141,21 @@ public class StringsTests extends ESTestCase {
         assertEquals(Strings.tokenizeByCommaToSet("   a   "), Sets.newHashSet("a"));
         assertEquals(Strings.tokenizeByCommaToSet("   aa   "), Sets.newHashSet("aa"));
         assertEquals(Strings.tokenizeByCommaToSet("   "), Sets.newHashSet());
+    }
+
+    public void testDelimitedListToStringArray() {
+        String testStr;
+        assertThat(Strings.delimitedListToStringArray(null, " ", "a"), emptyArray());
+        // NOTE: current behaviour is to not delete anything if the delimiter is null
+        assertThat(Strings.delimitedListToStringArray(testStr = randomAlphaOfLength(10), null, "a"), arrayContaining(testStr));
+        assertThat(
+            Strings.delimitedListToStringArray(testStr = randomAlphaOfLength(10), "", null),
+            arrayContaining(testStr.chars().mapToObj(Character::toString).toArray())
+        );
+        assertThat(Strings.delimitedListToStringArray("abcdabceabcdf", "", "da"), arrayContaining("b", "c", "b", "c", "e", "b", "c", "f"));
+        assertThat(Strings.delimitedListToStringArray("abcd,abce,abcdf", ",", "da"), arrayContaining("bc", "bce", "bcf"));
+        assertThat(Strings.delimitedListToStringArray("abcd,abce,abcdf,", ",", "da"), arrayContaining("bc", "bce", "bcf", ""));
+        assertThat(Strings.delimitedListToStringArray("abcd,abce,abcdf,bcad,a", ",a", "d"), arrayContaining("abc", "bce", "bcf,bca", ""));
     }
 
     public void testCollectionToDelimitedStringWithLimitZero() {
@@ -201,5 +239,13 @@ public class StringsTests extends ESTestCase {
         final StringBuilder stringBuilder = new StringBuilder();
         Strings.collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, limit, stringBuilder);
         assertThat(stringBuilder.toString(), equalTo(fullDescription));
+    }
+
+    public void testPadStart() {
+        String testStr;
+        assertThat(Strings.padStart("", 5, 'a'), equalTo("aaaaa"));
+        assertThat(Strings.padStart(testStr = randomAlphaOfLength(6), 10, ' '), equalTo(" ".repeat(4) + testStr));
+        assertThat(Strings.padStart(testStr = randomAlphaOfLength(6), 5, ' '), equalTo(testStr));
+        assertThat(Strings.padStart(testStr = randomAlphaOfLength(6), 10, 'f'), equalTo("f".repeat(4) + testStr));
     }
 }

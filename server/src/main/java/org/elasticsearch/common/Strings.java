@@ -40,13 +40,14 @@ public class Strings {
 
     public static final String[] EMPTY_ARRAY = new String[0];
 
-    public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
-        assert spaces >= 0;
+    public static void spaceify(int spaces, String from, StringBuilder to) throws IOException {
+        char[] spaceChars = new char[spaces];
+        Arrays.fill(spaceChars, ' ');
+
         try (BufferedReader reader = new BufferedReader(new StringReader(from))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                to.append(" ".repeat(spaces));
-                to.append(line).append('\n');
+                to.append(spaceChars).append(line).append('\n');
             }
         }
     }
@@ -70,7 +71,7 @@ public class Strings {
             if (s.startsWith(separator, pos)) {
                 if (sb.length() > 0) {
                     lst.add(sb.toString());
-                    sb = new StringBuilder();
+                    sb.setLength(0);
                 }
                 pos += separator.length();
                 continue;
@@ -541,7 +542,7 @@ public class Strings {
             int pos = 0;
             int delPos;
             while ((delPos = str.indexOf(delimiter, pos)) != -1) {
-                result.add(deleteAny(str.substring(pos, delPos), charsToDelete));
+                result.add(deleteAny(str.subSequence(pos, delPos), charsToDelete).toString());
                 pos = delPos + delimiter.length();
             }
             if (str.length() > 0 && pos <= str.length()) {

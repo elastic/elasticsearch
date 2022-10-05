@@ -174,8 +174,8 @@ public class IndexAbstractionResolver {
             // complicated to support those options with aliases pointing to multiple indices...
             return isVisible && indicesOptions.ignoreAliases() == false;
         }
-           if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
-               || indexAbstraction.getType() == IndexAbstraction.Type.SEARCH_ENGINE) {
+        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
+            || indexAbstraction.getType() == IndexAbstraction.Type.SEARCH_ENGINE) {
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && includeDataStreams == false) {
                 return false;
             }

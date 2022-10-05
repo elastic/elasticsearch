@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -31,7 +30,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class StringsTests extends ESTestCase {
 
-    public void testSpaceify() throws IOException {
+    public void testSpaceify() throws Exception {
         String[] lines = new String[] { randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5) };
 
         // spaceify always finishes with \n regardless of input
@@ -152,7 +151,18 @@ public class StringsTests extends ESTestCase {
             Strings.delimitedListToStringArray(testStr = randomAlphaOfLength(10), "", null),
             arrayContaining(testStr.chars().mapToObj(Character::toString).toArray())
         );
-        assertThat(Strings.delimitedListToStringArray("abcdabceabcdf", "", "da"), arrayContaining("b", "c", "b", "c", "e", "b", "c", "f"));
+        assertThat(
+            Strings.delimitedListToStringArray("bcdabceabcdf", "", "a"),
+            arrayContaining("b", "c", "d", "", "b", "c", "e", "", "b", "c", "d", "f")
+        );
+        assertThat(
+            Strings.delimitedListToStringArray("bcdabceabcdf", "", "da"),
+            arrayContaining("b", "c", "", "", "b", "c", "e", "", "b", "c", "", "f")
+        );
+        assertThat(
+            Strings.delimitedListToStringArray("abcdabceabcdf", "", "da"),
+            arrayContaining("", "b", "c", "", "", "b", "c", "e", "", "b", "c", "", "f")
+        );
         assertThat(Strings.delimitedListToStringArray("abcd,abce,abcdf", ",", "da"), arrayContaining("bc", "bce", "bcf"));
         assertThat(Strings.delimitedListToStringArray("abcd,abce,abcdf,", ",", "da"), arrayContaining("bc", "bce", "bcf", ""));
         assertThat(Strings.delimitedListToStringArray("abcd,abce,abcdf,bcad,a", ",a", "d"), arrayContaining("abc", "bce", "bcf,bca", ""));

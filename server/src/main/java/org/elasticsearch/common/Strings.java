@@ -535,6 +535,8 @@ public class Strings {
             for (int i = 0; i < str.length(); i++) {
                 if (charsToDelete.indexOf(str.charAt(i)) == -1) {
                     result.add(Character.toString(str.charAt(i)));
+                } else {
+                    result.add("");
                 }
             }
         } else {

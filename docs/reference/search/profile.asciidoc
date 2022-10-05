@@ -1157,7 +1157,7 @@ A <<approximate-knn, k-nearest neighbor (kNN)>> search runs during
 the dfs phase.
 
 The following is an example of setting `profile` to `true` on a search
-that has a knn section:
+that has a `knn` section:
 
 Let's first setup an index with several dense vectors.
 
@@ -1262,7 +1262,7 @@ In the `dfs.knn` portion of the response we can see the output
 the of timings for <<query-section, query>>, <<rewrite-section, rewrite>>,
 and <<collectors-section, collector>>. Unlike many other queries, kNN
 search does the bulk of the work during the query rewrite. This means
-rewrite_time represents the time spent on kNN search.
+`rewrite_time` represents the time spent on kNN search.
 
 [[profiling-considerations]]
 ===== Profiling Considerations

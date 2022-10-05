@@ -1023,9 +1023,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new String[] { "monitor" },
             new IndicesPrivileges[] {
                 IndicesPrivileges.builder().indices("abc-*", "xyz-*").privileges("read").build(),
-                IndicesPrivileges.builder().indices("ind-1-*").privileges("all").build(),
-                IndicesPrivileges.builder().indices("ind-1-*").privileges("all").remoteClusters("remote-*", "remote2").build(),
-                IndicesPrivileges.builder().indices("remote-ind-1-*", "ind-1-*").privileges("all").remoteClusters("remote-*").build(), },
+                IndicesPrivileges.builder().indices("ind-1-*").privileges("all").build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
                     .application("app1")
@@ -1040,7 +1038,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new ConfigurableClusterPrivilege[] { ccp1 },
             new String[] { "app-user-1" },
             null,
-            null
+            null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder().indices("ind-1-*").privileges("all").build(),
+                    "remote-*",
+                    "remote2"
+                ),
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder().indices("remote-ind-1-*", "ind-1-*").privileges("all").build(),
+                    "remote-*"
+                ) }
         );
 
         ConfigurableClusterPrivilege ccp2 = new MockConfigurableClusterPrivilege() {
@@ -1057,21 +1065,26 @@ public class CompositeRolesStoreTests extends ESTestCase {
         RoleDescriptor role2 = new RoleDescriptor(
             "r2",
             new String[] { "manage_saml" },
-            new IndicesPrivileges[] {
-                IndicesPrivileges.builder().indices("abc-*", "ind-2-*").privileges("all").build(),
-                IndicesPrivileges.builder()
-                    .indices("remote-abc-*", "other-remote", "remote-ind-2-*", "ind-2-*")
-                    .privileges("all")
-                    .remoteClusters("remote-*")
-                    .build(),
-                IndicesPrivileges.builder().indices("remote-abc-*", "other-remote").privileges("all").remoteClusters("remote1").build(), },
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("abc-*", "ind-2-*").privileges("all").build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("app2a").resources("*").privileges("all").build(),
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("app2b").resources("*").privileges("read").build() },
             new ConfigurableClusterPrivilege[] { ccp2 },
             new String[] { "app-user-2" },
             null,
-            null
+            null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder()
+                        .indices("remote-abc-*", "other-remote", "remote-ind-2-*", "ind-2-*")
+                        .privileges("all")
+                        .build(),
+                    "remote-*"
+                ),
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder().indices("remote-abc-*", "other-remote").privileges("all").build(),
+                    "remote1"
+                ), }
         );
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -1159,42 +1172,59 @@ public class CompositeRolesStoreTests extends ESTestCase {
         RoleDescriptor role1 = new RoleDescriptor(
             "r1",
             null,
-            new IndicesPrivileges[] {
-                IndicesPrivileges.builder().indices("remote-abc-*", "xyz-*").privileges("all").remoteClusters("remote-*").build(),
-                IndicesPrivileges.builder()
-                    .indices("abc-*", "remote-xyz-*", "remote-abc-*")
-                    .privileges("all")
-                    .remoteClusters("remote1", "remote-*")
-                    .build(), },
             null,
             null,
             null,
             null,
-            null
+            null,
+            null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder().indices("remote-abc-*", "xyz-*").privileges("all").build(),
+                    "remote-*"
+                ),
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder().indices("abc-*", "remote-xyz-*", "remote-abc-*").privileges("all").build(),
+                    "remote1",
+                    "remote-*"
+                ), }
         );
 
         RoleDescriptor role2 = new RoleDescriptor(
             "r2",
             null,
-            new IndicesPrivileges[] {
-                IndicesPrivileges.builder().indices("baz-*").privileges("all").remoteClusters("remote1").build(),
-                IndicesPrivileges.builder().indices("bar-*").privileges("all").remoteClusters("remote1", "remote-*").build(), },
             null,
             null,
             null,
             null,
-            null
+            null,
+            null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder().indices("baz-*").privileges("all").build(),
+                    "remote1"
+                ),
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder().indices("bar-*").privileges("all").build(),
+                    "remote1",
+                    "remote-*"
+                ) }
         );
 
         RoleDescriptor role3 = new RoleDescriptor(
             "r3",
             null,
-            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("bad").privileges("none").remoteClusters("remote2").build(), },
             null,
             null,
             null,
             null,
-            null
+            null,
+            null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder().indices("bad").privileges("none").build(),
+                    "remote2"
+                ) }
         );
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -1210,6 +1240,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Role role = future.actionGet();
 
         final Predicate<IndexAbstraction> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
+
         assertThat(allowedRead.test(mockIndexAbstraction("abc-123")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("xyz-000")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction(randomAlphaOfLengthBetween(2, 10))), equalTo(false));
@@ -1229,15 +1260,27 @@ public class CompositeRolesStoreTests extends ESTestCase {
         RoleDescriptor role1 = new RoleDescriptor(
             "r1",
             null,
-            new IndicesPrivileges[] {
-                IndicesPrivileges.builder().indices("index-1").privileges("all").remoteClusters("remote-1").build(),
-                IndicesPrivileges.builder().indices("index-1").privileges("read").remoteClusters("remote-1").build(),
-                IndicesPrivileges.builder().indices("index-2").privileges("all").remoteClusters("remote-1").build(), },
             null,
             null,
             null,
             null,
-            null
+            null,
+            null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder().indices("index-1").privileges("all").build(),
+                    "remote-1"
+                ),
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder().indices("index-1").privileges("read").build(),
+                    "remote-1"
+                ),
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    IndicesPrivileges.builder().indices("index-2").privileges("all").build(),
+                    "remote-1"
+                ),
+
+            }
         );
 
         final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);

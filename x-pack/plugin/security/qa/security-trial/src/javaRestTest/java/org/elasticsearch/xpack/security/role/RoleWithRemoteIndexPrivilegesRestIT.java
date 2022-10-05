@@ -44,7 +44,7 @@ public class RoleWithRemoteIndexPrivilegesRestIT extends SecurityOnTrialLicenseR
         var putRoleRequest = new Request("PUT", "_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [
+              "remote_indices": [
                 {
                   "names": ["index-a", "*"],
                   "privileges": ["all"],
@@ -73,12 +73,14 @@ public class RoleWithRemoteIndexPrivilegesRestIT extends SecurityOnTrialLicenseR
               "indices": [
                 {
                   "names": ["index-a", "*"],
-                  "privileges": ["all"],
-                  "remote_clusters": ["remote-a", "*"]
-                },
+                  "privileges": ["all"]
+                }
+              ],
+              "remote_indices": [
                 {
                   "names": ["index-a", "*"],
-                  "privileges": ["read"]
+                  "privileges": ["all"],
+                  "remote_clusters": ["remote-a", "*"]
                 }
               ]
             }""");
@@ -87,5 +89,4 @@ public class RoleWithRemoteIndexPrivilegesRestIT extends SecurityOnTrialLicenseR
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
     }
-
 }

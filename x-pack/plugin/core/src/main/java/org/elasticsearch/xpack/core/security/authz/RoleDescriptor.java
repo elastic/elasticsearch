@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.authz;
 
-import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
@@ -737,7 +736,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     );
                 }
             } else if (Fields.REMOTE_CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
-                if (!allowRemoteClusters) {
+                if (false == allowRemoteClusters) {
                     throw new ElasticsearchParseException(
                         "failed to parse indices privileges for role [{}]. unexpected field [{}]",
                         roleName,
@@ -861,7 +860,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return builder.build();
     }
 
-    public record RemoteIndicesPrivileges(IndicesPrivileges indicesPrivileges, String[] remoteClusters)
+    public record RemoteIndicesPrivileges(IndicesPrivileges indicesPrivileges, String... remoteClusters)
         implements
             Writeable,
             ToXContentObject {

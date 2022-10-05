@@ -136,11 +136,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
         private final ClusterState clusterState;
         private final Set<String> blockedIndices;
-        private final Set<DiscoveryNode> dataNodes = new HashSet<>();
+        private final List<DiscoveryNode> dataNodes = new ArrayList<>();
         // In this context a master node, is a master node that cannot contain data.
-        private final Map<HealthStatus, Set<DiscoveryNode>> masterNodes = new HashMap<>();
+        private final Map<HealthStatus, List<DiscoveryNode>> masterNodes = new HashMap<>();
         // In this context "other" nodes are nodes that cannot contain data and are not masters.
-        private final Map<HealthStatus, Set<DiscoveryNode>> otherNodes = new HashMap<>();
+        private final Map<HealthStatus, List<DiscoveryNode>> otherNodes = new HashMap<>();
         private final Set<DiscoveryNodeRole> affectedRoles = new HashSet<>();
         private final Set<String> indicesAtRisk;
         private final HealthStatus healthStatus;
@@ -170,10 +170,17 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 if (node.canContainData()) {
                     dataNodes.add(node);
                 } else if (node.isMasterNode()) {
-                    masterNodes.computeIfAbsent(healthStatus, ignored -> new HashSet<>()).add(node);
+                    masterNodes.computeIfAbsent(healthStatus, ignored -> new ArrayList<>()).add(node);
                 } else {
-                    otherNodes.computeIfAbsent(healthStatus, ignored -> new HashSet<>()).add(node);
+                    otherNodes.computeIfAbsent(healthStatus, ignored -> new ArrayList<>()).add(node);
                 }
+            }
+            dataNodes.sort(DISCOVERY_NODE_COMPARATOR);
+            for (List<DiscoveryNode> masterNodes : masterNodes.values()) {
+                masterNodes.sort(DISCOVERY_NODE_COMPARATOR);
+            }
+            for (List<DiscoveryNode> nodes : otherNodes.values()) {
+                nodes.sort(DISCOVERY_NODE_COMPARATOR);
             }
             indicesAtRisk = getIndicesForNodes(dataNodes, clusterState);
             healthStatus = mostSevereStatusSoFar;
@@ -321,9 +328,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 Set<String> affectedIndices = Sets.union(blockedIndices, indicesAtRisk);
                 List<Diagnosis.Resource> affectedResources = new ArrayList<>();
                 if (dataNodes.size() > 0) {
-                    Diagnosis.Resource nodeResources = new Diagnosis.Resource(
-                        dataNodes.stream().sorted(DISCOVERY_NODE_COMPARATOR).collect(Collectors.toList())
-                    );
+                    Diagnosis.Resource nodeResources = new Diagnosis.Resource(dataNodes);
                     affectedResources.add(nodeResources);
                 }
                 if (affectedIndices.size() > 0) {
@@ -359,32 +364,16 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 );
             }
             if (masterNodes.containsKey(HealthStatus.RED)) {
-                List<DiscoveryNode> redMasterNodes = masterNodes.get(HealthStatus.RED)
-                    .stream()
-                    .sorted(DISCOVERY_NODE_COMPARATOR)
-                    .collect(Collectors.toList());
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, redMasterNodes, true));
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, masterNodes.get(HealthStatus.RED), true));
             }
             if (masterNodes.containsKey(HealthStatus.YELLOW)) {
-                List<DiscoveryNode> yellowMasterNodes = masterNodes.get(HealthStatus.YELLOW)
-                    .stream()
-                    .sorted(DISCOVERY_NODE_COMPARATOR)
-                    .collect(Collectors.toList());
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, yellowMasterNodes, true));
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, masterNodes.get(HealthStatus.YELLOW), true));
             }
             if (otherNodes.containsKey(HealthStatus.RED)) {
-                List<DiscoveryNode> redNodes = otherNodes.get(HealthStatus.RED)
-                    .stream()
-                    .sorted(DISCOVERY_NODE_COMPARATOR)
-                    .collect(Collectors.toList());
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, redNodes, false));
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, otherNodes.get(HealthStatus.RED), false));
             }
             if (otherNodes.containsKey(HealthStatus.YELLOW)) {
-                List<DiscoveryNode> yellowNodes = otherNodes.get(HealthStatus.YELLOW)
-                    .stream()
-                    .sorted(DISCOVERY_NODE_COMPARATOR)
-                    .collect(Collectors.toList());
-                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, yellowNodes, false));
+                diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.YELLOW, otherNodes.get(HealthStatus.YELLOW), false));
             }
             return diagnosisList;
         }
@@ -431,7 +420,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         }
 
         // Non-private for unit testing
-        static Set<String> getIndicesForNodes(Set<DiscoveryNode> nodes, ClusterState clusterState) {
+        static Set<String> getIndicesForNodes(List<DiscoveryNode> nodes, ClusterState clusterState) {
             RoutingNodes routingNodes = clusterState.getRoutingNodes();
             return nodes.stream()
                 .map(node -> routingNodes.node(node.getId()))
@@ -454,7 +443,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             );
         }
 
-        private int getUnhealthyNodeSize(Map<HealthStatus, Set<DiscoveryNode>> nodes) {
+        private int getUnhealthyNodeSize(Map<HealthStatus, List<DiscoveryNode>> nodes) {
             return (nodes.containsKey(HealthStatus.RED) ? nodes.get(HealthStatus.RED).size() : 0) + (nodes.containsKey(HealthStatus.YELLOW)
                 ? nodes.get(HealthStatus.YELLOW).size()
                 : 0);

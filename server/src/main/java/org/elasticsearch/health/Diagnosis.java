@@ -80,7 +80,9 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
                 for (DiscoveryNode node : nodes) {
                     builder.startObject();
                     builder.field(ID_FIELD, node.getId());
-                    builder.field(NAME_FIELD, node.getName());
+                    if (node.getName() != null) {
+                        builder.field(NAME_FIELD, node.getName());
+                    }
                     builder.endObject();
                 }
                 builder.endArray();

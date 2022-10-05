@@ -414,7 +414,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new Diagnosis(
                             DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS,
-                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting" + "-index")))
+                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting-index")))
                         )
                     )
                 )
@@ -495,7 +495,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new Diagnosis(
                             DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS,
-                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting" + "-index")))
+                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting-index")))
                         )
                     )
                 )

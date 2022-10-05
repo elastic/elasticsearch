@@ -700,18 +700,18 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         HealthStatus expectedStatus = HealthStatus.RED;
         int numberOfRedNodes = randomIntBetween(1, discoveryNodes.size());
         HealthInfo healthInfo = createHealthInfo(new HealthInfoConfig(expectedStatus, numberOfRedNodes, discoveryNodes.values()));
-        Set<DiscoveryNode> redNodes = healthInfo.diskInfoByNode()
+        List<DiscoveryNode> redNodes = healthInfo.diskInfoByNode()
             .entrySet()
             .stream()
             .filter(entry -> entry.getValue().healthStatus().equals(expectedStatus))
             .map(entry -> discoveryNodes.get(entry.getKey()))
-            .collect(Collectors.toSet());
-        Set<DiscoveryNode> nonRedNodes = healthInfo.diskInfoByNode()
+            .collect(Collectors.toList());
+        List<DiscoveryNode> nonRedNodes = healthInfo.diskInfoByNode()
             .entrySet()
             .stream()
             .filter(entry -> entry.getValue().healthStatus().equals(expectedStatus) == false)
             .map(entry -> discoveryNodes.get(entry.getKey()))
-            .collect(Collectors.toSet());
+            .collect(Collectors.toList());
         Map<String, Set<String>> indexNameToNodeIdsMap = new HashMap<>();
         int numberOfIndices = randomIntBetween(1, 1000);
         Set<String> redNodeIndices = new HashSet<>();

@@ -55,8 +55,7 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
     }
 
     @Override
-    protected void assertSetValuesBruteAndRecursive(Geometry geometry) throws Exception {
-        int precision = randomIntBetween(1, 3);
+    protected void assertSetValuesBruteAndRecursive(Geometry geometry, int precision) throws Exception {
         UnboundedGeoHashGridTiler tiler = new UnboundedGeoHashGridTiler(precision);
         GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
         GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, tiler, NOOP_BREAKER);

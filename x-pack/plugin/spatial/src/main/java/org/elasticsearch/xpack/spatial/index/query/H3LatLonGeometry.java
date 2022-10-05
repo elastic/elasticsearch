@@ -33,11 +33,37 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/** Implementation of a lucene {@link LatLonGeometry} that covers the extent of a provided H3 bin. Note that
- * H3 bin are polygons on the sphere. */
+import static org.elasticsearch.xpack.spatial.common.Spatial3DUtils.calculateCentroid3d;
+import static org.elasticsearch.xpack.spatial.common.Spatial3DUtils.pointInterpolation;
+
+/**
+ * Implementation of a lucene {@link LatLonGeometry} that covers the extent of a provided H3 bin.
+ *
+ * Since H3 bins are polygons on the sphere, we internally represent them as polygons using the Lucene spatial3d package.
+ * As such this class represents an interface between the Lucene 2D world of Component2D and the Lucene spatial3d world
+ * which performs all the mathematics on the sphere (using 3d x, y, z coordinates). In particular the toComponent2D method
+ * will return an object with all methods implemented using spatial3d functions, which are geometrically accurate in that they
+ * use great circles to model straight lines between points.
+ *
+ * This makes it possible to compare H3 cells to existing indexed (and triangulated) lucene geometries, like Polygon2D for example.
+ * To achieve this, we make use of a model of a hexagon that implements the org.apache.lucene.spatial3d.geom.GeoPolygon interface.
+ * The methods implemented for the Component2D interface are essentially copies of the same methods in Polygon2D,
+ * but with the internal logic modified in two specific directions:
+ * <ul>
+ *     <li>Intersections between lines make use of great circles</li>
+ *     <li>The fact that this object is a simple convex polygon with no holes allows for some optimizations</li>
+ * </ul>
+ *
+ * Note that H3 cells are simple convex polygons except where they intersect the edges of the original icosohedron triangles from
+ * which the H3 model is derived. Those edge cells are more complex to work with. As such we divide the H3 cells into two groups:
+ * <ol>
+ *     <li>Plain hexagons that are convex polygons, and we use a simple optimized implementation of GeoRegularConvexPolygon</li>
+ *     <li>Other cells revert to the spatial3d class GeoPolygon created using GeoPolygonFactory</li>
+ * </ol>
+ */
 public class H3LatLonGeometry extends LatLonGeometry {
 
-    private final String h3Address;
+    protected final String h3Address;
 
     public H3LatLonGeometry(String h3Address) {
         this.h3Address = h3Address;
@@ -45,7 +71,7 @@ public class H3LatLonGeometry extends LatLonGeometry {
 
     @Override
     protected Component2D toComponent2D() {
-        return new H3Polygon2D(h3Address);
+        return new H3Polygon2D.Unscaled(h3Address);
     }
 
     @Override
@@ -68,32 +94,72 @@ public class H3LatLonGeometry extends LatLonGeometry {
     }
 
     /**
+     * When there is need to create an H3 cell scaled to a new size, this class provides that capability.
+     * For example, since child cells are not fully contained in parent cells, we can create a fake parent
+     * cell scaled to contain all child cells. This would be of use in depth-first searches of the parent-child
+     * tree.
+     */
+    protected static class Scaled extends H3LatLonGeometry {
+        private final double scaleFactor;
+
+        public Scaled(String h3Address, double scaleFactor) {
+            super(h3Address);
+            this.scaleFactor = scaleFactor;
+        }
+
+        @Override
+        protected Component2D toComponent2D() {
+            return new H3Polygon2D.Scaled(h3Address, scaleFactor);
+        }
+    }
+
+    /**
      * This class implements the Component2D interface in order to be useful in comparing hexagons to existing indexed (and triangulated)
      * lucene geometries, like Polygon2D for example. However, all the internal mathematics is based instead on the geometrically
      * accurate code in org.apache.lucene.spatial3d package which uses great circles to model straight lines between points.
-     * To achieve this, we make use of a model of a hexagon that implements the org.apache.lucene.spatial3d.geom.GeoPolygon
-     * interface. The methods implemented here are essentially copies of the same methods in Polygon2D, but with the internal logic
-     * modified in two specific directions:
-     * <ul>
-     *     <li>Intersections between lines make use of great circles</li>
-     *     <li>The fact that this object is a simple convex polygon with no holes allows for some optimizations</li>
-     * </ul>
-     * TODO: Move this comment to the public class comment above for more visibility
      */
-    static class H3Polygon2D implements Component2D {
+    static abstract class H3Polygon2D implements Component2D {
 
         // We want to make are edges a bit bigger because spatial3d and h3 edges do not fully agree in
         // membership of points around he edges.
         private static final double BBOX_EDGE_DELTA = 1e-4;
-        private final long h3;
-        private final int res;
-        private final GeoPolygon hexagon;
+        protected final long h3;
+        protected final int res;
+        protected final GeoPolygon hexagon;
         private final double minX, maxX, minY, maxY;
 
-        private H3Polygon2D(String h3Address) {
+        private static class Unscaled extends H3Polygon2D {
+            private Unscaled(String h3Address) {
+                super(h3Address, unscaledBoundary(H3.h3ToGeoBoundary(h3Address)));
+            }
+
+            @Override
+            public boolean contains(double x, double y) {
+                return h3 == H3.geoToH3(y, x, res);
+            }
+
+        }
+
+        private static class Scaled extends H3Polygon2D {
+            private Scaled(String h3Address, double scaleFactor) {
+                super(h3Address, scaledBoundary(H3.h3ToGeoBoundary(h3Address), scaleFactor));
+            }
+
+            @Override
+            public boolean contains(double x, double y) {
+                if (disjointBounds(x, x, y, y)) {
+                    return false;
+                }
+                double lat = Math.toRadians(y);
+                double lon = Math.toRadians(x);
+                final GeoArea box = GeoAreaFactory.makeGeoArea(PlanetModel.SPHERE, lat, lat, lon, lon);
+                return box.getRelationship(hexagon) != GeoArea.DISJOINT;
+            }
+        }
+
+        private H3Polygon2D(String h3Address, final GeoPoint[] cellBoundary) {
             h3 = H3.stringToH3(h3Address);
             res = H3.getResolution(h3Address);
-            final CellBoundary cellBoundary = H3.h3ToGeoBoundary(h3Address);
             hexagon = getGeoPolygon(cellBoundary);
             final LatLonBounds bounds = new LatLonBounds();
             hexagon.getBounds(bounds);
@@ -135,12 +201,27 @@ public class H3LatLonGeometry extends LatLonGeometry {
             inspect.inspect(h3, res, minX, maxX, minY, maxY, boundary);
         }
 
-        private GeoPolygon getGeoPolygon(CellBoundary cellBoundary) {
+        private static GeoPoint[] scaledBoundary(CellBoundary cellBoundary, double scaleFactor) {
+            GeoPoint centroid = calculateCentroid3d(cellBoundary);
+            final GeoPoint[] points = new GeoPoint[cellBoundary.numPoints()];
+            for (int i = 0; i < cellBoundary.numPoints(); i++) {
+                LatLng point = cellBoundary.getLatLon(i);
+                GeoPoint geoPoint = new GeoPoint(PlanetModel.SPHERE, point.getLatRad(), point.getLonRad());
+                points[i] = pointInterpolation(centroid, geoPoint, scaleFactor);
+            }
+            return points;
+        }
+
+        private static GeoPoint[] unscaledBoundary(CellBoundary cellBoundary) {
             final GeoPoint[] points = new GeoPoint[cellBoundary.numPoints()];
             for (int i = 0; i < cellBoundary.numPoints(); i++) {
                 final LatLng latLng = cellBoundary.getLatLon(i);
                 points[i] = new GeoPoint(PlanetModel.SPHERE, latLng.getLatRad(), latLng.getLonRad());
             }
+            return points;
+        }
+
+        private GeoPolygon getGeoPolygon(final GeoPoint[] points) {
             return points.length > 6
                 ? GeoPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, Arrays.stream(points).toList())
                 : GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
@@ -164,11 +245,6 @@ public class H3LatLonGeometry extends LatLonGeometry {
         @Override
         public double getMaxY() {
             return maxY;
-        }
-
-        @Override
-        public boolean contains(double x, double y) {
-            return h3 == H3.geoToH3(y, x, res);
         }
 
         @Override
@@ -374,7 +450,7 @@ public class H3LatLonGeometry extends LatLonGeometry {
             );
         }
 
-        private boolean disjointBounds(double minX, double maxX, double minY, double maxY) {
+        protected boolean disjointBounds(double minX, double maxX, double minY, double maxY) {
             return minX > this.maxX || maxX < this.minX || maxY < this.minY || minY > this.maxY;
         }
 

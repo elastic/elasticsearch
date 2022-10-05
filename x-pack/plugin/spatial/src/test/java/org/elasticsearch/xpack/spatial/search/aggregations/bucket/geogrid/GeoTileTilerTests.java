@@ -66,7 +66,11 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
 
     @Override
     protected void assertSetValuesBruteAndRecursive(Geometry geometry) throws Exception {
-        int precision = randomIntBetween(1, 4);
+        assertSetValuesBruteAndRecursive(geometry, randomIntBetween(1, 4));
+    }
+
+    @Override
+    protected void assertSetValuesBruteAndRecursive(Geometry geometry, int precision) throws Exception {
         UnboundedGeoTileGridTiler tiler = new UnboundedGeoTileGridTiler(precision);
         geometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
         GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);

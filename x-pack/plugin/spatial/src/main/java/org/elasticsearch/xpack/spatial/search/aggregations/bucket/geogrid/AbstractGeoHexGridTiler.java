@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.query.H3LatLonGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,6 +22,9 @@ import java.util.List;
  * Implements most of the logic for the GeoHex aggregation.
  */
 abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
+
+    /** Scale factor to inflate an H3 tile by to ensure all children are covered */
+    private static final double INFLATION_FACTOR = 1.17;
 
     AbstractGeoHexGridTiler(int precision) {
         super(precision);
@@ -68,7 +74,7 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
         }
     }
 
-    private List<String> getAllCellsAt(int precision) {
+    protected List<String> getAllCellsAt(int precision) {
         ArrayList<String> cells = new ArrayList<>();
         for (String h3 : H3.getStringRes0Cells()) {
             addCells(cells, h3, precision, 0);
@@ -98,12 +104,17 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
     private void setValuesByRecursion(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue, String h3, int precision)
         throws IOException {
         if (precision <= this.precision) {
-            GeoRelation relation = relateTile(geoValue, h3);
-            if (relation != GeoRelation.QUERY_DISJOINT) {
-                if (precision == this.precision) {
+            if (precision == this.precision) {
+                // When we're at the desired level, we want to test against the exact H3 cell
+                GeoRelation relation = relateTile(geoValue, h3);
+                if (relation != GeoRelation.QUERY_DISJOINT) {
                     values.resizeCell(values.docValueCount() + 1);
                     values.add(values.docValueCount() - 1, H3.stringToH3(h3));
-                } else {
+                }
+            } else {
+                // When we're at higher tree levels, we want to test against slightly larger cells, to be sure to cover all child cells.
+                GeoRelation relation = relateTileInflatedToCoverChildren(geoValue, h3);
+                if (relation != GeoRelation.QUERY_DISJOINT) {
                     for (String child : H3.h3ToChildren(h3)) {
                         // TODO: determine case for optimization, probably only the central child cell
                         if (relation == GeoRelation.QUERY_INSIDE && false) {
@@ -116,6 +127,17 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
                 }
             }
         }
+    }
+
+    private static String h3ToPolygon(String h3) {
+        StringBuilder sb = new StringBuilder("POLYGON((");
+        CellBoundary boundary = H3.h3ToGeoBoundary(h3);
+        for (int i = 0; i < boundary.numPoints(); i++) {
+            LatLng point = boundary.getLatLon(i);
+            if (i > 0) sb.append(", ");
+            sb.append(point.getLonDeg()).append(" ").append(point.getLatDeg());
+        }
+        return sb.append("))").toString();
     }
 
     /**
@@ -143,7 +165,15 @@ abstract class AbstractGeoHexGridTiler extends GeoGridTiler {
 
     private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String addressOfTile) throws IOException {
         if (validAddress(addressOfTile)) {
-            GeoHexBoundedPredicate.H3LatLonGeom hexagon = new GeoHexBoundedPredicate.H3LatLonGeom(addressOfTile);
+            H3LatLonGeometry hexagon = new GeoHexBoundedPredicate.H3LatLonGeom(addressOfTile);
+            return geoValue.relate(hexagon);
+        }
+        return GeoRelation.QUERY_DISJOINT;
+    }
+
+    private GeoRelation relateTileInflatedToCoverChildren(GeoShapeValues.GeoShapeValue geoValue, String addressOfTile) throws IOException {
+        if (validAddress(addressOfTile)) {
+            H3LatLonGeometry hexagon = new GeoHexBoundedPredicate.H3LatLonGeom.Scaled(addressOfTile, INFLATION_FACTOR);
             return geoValue.relate(hexagon);
         }
         return GeoRelation.QUERY_DISJOINT;

@@ -13,7 +13,6 @@ import org.apache.lucene.spatial3d.geom.GeoPolygon;
 import org.apache.lucene.spatial3d.geom.GeoPolygonFactory;
 import org.apache.lucene.spatial3d.geom.LatLonBounds;
 import org.apache.lucene.spatial3d.geom.PlanetModel;
-import org.apache.lucene.spatial3d.geom.Spatial3DTestUtil;
 import org.apache.lucene.spatial3d.geom.Vector;
 import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
@@ -24,6 +23,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 
 import static org.apache.lucene.spatial3d.geom.Spatial3DTestUtil.containsHorizontalLine;
+import static org.elasticsearch.xpack.spatial.common.Spatial3DUtils.calculateCentroid3d;
+import static org.elasticsearch.xpack.spatial.common.Spatial3DUtils.pointInterpolation;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assume.assumeThat;
@@ -66,7 +67,7 @@ public class GeoRegularConvexPolygonTests extends ESTestCase {
         String h3Address = H3.geoToH3Address(latitude, longitude, resolution);
         CellBoundary boundary = H3.h3ToGeoBoundary(h3Address);
         assumeThat("This test only works with true convex hexagons", boundary.numPoints(), equalTo(6));
-        GeoPoint centroid = Spatial3DTestUtil.calculateCentroid3d(boundary);
+        GeoPoint centroid = calculateCentroid3d(boundary);
         GeoPoint[] points = new GeoPoint[boundary.numPoints()];
         for (int i = 0; i < boundary.numPoints(); i++) {
             LatLng latlng = boundary.getLatLon(i);
@@ -75,9 +76,9 @@ public class GeoRegularConvexPolygonTests extends ESTestCase {
         GeoPoint[] inner = new GeoPoint[boundary.numPoints() / 2];
         GeoPoint[] outer = new GeoPoint[boundary.numPoints() / 2];
         for (int i = 0; i < boundary.numPoints() / 2; i++) {
-            GeoPoint point = Spatial3DTestUtil.pointInterpolation(points[i * 2], points[i * 2 + 1], 0.5);
-            inner[i] = Spatial3DTestUtil.pointInterpolation(centroid, point, 0.9);
-            outer[i] = Spatial3DTestUtil.pointInterpolation(centroid, point, 3.0);
+            GeoPoint point = pointInterpolation(points[i * 2], points[i * 2 + 1], 0.5);
+            inner[i] = pointInterpolation(centroid, point, 0.9);
+            outer[i] = pointInterpolation(centroid, point, 3.0);
         }
         GeoPolygon hexagon = GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, points);
         GeoPolygon innerTriangle = GeoRegularConvexPolygonFactory.makeGeoPolygon(PlanetModel.SPHERE, inner);

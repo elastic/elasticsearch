@@ -16,8 +16,7 @@ public class UnboundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
 
     public UnboundedGeoHexGridTiler(int precision) {
         super(precision);
-        // TODO: Verify this (and perhaps move the calculation into H3 and based on NUM_BASE_CELLS and others)
-        maxAddresses = 122 + (long) Math.pow(7, precision);
+        maxAddresses = calcMaxAddresses(precision);
     }
 
     @Override
@@ -28,5 +27,12 @@ public class UnboundedGeoHexGridTiler extends AbstractGeoHexGridTiler {
     @Override
     protected long getMaxCells() {
         return maxAddresses;
+    }
+
+    public static long calcMaxAddresses(int precision) {
+        // TODO: Verify this (and perhaps move the calculation into H3 and based on NUM_BASE_CELLS and others)
+        int baseHexagons = 110;
+        int basePentagons = 12;
+        return baseHexagons * (long) Math.pow(7, precision) + basePentagons * (long) Math.pow(6, precision);
     }
 }

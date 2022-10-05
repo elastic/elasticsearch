@@ -19,11 +19,15 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.h3.CellBoundary;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -57,9 +61,18 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
 
     protected abstract Rectangle getCell(double lon, double lat, int precision);
 
+    /** Tilers that are not rectangular cannot run all tests, eg. H3 tiler */
+    protected boolean isRectangularTiler() {
+        return true;
+    }
+
     protected abstract long getCellsForDiffPrecision(int precisionDiff);
 
-    protected abstract void assertSetValuesBruteAndRecursive(Geometry geometry) throws Exception;
+    protected void assertSetValuesBruteAndRecursive(Geometry geometry) throws Exception {
+        assertSetValuesBruteAndRecursive(geometry, randomIntBetween(1, 3));
+    }
+
+    protected abstract void assertSetValuesBruteAndRecursive(Geometry geometry, int precision) throws Exception;
 
     protected abstract int expectedBuckets(GeoShapeValues.GeoShapeValue value, int precision, GeoBoundingBox bbox) throws Exception;
 
@@ -85,6 +98,11 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         }
     }
 
+    public void testGeoGridSetValuesBruteAndRecursiveLine() throws Exception {
+        Line geometry = GeometryTestUtils.randomLine(false);
+        assertSetValuesBruteAndRecursive(geometry);
+    }
+
     public void testGeoGridSetValuesBruteAndRecursiveMultiline() throws Exception {
         MultiLine geometry = GeometryTestUtils.randomMultiLine(false);
         assertSetValuesBruteAndRecursive(geometry);
@@ -95,8 +113,13 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         assertSetValuesBruteAndRecursive(geometry);
     }
 
-    public void testGeoGridSetValuesBruteAndRecursivePoints() throws Exception {
-        Geometry geometry = randomBoolean() ? GeometryTestUtils.randomPoint(false) : GeometryTestUtils.randomMultiPoint(false);
+    public void testGeoGridSetValuesBruteAndRecursivePoint() throws Exception {
+        Geometry geometry = GeometryTestUtils.randomPoint(false);
+        assertSetValuesBruteAndRecursive(geometry);
+    }
+
+    public void testGeoGridSetValuesBruteAndRecursiveMultiPoint() throws Exception {
+        Geometry geometry = GeometryTestUtils.randomMultiPoint(false);
         assertSetValuesBruteAndRecursive(geometry);
     }
 
@@ -104,15 +127,10 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     public void testGeoGridSetValuesBoundingBoxes_BoundedGeoShapeCellValues() throws Exception {
         for (int i = 0; i < 10; i++) {
             int precision = randomIntBetween(0, 3);
-            Geometry geometry = GeometryNormalizer.apply(Orientation.CCW, randomValueOtherThanMany(g -> {
-                try {
-                    // make sure is a valid shape
-                    new GeoShapeIndexer(Orientation.CCW, "test").indexShape(g);
-                    return false;
-                } catch (Exception e) {
-                    return true;
-                }
-            }, () -> boxToGeo(randomBBox())));
+            Geometry geometry = GeometryNormalizer.apply(
+                Orientation.CCW,
+                randomValueOtherThanMany(GeoGridTilerTestCase::geometryIsInvalid, () -> boxToGeo(randomBBox()))
+            );
 
             GeoBoundingBox geoBoundingBox = randomValueOtherThanMany(b -> b.right() == -180 && b.left() == 180, () -> randomBBox());
             GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
@@ -125,11 +143,11 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             assertTrue(cellValues.advanceExact(0));
             int numBuckets = cellValues.docValueCount();
             int expected = expectedBuckets(value, precision, geoBoundingBox);
-            assertThat(numBuckets, equalTo(expected));
+            assertThat("[" + i + ":" + precision + "] bucket count", numBuckets, equalTo(expected));
         }
     }
 
-    // tests that bounding boxes that crosses the dateline and cover all longitude values are correctly wrapped
+    // tests that bounding boxes that cross the dateline and cover all longitude values are correctly wrapped
     public void testGeoGridSetValuesBoundingBoxes_coversAllLongitudeValues() throws Exception {
         int precision = 3;
         Geometry geometry = new Rectangle(-92, 180, 0.99, -89);
@@ -148,17 +166,9 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     }
 
     public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
-        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
         for (int i = 0; i < 1000; i++) {
             int precision = randomIntBetween(0, 3);
-            Geometry geometry = randomValueOtherThanMany(g -> {
-                try {
-                    indexer.indexShape(g);
-                    return false;
-                } catch (Exception e) {
-                    return true;
-                }
-            }, () -> boxToGeo(randomBBox()));
+            Geometry geometry = randomValueOtherThanMany(GeoGridTilerTestCase::geometryIsInvalid, () -> boxToGeo(randomBBox()));
             GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
             GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(
                 makeGeoShapeValues(value),
@@ -166,9 +176,11 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
                 NOOP_BREAKER
             );
             assertTrue(unboundedCellValues.advanceExact(0));
-            int numTiles = unboundedCellValues.docValueCount();
+            int numBuckets = unboundedCellValues.docValueCount();
             int expected = expectedBuckets(value, precision, null);
-            assertThat(numTiles, equalTo(expected));
+            System.out.println("For precision " + precision + " we got " + numBuckets + " buckets while expecting " + expected);
+            System.out.println(geometry);
+            assertThat("[" + i + ":" + precision + "] bucket count", numBuckets, equalTo(expected));
         }
     }
 
@@ -191,6 +203,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
 
     public void testBoundsExcludeTouchingTiles() throws Exception {
         final int precision = randomIntBetween(4, maxPrecision()) - 4;
+        assumeTrue("Test only works for rectangular tilers", isRectangularTiler());
 
         final Rectangle rectangle = getCell(GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude(), precision);
         final GeoBoundingBox box = new GeoBoundingBox(
@@ -210,8 +223,37 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             assertTrue(values.advanceExact(0));
             final int numTiles = values.docValueCount();
             final int expected = (int) getCellsForDiffPrecision(i);
-            assertThat(numTiles, equalTo(expected));
+            assertThat("For precision " + (precision + i), numTiles, equalTo(expected));
         }
+    }
+
+    public static String valuesToPolygons(final GeoShapeCellValues values) {
+        StringBuilder sb = new StringBuilder();
+        for (int p = 0; p < values.docValueCount(); p++) {
+            long h3 = values.getValues()[p];
+            System.out.println(H3.h3ToString(h3));
+            sb.append(", POLYGON((");
+            CellBoundary boundary = H3.h3ToGeoBoundary(h3);
+            for (int i = 0; i < boundary.numPoints(); i++) {
+                LatLng point = boundary.getLatLon(i);
+                if (i > 0) sb.append(", ");
+                sb.append(point.getLonDeg()).append(" ").append(point.getLatDeg());
+            }
+            sb.append("))");
+        }
+        return sb.toString();
+    }
+
+    private static String boxToPolygon(Rectangle box) {
+        StringBuilder sb = new StringBuilder("POLYGON((");
+        sb.append(box.getMinX()).append(" ").append(box.getMinY());
+        sb.append(", ");
+        sb.append(box.getMaxX()).append(" ").append(box.getMinY());
+        sb.append(", ");
+        sb.append(box.getMaxX()).append(" ").append(box.getMaxY());
+        sb.append(", ");
+        sb.append(box.getMinX()).append(" ").append(box.getMaxY());
+        return sb.append("))").toString();
     }
 
     public void testGridCircuitBreaker() throws IOException {
@@ -250,6 +292,16 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             assertThat(values.getValuesBytes(), equalTo(curNumBytes));
             assertThat(limitedBreaker.getUsed(), equalTo(curNumBytes));
         });
+    }
+
+    private static boolean geometryIsInvalid(Geometry g) {
+        try {
+            // make sure is a valid shape
+            new GeoShapeIndexer(Orientation.CCW, "test").indexShape(g);
+            return false;
+        } catch (Exception e) {
+            return true;
+        }
     }
 
     protected GeoShapeValues makeGeoShapeValues(GeoShapeValues.GeoShapeValue... values) {

@@ -29,7 +29,7 @@ public final class LatLng {
     private final double lon;
     private final double lat;
 
-    LatLng(double lat, double lon) {
+    public LatLng(double lat, double lon) {
         this.lon = lon;
         this.lat = lat;
     }

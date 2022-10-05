@@ -19,7 +19,7 @@ public class GeoHexBoundedPredicate {
 
     private final boolean crossesDateline;
     private final GeoBoundingBox bbox;
-    private final long precision;
+    private final int precision;
 
     public GeoHexBoundedPredicate(int precision, GeoBoundingBox bbox) {
         this.crossesDateline = bbox.right() < bbox.left();
@@ -43,7 +43,7 @@ public class GeoHexBoundedPredicate {
 
     public long getMaxCells() {
         // TODO: Calculate correctly based on bounds
-        return 122 + (long) Math.pow(7, precision);
+        return UnboundedGeoHexGridTiler.calcMaxAddresses(precision);
     }
 
     /** Extend class to get access to internal functions */
@@ -58,5 +58,15 @@ public class GeoHexBoundedPredicate {
             return super.toComponent2D();
         }
 
+        static class Scaled extends H3LatLonGeometry.Scaled {
+            Scaled(String h3Address, double scaleFactor) {
+                super(h3Address, scaleFactor);
+            }
+
+            @Override
+            protected Component2D toComponent2D() {
+                return super.toComponent2D();
+            }
+        }
     }
 }

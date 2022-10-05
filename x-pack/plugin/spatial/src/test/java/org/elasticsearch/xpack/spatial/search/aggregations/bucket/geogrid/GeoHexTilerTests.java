@@ -22,9 +22,11 @@ import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
-import static org.apache.lucene.spatial3d.geom.Spatial3DTestUtil.calculateCentroid;
-import static org.apache.lucene.spatial3d.geom.Spatial3DTestUtil.pointInterpolation;
+import static org.elasticsearch.xpack.spatial.common.Spatial3DUtils.calculateCentroid;
+import static org.elasticsearch.xpack.spatial.common.Spatial3DUtils.pointInterpolation;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -51,15 +53,63 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         return new Rectangle(component.getMinX(), component.getMaxX(), component.getMaxY(), component.getMinY());
     }
 
+    /** The H3 tilers does not produce rectangular tiles, and some tests assume this */
     @Override
-    protected long getCellsForDiffPrecision(int precisionDiff) {
-        // TODO: Verify equation
-        return 122L + (long) Math.pow(7, precisionDiff);
+    protected boolean isRectangularTiler() {
+        return false;
     }
 
     @Override
-    protected void assertSetValuesBruteAndRecursive(Geometry geometry) throws Exception {
-        int precision = randomIntBetween(1, 3);
+    protected long getCellsForDiffPrecision(int precisionDiff) {
+        return UnboundedGeoHexGridTiler.calcMaxAddresses(precisionDiff);
+    }
+
+    public void testTilerBruteForceMethods() {
+        int baseHexagons = 110;
+        int basePentagons = 12;
+        String find = "81033ffffffffff";
+        System.out.printf("%10s\t%10s\t%10s\t%10s\n", "Precision", "cells", "expected", "diff");
+        for (int precision = 0; precision < 6; precision++) {
+            UnboundedGeoHexGridTiler tiler = new UnboundedGeoHexGridTiler(precision);
+            List<String> cells = tiler.getAllCellsAt(precision);
+            List<String> found = cells.stream().filter(v -> v.equals(find)).collect(Collectors.toList());
+            int count = cells.size();
+            long expectedCount = baseHexagons * (long) Math.pow(7, precision) + basePentagons * (long) Math.pow(6, precision);
+            // assertThat("Number of cells at precision " + precision, count, equalTo(expectedCount));
+            long diff = count < 0 ? count : count - expectedCount;
+            long factor = diff < 0 ? -1 : diff / 12;
+            System.out.printf("%10d\t%10d\t%10d\t%10d%10d\t%s\n", precision, count, expectedCount, diff, factor, found);
+        }
+    }
+
+    public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues_Specific() throws Exception {
+        // polygon=linearring(x=[-75.38472703981472, 101.98625624670547, 101.98625624670547, -75.38472703981472, -75.38472703981472],
+        // y=[24.849476721220427, 24.849476721220427, 36.4396446870375, 36.4396446870375, 24.849476721220427])
+        StringBuilder sb = new StringBuilder("GEOMETRYCOLLECTION(");
+        double[] lons = new double[]{-75.38472703981472, 101.98625624670547, 101.98625624670547, -75.38472703981472, -75.38472703981472};
+        double[] lats = new double[]{24.849476721220427, 24.849476721220427, 36.4396446870375, 36.4396446870375, 24.849476721220427};
+        addPolygon(sb, lons, lats);
+        LinearRing ring = new LinearRing(lons, lats);
+        Polygon geometry = new Polygon(ring);
+        int precision = 2;
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
+        GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(
+            makeGeoShapeValues(value),
+            getUnboundedGridTiler(precision),
+            NOOP_BREAKER
+        );
+        assertTrue(unboundedCellValues.advanceExact(0));
+        addPolygons(precision, sb, unboundedCellValues);
+        System.out.println(sb.append(")"));
+        int numBuckets = unboundedCellValues.docValueCount();
+        int expected = expectedBuckets(value, precision, null);
+        System.out.println("For precision " + precision + " we got " + numBuckets + " buckets while expecting " + expected);
+        System.out.println(geometry);
+        assertThat("[" + precision + "] bucket count", numBuckets, equalTo(expected));
+    }
+
+    @Override
+    protected void assertSetValuesBruteAndRecursive(Geometry geometry, int precision) throws Exception {
         UnboundedGeoHexGridTiler tiler = new UnboundedGeoHexGridTiler(precision);
         GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
         GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, tiler, NOOP_BREAKER);
@@ -67,11 +117,13 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         {
             recursiveCount = tiler.setValuesByRecursion(recursiveValues, value);
         }
+        // System.out.println(valuesToPolygons(recursiveValues));
         GeoShapeCellValues bruteForceValues = new GeoShapeCellValues(null, tiler, NOOP_BREAKER);
         int bruteForceCount;
         {
             bruteForceCount = tiler.setValuesByBruteForce(bruteForceValues, value);
         }
+        // System.out.println(valuesToPolygons(bruteForceValues));
 
         assertThat(geometry.toString(), recursiveCount, equalTo(bruteForceCount));
 
@@ -124,6 +176,12 @@ public class GeoHexTilerTests extends GeoGridTilerTestCase {
         }
         GeoHexBoundedPredicate predicate = new GeoHexBoundedPredicate(address.length(), bbox);
         return predicate.validAddress(address);
+    }
+
+    public void testGeoGridSetValuesBruteAndRecursiveSpecificPoint() throws Exception {
+        // Geometry geometry = new Point(-128.86426365551742, 90.0);
+        Geometry geometry = new Point(0.0, 24.10728934939077);
+        assertSetValuesBruteAndRecursive(geometry, 1);
     }
 
     public void testGeoHex() throws Exception {

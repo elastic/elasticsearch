@@ -297,10 +297,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                     Decision.single(Decision.Type.NO, "disk_threshold", "test"),
                     firstNoDecision(shardIdNodeDecisions.get(expectedShardIds.first()).canAllocateDecisions().get(0))
                 );
-                assertEquals(
-                    Decision.Type.NO,
-                    shardIdNodeDecisions.get(expectedShardIds.first()).canRemainDecisions().get(0).decision().type()
-                );
+                Decision canRemainDecision = shardIdNodeDecisions.get(expectedShardIds.first()).canRemainDecisions().get(0).decision();
+                assertEquals(Decision.Type.NO, canRemainDecision.type());
+                assertTrue(canRemainDecision.getDecisions().stream().anyMatch(d -> d.type() == Decision.Type.YES));
+                assertTrue(canRemainDecision.getDecisions().stream().anyMatch(d -> d.type() == Decision.Type.NO));
                 return true;
             },
             mockCanAllocateDiskDecider
@@ -315,12 +315,15 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         );
         verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, 0, emptySortedSet(), Map::isEmpty);
 
-        verifyScale(subjectShards.size(), "not enough storage available, needs " + subjectShards.size() + "b", shardNodeDecisions -> {
-            assertEquals(cappedShardIds(expectedShardIds), shardNodeDecisions.keySet());
-            assertEquals(Decision.Type.NO, shardNodeDecisions.get(expectedShardIds.first()).canRemainDecisions().get(0).decision().type());
+        verifyScale(subjectShards.size(), "not enough storage available, needs " + subjectShards.size() + "b", shardIdNodeDecisions -> {
+            assertEquals(cappedShardIds(expectedShardIds), shardIdNodeDecisions.keySet());
+            Decision canRemainDecision = shardIdNodeDecisions.get(expectedShardIds.first()).canRemainDecisions().get(0).decision();
+            assertEquals(Decision.Type.NO, canRemainDecision.type());
+            assertTrue(canRemainDecision.getDecisions().stream().anyMatch(d -> d.type() == Decision.Type.YES));
+            assertTrue(canRemainDecision.getDecisions().stream().anyMatch(d -> d.type() == Decision.Type.NO));
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
-                firstNoDecision(shardNodeDecisions.values().iterator().next().canAllocateDecisions().get(0))
+                firstNoDecision(shardIdNodeDecisions.values().iterator().next().canAllocateDecisions().get(0))
             );
             return true;
         }, Map::isEmpty, mockCanAllocateDiskDecider);

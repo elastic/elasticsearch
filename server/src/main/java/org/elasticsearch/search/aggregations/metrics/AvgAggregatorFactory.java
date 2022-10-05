@@ -42,12 +42,7 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             AvgAggregationBuilder.REGISTRY_KEY,
-            List.of(
-                CoreValuesSourceType.NUMERIC,
-                CoreValuesSourceType.DATE,
-                CoreValuesSourceType.BOOLEAN,
-                TimeSeriesValuesSourceType.COUNTER
-            ),
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             AvgAggregator::new,
             true
         );

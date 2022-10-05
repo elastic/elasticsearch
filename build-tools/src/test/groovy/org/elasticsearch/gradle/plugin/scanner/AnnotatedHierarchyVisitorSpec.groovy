@@ -10,10 +10,10 @@ package org.elasticsearch.gradle.plugin.scanner
 
 import spock.lang.Specification
 
-import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleClass
-import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleInterface
-import org.elasticsearch.gradle.plugin.scanner.test_classes.ImplementingExtensible
-import org.elasticsearch.gradle.plugin.scanner.test_classes.SubClass
+import org.elasticsearch.scanner.test_classes.ExtensibleClass
+import org.elasticsearch.scanner.test_classes.ExtensibleInterface
+import org.elasticsearch.scanner.test_classes.ImplementingExtensible
+import org.elasticsearch.scanner.test_classes.SubClass
 import org.elasticsearch.plugin.api.Extensible
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.Type

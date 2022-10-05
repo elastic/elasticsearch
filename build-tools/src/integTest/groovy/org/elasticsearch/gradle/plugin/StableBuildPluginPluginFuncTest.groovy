@@ -88,7 +88,7 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
             package org.acme;
 
             import org.elasticsearch.plugin.api.NamedComponent;
-            import org.elasticsearch.extensible.ExtensibleClass;
+            import org.elasticsearch.scanner.test_classes.ExtensibleClass;
 
             @NamedComponent(name = "componentA")
             public class A extends ExtensibleClass {
@@ -112,7 +112,7 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
         println Files.readString(namedComponents)
         println namedComponents.toFile().exists()
 
-        map  == ["org.elasticsearch.extensible.ExtensibleClass" : (["componentA" : "org.acme.A"]) ]
+        map  == ["org.elasticsearch.scanner.test_classes.ExtensibleClass" : (["componentA" : "org.acme.A"]) ]
     }
 
 

@@ -6,9 +6,6 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.extensible;
+package org.elasticsearch.scanner.test_classes;
 
-import org.elasticsearch.plugin.api.Extensible;
-
-@Extensible
-public class ExtensibleClass {}
+public class SubClass extends ExtensibleClass {}

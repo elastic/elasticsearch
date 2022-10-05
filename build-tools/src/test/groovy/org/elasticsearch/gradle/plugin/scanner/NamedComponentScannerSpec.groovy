@@ -14,9 +14,9 @@ import net.bytebuddy.dynamic.DynamicType
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.elasticsearch.gradle.internal.test.InMemoryJavaCompiler
 import org.elasticsearch.gradle.internal.test.JarUtils
-import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleClass
-import org.elasticsearch.gradle.plugin.scanner.test_classes.ExtensibleInterface
-import org.elasticsearch.gradle.plugin.scanner.test_classes.TestNamedComponent
+import org.elasticsearch.scanner.test_classes.ExtensibleClass
+import org.elasticsearch.scanner.test_classes.ExtensibleInterface
+import org.elasticsearch.scanner.test_classes.TestNamedComponent
 import org.elasticsearch.plugin.api.Extensible
 import org.elasticsearch.plugin.api.NamedComponent
 import org.objectweb.asm.ClassReader

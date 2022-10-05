@@ -14,8 +14,8 @@ import spock.lang.Specification
 import spock.lang.TempDir
 
 import org.apache.commons.io.FileUtils
-import org.elasticsearch.extensible.ExtensibleClass
-import org.elasticsearch.extensible.ExtensibleInterface
+import org.elasticsearch.scanner.test_classes.ExtensibleClass
+import org.elasticsearch.scanner.test_classes.ExtensibleInterface
 import org.elasticsearch.gradle.internal.test.ConfigurationCacheCompatibleAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner

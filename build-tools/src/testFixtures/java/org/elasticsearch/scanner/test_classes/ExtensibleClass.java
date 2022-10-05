@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.plugin.scanner.test_classes;
+package org.elasticsearch.scanner.test_classes;
 
 import org.elasticsearch.plugin.api.Extensible;
 

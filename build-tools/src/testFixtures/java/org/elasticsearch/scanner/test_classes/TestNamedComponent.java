@@ -6,9 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.extensible;
+package org.elasticsearch.scanner.test_classes;
 
-import org.elasticsearch.plugin.api.Extensible;
+@org.elasticsearch.plugin.api.NamedComponent(name = "test_named_component")
+public class TestNamedComponent implements ExtensibleInterface {
 
-@Extensible
-public interface ExtensibleInterface {}
+}

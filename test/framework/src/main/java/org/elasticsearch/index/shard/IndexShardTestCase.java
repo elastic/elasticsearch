@@ -212,11 +212,15 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param engineFactory the engine factory to use for this shard
      */
     protected IndexShard newShard(boolean primary, Settings settings, EngineFactory engineFactory) throws IOException {
+        return newShard(new ShardId("index", "_na_", 0), primary, settings, engineFactory);
+    }
+
+    protected IndexShard newShard(ShardId shardId, boolean primary, Settings settings, EngineFactory engineFactory) throws IOException {
         final RecoverySource recoverySource = primary
             ? RecoverySource.EmptyStoreRecoverySource.INSTANCE
             : RecoverySource.PeerRecoverySource.INSTANCE;
         final ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            new ShardId("index", "_na_", 0),
+            shardId,
             randomAlphaOfLength(10),
             primary,
             ShardRoutingState.INITIALIZING,

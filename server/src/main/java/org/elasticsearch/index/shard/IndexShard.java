@@ -124,6 +124,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.stats.ShardWriteLoadStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -287,6 +288,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final boolean isDataStreamIndex; // if a shard is a part of data stream
 
+    private final ShardWriteLoadStatsCollector shardWriteLoadStatsCollector;
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -385,6 +388,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
+        this.shardWriteLoadStatsCollector = this.isDataStreamIndex
+            ? new ShardWriteLoadStatsCollector(threadPool::rawRelativeTimeInNanos)
+            : ShardWriteLoadStatsCollector.NO_OP;
     }
 
     public ThreadPool getThreadPool() {
@@ -428,6 +434,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public BulkOperationListener getBulkOperationListener() {
         return this.bulkOperationListener;
+    }
+
+    public Releasable startTrackingBulkOperationTime() {
+        return shardWriteLoadStatsCollector.startTrackingBulkOperationTime();
     }
 
     public ShardIndexWarmerService warmerService() {
@@ -1337,6 +1347,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public BulkStats bulkStats() {
         return bulkOperationListener.stats();
+    }
+
+    public long getTotalIndexingTimeInNanos() {
+        return shardWriteLoadStatsCollector.totalBulkTimeInNanos();
+    }
+
+    public ShardWriteLoadStats writeLoadStats() {
+        return shardWriteLoadStatsCollector.getStats();
+    }
+
+    public void recordWriteLoad(long samplingTimeInNanos) {
+        shardWriteLoadStatsCollector.recordWriteLoad(samplingTimeInNanos);
     }
 
     /**

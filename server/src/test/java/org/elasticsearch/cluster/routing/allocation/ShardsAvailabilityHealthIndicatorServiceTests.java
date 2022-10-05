@@ -83,6 +83,7 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -161,7 +162,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("yellow-index")))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("yellow-index"))))
+                    )
                 )
             )
         );
@@ -190,7 +193,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("red-index"))))
+                    )
                 )
             )
         );
@@ -216,7 +221,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("red-index"))))
+                    )
                 )
             )
         );
@@ -404,7 +411,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS, List.of("restarting-index")))
+                    List.of(
+                        new Diagnosis(
+                            DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS,
+                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting-index")))
+                        )
+                    )
                 )
             )
         );
@@ -480,7 +492,12 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS, List.of("restarting-index")))
+                    List.of(
+                        new Diagnosis(
+                            DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS,
+                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting-index")))
+                        )
+                    )
                 )
             )
         );

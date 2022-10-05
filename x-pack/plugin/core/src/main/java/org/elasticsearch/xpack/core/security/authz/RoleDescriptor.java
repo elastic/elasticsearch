@@ -889,7 +889,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             indicesPrivileges.innerToXContent(builder);
-            builder.array("remote_clusters", remoteClusters);
+            builder.array(Fields.REMOTE_CLUSTERS.getPreferredName(), remoteClusters);
             return builder.endObject();
         }
 

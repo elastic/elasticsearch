@@ -128,7 +128,7 @@ from more than one shard).
 . In the case of adding another data node, the cluster will not recover immediately. It might take some time to
 relocate shards in order to relieve the node that is out of space. You can check the progress here:
 +
-[source,console-result]
+[source]
 ----
 GET /_cat/shards?v&h=state,node&s=state
 ----

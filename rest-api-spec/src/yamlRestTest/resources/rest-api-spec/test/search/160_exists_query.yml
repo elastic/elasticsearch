@@ -93,7 +93,7 @@ setup:
             short: 1
             object:
               inner1: "foo"
-            text: ""
+            text: "foo bar"
 
   - do:
       headers:
@@ -257,7 +257,7 @@ setup:
             short: 1
             object:
               inner2: "bar"
-            text: ""
+            text: "foo bar"
 
   - do:
       index:

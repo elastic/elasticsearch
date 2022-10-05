@@ -14,8 +14,11 @@ import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParsingException;
+import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.stats.Metrics;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -508,5 +511,16 @@ public class VerifierTests extends ESTestCase {
                         + "]: [one, two]"
                 )
         );
+    }
+
+    public void testIgnoredTimestampAndTiebreakerInSamples() {
+        LogicalPlan plan = accept("sample by hostname [any where true] [any where true]");
+
+        Sample sample = (Sample) plan.children().get(0);
+        assertEquals(2, sample.queries().size());
+        for (KeyedFilter query : sample.queries()) {
+            assertTrue(query.timestamp() instanceof EmptyAttribute);
+            assertTrue(query.tiebreaker() instanceof EmptyAttribute);
+        }
     }
 }

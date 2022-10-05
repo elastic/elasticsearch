@@ -55,6 +55,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -78,6 +79,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
 /**
  * The master rollup action that coordinates
@@ -96,6 +99,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
     private final Settings settings;
+    private final XPackLicenseState xPackLicenseState;
 
     /**
      * This is the cluster state task executor for cluster state update actions.
@@ -124,7 +128,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexScopedSettings indexScopedSettings,
-        Settings settings
+        Settings settings,
+        XPackLicenseState xPackLicenseState
     ) {
         super(
             DownsampleAction.NAME,
@@ -143,6 +148,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         this.indexScopedSettings = indexScopedSettings;
         this.threadContext = threadPool.getThreadContext();
         this.settings = settings;
+        this.xPackLicenseState = xPackLicenseState;
     }
 
     @Override
@@ -159,8 +165,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             if (indicesAccessControl != null) {
                 final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(sourceIndexName);
                 if (indexPermissions != null) {
-                    boolean hasDocumentLevelPermissions = indexPermissions.getDocumentPermissions().hasDocumentLevelPermissions();
-                    boolean hasFieldLevelSecurity = indexPermissions.getFieldPermissions().hasFieldLevelSecurity();
+                    final XPackLicenseState currentXPackLicenseState = xPackLicenseState.copyCurrentLicenseState();
+                    boolean hasDocumentLevelPermissions = indexPermissions.getDocumentPermissions().hasDocumentLevelPermissions()
+                        && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(currentXPackLicenseState);
+                    boolean hasFieldLevelSecurity = indexPermissions.getFieldPermissions().hasFieldLevelSecurity()
+                        && FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(currentXPackLicenseState);
                     if (hasDocumentLevelPermissions || hasFieldLevelSecurity) {
                         listener.onFailure(
                             new ElasticsearchException(

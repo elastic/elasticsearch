@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -465,13 +464,9 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             }
         };
         testCase(
-            request,
-            new MatchAllDocsQuery(),
             buildIndex,
             verify,
-            rangeField("outer", RangeType.LONG),
-            rangeField("inner", RangeType.LONG),
-            longField("n")
+            new AggTestConfig(request, rangeField("outer", RangeType.LONG), rangeField("inner", RangeType.LONG), longField("n"))
         );
     }
 }

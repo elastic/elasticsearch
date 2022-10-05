@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -552,10 +551,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             .combineScript(COMBINE_SCRIPT)
             .reduceScript(REDUCE_SCRIPT);
         testCase(
-            aggregationBuilder,
-            new MatchAllDocsQuery(),
             iw -> { iw.addDocument(new Document()); },
-            (InternalScriptedMetric r) -> { assertEquals(1, r.aggregation()); }
+            (InternalScriptedMetric r) -> { assertEquals(1, r.aggregation()); },
+            new AggTestConfig(aggregationBuilder)
         );
     }
 
@@ -583,6 +581,6 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             ScriptedMetric oddMetric = odd.getAggregations().get("scripted");
             assertThat(oddMetric.aggregation(), equalTo(49));
         };
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, verify, keywordField("t"), longField("number"));
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, keywordField("t"), longField("number")));
     }
 }

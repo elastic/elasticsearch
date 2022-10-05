@@ -154,21 +154,22 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoFilters() throws IOException {
+        FiltersAggregationBuilder aggregationBuilder = new FiltersAggregationBuilder("test", new KeyedFilter[0]);
         testCase(
-            new FiltersAggregationBuilder("test", new KeyedFilter[0]),
-            new MatchAllDocsQuery(),
             iw -> { iw.addDocument(List.of()); },
-            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); }
+            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
+            new AggTestConfig(aggregationBuilder)
         );
     }
 
     public void testNoFiltersWithSubAggs() throws IOException {
         testCase(
-            new FiltersAggregationBuilder("test", new KeyedFilter[0]).subAggregation(new MaxAggregationBuilder("m").field("i")),
-            new MatchAllDocsQuery(),
             iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); },
             (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
-            new NumberFieldMapper.NumberFieldType("m", NumberFieldMapper.NumberType.INTEGER)
+            new AggTestConfig(
+                new FiltersAggregationBuilder("test", new KeyedFilter[0]).subAggregation(new MaxAggregationBuilder("m").field("i")),
+                new NumberFieldMapper.NumberFieldType("m", NumberType.INTEGER)
+            )
         );
     }
 
@@ -342,14 +343,14 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01"),
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-02-01")
         );
-        testCase(builder, query, iw -> {
+        testCase(iw -> {
             iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))));
             iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))));
         }, result -> {
             InternalFilters filters = (InternalFilters) result;
             assertThat(filters.getBuckets(), hasSize(1));
             assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
-        }, ft);
+        }, new AggTestConfig(builder, ft).withQuery(query));
     }
 
     public void testWithEmptyMergedPointRangeQueries() throws IOException {
@@ -363,14 +364,14 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-01"),
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2015-02-01")
         );
-        testCase(builder, query, iw -> {
+        testCase(iw -> {
             iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))));
             iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))));
         }, result -> {
             InternalFilters filters = (InternalFilters) result;
             assertThat(filters.getBuckets(), hasSize(1));
             assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(0L));
-        }, ft);
+        }, new AggTestConfig(builder, ft).withQuery(query));
     }
 
     public void testRangeFilter() throws IOException {
@@ -498,27 +499,22 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> iw.addDocuments(
             NestedAggregatorTests.generateBook("test", new String[] { "foo", "bar" }, new int[] { 5, 10, 15, 20 })
         );
-        testCase(
-            new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("author", "foo"))),
-            Queries.newNonNestedFilter(),
-            buildIndex,
-            result -> {
-                InternalFilters filters = (InternalFilters) result;
-                assertThat(filters.getBuckets(), hasSize(1));
-                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
-            },
-            ft
+        testCase(buildIndex, result1 -> {
+            InternalFilters filters1 = (InternalFilters) result1;
+            assertThat(filters1.getBuckets(), hasSize(1));
+            assertThat(filters1.getBucketByKey("q1").getDocCount(), equalTo(1L));
+        },
+            new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("author", "foo"))), ft)
+                .withQuery(Queries.newNonNestedFilter())
         );
-        testCase(
-            new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder())),
-            Queries.newNonNestedFilter(),
-            buildIndex,
-            result -> {
-                InternalFilters filters = (InternalFilters) result;
-                assertThat(filters.getBuckets(), hasSize(1));
-                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
-            },
-            ft
+        testCase(buildIndex, result -> {
+            InternalFilters filters = (InternalFilters) result;
+            assertThat(filters.getBuckets(), hasSize(1));
+            assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
+        },
+            new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder())), ft).withQuery(
+                Queries.newNonNestedFilter()
+            )
         );
     }
 
@@ -1604,10 +1600,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
             assertMap(debug, matchesMap().extraOk().entry("segments_counted_in_constant_time", greaterThan(0)));
         }, fieldType, fnft);
-        testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result) -> {
+        testCase(buildIndex, (InternalFilters result) -> {
             assertThat(result.getBuckets(), hasSize(1));
             assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(0L));
-        }, fieldType, fnft);
+        }, new AggTestConfig(builder, fieldType, fnft));
     }
 
     @Override

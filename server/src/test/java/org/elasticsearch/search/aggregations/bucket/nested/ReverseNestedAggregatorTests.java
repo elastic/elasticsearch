@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -227,7 +226,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     )
                 )
         );
-        testCase(b, new MatchAllDocsQuery(), NestedAggregatorTests.buildResellerData(numProducts, numResellers), result -> {
+        testCase(NestedAggregatorTests.buildResellerData(numProducts, numResellers), result -> {
             InternalNested nested = (InternalNested) result;
             assertThat(nested.getDocCount(), equalTo((long) numProducts * numResellers));
             LongTerms resellers = nested.getAggregations().get("resellers");
@@ -246,7 +245,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     equalTo(LongStream.range(0, numProducts).mapToObj(Long::valueOf).collect(toList()))
                 );
             }
-        }, NestedAggregatorTests.resellersMappedFields());
+        }, new AggTestConfig(b, NestedAggregatorTests.resellersMappedFields()));
     }
 
     @Override

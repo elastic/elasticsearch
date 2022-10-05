@@ -82,16 +82,16 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
 
     public void testBooleanFieldDeprecated() throws IOException {
         final String fieldName = "bogusBoolean";
-        testCase(
-            new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
-            new MatchAllDocsQuery(),
-            iw -> {
-                Document d = new Document();
-                d.add(new SortedNumericDocValuesField(fieldName, 0));
-                iw.addDocument(d);
-            },
+        testCase(iw -> {
+            Document d = new Document();
+            d.add(new SortedNumericDocValuesField(fieldName, 0));
+            iw.addDocument(d);
+        },
             a -> {},
-            new BooleanFieldMapper.BooleanFieldType(fieldName)
+            new AggTestConfig(
+                new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
+                new BooleanFieldMapper.BooleanFieldType(fieldName)
+            )
         );
         assertWarnings("Running DateHistogram aggregations on [boolean] fields is deprecated");
     }

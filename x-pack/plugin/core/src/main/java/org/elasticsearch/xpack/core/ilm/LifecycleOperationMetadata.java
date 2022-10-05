@@ -70,11 +70,11 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
         IndexLifecycleMetadata oldMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
         LifecycleOperationMetadata currentMetadata = state.metadata().custom(LifecycleOperationMetadata.TYPE);
         return Optional.ofNullable(currentMetadata)
-            .map(LifecycleOperationMetadata::getSLMOperationMode)
+            .map(LifecycleOperationMetadata::getILMOperationMode)
             .orElse(
                 Optional.ofNullable(oldMetadata)
                     .map(IndexLifecycleMetadata::getOperationMode)
-                    .orElseGet(LifecycleOperationMetadata.EMPTY::getSLMOperationMode)
+                    .orElseGet(LifecycleOperationMetadata.EMPTY::getILMOperationMode)
             );
     }
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
@@ -408,6 +409,10 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 FieldInfos fieldInfos = context.reader().getFieldInfos();
                 FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
                 if (fieldInfo != null) {
+                    if (fieldInfo.getDocValuesType() == DocValuesType.NONE) {
+                        // no shortcut possible: it's a text field, empty values are counted as no value.
+                        return -1;
+                    }
                     if (fieldInfo.getPointIndexDimensionCount() > 0) {
                         PointValues points = context.reader().getPointValues(field);
                         if (points != null) {

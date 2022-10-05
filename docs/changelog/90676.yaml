@@ -1,0 +1,5 @@
+pr: 90676
+summary: Keep track of average write load for data streams
+area: CRUD
+type: enhancement
+issues: []

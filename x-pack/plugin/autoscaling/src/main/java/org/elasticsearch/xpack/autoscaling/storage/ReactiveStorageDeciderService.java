@@ -73,6 +73,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -334,7 +335,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                             .stream()
                             .filter(n -> nodeTierPredicate.test(n.node()))
                             .filter(n -> shard.currentNodeId().equals(n.nodeId()) == false)
-                            .map(n -> new NodeDecision(n.node(), allocationDeciders.canAllocate(shard, n, allocation)))
+                            .map(
+                                n -> new NodeDecision(
+                                    n.node(),
+                                    withAllocationDebugEnabled(allocation, () -> allocationDeciders.canAllocate(shard, n, allocation))
+                                )
+                            )
                             .toList()
                     )
                 )
@@ -361,7 +367,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                         List.of(
                             new NodeDecision(
                                 allocation.routingNodes().node(shard.currentNodeId()).node(),
-                                allocationDeciders.canRemain(shard, allocation.routingNodes().node(shard.currentNodeId()), allocation)
+                                withAllocationDebugEnabled(
+                                    allocation,
+                                    () -> allocationDeciders.canRemain(
+                                        shard,
+                                        allocation.routingNodes().node(shard.currentNodeId()),
+                                        allocation
+                                    )
+                                )
                             )
                         )
                     )
@@ -393,6 +406,16 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     .limit(MAX_AMOUNT_OF_SHARD_DECISIONS)
                     .collect(toSortedMap(Map.Entry::getKey, Map.Entry::getValue))
             );
+        }
+
+        private static <T extends Decision> T withAllocationDebugEnabled(RoutingAllocation allocation, Supplier<T> supplier) {
+            assert allocation.debugDecision() == false;
+            allocation.debugDecision(true);
+            try {
+                return supplier.get();
+            } finally {
+                allocation.debugDecision(false);
+            }
         }
 
         private static <T> Collector<T, ?, SortedMap<ShardId, NodeDecisions>> toSortedMap(

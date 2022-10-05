@@ -771,6 +771,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return builder.build();
     }
 
+    public class RemoteIndicesPrivileges extends IndicesPrivileges {
+        
+    }
+
     /**
      * A class representing permissions for a group of indices mapped to
      * privileges, field permissions, and a query.

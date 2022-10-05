@@ -25,6 +25,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.function.Supplier
+import java.util.stream.Collectors
 import java.util.stream.Stream
 
 import static org.hamcrest.MatcherAssert.assertThat
@@ -84,7 +85,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
         createExtensibleApiJar(dirWithJar.resolve("plugin-extensible-api.jar"));//for instance analysis api
 
 
-        Supplier<Stream<ClassReader>> classReaderStream = () -> ClassReaders.ofDirWithJars(dirWithJar.toString());
+        Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).toList()
 
         when:
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
@@ -155,7 +156,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
         pluginApiJar(dirWithJar.toFile())
         createExtensibleApiJar(dirWithJar.resolve("plugin-extensible-api.jar"));//for instance analysis api
 
-        Supplier<Stream<ClassReader>> classReaderStream = () -> ClassReaders.ofDirWithJars(dirWithJar.toString());
+        Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).toList();
 
         when:
         Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
@@ -196,7 +197,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
         namedComponent.inject(jar.toFile());
     }
 
-    private Supplier<Stream<ClassReader>> classReaderStream(Class<?>... classes) {
+    private Collection<ClassReader> classReaderStream(Class<?>... classes) {
 
         return () -> {
             try {
@@ -213,7 +214,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
                             throw new UncheckedIOException(e);
                         }
                     }
-                )
+                ).collect(Collectors.toList())
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

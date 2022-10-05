@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.plugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
@@ -33,8 +34,10 @@ public class StablePluginBuildPlugin implements Plugin<Project> {
 
         final var pluginNamedComponents = project.getTasks().register("pluginNamedComponents", GenerateNamedComponentsTask.class, t -> {
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
-            t.setPluginClasses(mainSourceSet.getOutput().getClassesDirs());
-            t.setClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
+            FileCollection dependencyJars = project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME);
+            FileCollection compiledPluginClasses = mainSourceSet.getOutput().getClassesDirs();
+            FileCollection classPath = dependencyJars.plus(compiledPluginClasses);
+            t.setClasspath(classPath);
         });
 
         final var pluginExtension = project.getExtensions().getByType(PluginPropertiesExtension.class);

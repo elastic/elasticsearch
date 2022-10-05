@@ -12,23 +12,22 @@ import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 public class NamedComponentScanner {
 
     /**
      * returns a Map<String, Map<String,String>  - extensible interface -> map{ namedName -> className }
      */
-    public Map<String, Map<String, String>> scanForNamedClasses(Supplier<Stream<ClassReader>> classReaderStream) {
+    public Map<String, Map<String, String>> scanForNamedClasses(Collection<ClassReader> classReaderStream) {
         // TODO I don't have access to stable-plugin-api here so I have to hardcode class descriptors
         ClassScanner extensibleClassScanner = new ClassScanner("Lorg/elasticsearch/plugin/api/Extensible;", (classname, map) -> {
             map.put(classname, classname);
             return null;
         });
-        extensibleClassScanner.visit(classReaderStream.get());
+        extensibleClassScanner.visit(classReaderStream.stream());
 
         ClassScanner namedComponentsScanner = new ClassScanner(
             "Lorg/elasticsearch/plugin/api/NamedComponent;"/*NamedComponent.class*/,
@@ -42,7 +41,7 @@ public class NamedComponentScanner {
             }
         );
 
-        namedComponentsScanner.visit(classReaderStream.get());
+        namedComponentsScanner.visit(classReaderStream.stream());
 
         Map<String, Map<String, String>> componentInfo = new HashMap<>();
         for (var e : namedComponentsScanner.getFoundClasses().entrySet()) {

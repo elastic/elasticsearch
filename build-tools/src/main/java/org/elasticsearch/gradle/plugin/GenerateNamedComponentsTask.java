@@ -21,7 +21,6 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.CompileClasspath;
-import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.workers.WorkAction;
@@ -32,10 +31,10 @@ import org.objectweb.asm.ClassReader;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -46,7 +45,6 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
 
     private final WorkerExecutor workerExecutor;
     private FileCollection classpath;
-    private FileCollection pluginClasses;
 
     @Inject
     public GenerateNamedComponentsTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
@@ -58,7 +56,6 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
     public void scanPluginClasses() {
         workerExecutor.noIsolation().submit(GenerateNamedComponentsAction.class, params -> {
             params.getClasspath().from(classpath);
-            params.getPluginClasses().setFrom(pluginClasses);
             params.getOutputFile().set(getOutputFile());
         });
     }
@@ -75,29 +72,15 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
         this.classpath = classpath;
     }
 
-    @InputFiles
-    public FileCollection getPluginClasses() {
-        return pluginClasses;
-    }
-
-    public void setPluginClasses(FileCollection pluginClasses) {
-        this.pluginClasses = pluginClasses;
-    }
-
     public abstract static class GenerateNamedComponentsAction implements WorkAction<Parameters> {
         @Override
         public void execute() {
-            Set<File> files = getParameters().getClasspath().getFiles();
-            Set<File> pluginFiles = getParameters().getPluginClasses().getFiles();
-            LOGGER.info(files.toString());
-            LOGGER.info(pluginFiles.toString());
+            Set<File> classpathFiles = getParameters().getClasspath().getFiles();
 
-            Supplier<Stream<ClassReader>> classReaderStreamSupplier = () -> {
-                Stream<Path> pluginJars = Stream.concat(files.stream(), pluginFiles.stream()).map(File::toPath);
-                return ClassReaders.ofPaths(pluginJars);
-            };
+            List<ClassReader> classReaders = ClassReaders.ofPaths(classpathFiles.stream().map(File::toPath)).collect(Collectors.toList());
+
             NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
-            Map<String, Map<String, String>> namedComponentsMap = namedComponentScanner.scanForNamedClasses(classReaderStreamSupplier);
+            Map<String, Map<String, String>> namedComponentsMap = namedComponentScanner.scanForNamedClasses(classReaders);
             writeToFile(namedComponentsMap);
         }
 
@@ -117,8 +100,6 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
     interface Parameters extends WorkParameters {
 
         ConfigurableFileCollection getClasspath();
-
-        ConfigurableFileCollection getPluginClasses();
 
         RegularFileProperty getOutputFile();
     }

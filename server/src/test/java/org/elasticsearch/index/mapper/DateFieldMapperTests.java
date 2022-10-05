@@ -565,7 +565,8 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeFalse("synthetic _source for date and date_millis doesn't support ignore_malformed", ignoreMalformed);
         return new SyntheticSourceSupport() {
             private final DateFieldMapper.Resolution resolution = randomFrom(DateFieldMapper.Resolution.values());
             private final Object nullValue = usually()

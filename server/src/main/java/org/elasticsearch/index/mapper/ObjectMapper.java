@@ -114,13 +114,15 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 int firstDotIndex = name.indexOf(".");
                 String immediateChild = name.substring(0, firstDotIndex);
                 String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
-                ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
+                ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChild, immediateChildFullName, context);
                 parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
                 add(parentBuilder);
             }
         }
 
-        private static ObjectMapper.Builder findObjectBuilder(String fullName, DocumentParserContext context) {
+        private ObjectMapper.Builder findObjectBuilder(String leafName, String fullName, DocumentParserContext context) {
+            // has the object mapper already been added here? if so, use that
+            if (mappersBuilders)
             // does the object mapper already exist? if so, use that
             ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
             if (objectMapper != null) {

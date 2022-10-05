@@ -268,13 +268,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     public boolean isEmpty() {
-        // TODO
         return clusterPrivileges.length == 0
             && configurableClusterPrivileges.length == 0
             && indicesPrivileges.length == 0
             && applicationPrivileges.length == 0
             && runAs.length == 0
-            && metadata.size() == 0;
+            && metadata.size() == 0
+            && (remoteIndicesPrivileges == null || remoteIndicesPrivileges.length == 0);
     }
 
     @Override
@@ -882,7 +882,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            indicesPrivileges.innerToXContent(builder, params);
+            indicesPrivileges.innerToXContent(builder);
             builder.array("remote_clusters", remoteClusters);
             return builder.endObject();
         }
@@ -1051,27 +1051,27 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            innerToXContent(builder, params);
+            innerToXContent(builder);
             return builder.endObject();
         }
 
-        void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        void innerToXContent(XContentBuilder builder) throws IOException {
             builder.array("names", indices);
             builder.array("privileges", privileges);
             if (grantedFields != null || deniedFields != null) {
-                builder.startObject(Fields.FIELD_PERMISSIONS.getPreferredName());
+                builder.startObject(RoleDescriptor.Fields.FIELD_PERMISSIONS.getPreferredName());
                 if (grantedFields != null) {
-                    builder.array(Fields.GRANT_FIELDS.getPreferredName(), grantedFields);
+                    builder.array(RoleDescriptor.Fields.GRANT_FIELDS.getPreferredName(), grantedFields);
                 }
                 if (deniedFields != null) {
-                    builder.array(Fields.EXCEPT_FIELDS.getPreferredName(), deniedFields);
+                    builder.array(RoleDescriptor.Fields.EXCEPT_FIELDS.getPreferredName(), deniedFields);
                 }
                 builder.endObject();
             }
             if (query != null) {
                 builder.field("query", query.utf8ToString());
             }
-            builder.field(Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
+            builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
         }
 
         public static void write(StreamOutput out, IndicesPrivileges privileges) throws IOException {

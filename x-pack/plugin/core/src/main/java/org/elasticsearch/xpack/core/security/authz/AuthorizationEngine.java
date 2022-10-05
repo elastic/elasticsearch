@@ -295,8 +295,8 @@ public interface AuthorizationEngine {
             if (index == null) {
                 validationException = addValidationError("indexPrivileges must not be null", validationException);
             } else {
-                for (RoleDescriptor.IndicesPrivileges indicesPrivileges : index) {
-                    BytesReference query = indicesPrivileges.getQuery();
+                for (int i = 0; i < index.length; i++) {
+                    BytesReference query = index[i].getQuery();
                     if (query != null) {
                         validationException = addValidationError(
                             "may only check index privileges without any DLS query [" + query.utf8ToString() + "]",

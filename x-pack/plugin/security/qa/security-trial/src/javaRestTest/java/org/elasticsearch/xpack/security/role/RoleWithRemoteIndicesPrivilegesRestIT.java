@@ -89,5 +89,4 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
     }
-
 }

@@ -117,7 +117,7 @@ setup:
           }
 
 ---
-"Downsample user missing read permissions on source index fields (field level security)":
+"Downsample user missing read permissions on some source index fields":
   - skip:
       version: " - 8.4.99"
       reason: "downsample introduced in 8.5.0"

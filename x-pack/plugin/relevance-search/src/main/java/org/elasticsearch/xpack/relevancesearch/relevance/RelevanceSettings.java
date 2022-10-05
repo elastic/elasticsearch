@@ -7,17 +7,20 @@
 
 package org.elasticsearch.xpack.relevancesearch.relevance;
 
-import java.util.List;
-
 public class RelevanceSettings {
 
-    private List<String> fields;
+    // TODO - Are these needed later on?
+    private final String TYPE = "relevance_settings";
+    private final String QUERY_TYPE = "combined_fields";
 
-    public List<String> getFields() {
-        return fields;
+    private QueryConfiguration queryConfiguration;
+
+    public QueryConfiguration getQueryConfiguration() {
+        return queryConfiguration;
     }
 
-    public void setFields(List<String> fields) {
-        this.fields = fields;
+    public void setQueryConfiguration(QueryConfiguration queryConfiguration) {
+        this.queryConfiguration = queryConfiguration;
     }
+
 }

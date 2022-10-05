@@ -106,7 +106,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     }
 
     /**
-     * Constructs a new text query.
+     * Constructs a new text query using default field boost weights
      */
     public CombinedFieldsQueryBuilder(Object value, String... fields) {
         if (value == null) {
@@ -120,6 +120,21 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         for (String field : fields) {
             field(field);
         }
+    }
+
+    /**
+     * Constructs a new text query respecting specified per-field boost weights
+     */
+    public CombinedFieldsQueryBuilder(Object value, Map<String, Float> fieldsAndBoosts) {
+        if (value == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires query value");
+        }
+        if (fieldsAndBoosts == null || fieldsAndBoosts.isEmpty()) {
+            throw new IllegalArgumentException("[" + NAME + "] requires field list");
+        }
+        this.value = value;
+        this.fieldsAndBoosts = new TreeMap<>();
+        fieldsAndBoosts.forEach(this::field);
     }
 
     /**

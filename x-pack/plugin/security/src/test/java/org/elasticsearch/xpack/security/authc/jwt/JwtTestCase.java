@@ -621,7 +621,7 @@ public abstract class JwtTestCase extends ESTestCase {
     }
 
     public static SecureRandom secureRandom(final byte[] seed) {
-        LOGGER.warn("Seed: {}", Base64.getEncoder().encodeToString(seed));
+        LOGGER.warn("Seed: {}", Base64.getEncoder().encodeToString(seed)); // TODO Remove temp log message for reproducibility check
         return ESTestCase.secureRandom(seed);
     }
 }

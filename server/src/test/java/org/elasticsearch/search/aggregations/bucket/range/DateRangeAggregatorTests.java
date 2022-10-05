@@ -529,7 +529,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
                 InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>> agg = searchAndReduce(
-                    new AggTestConfig(indexSearcher, aggregationBuilder, fieldType).withQuery(query)
+                    indexSearcher,
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
                 );
                 verify.accept(agg);
 

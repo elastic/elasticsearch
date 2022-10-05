@@ -400,7 +400,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
              * lets us create a fairly small test index.
              */
             int maxBuckets = 200;
-            StringTerms result = searchAndReduce(new AggTestConfig(searcher, aggregationBuilder, s1ft, s2ft).withMaxBuckets(maxBuckets));
+            StringTerms result = searchAndReduce(searcher, new AggTestConfig(aggregationBuilder, s1ft, s2ft).withMaxBuckets(maxBuckets));
             assertThat(
                 result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
                 equalTo(List.of("b007", "b107", "b207", "b307", "b407", "b507", "b607", "b707", "b807", "b907", "b000"))
@@ -1371,7 +1371,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("keyword");
 
-                    InternalGlobal result = searchAndReduce(new AggTestConfig(indexSearcher, globalBuilder, fieldType));
+                    InternalGlobal result = searchAndReduce(indexSearcher, new AggTestConfig(globalBuilder, fieldType));
                     InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                     assertThat(terms.getBuckets().size(), equalTo(3));
                     for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
@@ -1420,11 +1420,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         );
                         try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                             {
+                                // match root document only
                                 InternalNested result = searchAndReduce(
-                                    // match root document only
-                                    new AggTestConfig(newSearcher(indexReader, false, true), nested, fieldType).withQuery(
-                                        new FieldExistsQuery(PRIMARY_TERM_NAME)
-                                    )
+                                    newSearcher(indexReader, false, true),
+                                    new AggTestConfig(nested, fieldType).withQuery(new FieldExistsQuery(PRIMARY_TERM_NAME))
                                 );
                                 InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                                 assertNestedTopHitsScore(terms, withScore);
@@ -1433,11 +1432,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             {
                                 FilterAggregationBuilder filter = new FilterAggregationBuilder("filter", new MatchAllQueryBuilder())
                                     .subAggregation(nested);
+                                // match root document only
                                 InternalFilter result = searchAndReduce(
-                                    // match root document only
-                                    new AggTestConfig(newSearcher(indexReader, false, true), filter, fieldType).withQuery(
-                                        new FieldExistsQuery(PRIMARY_TERM_NAME)
-                                    )
+                                    newSearcher(indexReader, false, true),
+                                    new AggTestConfig(filter, fieldType).withQuery(new FieldExistsQuery(PRIMARY_TERM_NAME))
                                 );
                                 InternalNested nestedResult = result.getAggregations().get("nested");
                                 InternalMultiBucketAggregation<?, ?> terms = nestedResult.getAggregations().get("terms");
@@ -1469,11 +1467,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     .size(10)
                     .order(BucketOrder.aggregation("nested>max_number", false));
                 try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                    // match root document only
                     StringTerms result = searchAndReduce(
-                        // match root document only
-                        new AggTestConfig(newSearcher(indexReader, false, true), terms, animalFieldType, nestedFieldType).withQuery(
-                            Queries.newNonNestedFilter()
-                        )
+                        newSearcher(indexReader, false, true),
+                        new AggTestConfig(terms, animalFieldType, nestedFieldType).withQuery(Queries.newNonNestedFilter())
                     );
                     assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("pig"));
                     assertThat(result.getBuckets().get(0).docCount, equalTo(1L));
@@ -1509,11 +1506,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 MappedFieldType nestedFieldType = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
                 try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                    // match root document only
                     LongTerms result = searchAndReduce(
-                        // match root document only
-                        new AggTestConfig(newSearcher(indexReader, false, true), terms, fieldType, nestedFieldType).withQuery(
-                            new FieldExistsQuery(PRIMARY_TERM_NAME)
-                        )
+                        newSearcher(indexReader, false, true),
+                        new AggTestConfig(terms, fieldType, nestedFieldType).withQuery(new FieldExistsQuery(PRIMARY_TERM_NAME))
                     );
                     assertThat(result.getBuckets().get(0).term, equalTo(3L));
                     assertThat(
@@ -1691,7 +1687,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 .executionHint(executionHint)
                                 .subAggregation(new TermsAggregationBuilder("k").field("k").executionHint(executionHint))
                         );
-                    StringTerms result = searchAndReduce(new AggTestConfig(searcher, request, ift, jft, kft));
+                    StringTerms result = searchAndReduce(searcher, new AggTestConfig(request, ift, jft, kft));
                     for (int i = 0; i < 10; i++) {
                         StringTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
                         assertThat(iBucket.getDocCount(), equalTo(100L));
@@ -1732,7 +1728,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             new TermsAggregationBuilder("j").field("j").subAggregation(new TermsAggregationBuilder("k").field("k"))
                         );
                     LongTerms result = searchAndReduce(
-                        new AggTestConfig(searcher, request, longField("i"), longField("j"), longField("k"))
+                        searcher,
+                        new AggTestConfig(request, longField("i"), longField("j"), longField("k"))
                     );
                     for (int i = 0; i < 10; i++) {
                         LongTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
@@ -1869,16 +1866,12 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-                LongTerms terms = searchAndReduce(
-                    new AggTestConfig(
-                        indexSearcher,
-                        aggregationBuilder,
-                        new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER),
-                        bIsString
-                            ? new KeywordFieldMapper.KeywordFieldType("b")
-                            : new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER)
-                    ).withSplitLeavesIntoSeperateAggregators(false).withMaxBuckets(Integer.MAX_VALUE)
-                );
+                AggTestConfig aggTestConfig = new AggTestConfig(
+                    aggregationBuilder,
+                    new NumberFieldType("a", NumberType.INTEGER),
+                    bIsString ? new KeywordFieldType("b") : new NumberFieldType("b", NumberType.INTEGER)
+                ).withSplitLeavesIntoSeperateAggregators(false).withMaxBuckets(Integer.MAX_VALUE);
+                LongTerms terms = searchAndReduce(indexSearcher, aggTestConfig);
                 assertThat(
                     terms.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(toList()),
                     equalTo(List.of(9L, 8L, 7L))

@@ -625,7 +625,8 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 }
 
                 final InternalVariableWidthHistogram histogram = searchAndReduce(
-                    new AggTestConfig(indexSearcher, aggregationBuilder, fieldType).withQuery(query)
+                    indexSearcher,
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
                 );
                 verify.accept(histogram);
             }

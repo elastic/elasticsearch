@@ -76,7 +76,7 @@ setup:
           index.blocks.write: true
 
 ---
-"Downsample user missing permissions on source index":
+"Downsample user missing admin permissions to run the downsample operation":
   - skip:
       version: " - 8.4.99"
       reason: "downsample introduced in 8.5.0"
@@ -89,8 +89,12 @@ setup:
           {
             "indices": [
               {
-                "names": ["target"],
+                "names": ["source"],
                 "privileges": ["read"]
+              },
+              {
+                "names": ["target"],
+                "privileges": ["write"]
               }
             ]
           }
@@ -117,7 +121,7 @@ setup:
           }
 
 ---
-"Downsample user missing read permissions on some source index fields":
+"Downsample admin user with field level security settings defined on the source index":
   - skip:
       version: " - 8.4.99"
       reason: "downsample introduced in 8.5.0"
@@ -130,8 +134,8 @@ setup:
           {
             "indices": [
               {
-                "names": ["source"],
-                "privileges": ["read"],
+                "names": ["source", "target"],
+                "privileges": ["all"],
                 "field_security": {
                   "grant": ["@timestamp", "k8s.pod.network.*"]
                 }
@@ -151,7 +155,7 @@ setup:
   # Downsample using `1h` fixed interval
   - do:
       headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
-      catch: '/action \[indices:admin/xpack/downsample\] is unauthorized for user \[downsample-user\] with effective roles \[downsample-role\] on indices \[source\], this action is granted by the index privileges \[manage,all\]/'
+      catch: '/Rollup forbidden for index \[source\] with document level or field level security settings\./'
       indices.downsample:
         index: source
         target_index: target
@@ -161,76 +165,7 @@ setup:
           }
 
 ---
-"User with all permissions on source index but no permissions on the target index (document level security)":
-  - skip:
-      version: " - 8.4.99"
-      reason: "downsample introduced in 8.5.0"
-      features: headers
-
-  - do:
-      security.put_role:
-        name: "downsample-role"
-        body: >
-          {
-            "indices": [
-              {
-                "names": ["source"],
-                "privileges": ["all"],
-                "query": { "match_all": {} }
-              }
-            ]
-          }
-
-  # User performing the downsample operation
-  - do:
-      security.put_user:
-        username: "downsample-user"
-        body: >
-          {
-            "password" : "x-pack-test-password",
-            "roles" : [ "downsample-role" ],
-            "full_name" : "user with all privileges on downsample source and target indices"
-          }
-
-  - do:
-      security.put_role:
-        name: "user-role"
-        body: >
-          {
-            "indices": [
-              {
-                "names": ["source"],
-                "privileges": ["all"],
-                "query": { "match_all": {} }
-              }
-            ]
-          }
-
-  # User accessing downsample source and target index with permissions only on the source index
-  - do:
-      security.put_user:
-        username: "user"
-        body: >
-          {
-            "password" : "x-pack-test-password",
-            "roles" : [ "user-role" ],
-            "full_name" : "user who can read documents in the downsample source index but without permissions on the downsample target index"
-          }
-
-  # Downsample using `1h` fixed interval
-  - do:
-      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
-      catch: '/Rollup forbidden for index \[source\] with document level or field level security settings./'
-      indices.downsample:
-        index: source
-        target_index: target
-        body: >
-          {
-            "fixed_interval": "1h"
-          }
-
----
-"User with limited permissions on a set of fields in the source and target index (field level security)":
+"Downsample admin user with document level security settings defined on the source index":
   - skip:
       version: " - 8.4.99"
       reason: "downsample introduced in 8.5.0"
@@ -261,33 +196,6 @@ setup:
             "full_name" : "user with all privileges on downsample source and target indices"
           }
 
-  - do:
-      security.put_role:
-        name: "user-role"
-        body: >
-          {
-            "indices": [
-              {
-                "names": [ "source", "target" ],
-                "privileges": [ "read" ],
-                "field_security": {
-                  "grant": [ "k8s.pod.network.*" ]
-                }
-              }
-            ]
-          }
-
-  # User accessing downsample source and target index with permissions only on the source index
-  - do:
-      security.put_user:
-        username: "user"
-        body: >
-          {
-            "password" : "x-pack-test-password",
-            "roles" : [ "user-role" ],
-            "full_name" : "user who can read documents in the downsample source index but without permissions on the downsample target index"
-          }
-
   # Downsample using `1h` fixed interval
   - do:
       headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
@@ -299,3 +207,57 @@ setup:
           {
             "fixed_interval": "1h"
           }
+
+---
+"Downsample admin user without document level or field level security settings defined on the source index":
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+      features: headers
+
+  - do:
+      security.put_role:
+        name: "downsample-role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["source", "target"],
+                "privileges": ["all"]
+              }
+            ]
+          }
+
+  # User performing the downsample operation
+  - do:
+      security.put_user:
+        username: "downsample-user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "downsample-role" ],
+            "full_name" : "user with all privileges on downsample source and target indices"
+          }
+
+  # Downsample using `1h` fixed interval
+  - do:
+      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      indices.downsample:
+        index: source
+        target_index: target
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
+      search:
+        index: target
+        body:
+          query:
+            match_all: {}
+
+  - length: { hits.hits: 4 }

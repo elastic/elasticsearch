@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
@@ -1534,8 +1533,9 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.counter ?
-                    TimeSeriesValuesSourceType.COUNTER : type.numericType.getValuesSourceType();
+                ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.counter
+                    ? TimeSeriesValuesSourceType.COUNTER
+                    : type.numericType.getValuesSourceType();
                 return type.getFieldDataBuilder(name(), valuesSourceType);
             }
 

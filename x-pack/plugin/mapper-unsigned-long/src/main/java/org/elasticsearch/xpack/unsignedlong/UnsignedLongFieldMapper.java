@@ -301,8 +301,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
                 return (cache, breakerService) -> {
-                    ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.counter ?
-                        TimeSeriesValuesSourceType.COUNTER : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
+                    ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.counter
+                        ? TimeSeriesValuesSourceType.COUNTER
+                        : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
                     final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
                         name(),
                         IndexNumericFieldData.NumericType.LONG,

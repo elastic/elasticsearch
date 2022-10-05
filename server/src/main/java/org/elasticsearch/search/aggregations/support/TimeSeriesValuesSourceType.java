@@ -20,6 +20,7 @@ public enum TimeSeriesValuesSourceType implements ValuesSourceType {
         public ValuesSource getEmpty() {
             throw new IllegalArgumentException("Cannot use unmapped counter field");
         }
+
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
             throw new IllegalArgumentException("Cannot use scripts for time-series counters");

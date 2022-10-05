@@ -50,7 +50,12 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
             this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory);
         }
 
-        public Builder(String name, NumericType numericType, ValuesSourceType valuesSourceType, ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory) {
+        public Builder(
+            String name,
+            NumericType numericType,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
+        ) {
             this.name = name;
             this.numericType = numericType;
             this.valuesSourceType = valuesSourceType;

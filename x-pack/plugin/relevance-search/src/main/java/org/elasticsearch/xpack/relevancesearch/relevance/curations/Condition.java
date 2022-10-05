@@ -44,7 +44,7 @@ public abstract class Condition {
 
         @Override
         public boolean match(RelevanceMatchQueryBuilder queryBuilder) {
-            return getValue().equals(queryBuilder.getQuery());
+            return getValue().equals(normalizeValue(queryBuilder.getQuery()));
         }
 
         private static String normalizeValue(String value) {

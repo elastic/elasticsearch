@@ -13,9 +13,13 @@ import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.relevancesearch.RelevanceSearchPlugin;
@@ -24,6 +28,7 @@ import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationSetti
 import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
 import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettings;
 import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
+import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,10 +46,25 @@ import static org.mockito.Mockito.when;
 
 public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<RelevanceMatchQueryBuilder> {
 
+    private RelevanceSettingsService relevanceSettingsService;
+    private CurationsService curationsService;
+    private QueryFieldsResolver queryFieldsResolver;
+
+    private RelevanceMatchQueryBuilder queryBuilder;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+
+        relevanceSettingsService = mock(RelevanceSettingsService.class);
+        curationsService = mock(CurationsService.class);
+        queryFieldsResolver = mock(QueryFieldsResolver.class);
+
+        queryBuilder = new RelevanceMatchQueryBuilder();
+
+        queryBuilder.setRelevanceSettingsService(relevanceSettingsService);
+        queryBuilder.setCurationsService(curationsService);
+        queryBuilder.setQueryFieldsResolver(queryFieldsResolver);
     }
 
     @Override
@@ -82,17 +102,147 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
         assertEquals(json, "test-curations", parsed.getCurationsSettingsId());
     }
 
+    public void testQueryWithRelevanceSettings() throws RelevanceSettingsService.RelevanceSettingsNotFoundException, IOException {
+
+        final String queryText = "query";
+        queryBuilder.setQuery(queryText);
+
+        List<String> fields = List.of("field1", "field2", "field3");
+        setRelevanceSettings(queryBuilder, "test-relevance-settings", fields);
+
+        final SearchExecutionContext context = createSearchExecutionContext();
+        Query obtainedQuery = queryBuilder.toQuery(context);
+
+        Query expectedQuery = QueryBuilders.combinedFieldsQuery(queryText, fields.toArray(new String[0])).toQuery(context);
+
+        assertEquals(expectedQuery, obtainedQuery);
+    }
+
+    private void setRelevanceSettings(RelevanceMatchQueryBuilder queryBuilder, String relevanceSettingsId, List<String> fields)
+        throws RelevanceSettingsService.RelevanceSettingsNotFoundException {
+        queryBuilder.setRelevanceSettingsId(relevanceSettingsId);
+
+        RelevanceSettings relevanceSettings = new RelevanceSettings();
+        relevanceSettings.setFields(fields);
+        when(relevanceSettingsService.getRelevanceSettings(relevanceSettingsId)).thenReturn(relevanceSettings);
+    }
+
+    public void testQueryWithCurations() throws IOException, CurationsService.CurationsSettingsNotFoundException,
+        RelevanceSettingsService.RelevanceSettingsNotFoundException {
+
+        final String queryText = "match query";
+        queryBuilder.setQuery(queryText);
+
+        List<String> fields = List.of(TEXT_FIELD_NAME);
+        setRelevanceSettings(queryBuilder, "test-relevance-settings", fields);
+
+        final String pinnedDoc1Id = "pinnedDoc1";
+        final String pinnedDoc2Id = "pinnedDoc2";
+        final String pinnedIndex = "index1";
+        final String hiddenDoc1Id = "hiddenDoc1";
+        final String hiddenDoc2Id = "hiddenDoc2";
+        final String hiddenIndex = "index2";
+        setCurationsSettings(
+            queryBuilder,
+            "test-curation-settings",
+            List.of(
+                new CurationSettings.DocumentReference(pinnedDoc1Id, pinnedIndex),
+                new CurationSettings.DocumentReference(pinnedDoc2Id, pinnedIndex)
+            ),
+            List.of(
+                new CurationSettings.DocumentReference(hiddenDoc1Id, hiddenIndex),
+                new CurationSettings.DocumentReference(hiddenDoc2Id, hiddenIndex)
+            ),
+            List.of(new Condition.QueryCondition("another query"), new Condition.QueryCondition(queryText))
+        );
+
+        final SearchExecutionContext context = createSearchExecutionContext();
+        context.setAllowUnmappedFields(true);
+        Query obtainedQuery = queryBuilder.toQuery(context);
+
+        Query expectedQuery = new BoolQueryBuilder().should(
+            new PinnedQueryBuilder(
+                new CombinedFieldsQueryBuilder(queryText, fields.toArray(new String[0])),
+                new PinnedQueryBuilder.Item(pinnedIndex, pinnedDoc1Id),
+                new PinnedQueryBuilder.Item(pinnedIndex, pinnedDoc2Id)
+            )
+        )
+            .filter(
+                new BoolQueryBuilder().mustNot(
+                    new BoolQueryBuilder().must(new TermsQueryBuilder("_index", hiddenIndex))
+                        .must(new TermsQueryBuilder("_id", hiddenDoc1Id))
+                )
+                    .mustNot(
+                        new BoolQueryBuilder().must(new TermsQueryBuilder("_index", hiddenIndex))
+                            .must(new TermsQueryBuilder("_id", hiddenDoc2Id))
+                    )
+            )
+            .toQuery(context);
+
+        assertEquals(expectedQuery, obtainedQuery);
+    }
+
+    public void testQueryWithCurationDoesNotMatchQuery() throws IOException, CurationsService.CurationsSettingsNotFoundException,
+        RelevanceSettingsService.RelevanceSettingsNotFoundException {
+
+        final String queryText = "match query";
+        queryBuilder.setQuery(queryText);
+
+        List<String> fields = List.of(TEXT_FIELD_NAME);
+        setRelevanceSettings(queryBuilder, "test-relevance-settings", fields);
+
+        final String pinnedDoc1Id = "pinnedDoc1";
+        final String pinnedDoc2Id = "pinnedDoc2";
+        final String pinnedIndex = "index1";
+        final String hiddenDoc1Id = "hiddenDoc1";
+        final String hiddenDoc2Id = "hiddenDoc2";
+        final String hiddenIndex = "index2";
+        setCurationsSettings(
+            queryBuilder,
+            "test-curation-settings",
+            List.of(
+                new CurationSettings.DocumentReference(pinnedDoc1Id, pinnedIndex),
+                new CurationSettings.DocumentReference(pinnedDoc2Id, pinnedIndex)
+            ),
+            List.of(
+                new CurationSettings.DocumentReference(hiddenDoc1Id, hiddenIndex),
+                new CurationSettings.DocumentReference(hiddenDoc2Id, hiddenIndex)
+            ),
+            List.of(new Condition.QueryCondition("another query"), new Condition.QueryCondition("non-matching query"))
+        );
+
+        final SearchExecutionContext context = createSearchExecutionContext();
+        context.setAllowUnmappedFields(true);
+        Query obtainedQuery = queryBuilder.toQuery(context);
+
+        Query expectedQuery = QueryBuilders.combinedFieldsQuery(queryText, fields.toArray(new String[0])).toQuery(context);
+
+        assertEquals(expectedQuery, obtainedQuery);
+    }
+
+    private void setCurationsSettings(
+        RelevanceMatchQueryBuilder queryBuilder,
+        String curationsId,
+        List<CurationSettings.DocumentReference> pinnedDocs,
+        List<CurationSettings.DocumentReference> hiddenDocs,
+        List<Condition> conditions
+    ) throws CurationsService.CurationsSettingsNotFoundException {
+        queryBuilder.setCurationsSettingsId(curationsId);
+
+        CurationSettings curationSettings = new CurationSettings(pinnedDocs, hiddenDocs, conditions);
+
+        when(curationsService.getCurationsSettings(curationsId)).thenReturn(curationSettings);
+    }
+
     @Override
     protected RelevanceMatchQueryBuilder doCreateTestQueryBuilder() {
-        final RelevanceMatchQueryBuilder builder = new RelevanceMatchQueryBuilder();
 
-        RelevanceSettingsService relevanceSettingsService = mock(RelevanceSettingsService.class);
-        CurationsService curationsService = mock(CurationsService.class);
+        queryBuilder.setQuery(getRandomQueryText());
 
-        builder.setQuery(getRandomQueryText());
+        // Relevance settings - create random settings and retrieve them via RelevanceSettingsService
         if (randomBoolean()) {
             final String relevanceSettingsId = randomAlphaOfLengthBetween(1, 10);
-            builder.setRelevanceSettingsId(relevanceSettingsId);
+            queryBuilder.setRelevanceSettingsId(relevanceSettingsId);
 
             RelevanceSettings relevanceSettings = new RelevanceSettings();
             relevanceSettings.setFields(List.of(generateRandomStringArray(10, 10, false, false)));
@@ -106,9 +256,11 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
             }
 
         }
+
+        // Curations - create random curation and retrieve via CurationsService
         if (randomBoolean()) {
             final String curationsSettingsId = randomAlphaOfLengthBetween(1, 10);
-            builder.setCurationsSettingsId(curationsSettingsId);
+            queryBuilder.setCurationsSettingsId(curationsSettingsId);
 
             CurationSettings curationSettings = new CurationSettings(
                 randomDocReferenceList(),
@@ -126,13 +278,9 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
             }
         }
 
-        QueryFieldsResolver queryFieldsResolver = mock(QueryFieldsResolver.class);
-        when(queryFieldsResolver.getQueryFields(any())).thenReturn(randomSet(0, 10, () -> randomString()));
+        when(queryFieldsResolver.getQueryFields(any())).thenReturn(randomSet(0, 10, RelevanceMatchQueryBuilderTests::randomString));
 
-        builder.setRelevanceSettingsService(relevanceSettingsService);
-        builder.setCurationsService(curationsService);
-
-        return builder;
+        return queryBuilder;
     }
 
     @Override
@@ -175,6 +323,9 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
         However, services have not been created as plugin creation is mocked, and thus createComponents() is not invoked.
         We probably have a way around this, but it seems that QueryBuilders should not rely on external services, or we need to
         find a way of having these services created.
+
+        Thought: Override copyQuery() method (private -> protected), and do something similar to rewriteQuery.
+        This is something that plugins should provide, but do not because of the plugins mocking
          */
     }
 

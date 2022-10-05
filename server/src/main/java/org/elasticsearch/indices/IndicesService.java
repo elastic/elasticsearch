@@ -1657,21 +1657,21 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }).toList();
             if (filters.isEmpty()) {
-                return new AliasFilter(null, aliases);
+                return AliasFilter.of(null, aliases);
             } else {
                 if (filters.size() == 1) {
-                    return new AliasFilter(filters.get(0), aliases);
+                    return AliasFilter.of(filters.get(0), aliases);
                 } else {
                     BoolQueryBuilder bool = new BoolQueryBuilder();
                     for (QueryBuilder filter : filters) {
                         bool.should(filter);
                     }
-                    return new AliasFilter(bool, aliases);
+                    return AliasFilter.of(bool, aliases);
                 }
             }
         } else {
             IndexMetadata indexMetadata = metadata.index(index);
-            return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+            return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
         }
     }
 

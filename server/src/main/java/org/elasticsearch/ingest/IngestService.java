@@ -251,11 +251,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
                     if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
                         defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
-                        // we can not break in case a lower-order template has a final pipeline that we need to collect
                     }
                     if (IndexSettings.FINAL_PIPELINE.exists(settings)) {
                         finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
-                        // we can not break in case a lower-order template has a default pipeline that we need to collect
                     }
                     indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
                     indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME));

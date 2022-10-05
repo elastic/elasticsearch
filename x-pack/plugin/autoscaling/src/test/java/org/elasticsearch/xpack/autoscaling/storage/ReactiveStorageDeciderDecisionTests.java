@@ -431,14 +431,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, nodes, shardIds, shardNodeDecisions -> {
             assertEquals(cappedShardIds(shardIds), shardNodeDecisions.keySet());
-            assertEquals(hotNodes - 1, shardNodeDecisions.get(shardIds.first()).canAllocateDecisions().size());
-            assertTrue(
-                shardNodeDecisions.get(shardIds.first())
-                    .canRemainDecisions()
-                    .stream()
-                    .map(NodeDecision::decision)
-                    .allMatch(d -> d.type() == Decision.Type.NO)
-            );
+            List<NodeDecision> canAllocateDecisions = shardNodeDecisions.get(shardIds.first()).canAllocateDecisions();
+            assertEquals(hotNodes - 1, canAllocateDecisions.size());
+            assertDebugNoDecision(canAllocateDecisions.get(0).decision());
+
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
                 firstNoDecision(shardNodeDecisions.get(shardIds.first()).canRemainDecisions().get(0))
@@ -459,14 +455,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         // only consider it once (move case) if both cannot remain and cannot allocate.
         verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, nodes, shardIds, shardNodeDecisions -> {
             assertEquals(cappedShardIds(shardIds), shardNodeDecisions.keySet());
-            assertEquals(hotNodes - 1, shardNodeDecisions.get(shardIds.first()).canAllocateDecisions().size());
-            assertTrue(
-                shardNodeDecisions.get(shardIds.first())
-                    .canAllocateDecisions()
-                    .stream()
-                    .map(NodeDecision::decision)
-                    .allMatch(d -> d.type() == Decision.Type.NO)
-            );
+            List<NodeDecision> canAllocateDecisions = shardNodeDecisions.get(shardIds.first()).canAllocateDecisions();
+            assertEquals(hotNodes - 1, canAllocateDecisions.size());
+            assertDebugNoDecision(canAllocateDecisions.get(0).decision());
+
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
                 firstNoDecision(shardNodeDecisions.get(shardIds.first()).canRemainDecisions().get(0))
@@ -476,14 +468,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         verifyScale(nodes, "not enough storage available, needs " + nodes + "b", shardNodeDecisions -> {
             assertEquals(cappedShardIds(shardIds), shardNodeDecisions.keySet());
-            assertEquals(hotNodes - 1, shardNodeDecisions.get(shardIds.first()).canAllocateDecisions().size());
-            assertTrue(
-                shardNodeDecisions.get(shardIds.first())
-                    .canAllocateDecisions()
-                    .stream()
-                    .map(NodeDecision::decision)
-                    .allMatch(d -> d.type() == Decision.Type.NO)
-            );
+            List<NodeDecision> canAllocateDecisions = shardNodeDecisions.get(shardIds.first()).canAllocateDecisions();
+            assertEquals(hotNodes - 1, canAllocateDecisions.size());
+            assertDebugNoDecision(canAllocateDecisions.get(0).decision());
+
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
                 firstNoDecision(shardNodeDecisions.get(shardIds.first()).canRemainDecisions().get(0))
@@ -492,6 +480,12 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         }, Map::isEmpty, mockCanRemainDiskDecider, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok", Map::isEmpty, Map::isEmpty, mockCanRemainDiskDecider, CAN_REMAIN_NO_DECIDER, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok", Map::isEmpty, Map::isEmpty);
+    }
+
+    private static void assertDebugNoDecision(Decision canAllocateDecision) {
+        assertEquals(Decision.Type.NO, canAllocateDecision.type());
+        assertTrue(canAllocateDecision.getDecisions().stream().anyMatch(d -> d.type() == Decision.Type.NO));
+        assertTrue(canAllocateDecision.getDecisions().stream().anyMatch(d -> d.type() == Decision.Type.YES));
     }
 
     private static SortedSet<ShardId> cappedShardIds(SortedSet<ShardId> shardIds) {

@@ -112,9 +112,6 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
                     validationException = ValidateActions.addValidationError("index name can't be empty", validationException);
                 }
             }
-            if (Strings.hasText(relevanceSettingsId) == false) {
-                validationException = ValidateActions.addValidationError("relevance_settings_id is missing", validationException);
-            }
 
             return validationException;
         }

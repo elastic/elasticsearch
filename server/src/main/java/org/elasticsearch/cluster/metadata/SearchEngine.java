@@ -29,7 +29,6 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     public static final ParseField INDICES_FIELD = new ParseField("index");
     public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
-
     public static final ParseField RELEVANCE_SETTINGS_ID_FIELD = new ParseField("relevance_settings_id");
 
     @SuppressWarnings("unchecked")
@@ -43,7 +42,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), RELEVANCE_SETTINGS_ID_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), RELEVANCE_SETTINGS_ID_FIELD);
     }
 
     public static SearchEngine fromXContent(XContentParser parser) throws IOException {
@@ -69,7 +68,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
     }
 
     public SearchEngine(StreamInput in) throws IOException {
-        this(in.readString(), in.readList(Index::new), in.readBoolean(), in.readBoolean(), in.readString());
+        this(in.readString(), in.readList(Index::new), in.readBoolean(), in.readBoolean(), in.readOptionalString());
     }
 
     public String getName() {
@@ -110,7 +109,7 @@ public class SearchEngine implements SimpleDiffable<SearchEngine>, ToXContentObj
         out.writeList(indices);
         out.writeBoolean(isHidden);
         out.writeBoolean(isSystem);
-        out.writeString(relevanceSettingsId);
+        out.writeOptionalString(relevanceSettingsId);
     }
 
     @Override

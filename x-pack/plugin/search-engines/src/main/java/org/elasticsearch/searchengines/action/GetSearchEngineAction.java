@@ -158,7 +158,10 @@ public class GetSearchEngineAction extends ActionType<GetSearchEngineAction.Resp
                 builder.startObject();
 
                 builder.field(NAME_FIELD.getPreferredName(), searchEngine.getName());
-                builder.field(RELEVANCE_SETTINGS_ID_FIELD.getPreferredName(), searchEngine.getRelevanceSettingsId());
+
+                if (searchEngine.getRelevanceSettingsId() != null) {
+                    builder.field(RELEVANCE_SETTINGS_ID_FIELD.getPreferredName(), searchEngine.getRelevanceSettingsId());
+                }
 
                 builder.startArray(INDICES_FIELD.getPreferredName());
                 for (Index index : searchEngine.getIndices()) {

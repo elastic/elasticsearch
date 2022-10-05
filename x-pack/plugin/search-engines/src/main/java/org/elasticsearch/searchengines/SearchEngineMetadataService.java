@@ -22,8 +22,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.searchengines.action.PutSearchEngineAction;
 import org.elasticsearch.searchengines.action.DeleteSearchEngineAction;
+import org.elasticsearch.searchengines.action.PutSearchEngineAction;
 
 import java.io.IOException;
 import java.util.ArrayList;

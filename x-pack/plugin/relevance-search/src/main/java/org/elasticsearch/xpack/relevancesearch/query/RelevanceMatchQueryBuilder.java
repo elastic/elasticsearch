@@ -111,7 +111,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     @Override
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
 
-        Map<String,Float> fieldsAndBoosts;
+        Map<String, Float> fieldsAndBoosts;
         if (relevanceSettingsId != null) {
             try {
                 RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);

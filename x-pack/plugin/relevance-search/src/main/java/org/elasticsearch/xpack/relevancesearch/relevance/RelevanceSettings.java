@@ -15,10 +15,12 @@ public class RelevanceSettings {
 
     private QueryConfiguration queryConfiguration;
 
-    public QueryConfiguration getQueryConfiguration() { return queryConfiguration; }
+    public QueryConfiguration getQueryConfiguration() {
+        return queryConfiguration;
+    }
 
-    public void setQueryConfiguration(QueryConfiguration queryConfiguration) { this.queryConfiguration = queryConfiguration; }
-
-
+    public void setQueryConfiguration(QueryConfiguration queryConfiguration) {
+        this.queryConfiguration = queryConfiguration;
+    }
 
 }

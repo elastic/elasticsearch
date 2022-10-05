@@ -308,12 +308,12 @@ matches these templates to your {fleet} data streams based on the
 scheme].
 
 Each default integration pipeline calls a nonexistent, unversioned `@custom` ingest pipeline.
-If left untouched, this pipeline call has no effect on your data.
-However, this pipeline call can be used to create custom pipelines for integrations that persist through upgrades.
-See {fleet-guide}/data-streams-pipeline-tutorial.html[Tutorial: Transform data with custom ingest pipelines] to learn more.
+If unaltered, this pipeline call has no effect on your data. However, you can modify this call to
+create custom pipelines for integrations that persist across upgrades.
+Refer to {fleet-guide}/data-streams-pipeline-tutorial.html[Tutorial: Transform data with custom ingest pipelines] to learn more.
 
-{fleet} doesn't provide a default ingest pipeline for the **Custom logs** integration.
-You can specify a pipeline for this integration in one of two ways: an
+{fleet} doesn't provide a default ingest pipeline for the **Custom logs** integration,
+but you can specify a pipeline for this integration using an 
 <<pipeline-custom-logs-index-template,index template>> or a
 <<pipeline-custom-logs-configuration,custom configuration>>.
 

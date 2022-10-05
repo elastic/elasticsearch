@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
-import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -718,32 +717,6 @@ public class RBACEngine implements AuthorizationEngine {
                     group.allowRestrictedIndices()
                 )
             );
-        }
-        for (final RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : userRole.remoteIndices().remoteIndicesGroups()) {
-            final List<IndicesPermission.Group> groups = remoteIndicesGroup.indicesPermissionGroups();
-            for (var group : groups) {
-                // TODO this is almost identical to the code handling `userRole.indices()` -- we should reuse it
-                final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
-                final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
-                if (group.getFieldPermissions().hasFieldLevelSecurity()) {
-                    final FieldPermissionsDefinition definition = group.getFieldPermissions().getFieldPermissionsDefinition();
-                    assert group.getFieldPermissions().getLimitedByFieldPermissionsDefinition() == null
-                        : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
-                    fieldSecurity = definition.getFieldGrantExcludeGroups();
-                } else {
-                    fieldSecurity = Collections.emptySet();
-                }
-                indices.add(
-                    new GetUserPrivilegesResponse.Indices(
-                        Arrays.asList(group.indices()),
-                        group.privilege().name(),
-                        fieldSecurity,
-                        queries,
-                        group.allowRestrictedIndices(),
-                        remoteIndicesGroup.remoteClusterAliases()
-                    )
-                );
-            }
         }
 
         final Set<RoleDescriptor.ApplicationResourcePrivileges> application = new LinkedHashSet<>();

@@ -6,14 +6,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -124,8 +122,6 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         private final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
         private final Set<BytesReference> queries;
         private final boolean allowRestrictedIndices;
-        @Nullable
-        private final Set<String> remoteClusters;
 
         public Indices(
             Collection<String> indices,
@@ -134,26 +130,12 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             Set<BytesReference> queries,
             boolean allowRestrictedIndices
         ) {
-            this(indices, privileges, fieldSecurity, queries, allowRestrictedIndices, null);
-        }
-
-        public Indices(
-            Collection<String> indices,
-            Collection<String> privileges,
-            Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity,
-            Set<BytesReference> queries,
-            boolean allowRestrictedIndices,
-            @Nullable Collection<String> remoteClusters
-        ) {
             // The use of TreeSet is to provide a consistent order that can be relied upon in tests
             this.indices = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(indices)));
             this.privileges = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(privileges)));
             this.fieldSecurity = Collections.unmodifiableSet(Objects.requireNonNull(fieldSecurity));
             this.queries = Collections.unmodifiableSet(Objects.requireNonNull(queries));
             this.allowRestrictedIndices = allowRestrictedIndices;
-            this.remoteClusters = remoteClusters == null
-                ? null
-                : Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(remoteClusters)));
         }
 
         public Indices(StreamInput in) throws IOException {
@@ -167,12 +149,6 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             }));
             queries = Collections.unmodifiableSet(in.readSet(StreamInput::readBytesReference));
             this.allowRestrictedIndices = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-                final List<String> rcs = in.readOptionalList(StreamInput::readString);
-                this.remoteClusters = rcs == null ? null : Collections.unmodifiableSet(new TreeSet<>(rcs));
-            } else {
-                this.remoteClusters = null;
-            }
         }
 
         public Set<String> getIndices() {
@@ -213,9 +189,6 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                     .append(queries.stream().map(BytesReference::utf8ToString).collect(Collectors.joining(",")))
                     .append("]");
             }
-            if (remoteClusters != null) {
-                sb.append(", remoteClusters=[").append(Strings.collectionToCommaDelimitedString(remoteClusters)).append("]");
-            }
             sb.append("]");
             return sb.toString();
         }
@@ -231,13 +204,12 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 && this.privileges.equals(that.privileges)
                 && this.fieldSecurity.equals(that.fieldSecurity)
                 && this.queries.equals(that.queries)
-                && this.allowRestrictedIndices == that.allowRestrictedIndices
-                && Objects.equals(this.remoteClusters, that.remoteClusters);
+                && this.allowRestrictedIndices == that.allowRestrictedIndices;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, privileges, fieldSecurity, queries, allowRestrictedIndices, remoteClusters);
+            return Objects.hash(indices, privileges, fieldSecurity, queries, allowRestrictedIndices);
         }
 
         @Override
@@ -270,9 +242,6 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 builder.endArray();
             }
             builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
-            if (remoteClusters != null) {
-                builder.field(RoleDescriptor.Fields.REMOTE_CLUSTERS.getPreferredName(), remoteClusters);
-            }
             return builder.endObject();
         }
 
@@ -290,9 +259,6 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             });
             out.writeCollection(queries, StreamOutput::writeBytesReference);
             out.writeBoolean(allowRestrictedIndices);
-            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
-                out.writeOptionalCollection(remoteClusters, StreamOutput::writeString);
-            }
         }
     }
 }

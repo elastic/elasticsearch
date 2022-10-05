@@ -1048,8 +1048,10 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant), new LongPoint(AGGREGABLE_DATE, instant))
                 );
             }
-            try (IndexReader reader = indexWriter.getReader()) {
-                AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft);
+            try (
+                IndexReader reader = indexWriter.getReader();
+                AggregationContext context = createAggregationContext(new IndexSearcher(reader), new MatchAllDocsQuery(), ft)
+            ) {
                 Aggregator agg = createAggregator(builder, context);
                 Matcher<Aggregator> matcher = instanceOf(DateHistogramAggregator.FromDateRange.class);
                 if (usesFromRange == false) {
@@ -1175,7 +1177,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
 
                 InternalDateHistogram histogram = searchAndReduce(
-                    new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldType).withMaxBuckets(maxBucket)
+                    new AggTestConfig(indexSearcher, aggregationBuilder, fieldType).withMaxBuckets(maxBucket).withQuery(query)
                 );
                 verify.accept(histogram);
             }

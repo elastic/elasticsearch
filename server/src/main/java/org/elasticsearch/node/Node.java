@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
+import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -256,7 +257,7 @@ public class Node implements Closeable {
         (key) -> new Setting<>(key, "", (value) -> {
             if (value.length() > 0
                 && (Character.isWhitespace(value.charAt(0)) || Character.isWhitespace(value.charAt(value.length() - 1)))) {
-                throw new IllegalArgumentException(key + " cannot have leading or trailing whitespace " + "[" + value + "]");
+                throw new IllegalArgumentException(key + " cannot have leading or trailing whitespace [" + value + "]");
             }
             if (value.length() > 0 && "node.attr.server_name".equals(key)) {
                 try {
@@ -832,8 +833,12 @@ public class Node implements Closeable {
             FileSettingsService fileSettingsService = new FileSettingsService(
                 clusterService,
                 actionModule.getReservedClusterStateService(),
-                environment
+                environment,
+                client
             );
+
+            actionModule.getReservedClusterStateService()
+                .installStateHandler(new ReservedPipelineAction(ingestService, fileSettingsService));
 
             RestoreService restoreService = new RestoreService(
                 clusterService,
@@ -903,7 +908,8 @@ public class Node implements Closeable {
                 searchModule.getFetchPhase(),
                 responseCollectorService,
                 circuitBreakerService,
-                executorSelector
+                executorSelector,
+                tracer
             );
 
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
@@ -1691,7 +1697,8 @@ public class Node implements Closeable {
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        ExecutorSelector executorSelector
+        ExecutorSelector executorSelector,
+        Tracer tracer
     ) {
         return new SearchService(
             clusterService,
@@ -1702,7 +1709,8 @@ public class Node implements Closeable {
             fetchPhase,
             responseCollectorService,
             circuitBreakerService,
-            executorSelector
+            executorSelector,
+            tracer
         );
     }
 

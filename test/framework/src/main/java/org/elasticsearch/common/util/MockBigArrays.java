@@ -160,6 +160,11 @@ public class MockBigArrays extends BigArrays {
     }
 
     @Override
+    public BigArrays withBreakerService(CircuitBreakerService breakerService) {
+        return new MockBigArrays(this.recycler, breakerService, this.shouldCheckBreaker());
+    }
+
+    @Override
     public ByteArray newByteArray(long size, boolean clearOnResize) {
         final ByteArrayWrapper array = new ByteArrayWrapper(super.newByteArray(size, clearOnResize), clearOnResize);
         if (clearOnResize == false) {

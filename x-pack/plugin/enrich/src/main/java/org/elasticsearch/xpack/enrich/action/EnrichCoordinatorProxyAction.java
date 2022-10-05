@@ -162,7 +162,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                     remoteRequestPermits.release();
                     /*
                      * It is possible that something was added to the queue after the drain and before the permit was released, meaning
-                     * that the other thread could not acquire the permit, leaving an item orphanied in the queue. So we check the queue
+                     * that the other thread could not acquire the permit, leaving an item orphaned in the queue. So we check the queue
                      * again after releasing the permit, and if there is something there we run another loop to pick that thing up. If
                      * another thread has picked it up in the meantime, we'll just exit out of the loop on the next try.
                      */

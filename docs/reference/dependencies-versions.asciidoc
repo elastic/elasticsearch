@@ -1,7 +1,4 @@
 ["appendix",id="dependencies-versions"]
 = Dependencies and versions
 
-[source, text]
-----
-include::{dependencies-dir}/version.properties[]
-----
+See https://artifacts.elastic.co/reports/dependencies/dependencies-{elasticsearch_version}.html[Elastic Stack Third-party Dependencices] for the complete list of dependencies for {es} {elasticsearch_version}.

@@ -194,13 +194,18 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
     private Tuple<CountDownLatch, AtomicLong> removedReservedClusterStateListener(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
-        CountDownLatch savedClusterState = new CountDownLatch(1);
+        CountDownLatch savedClusterState = new CountDownLatch(2);
         AtomicLong metadataVersion = new AtomicLong(-1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+                // we first wait for reserved state version to become 0, then we expect to see it non-zero
                 if (reservedState != null && reservedState.version() == 0L) {
+                    // don't remove the state listener yet, we need it to see the version non-zero
+                    metadataVersion.set(event.state().metadata().version());
+                    savedClusterState.countDown();
+                } else if (reservedState != null && reservedState.version() != 0L && savedClusterState.getCount() < 2) {
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
@@ -279,7 +284,6 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> restore global state from the snapshot");
         var removedReservedState = removedReservedClusterStateListener(masterNode);
-        var restoredReservedState = setupClusterStateListener(masterNode);
 
         clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).get();
 
@@ -289,13 +293,13 @@ public class SnaphotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         // cluster state for file based settings, but instead we reset the version to 0 and 'touch' the operator file
         // so that it gets re-processed.
         logger.info("--> reserved state version will be reset to 0, because of snapshot restore");
-        assertTrue(removedReservedState.v1().await(20, TimeUnit.SECONDS));
+        // double timeout, we restore snapshot then apply the file
+        assertTrue(removedReservedState.v1().await(40, TimeUnit.SECONDS));
 
-        logger.info("--> reserved state would be restored");
-        assertTrue(restoredReservedState.v1().await(20, TimeUnit.SECONDS));
+        logger.info("--> reserved state would be restored to non-zero version");
 
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().metadata(true).waitForMetadataVersion(restoredReservedState.v2().get())
+            new ClusterStateRequest().metadata(true).waitForMetadataVersion(removedReservedState.v2().get())
         ).actionGet();
 
         assertNotNull(clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE));

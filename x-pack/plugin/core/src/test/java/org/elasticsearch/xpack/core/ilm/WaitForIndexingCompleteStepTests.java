@@ -40,7 +40,7 @@ public class WaitForIndexingCompleteStepTests extends AbstractStepTestCase<WaitF
         if (randomBoolean()) {
             key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
         } else {
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
         }
 
         return new WaitForIndexingCompleteStep(key, nextKey);

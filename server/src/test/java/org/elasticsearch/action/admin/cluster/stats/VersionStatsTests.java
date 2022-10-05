@@ -115,7 +115,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         ShardStats shardStats = new ShardStats(
             shardRouting,
             new ShardPath(false, path, path, shardRouting.shardId()),
-            new CommonStats(null, indexShard, new CommonStatsFlags(CommonStatsFlags.Flag.Store)),
+            CommonStats.getShardLevelStats(null, indexShard, new CommonStatsFlags(CommonStatsFlags.Flag.Store)),
             null,
             null,
             null

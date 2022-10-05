@@ -262,7 +262,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
                         emit(foo.toString());
                     }
                 }
@@ -270,7 +270,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             case "append_param" -> (fieldName, params, lookup) -> (ctx) -> new IpFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
                         emit(foo.toString() + getParams().get("param"));
                     }
                 }

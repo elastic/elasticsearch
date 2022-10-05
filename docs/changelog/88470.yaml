@@ -1,6 +1,0 @@
-pr: 88470
-summary: Fix queued snapshot assignments after partial snapshot fails due to delete
-area: Snapshot/Restore
-type: bug
-issues:
- - 86724

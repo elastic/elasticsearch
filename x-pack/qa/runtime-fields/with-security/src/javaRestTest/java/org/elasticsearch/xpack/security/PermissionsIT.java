@@ -309,7 +309,8 @@ public class PermissionsIT extends ESRestTestCase {
             responseException.getMessage(),
             containsString(
                 "action [cluster:admin/scripts/painless/execute] is "
-                    + "unauthorized for user [test] with roles [test], this action is granted by the cluster privileges [manage,all]\"}]"
+                    + "unauthorized for user [test] with effective roles [test]"
+                    + ", this action is granted by the cluster privileges [manage,all]\"}]"
             )
         );
     }

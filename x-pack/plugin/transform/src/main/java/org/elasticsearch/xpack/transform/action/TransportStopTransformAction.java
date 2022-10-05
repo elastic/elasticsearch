@@ -242,8 +242,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     } catch (ElasticsearchException ex) {
                         listener.onFailure(ex);
                     }
-                },
-                    e -> listener.onFailure(
+                }, e -> {
+                    logger.debug("failure setting should_stop_at_checkpoint", e);
+                    listener.onFailure(
                         new ElasticsearchStatusException(
                             "Failed to update transform task [{}] state value should_stop_at_checkpoint from [{}] to [{}]",
                             RestStatus.CONFLICT,
@@ -252,8 +253,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                             transformTask.getState().shouldStopAtNextCheckpoint(),
                             request.isWaitForCheckpoint()
                         )
-                    )
-                ));
+                    );
+                }));
             });
         } else {
             listener.onFailure(

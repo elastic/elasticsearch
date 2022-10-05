@@ -28,7 +28,7 @@ public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfoll
         if (randomBoolean()) {
             key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
         } else {
-            nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            nextKey = new Step.StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
         }
 
         return newInstance(key, nextKey);

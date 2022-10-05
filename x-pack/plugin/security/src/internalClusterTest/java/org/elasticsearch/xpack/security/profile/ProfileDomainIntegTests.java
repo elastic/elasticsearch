@@ -298,9 +298,9 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                     final Authentication authentication = assembleAuthentication(username, randomRealmRef());
                     final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
                     final PlainActionFuture<Profile> future = new PlainActionFuture<>();
-                    profileService.activateProfile(authentication, future);
                     readyLatch.countDown();
                     startLatch.await();
+                    profileService.activateProfile(authentication, future);
                     try {
                         final String uid = future.actionGet().uid();
                         logger.info("created profile [{}] for authentication [{}]", uid, authentication);

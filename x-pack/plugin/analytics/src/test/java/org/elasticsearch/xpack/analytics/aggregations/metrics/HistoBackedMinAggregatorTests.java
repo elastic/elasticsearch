@@ -135,6 +135,6 @@ public class HistoBackedMinAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType defaultFieldType() {
-        return new HistogramFieldMapper.HistogramFieldType(HistoBackedMinAggregatorTests.FIELD_NAME, Collections.emptyMap(), null);
+        return new HistogramFieldMapper.HistogramFieldType(HistoBackedMinAggregatorTests.FIELD_NAME, Collections.emptyMap());
     }
 }

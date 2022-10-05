@@ -31,7 +31,7 @@ class TransformContext {
     private final Listener taskListener;
     private volatile int numFailureRetries = Transform.DEFAULT_FAILURE_RETRIES;
     private final AtomicInteger failureCount;
-    // Keeps track of the last failure that occured, used for throttling logs and audit
+    // Keeps track of the last failure that occurred, used for throttling logs and audit
     private final AtomicReference<String> lastFailure = new AtomicReference<>();
     private final AtomicInteger statePersistenceFailureCount = new AtomicInteger();
     private volatile Instant changesLastDetectedAt;

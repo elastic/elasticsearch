@@ -47,7 +47,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
         switch (between(0, 2)) {
             case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
             case 2 -> maxNumSegments += 1;
             default -> throw new AssertionError("Illegal randomisation branch");
         }

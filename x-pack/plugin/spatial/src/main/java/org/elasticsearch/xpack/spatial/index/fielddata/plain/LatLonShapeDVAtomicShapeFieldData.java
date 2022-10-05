@@ -14,13 +14,14 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-final class LatLonShapeDVAtomicShapeFieldData extends AbstractAtomicGeoShapeShapeFieldData {
+final class LatLonShapeDVAtomicShapeFieldData extends LeafShapeFieldData<GeoShapeValues> {
     private final LeafReader reader;
     private final String fieldName;
 
@@ -46,7 +47,7 @@ final class LatLonShapeDVAtomicShapeFieldData extends AbstractAtomicGeoShapeShap
     }
 
     @Override
-    public GeoShapeValues getGeoShapeValues() {
+    public GeoShapeValues getShapeValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
             final GeoShapeValues.GeoShapeValue geoShapeValue = new GeoShapeValues.GeoShapeValue();

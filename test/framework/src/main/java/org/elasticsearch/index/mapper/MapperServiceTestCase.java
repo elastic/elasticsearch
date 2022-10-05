@@ -42,8 +42,8 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -697,20 +697,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
         LeafReader leafReader = getOnlyLeafReader(reader);
         SourceLoader.Leaf leafLoader = loader.leaf(leafReader, new int[] { docId });
-        BytesReference syntheticSourceBytes = leafLoader.source(syntheticSourceStoredFieldsVisitor(mapper, leafReader, loader), docId);
+        BytesReference syntheticSourceBytes = leafLoader.source(syntheticSourceStoredFieldLoader(mapper, leafReader, loader), docId);
         return syntheticSourceBytes.utf8ToString();
     }
 
-    protected static FieldsVisitor syntheticSourceStoredFieldsVisitor(DocumentMapper mapper, LeafReader leafReader, SourceLoader loader)
-        throws IOException {
+    protected static LeafStoredFieldLoader syntheticSourceStoredFieldLoader(
+        DocumentMapper mapper,
+        LeafReader leafReader,
+        SourceLoader loader
+    ) throws IOException {
         if (loader.requiredStoredFields().isEmpty()) {
-            return null;
+            return StoredFieldLoader.empty().getLoader(leafReader.getContext(), null);
         }
-        FieldsVisitor fieldsVisitor = new CustomFieldsVisitor(loader.requiredStoredFields(), false);
-        fieldsVisitor.reset();
-        leafReader.document(0, fieldsVisitor);
-        fieldsVisitor.postProcess(mapper.mappers().fieldTypesLookup()::get);
-        return fieldsVisitor;
+        LeafStoredFieldLoader storedFields = StoredFieldLoader.create(false, loader.requiredStoredFields())
+            .getLoader(leafReader.getContext(), null);
+        storedFields.advanceTo(0);
+        return storedFields;
     }
 
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)

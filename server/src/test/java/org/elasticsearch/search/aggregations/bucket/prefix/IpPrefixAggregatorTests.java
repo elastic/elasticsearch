@@ -41,6 +41,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IpPrefixAggregatorTests extends AggregatorTestCase {
 
@@ -928,7 +929,6 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMinDocCount() throws IOException {
-        // GIVEN
         final int prefixLength = 16;
         final String field = "ipv4";
         int minDocCount = 2;
@@ -949,22 +949,19 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             new TestIpDataHolder("10.122.2.67", "10.122.0.0", prefixLength, defaultTime())
         );
 
-        // WHEN
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     singleton(new SortedDocValuesField(field, new BytesRef(InetAddressPoint.encode(ipDataHolder.getIpAddress()))))
                 );
             }
-        }, agg -> {
-            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
+        }, (InternalIpPrefix ipPrefix) -> {
             final Set<String> expectedSubnets = Set.of("192.168.0.0");
             final Set<String> ipAddressesAsString = ipPrefix.getBuckets()
                 .stream()
                 .map(InternalIpPrefix.Bucket::getKeyAsString)
                 .collect(Collectors.toUnmodifiableSet());
 
-            // THEN
             ipPrefix.getBuckets().forEach(bucket -> {
                 assertFalse(bucket.isIpv6());
                 assertFalse(bucket.appendPrefixLength());
@@ -978,9 +975,9 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(
                 ipPrefix.getBuckets().stream().map(InternalIpPrefix.Bucket::getDocCount).allMatch(docCount -> docCount >= minDocCount)
             );
-            assertEquals(
+            assertThat(
                 ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
-                List.of(4L)
+                equalTo(List.of(4L))
             );
         }, fieldType);
     }

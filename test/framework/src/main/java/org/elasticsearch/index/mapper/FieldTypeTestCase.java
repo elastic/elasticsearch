@@ -55,8 +55,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, sourceValue));
+        SourceLookup lookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.singletonMap(field, sourceValue)));
         return fetcher.fetchValues(lookup, new ArrayList<>());
     }
 
@@ -67,8 +66,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, List.of(values)));
+        SourceLookup lookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.singletonMap(field, List.of(values))));
         return fetcher.fetchValues(lookup, new ArrayList<>());
     }
 }

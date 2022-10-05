@@ -72,7 +72,7 @@ _mean_::
 
                 [4.63, 4.63, 9.63, 49.63, 9.63, 9.63, 19.63]
 
-_zscore_::
+_z-score_::
                 This method normalizes such that each value represents how far it is from the mean relative to the standard deviation
 
                 x' = (x - mean_x) / stdev_x

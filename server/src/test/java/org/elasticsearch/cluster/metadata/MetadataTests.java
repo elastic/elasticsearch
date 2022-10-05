@@ -2274,6 +2274,16 @@ public class MetadataTests extends ESTestCase {
         expectThrows(IndexNotFoundException.class, () -> metadata1.withLifecycleState(new Index(indexName, randomUUID), state));
     }
 
+    public void testEmptyDiffReturnsSameInstance() throws IOException {
+        final Metadata instance = randomMetadata();
+        Diff<Metadata> diff = instance.diff(instance);
+        assertSame(instance, diff.apply(instance));
+        final BytesStreamOutput out = new BytesStreamOutput();
+        diff.writeTo(out);
+        final Diff<Metadata> deserializedDiff = Metadata.readDiffFrom(out.bytes().streamInput());
+        assertSame(instance, deserializedDiff.apply(instance));
+    }
+
     public static Metadata randomMetadata() {
         return randomMetadata(1);
     }

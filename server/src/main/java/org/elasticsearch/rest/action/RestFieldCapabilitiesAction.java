@@ -67,12 +67,12 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
             }
             fieldRequest.fields(Strings.splitStringByCommaToArray(request.param("fields")));
         }
-        return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
+        return channel -> client.fieldCaps(fieldRequest, new RestChunkedToXContentListener<>(channel));
     }
 
-    private static ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");
-    private static ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
-    private static ParseField FIELDS_FIELD = new ParseField("fields");
+    private static final ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");
+    private static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
+    private static final ParseField FIELDS_FIELD = new ParseField("fields");
 
     private static final ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
 

@@ -30,6 +30,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
@@ -48,6 +49,13 @@ public class TestFixturesPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(TestFixturesPlugin.class);
     private static final String DOCKER_COMPOSE_THROTTLE = "dockerComposeThrottle";
     static final String DOCKER_COMPOSE_YML = "docker-compose.yml";
+
+    private final ProviderFactory providerFactory;
+
+    @Inject
+    public TestFixturesPlugin(ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory;
+    }
 
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
@@ -109,8 +117,11 @@ public class TestFixturesPlugin implements Plugin<Project> {
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
             composeExtension.getUseComposeFiles().addAll(Collections.singletonList(DOCKER_COMPOSE_YML));
             composeExtension.getRemoveContainers().set(true);
-            composeExtension.getExecutable()
-                .set(project.file("/usr/local/bin/docker-compose").exists() ? "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose");
+            composeExtension.getExecutable().set(this.providerFactory.provider(() -> {
+                String composePath = dockerSupport.get().getDockerAvailability().dockerComposePath();
+                LOGGER.debug("Docker Compose path: {}", composePath);
+                return composePath != null ? composePath : "/usr/bin/docker-compose";
+            }));
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions

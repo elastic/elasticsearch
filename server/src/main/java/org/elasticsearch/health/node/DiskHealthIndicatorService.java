@@ -159,12 +159,12 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             for (String nodeId : diskHealthByNode.keySet()) {
                 DiscoveryNode node = clusterState.getNodes().get(nodeId);
                 HealthStatus healthStatus = diskHealthByNode.get(nodeId).healthStatus();
-                // TODO #90213 update this only after we check that this health status indicates a problem.
-                if (mostSevereStatusSoFar.value() < healthStatus.value()) {
-                    mostSevereStatusSoFar = healthStatus;
-                }
                 if (node == null || healthStatus.indicatesHealthProblem() == false) {
                     continue;
+                }
+
+                if (mostSevereStatusSoFar.value() < healthStatus.value()) {
+                    mostSevereStatusSoFar = healthStatus;
                 }
                 affectedRoles.addAll(node.getRoles());
                 if (node.canContainData()) {

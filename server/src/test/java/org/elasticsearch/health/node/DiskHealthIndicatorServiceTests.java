@@ -106,19 +106,6 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             assertThat(result.status(), equalTo(expectedStatus));
         }
         {
-            HealthStatus expectedStatus = HealthStatus.UNKNOWN;
-            HealthInfo healthInfo = createHealthInfoWithOneUnhealthyNode(expectedStatus, discoveryNodes);
-            HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
-            assertThat(result.status(), equalTo(expectedStatus));
-        }
-        {
-            // TODO #90213 will change the expected status to GREEN.
-            HealthStatus expectedStatus = HealthStatus.UNKNOWN;
-            HealthInfo healthInfo = createHealthInfoWithOneUnhealthyNode(expectedStatus, discoveryNodes);
-            HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
-            assertThat(result.status(), equalTo(expectedStatus));
-        }
-        {
             HealthStatus expectedStatus = HealthStatus.YELLOW;
             HealthInfo healthInfo = createHealthInfoWithOneUnhealthyNode(expectedStatus, discoveryNodes);
             HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
@@ -130,6 +117,17 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
             assertThat(result.status(), equalTo(expectedStatus));
         }
+    }
+
+    public void testIndicatorYieldsGreenWhenNodeHasUnknownStatus() {
+        Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
+        ClusterService clusterService = createClusterService(discoveryNodes, false);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
+
+        HealthStatus expectedStatus = HealthStatus.GREEN;
+        HealthInfo healthInfo = createHealthInfoWithOneUnhealthyNode(HealthStatus.UNKNOWN, discoveryNodes);
+        HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
+        assertThat(result.status(), equalTo(expectedStatus));
     }
 
     public void testGreen() throws IOException {

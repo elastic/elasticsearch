@@ -314,7 +314,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             results.toXContent(builder, params);
-            builder.field("inference_took", tookMillis);
             builder.endObject();
             return builder;
         }

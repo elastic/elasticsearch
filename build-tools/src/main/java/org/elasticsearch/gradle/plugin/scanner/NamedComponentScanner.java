@@ -18,9 +18,7 @@ import java.util.Map;
 
 public class NamedComponentScanner {
 
-    /**
-     * returns a Map<String, Map<String,String>  - extensible interface -> map{ namedName -> className }
-     */
+    // returns a Map<String, Map<String,String> - extensible interface -> map{ namedName -> className }
     public Map<String, Map<String, String>> scanForNamedClasses(Collection<ClassReader> classReaderStream) {
         // TODO I don't have access to stable-plugin-api here so I have to hardcode class descriptors
         ClassScanner extensibleClassScanner = new ClassScanner("Lorg/elasticsearch/plugin/api/Extensible;", (classname, map) -> {

@@ -10,8 +10,8 @@ package org.elasticsearch.plugin.scanner
 
 import net.bytebuddy.ByteBuddy
 import net.bytebuddy.dynamic.DynamicType
+import spock.lang.Specification
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.elasticsearch.gradle.internal.test.InMemoryJavaCompiler
 import org.elasticsearch.gradle.internal.test.JarUtils
 import org.elasticsearch.gradle.plugin.scanner.ClassReaders
@@ -21,6 +21,8 @@ import org.elasticsearch.plugin.scanner.test_classes.ExtensibleInterface
 import org.elasticsearch.plugin.scanner.test_classes.TestNamedComponent
 import org.elasticsearch.plugin.api.Extensible
 import org.elasticsearch.plugin.api.NamedComponent
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import org.objectweb.asm.ClassReader
 
 import java.nio.file.Files
@@ -31,7 +33,13 @@ import java.util.stream.Collectors
 import static org.hamcrest.MatcherAssert.assertThat
 import static org.hamcrest.Matchers.equalTo
 
-class NamedComponentScannerSpec extends AbstractGradleFuncTest {
+class NamedComponentScannerSpec extends Specification {
+    @Rule
+    TemporaryFolder testProjectDir = new TemporaryFolder()
+
+    private Path tmpDir() throws IOException {
+        return testProjectDir.root.toPath();
+    }
 
     NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
 
@@ -153,7 +161,7 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
         Path jar = dirWithJar.resolve("plugin.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
 
-        pluginApiJar(dirWithJar.toFile())
+        createPluginApiJar(dirWithJar.resolve("plugin-api.jar"))
         createExtensibleApiJar(dirWithJar.resolve("plugin-extensible-api.jar"));//for instance analysis api
 
         Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).collect(Collectors.toList())
@@ -199,12 +207,11 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
 
     private Collection<ClassReader> classReaderStream(Class<?>... classes) {
             try {
-                Path mainPath = Paths.get(Extensible.class.getProtectionDomain().getCodeSource().getLocation().toURI());
                 return Arrays.stream(classes).map(
                     clazz -> {
                         String className = classNameToPath(clazz) + ".class";
-                        Path path = mainPath.resolve(className);
-                        try (InputStream is = Files.newInputStream(path)) {
+                        def stream = this.getClass().getClassLoader().getResourceAsStream(className)
+                        try (InputStream is = stream) {
                             byte[] classBytes = is.readAllBytes();
                             ClassReader classReader = new ClassReader(classBytes);
                             return classReader;
@@ -223,7 +230,5 @@ class NamedComponentScannerSpec extends AbstractGradleFuncTest {
         return clazz.getCanonicalName().replace(".", "/");
     }
 
-    private Path tmpDir() throws IOException {
-        return dir("tmpDir").toPath()
-    }
+
 }

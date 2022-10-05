@@ -29,7 +29,6 @@ public class ClassReaders {
     private static final String MODULE_INFO = "module-info.class";
 
     /**
-     * @apiNote
      * This method must be used within a try-with-resources statement or similar
      * control structure.
      */
@@ -46,7 +45,6 @@ public class ClassReaders {
     }
 
     /**
-     * @apiNote
      * This method must be used within a try-with-resources statement or similar
      * control structure.
      */

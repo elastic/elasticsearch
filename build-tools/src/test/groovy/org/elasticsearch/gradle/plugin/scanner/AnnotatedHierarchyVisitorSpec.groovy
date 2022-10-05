@@ -78,12 +78,10 @@ class AnnotatedHierarchyVisitorSpec extends Specification {
     }
 
     private void performScan(AnnotatedHierarchyVisitor classVisitor, Class<?>... classes) throws IOException, URISyntaxException {
-        Path mainPath = Paths.get(Extensible.class.getProtectionDomain().getCodeSource().getLocation().toURI())
-
         for (Class<?> clazz : classes) {
             String className = classNameToPath(clazz) + ".class"
-            Path path = mainPath.resolve(className)
-            try (InputStream fileInputStream = Files.newInputStream(path)) {
+            def stream = this.getClass().getClassLoader().getResourceAsStream(className)
+            try (InputStream fileInputStream = stream) {
                 ClassReader cr = new ClassReader(fileInputStream)
                 cr.accept(classVisitor, 0)
             }

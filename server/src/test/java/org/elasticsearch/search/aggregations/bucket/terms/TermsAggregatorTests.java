@@ -127,7 +127,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -321,7 +320,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
              */
             List<List<? extends IndexableField>> docs = new ArrayList<>();
             for (int i = 0; i < TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200; i++) {
-                String s = String.format(Locale.ROOT, "b%03d", i);
+                String s = formatted("b%03d", i);
                 docs.add(doc(fieldType, s));
                 if (i % 100 == 7) {
                     docs.add(doc(fieldType, s));
@@ -351,7 +350,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
              */
             List<List<? extends IndexableField>> docs = new ArrayList<>();
             for (int i = 0; i < TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200; i++) {
-                String s = String.format(Locale.ROOT, "b%03d", i);
+                String s = formatted("b%03d", i);
                 List<IndexableField> doc = doc(kft, s);
                 doc.add(new SortedNumericDocValuesField("long", i));
                 docs.add(doc);
@@ -361,7 +360,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             List<String> expected = LongStream.range(
                 TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 210,
                 TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200
-            ).mapToObj(l -> String.format(Locale.ROOT, "b%03d", l)).collect(toList());
+            ).mapToObj(l -> formatted("b%03d", l)).collect(toList());
             Collections.reverse(expected);
             assertThat(result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(expected));
         }, kft, lft);
@@ -381,9 +380,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .subAggregation(new TermsAggregationBuilder("sub").field("string2").shardSize(500));
         withIndex(iw -> {
             for (int i1 = 0; i1 < 1000; i1++) {
-                String s1 = String.format(Locale.ROOT, "b%03d", i1);
+                String s1 = formatted("b%03d", i1);
                 for (int i2 = 0; i2 < 50; i2++) {
-                    String s2 = String.format(Locale.ROOT, "b%03d", i2);
+                    String s2 = formatted("b%03d", i2);
                     List<IndexableField> doc = new ArrayList<>();
                     doc.addAll(doc(s1ft, s1));
                     doc.addAll(doc(s2ft, s2));

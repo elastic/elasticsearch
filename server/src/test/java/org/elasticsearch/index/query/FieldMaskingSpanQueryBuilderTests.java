@@ -55,7 +55,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testFromJson() throws IOException {
-        String json = String.format(java.util.Locale.ROOT, """
+        String json = formatted("""
             {
               "%s" : {
                 "query" : {
@@ -79,7 +79,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testJsonWithTopLevelBoost() throws IOException {
-        String json = String.format(java.util.Locale.ROOT, """
+        String json = formatted("""
             {
               "%s" : {
                 "query" : {

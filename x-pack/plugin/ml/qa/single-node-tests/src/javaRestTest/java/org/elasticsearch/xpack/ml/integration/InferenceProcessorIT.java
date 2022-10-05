@@ -220,7 +220,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
 
         createdPipelines.add("regression-model-deprecated-pipeline");
         Request putPipeline = new Request("PUT", "_ingest/pipeline/regression-model-deprecated-pipeline");
-        putPipeline.setJsonEntity(String.format(java.util.Locale.ROOT, """
+        putPipeline.setJsonEntity(formatted("""
             {
               "processors": [
                 {
@@ -283,7 +283,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
 
     private void putPipeline(String modelId, String pipelineName) throws IOException {
         Request putPipeline = new Request("PUT", "_ingest/pipeline/" + pipelineName);
-        putPipeline.setJsonEntity(String.format(java.util.Locale.ROOT, """
+        putPipeline.setJsonEntity(formatted("""
             {
               "processors": [
                 {

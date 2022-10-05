@@ -212,7 +212,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             try (RestClient leaderClient = buildLeaderClient()) {
                 // Create an index on the leader using the template set up above
                 Request createIndexRequest = new Request("PUT", "/" + indexName);
-                createIndexRequest.setJsonEntity(String.format(Locale.ROOT, """
+                createIndexRequest.setJsonEntity(formatted("""
                     {
                       "mappings": {
                         "properties": {
@@ -558,7 +558,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             "{\"persistent\": {\"cluster.remote."
                 + name
                 + ".seeds\": "
-                + (leaderRemoteClusterSeed != null ? String.format(Locale.ROOT, "\"%s\"", leaderRemoteClusterSeed) : null)
+                + (leaderRemoteClusterSeed != null ? formatted("\"%s\"", leaderRemoteClusterSeed) : null)
                 + "}}"
         );
         assertThat(client().performRequest(request).getStatusLine().getStatusCode(), equalTo(200));

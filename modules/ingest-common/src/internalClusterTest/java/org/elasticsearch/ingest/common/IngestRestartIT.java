@@ -61,7 +61,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         internalCluster().startMasterOnlyNode();
         final String pipelineId = "foo";
-        client().admin().cluster().preparePutPipeline(pipelineId, new BytesArray(String.format(java.util.Locale.ROOT, """
+        client().admin().cluster().preparePutPipeline(pipelineId, new BytesArray(formatted("""
             {
               "processors": [
                 {
@@ -109,7 +109,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         String pipelineIdWithScript = pipelineIdWithoutScript + "_script";
         internalCluster().startNode();
 
-        BytesReference pipelineWithScript = new BytesArray(String.format(java.util.Locale.ROOT, """
+        BytesReference pipelineWithScript = new BytesArray(formatted("""
             {
               "processors": [ { "script": { "lang": "%s", "source": "my_script" } } ]
             }""", MockScriptEngine.NAME));
@@ -179,7 +179,7 @@ public class IngestRestartIT extends ESIntegTestCase {
     public void testPipelineWithScriptProcessorThatHasStoredScript() throws Exception {
         internalCluster().startNode();
 
-        client().admin().cluster().preparePutStoredScript().setId("1").setContent(new BytesArray(String.format(java.util.Locale.ROOT, """
+        client().admin().cluster().preparePutStoredScript().setId("1").setContent(new BytesArray(formatted("""
             {"script": {"lang": "%s", "source": "my_script"} }
             """, MockScriptEngine.NAME)), XContentType.JSON).get();
         BytesReference pipeline = new BytesArray("""

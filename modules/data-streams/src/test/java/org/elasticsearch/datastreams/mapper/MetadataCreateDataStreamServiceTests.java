@@ -36,7 +36,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     public void testValidateTimestampFieldMappingNoFieldMapping() {
         Exception e = expectThrows(IllegalStateException.class, () -> validateTimestampFieldMapping(createMappingLookup("{}")));
         assertThat(e.getMessage(), equalTo("[" + DataStreamTimestampFieldMapper.NAME + "] meta field has been disabled"));
-        String mapping1 = String.format(java.util.Locale.ROOT, """
+        String mapping1 = formatted("""
             {
               "%s": {
                 "enabled": false

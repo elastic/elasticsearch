@@ -248,11 +248,11 @@ public class Archives {
         if (parameters != null && parameters.isEmpty() == false) {
             command.addAll(parameters);
         }
-        String keystoreScript = keystorePassword == null ? "" : String.format(Locale.ROOT, """
+        String keystoreScript = keystorePassword == null ? "" : formatted("""
             expect "Elasticsearch keystore password:"
             send "%s\\r"
             """, keystorePassword);
-        String checkStartupScript = daemonize ? "expect eof" : String.format(Locale.ROOT, """
+        String checkStartupScript = daemonize ? "expect eof" : formatted("""
             expect {
               "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
               timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }
@@ -260,18 +260,14 @@ public class Archives {
               %s
             }
             """, null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started\"" : "\"" + outputStringToMatch + "\"");
-        String expectScript = """
+        String expectScript = formatted("""
             expect - <<EXPECT
             set timeout 60
             spawn -ignore HUP %s
             %s
             %s
             EXPECT
-            """.formatted(
-            String.join(" ", command).formatted(ARCHIVE_OWNER, bin.elasticsearch, pidFile),
-            keystoreScript,
-            checkStartupScript
-        );
+            """, String.join(" ", command).formatted(ARCHIVE_OWNER, bin.elasticsearch, pidFile), keystoreScript, checkStartupScript);
         return sh.runIgnoreExitCode(expectScript);
     }
 

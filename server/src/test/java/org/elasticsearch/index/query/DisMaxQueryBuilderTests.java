@@ -51,7 +51,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         QueryBuilder innerQuery = createTestQueryBuilder().innerQueries().get(0);
         DisMaxQueryBuilder expectedQuery = new DisMaxQueryBuilder();
         expectedQuery.add(innerQuery);
-        String contentString = String.format(java.util.Locale.ROOT, """
+        String contentString = formatted("""
             {
               "dis_max": {
                 "queries": %s
@@ -67,7 +67,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     public void testToQueryInnerPrefixQuery() throws Exception {
-        String queryAsString = String.format(java.util.Locale.ROOT, """
+        String queryAsString = formatted("""
             {
               "dis_max": {
                 "queries": [

@@ -58,7 +58,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
      */
     @BeforeClass
     public static void registerClients() throws Exception {
-        String codeClient = String.format(java.util.Locale.ROOT, """
+        String codeClient = formatted("""
             {
               "grant_types": [ "authorization_code" ],
               "response_types": [ "code" ],
@@ -67,7 +67,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
               "redirect_uris": [ "https://my.fantastic.rp/cb" ],
               "token_endpoint_auth_method": "client_secret_basic"
             }""", CLIENT_SECRET);
-        String implicitClient = String.format(java.util.Locale.ROOT, """
+        String implicitClient = formatted("""
             {
               "grant_types": [ "implicit" ],
               "response_types": [ "token id_token" ],
@@ -75,7 +75,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
               "preferred_client_secret": "%s",
               "redirect_uris": [ "https://my.fantastic.rp/cb" ]
             }""", CLIENT_SECRET);
-        String postClient = String.format(java.util.Locale.ROOT, """
+        String postClient = formatted("""
             {
               "grant_types": [ "authorization_code" ],
               "response_types": [ "code" ],
@@ -84,7 +84,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
               "redirect_uris": [ "https://my.fantastic.rp/cb" ],
               "token_endpoint_auth_method": "client_secret_post"
             }""", CLIENT_SECRET);
-        String jwtClient = String.format(java.util.Locale.ROOT, """
+        String jwtClient = formatted("""
             {
               "grant_types": [ "authorization_code" ],
               "response_types": [ "code" ],
@@ -269,7 +269,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
                 { "cluster" : ["manage_oidc", "manage_token"] }""");
             restClient.performRequest(createRoleRequest);
             Request createUserRequest = new Request("PUT", "/_security/user/facilitator");
-            createUserRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+            createUserRequest.setJsonEntity(formatted("""
                 { "password" : "%s", "roles" : ["facilitator"] }""", FACILITATOR_PASSWORD));
             restClient.performRequest(createUserRequest);
         }
@@ -278,7 +278,7 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
     private void setRoleMappings() throws Exception {
         try (RestClient restClient = getElasticsearchClient()) {
             Request createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_kibana");
-            createRoleMappingRequest.setJsonEntity("""
+            createRoleMappingRequest.setJsonEntity(formatted("""
                 {
                   "roles": [ "kibana_admin" ],
                   "enabled": true,
@@ -306,11 +306,11 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
                       }
                     ]
                   }
-                }""".formatted(REALM_NAME, REALM_NAME_PROXY, REALM_NAME_CLIENT_POST_AUTH, REALM_NAME_CLIENT_JWT_AUTH));
+                }""", REALM_NAME, REALM_NAME_PROXY, REALM_NAME_CLIENT_POST_AUTH, REALM_NAME_CLIENT_JWT_AUTH));
             restClient.performRequest(createRoleMappingRequest);
 
             createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_limited");
-            createRoleMappingRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+            createRoleMappingRequest.setJsonEntity(formatted("""
                 {
                   "roles": [ "limited_user" ],
                   "enabled": true,

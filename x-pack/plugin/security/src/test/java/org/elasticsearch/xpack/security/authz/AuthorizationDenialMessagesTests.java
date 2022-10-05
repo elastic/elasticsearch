@@ -54,13 +54,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         assertThat(
             rolesDescription,
-            equalTo(
-                String.format(
-                    java.util.Locale.ROOT,
-                    " with assigned roles [%s]",
-                    Strings.collectionToCommaDelimitedString(assignedRoleNames)
-                )
-            )
+            equalTo(formatted(" with assigned roles [%s]", Strings.collectionToCommaDelimitedString(assignedRoleNames)))
         );
     }
 
@@ -80,13 +74,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         assertThat(
             rolesDescription,
-            equalTo(
-                String.format(
-                    java.util.Locale.ROOT,
-                    " with assigned roles [%s]",
-                    Strings.collectionToCommaDelimitedString(assignedRoleNames)
-                )
-            )
+            equalTo(formatted(" with assigned roles [%s]", Strings.collectionToCommaDelimitedString(assignedRoleNames)))
         );
     }
 
@@ -117,13 +105,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         assertThat(
             rolesDescription,
-            equalTo(
-                String.format(
-                    java.util.Locale.ROOT,
-                    " with assigned roles [%s]",
-                    Strings.collectionToCommaDelimitedString(assignedRoleNames)
-                )
-            )
+            equalTo(formatted(" with assigned roles [%s]", Strings.collectionToCommaDelimitedString(assignedRoleNames)))
         );
     }
 
@@ -148,8 +130,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             assertThat(
                 rolesDescription,
                 equalTo(
-                    String.format(
-                        java.util.Locale.ROOT,
+                    formatted(
                         " with effective roles [] (assigned roles [%s] were not found)",
                         Strings.collectionToCommaDelimitedString(assignedRoleNames.stream().sorted().toList())
                     )
@@ -183,8 +164,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         assertThat(
             rolesDescription,
             equalTo(
-                String.format(
-                    java.util.Locale.ROOT,
+                formatted(
                     " with effective roles [%s]",
                     Strings.collectionToCommaDelimitedString(effectiveRoleNames.stream().sorted().toList())
                 )

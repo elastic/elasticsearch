@@ -57,7 +57,7 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
      * test that "filter" does not accept an array of queries, throws {@link ParsingException}
      */
     public void testNoArrayAsFilterElements() throws IOException {
-        String queryString = String.format(java.util.Locale.ROOT, """
+        String queryString = formatted("""
             {
               "%s": {
                 "filter": [ { "term": { "foo": "a" } }, { "term": { "foo": "x" } } ]

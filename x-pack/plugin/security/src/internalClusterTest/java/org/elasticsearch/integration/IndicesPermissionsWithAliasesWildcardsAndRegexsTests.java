@@ -55,7 +55,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     @Override
     protected String configRoles() {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             %s
             role1:
               cluster: [ all ]

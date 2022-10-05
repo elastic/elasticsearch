@@ -1975,7 +1975,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testUpdatingPipelineWithoutChangesIsNoOp() throws Exception {
         var value = randomAlphaOfLength(5);
-        var pipelineString = String.format(Locale.ROOT, """
+        var pipelineString = formatted("""
             {"processors": [{"set" : {"field": "_field", "value": "%s"}}]}
             """, value);
         testUpdatingPipeline(pipelineString);

@@ -123,17 +123,18 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             rangeQueryBuilder.to(randomIntBetween(101, 200));
         }
 
-        String query = """
-            {
-                "range":{
-                    "%s": {
-                        "include_lower":%s,
-                        "include_upper":%s,
-                        "from":%s,
-                        "to":%s
+        String query = formatted(
+            """
+                {
+                    "range":{
+                        "%s": {
+                            "include_lower":%s,
+                            "include_upper":%s,
+                            "from":%s,
+                            "to":%s
+                        }
                     }
-                }
-            }""".formatted(
+                }""",
             INT_FIELD_NAME,
             rangeQueryBuilder.includeLower(),
             rangeQueryBuilder.includeUpper(),
@@ -271,7 +272,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     public void testDateRangeQueryFormat() throws IOException {
         // We test 01/01/2012 from gte and 2030 for lt
-        String query = String.format(java.util.Locale.ROOT, """
+        String query = formatted("""
             {
                 "range" : {
                     "%s" : {
@@ -296,7 +297,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         );
 
         // Test Invalid format
-        final String invalidQuery = String.format(java.util.Locale.ROOT, """
+        final String invalidQuery = formatted("""
             {
                 "range" : {
                     "%s" : {
@@ -310,7 +311,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testDateRangeBoundaries() throws IOException {
-        String query = String.format(java.util.Locale.ROOT, """
+        String query = formatted("""
             {
                 "range" : {
                     "%s" : {
@@ -333,7 +334,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             parsedQuery
         );
 
-        query = String.format(java.util.Locale.ROOT, """
+        query = formatted("""
             {
                 "range" : {
                     "%s" : {
@@ -357,7 +358,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testDateRangeQueryTimezone() throws IOException {
-        String query = String.format(java.util.Locale.ROOT, """
+        String query = formatted("""
             {
                 "range" : {
                     "%s" : {
@@ -376,7 +377,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
         // TODO what else can we assert
 
-        query = String.format(java.util.Locale.ROOT, """
+        query = formatted("""
             {
                 "range" : {
                     "%s" : {
@@ -551,7 +552,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testParseFailsWithMultipleFieldsWhenOneIsDate() {
-        String json = String.format(java.util.Locale.ROOT, """
+        String json = formatted("""
             {
               "range": {
                 "age": {

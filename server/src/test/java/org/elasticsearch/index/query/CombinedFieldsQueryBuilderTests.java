@@ -103,7 +103,7 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         Object[] expectedValues = new Object[] { "2", "2", "2%", null };
         int i = 0;
         for (Object value : testValues) {
-            String json = String.format(java.util.Locale.ROOT, """
+            String json = formatted("""
                 {
                   "combined_fields" : {
                     "query" : "quick brown fox",

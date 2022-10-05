@@ -84,7 +84,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                 );
                 assertThat(responseException.getMessage(), containsString("""
                     {"error":{"root_cause":[],"type":"search_phase_execution_exception\""""));
-                assertThat(responseException.getMessage(), containsString(String.format(java.util.Locale.ROOT, """
+                assertThat(responseException.getMessage(), containsString(formatted("""
                     caused_by":{"type":"version_mismatch_exception",\
                     "reason":"One of the shards is incompatible with the required minimum version [%s]\"""", newVersion)));
             });

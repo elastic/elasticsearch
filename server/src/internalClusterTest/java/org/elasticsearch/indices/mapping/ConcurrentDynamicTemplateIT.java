@@ -28,7 +28,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
     // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
-        final String mapping = String.format(java.util.Locale.ROOT, """
+        final String mapping = formatted("""
             {
               "dynamic_templates": [
                 {

@@ -79,7 +79,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -522,13 +521,13 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             for (int j = 0; j < numChapters; j++) {
                 chapters[j] = randomIntBetween(2, 64);
             }
-            books.add(Tuple.tuple(String.format(Locale.ROOT, "%03d", i), chapters));
+            books.add(Tuple.tuple(formatted("%03d", i), chapters));
         }
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 int id = 0;
                 for (Tuple<String, int[]> book : books) {
-                    iw.addDocuments(generateBook(String.format(Locale.ROOT, "%03d", id), new String[] { book.v1() }, book.v2()));
+                    iw.addDocuments(generateBook(formatted("%03d", id), new String[] { book.v1() }, book.v2()));
                     id++;
                 }
             }

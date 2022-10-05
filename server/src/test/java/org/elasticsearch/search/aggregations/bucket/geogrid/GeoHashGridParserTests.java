@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class GeoHashGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(1, 12);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, String.format(java.util.Locale.ROOT, """
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, formatted("""
             {"field":"my_loc", "precision":%s, "size": 500, "shard_size": 550}""", precision));
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
@@ -33,7 +33,7 @@ public class GeoHashGridParserTests extends ESTestCase {
 
     public void testParseValidFromStrings() throws Exception {
         int precision = randomIntBetween(1, 12);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, String.format(java.util.Locale.ROOT, """
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, formatted("""
             {"field":"my_loc", "precision":"%s", "size": "500", "shard_size": "550"}
             """, precision));
         XContentParser.Token token = stParser.nextToken();
@@ -49,7 +49,7 @@ public class GeoHashGridParserTests extends ESTestCase {
             distance = 5600 + randomDouble(); // 5.6cm is approx. smallest distance represented by precision 12
         }
         String distanceString = distance + unit.toString();
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, String.format(java.util.Locale.ROOT, """
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, formatted("""
             {"field":"my_loc", "precision": "%s", "size": "500", "shard_size": "550"}
             """, distanceString));
         XContentParser.Token token = stParser.nextToken();
@@ -116,7 +116,7 @@ public class GeoHashGridParserTests extends ESTestCase {
 
     public void testParseValidBounds() throws Exception {
         Rectangle bbox = GeometryTestUtils.randomRectangle();
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, """
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, formatted("""
             {
               "field": "my_loc",
               "precision": 5,
@@ -128,7 +128,7 @@ public class GeoHashGridParserTests extends ESTestCase {
                 "left": %s,
                 "right": %s
               }
-            }""".formatted(bbox.getMaxY(), bbox.getMinY(), bbox.getMinX(), bbox.getMaxX()));
+            }""", bbox.getMaxY(), bbox.getMinY(), bbox.getMinX(), bbox.getMaxX()));
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory

@@ -100,7 +100,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         // Create repository
         {
             Request request = new Request("PUT", "/_snapshot/hdfs_ha_repo_read");
-            request.setJsonEntity("""
+            request.setJsonEntity(formatted("""
                 {
                   "type": "hdfs",
                   "settings": {
@@ -115,7 +115,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
                     "conf.dfs.client.failover.proxy.provider.ha-hdfs": \
                 "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider"
                   }
-                }""".formatted(securityCredentials(securityEnabled, esKerberosPrincipal), nn1Port, nn2Port));
+                }""", securityCredentials(securityEnabled, esKerberosPrincipal), nn1Port, nn2Port));
             Response response = client.performRequest(request);
 
             Assert.assertEquals(200, response.getStatusLine().getStatusCode());

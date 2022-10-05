@@ -33,7 +33,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             %s:
               cluster: [ ALL ]
               indices:

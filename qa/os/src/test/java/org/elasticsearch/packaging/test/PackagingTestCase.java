@@ -65,7 +65,6 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -576,7 +575,7 @@ public abstract class PackagingTestCase extends Assert {
         } else {
             Files.writeString(
                 heapOptions,
-                String.format(Locale.ROOT, "-Xmx%1$s%n-Xms%1$s%n", heapSize),
+                formatted("-Xmx%1$s%n-Xms%1$s%n", heapSize),
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING
             );

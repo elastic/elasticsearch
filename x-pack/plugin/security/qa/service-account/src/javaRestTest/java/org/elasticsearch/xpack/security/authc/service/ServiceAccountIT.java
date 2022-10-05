@@ -315,7 +315,7 @@ public class ServiceAccountIT extends ESRestTestCase {
 
         final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
         final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity(String.format(Locale.ROOT, """
+        refreshTokenRequest.setJsonEntity(formatted("""
             {"grant_type":"refresh_token","refresh_token":"%s"}
             """, refreshToken));
         final Response refreshTokenResponse = adminClient().performRequest(refreshTokenRequest);
@@ -507,7 +507,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("is unauthorized for API key"));
 
         final Request invalidateApiKeysRequest = new Request("DELETE", "_security/api_key");
-        invalidateApiKeysRequest.setJsonEntity(String.format(Locale.ROOT, """
+        invalidateApiKeysRequest.setJsonEntity(formatted("""
             {"ids":["%s"],"owner":true}""", apiKeyId1));
         invalidateApiKeysRequest.setOptions(requestOptions);
         final Response invalidateApiKeysResponse = client().performRequest(invalidateApiKeysRequest);

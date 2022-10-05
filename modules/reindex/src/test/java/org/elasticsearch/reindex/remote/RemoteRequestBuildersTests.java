@@ -228,7 +228,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.source().fetchSource(new String[] { "in1", "in2" }, new String[] { "out" });
         entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
-        assertEquals(XContentHelper.stripWhitespace(String.format(java.util.Locale.ROOT, """
+        assertEquals(XContentHelper.stripWhitespace(formatted("""
             {
               "query": %s,
               "_source": {

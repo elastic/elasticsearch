@@ -290,7 +290,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         String regressionModelId = "test_regression_simulate";
         putModel(regressionModelId, REGRESSION_CONFIG);
 
-        String source = """
+        String source = formatted("""
             {
               "pipeline": {
                 "processors": [
@@ -341,7 +341,7 @@ public class InferenceIngestIT extends ESRestTestCase {
                 }
               ]
             }
-            """.formatted(classificationModelId, regressionModelId);
+            """, classificationModelId, regressionModelId);
 
         Response response = client().performRequest(simulateRequest(source));
         String responseString = EntityUtils.toString(response.getEntity());
@@ -390,7 +390,7 @@ public class InferenceIngestIT extends ESRestTestCase {
     public void testSimulateWithDefaultMappedField() throws IOException {
         String classificationModelId = "test_classification_default_mapped_field";
         putModel(classificationModelId, CLASSIFICATION_CONFIG);
-        String source = String.format(java.util.Locale.ROOT, """
+        String source = formatted("""
             {
               "pipeline": {
                 "processors": [
@@ -674,7 +674,7 @@ public class InferenceIngestIT extends ESRestTestCase {
           }
         }""";
 
-    private static final String REGRESSION_CONFIG = String.format(java.util.Locale.ROOT, """
+    private static final String REGRESSION_CONFIG = formatted("""
         {
             "input": {
                 "field_names": [
@@ -696,7 +696,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
-    private static final String CLASSIFICATION_CONFIG = String.format(java.util.Locale.ROOT, """
+    private static final String CLASSIFICATION_CONFIG = formatted("""
         {
           "input": {
             "field_names": [ "col1", "col2", "col3", "col4" ]
@@ -712,7 +712,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         }""", InferenceDefinitionTests.getClassificationDefinition(false));
 
     private static String pipelineDefinition(String modelId, String inferenceConfig) {
-        return """
+        return formatted("""
             {
               "processors": [
                 {
@@ -731,7 +731,7 @@ public class InferenceIngestIT extends ESRestTestCase {
                   }
                 }
               ]
-            }""".formatted(modelId, inferenceConfig, inferenceConfig);
+            }""", modelId, inferenceConfig, inferenceConfig);
     }
 
     private void putModel(String modelId, String modelConfiguration) throws IOException {

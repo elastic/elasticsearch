@@ -71,7 +71,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private static final SecureString HASH_PASSWD = new SecureString(Hasher.BCRYPT4.hash(new SecureString("passwd".toCharArray())));
 
-    private static final String ROLES = String.format(Locale.ROOT, """
+    private static final String ROLES = formatted("""
         %s:
           cluster: [ all ]
           indices:

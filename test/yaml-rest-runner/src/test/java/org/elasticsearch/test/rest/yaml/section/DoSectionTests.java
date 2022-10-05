@@ -239,7 +239,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     public void testParseDoSectionWithJsonBody() throws Exception {
         String body = """
             { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }""";
-        parser = createParser(YamlXContent.yamlXContent, String.format(java.util.Locale.ROOT, """
+        parser = createParser(YamlXContent.yamlXContent, formatted("""
             index:
                 index:  test_1
                 type:   test

@@ -102,7 +102,7 @@ public class ProfileIT extends ESRestTestCase {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String profileUid = (String) activateProfileMap.get("uid");
         final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
-        profileHasPrivilegesRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+        profileHasPrivilegesRequest.setJsonEntity(formatted("""
             {
               "uids": ["some_missing_profile", "%s"],
               "privileges": {
@@ -264,7 +264,7 @@ public class ProfileIT extends ESRestTestCase {
         final String payload;
         switch (randomIntBetween(0, 2)) {
             case 0 -> {
-                payload = String.format(java.util.Locale.ROOT, """
+                payload = formatted("""
                     {
                       "name": "rac",
                       "hint": {
@@ -274,7 +274,7 @@ public class ProfileIT extends ESRestTestCase {
                     """, "not-" + uid);
             }
             case 1 -> {
-                payload = String.format(java.util.Locale.ROOT, """
+                payload = formatted("""
                     {
                       "name": "rac",
                       "hint": {

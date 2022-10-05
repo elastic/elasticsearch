@@ -111,7 +111,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     public void testIllegalField() {
-        String query = String.format(java.util.Locale.ROOT, """
+        String query = formatted("""
             {
                 "rank_feature" : {
                     "field": "%s"

@@ -134,7 +134,7 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
     }
 
     public void testDeprecation() throws IOException {
-        String source = String.format(java.util.Locale.ROOT, """
+        String source = formatted("""
             {"dep_agg": {"%s" : {}}}
             """, MockDeprecatedAggregationBuilder.NAME);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {

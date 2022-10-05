@@ -37,7 +37,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     @Override
     public String configRoles() {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             %s
             my_kibana_user:
               indices:

@@ -111,10 +111,10 @@ public class IndexingIT extends AbstractUpgradeTestCase {
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            b.append("""
+            b.append(formatted("""
                 {"index": {"_index": "%s"}}
                 {"f1": "v%s%s", "f2": %s}
-                """.formatted(index, i, valueSuffix, i));
+                """, index, i, valueSuffix, i));
         }
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
@@ -127,7 +127,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals(String.format(java.util.Locale.ROOT, """
+        assertEquals(formatted("""
             {"hits":{"total":%s}}\
             """, count), EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
     }

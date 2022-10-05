@@ -464,7 +464,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             long business = i % 50;
             String dateString = dateStringProvider.apply(i);
 
-            sourceBuilder.append(String.format(Locale.ROOT, """
+            sourceBuilder.append(formatted("""
                 {"create":{"_index":"%s"}}
                 """, indexName));
 
@@ -472,10 +472,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             if (user != null) {
                 sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
             }
-            sourceBuilder.append("""
+            sourceBuilder.append(formatted("""
                 "count":%s,"business_id":"business_%s","stars":%s,"comment":"Great stuff, deserves %s stars","regular_object":\
                 {"foo": 42},"nested_object":{"bar": 43},"timestamp":"%s"}
-                """.formatted(i, business, stars, stars, dateString));
+                """, i, business, stars, stars, dateString));
 
             if (i % 100 == 0) {
                 sourceBuilder.append("\r\n");

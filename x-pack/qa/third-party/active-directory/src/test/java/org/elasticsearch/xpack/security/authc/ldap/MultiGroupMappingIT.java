@@ -34,7 +34,7 @@ public class MultiGroupMappingIT extends AbstractAdLdapRealmTestCase {
 
     @Override
     protected String configRoles() {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             %s
             MarvelCharacters:
               cluster: [ NONE ]

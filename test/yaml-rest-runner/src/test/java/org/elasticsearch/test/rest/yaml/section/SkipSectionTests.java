@@ -71,7 +71,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testParseSkipSectionVersionNoFeature() throws Exception {
         Version version = VersionUtils.randomVersion(random());
-        parser = createParser(YamlXContent.yamlXContent, String.format(java.util.Locale.ROOT, """
+        parser = createParser(YamlXContent.yamlXContent, formatted("""
             version:     " - %s"
             reason:      Delete ignores the parent param""", version));
 

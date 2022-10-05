@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -116,7 +117,7 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
                 && HttpGet.METHOD_NAME.equals(request.getMethod())
                 && request.getHeaders().getOrDefault(X_AWS_EC_2_METADATA_TOKEN, "").equals(IMDSV_2_TOKEN))) {
             final Date expiration = new Date(new Date().getTime() + TimeUnit.DAYS.toMillis(1));
-            final String response = String.format(java.util.Locale.ROOT, """
+            final String response = String.format(Locale.ROOT, """
                 {
                   "AccessKeyId": "ec2_integration_test_access_key",
                   "Expiration": "%s",

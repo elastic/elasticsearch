@@ -280,7 +280,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private void createIndex(String name, int shards) throws IOException {
         final Request putIndexRequest = new Request("PUT", "/" + name);
-        putIndexRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+        putIndexRequest.setJsonEntity(formatted("""
             {
                 "settings" : {
                     "index" : {

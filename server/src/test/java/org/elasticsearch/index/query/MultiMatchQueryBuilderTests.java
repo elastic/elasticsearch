@@ -329,7 +329,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             Type.PHRASE.parseField().getPreferredName(),
             Type.PHRASE_PREFIX.parseField().getPreferredName() };
         for (String type : notAllowedTypes) {
-            String json = String.format(java.util.Locale.ROOT, """
+            String json = formatted("""
                 {
                   "multi_match": {
                     "query": "quick brown fox",

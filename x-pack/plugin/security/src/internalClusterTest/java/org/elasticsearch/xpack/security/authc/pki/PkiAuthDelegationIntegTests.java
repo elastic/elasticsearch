@@ -107,7 +107,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             %s
             role_manage:
               cluster: [ manage ]
@@ -125,7 +125,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsersRoles() {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             %s
             role_manage:user_manage
             role_manage_security:user_manage_security

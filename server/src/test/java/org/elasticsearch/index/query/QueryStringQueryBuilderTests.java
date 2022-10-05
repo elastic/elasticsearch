@@ -873,7 +873,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testTimezone() throws Exception {
-        String queryAsString = String.format(Locale.ROOT, """
+        String queryAsString = formatted("""
             {
                 "query_string":{
                     "time_zone":"Europe/Paris",
@@ -885,7 +885,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder queryStringQueryBuilder = (QueryStringQueryBuilder) queryBuilder;
         assertThat(queryStringQueryBuilder.timeZone(), equalTo(ZoneId.of("Europe/Paris")));
 
-        String invalidQueryAsString = String.format(Locale.ROOT, """
+        String invalidQueryAsString = formatted("""
             {
                 "query_string":{
                     "time_zone":"This timezone does not exist",

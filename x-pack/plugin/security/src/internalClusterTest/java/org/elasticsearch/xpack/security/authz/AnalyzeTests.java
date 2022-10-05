@@ -35,7 +35,7 @@ public class AnalyzeTests extends SecurityIntegTestCase {
     @Override
     protected String configRoles() {
         // role that has analyze indices privileges only
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             %s
             analyze_indices:
               indices:

@@ -161,7 +161,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        String query = String.format(java.util.Locale.ROOT, """
+        String query = formatted("""
             {
               "geo_polygon": {
                 "%s": {
@@ -178,7 +178,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        String query = String.format(java.util.Locale.ROOT, """
+        String query = formatted("""
             {
               "geo_polygon": {
                 "%s": {
@@ -191,7 +191,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        String query = String.format(java.util.Locale.ROOT, """
+        String query = formatted("""
             {
               "geo_polygon": {
                 "%s": {
@@ -204,7 +204,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        String query = String.format(java.util.Locale.ROOT, """
+        String query = formatted("""
             {
               "geo_polygon": {
                 "%s": {
@@ -256,7 +256,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     public void testPointValidation() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        String queryInvalidLat = String.format(java.util.Locale.ROOT, """
+        String queryInvalidLat = formatted("""
             {
               "geo_polygon": {
                 "%s": {
@@ -272,7 +272,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         QueryShardException e1 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLat).toQuery(context));
         assertThat(e1.getMessage(), containsString("illegal latitude value [140.0] for [geo_polygon]"));
 
-        String queryInvalidLon = String.format(java.util.Locale.ROOT, """
+        String queryInvalidLon = formatted("""
             {
               "geo_polygon": {
                 "%s": {

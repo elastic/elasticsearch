@@ -205,7 +205,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     private void putJob(String jobId) throws IOException {
-        String jobConfig = String.format(java.util.Locale.ROOT, """
+        String jobConfig = formatted("""
             {
                 "job_id": "%s",
                 "analysis_config": {

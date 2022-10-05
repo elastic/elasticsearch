@@ -197,7 +197,7 @@ public class InferenceDefinitionTests extends ESTestCase {
     }
 
     public static String getClassificationDefinition(boolean customPreprocessor) {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             {
                 "preprocessors": [
                     {

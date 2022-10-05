@@ -78,22 +78,23 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
     public void testToXContent() throws IOException {
         AsyncStatusResponse response = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            String expectedJson = """
-                {
-                  "id" : "%s",
-                  "is_running" : %s,
-                  "is_partial" : %s,
-                  "start_time_in_millis" : %s,
-                  "expiration_time_in_millis" : %s,
-                  "_shards" : {
-                    "total" : %s,
-                    "successful" : %s,
-                    "skipped" : %s,
-                    "failed" : %s
-                   }
-                  %s
-                }
-                """.formatted(
+            String expectedJson = formatted(
+                """
+                    {
+                      "id" : "%s",
+                      "is_running" : %s,
+                      "is_partial" : %s,
+                      "start_time_in_millis" : %s,
+                      "expiration_time_in_millis" : %s,
+                      "_shards" : {
+                        "total" : %s,
+                        "successful" : %s,
+                        "skipped" : %s,
+                        "failed" : %s
+                       }
+                      %s
+                    }
+                    """,
                 response.getId(),
                 response.isRunning(),
                 response.isPartial(),
@@ -103,7 +104,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                 response.getSuccessfulShards(),
                 response.getSkippedShards(),
                 response.getFailedShards(),
-                response.getCompletionStatus() == null ? "" : String.format(java.util.Locale.ROOT, """
+                response.getCompletionStatus() == null ? "" : formatted("""
                     ,"completion_status" : %s""", response.getCompletionStatus().getStatus())
             );
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);

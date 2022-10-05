@@ -62,7 +62,7 @@ public class InferenceIT extends ESRestTestCase {
         }
 
         Request inferRequest = new Request("POST", "_ml/trained_models/" + regressionModelId + "/_infer");
-        inferRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+        inferRequest.setJsonEntity(formatted("""
             {
               "docs": [%s]
             }
@@ -75,7 +75,7 @@ public class InferenceIT extends ESRestTestCase {
         putModelAlias("foo_regression", regressionModelId);
 
         inferRequest = new Request("POST", "_ml/trained_models/foo_regression/_infer");
-        inferRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+        inferRequest.setJsonEntity(formatted("""
             {
               "docs": [%s]
             }
@@ -98,7 +98,7 @@ public class InferenceIT extends ESRestTestCase {
         }
 
         Request inferRequest = new Request("POST", "_ml/trained_models/" + classificationModelId + "/_infer");
-        inferRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+        inferRequest.setJsonEntity(formatted("""
             {
               "docs": [%s]
             }
@@ -111,7 +111,7 @@ public class InferenceIT extends ESRestTestCase {
         putModelAlias("foo_classification", classificationModelId);
 
         inferRequest = new Request("POST", "_ml/trained_models/foo_classification/_infer");
-        inferRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+        inferRequest.setJsonEntity(formatted("""
             {
               "docs": [%s]
             }
@@ -282,7 +282,7 @@ public class InferenceIT extends ESRestTestCase {
           }
         }""";
 
-    private static final String REGRESSION_CONFIG = String.format(java.util.Locale.ROOT, """
+    private static final String REGRESSION_CONFIG = formatted("""
         {
             "input": {
                 "field_names": [
@@ -304,7 +304,7 @@ public class InferenceIT extends ESRestTestCase {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
-    private static final String CLASSIFICATION_CONFIG = String.format(java.util.Locale.ROOT, """
+    private static final String CLASSIFICATION_CONFIG = formatted("""
         {
           "input": {
             "field_names": [ "col1", "col2", "col3", "col4" ]

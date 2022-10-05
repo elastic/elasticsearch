@@ -544,7 +544,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             .execute()
             .actionGet();
 
-        String simulateSource = String.format(java.util.Locale.ROOT, """
+        String simulateSource = formatted("""
             {
               "pipeline": %s,
               "docs": [

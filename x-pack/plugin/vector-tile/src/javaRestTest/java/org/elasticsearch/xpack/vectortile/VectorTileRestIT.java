@@ -678,7 +678,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         {
             // desc order, polygon should be the first hit
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+            mvtRequest.setJsonEntity(formatted("""
                 {
                   "size" : 100,
                   "grid_precision" : 0,
@@ -701,7 +701,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         {
             // asc order, polygon should be the last hit
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+            mvtRequest.setJsonEntity(formatted("""
                 {
                   "size" : 100,
                   "grid_precision" : 0,

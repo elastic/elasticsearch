@@ -72,7 +72,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {
-        String jobConfig = String.format(java.util.Locale.ROOT, """
+        String jobConfig = formatted("""
             {
                 "job_id": "%s",
                 "analysis_config": {

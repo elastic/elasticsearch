@@ -156,7 +156,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         }
 
         // indexStatsSummary()
-        final String expected = stripWhitespace(String.format(Locale.ROOT, """
+        final String expected = stripWhitespace(formatted("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-09T08:18:59.402Z",
@@ -320,7 +320,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = stripWhitespace(String.format(Locale.ROOT, """
+        final String expected = stripWhitespace(formatted("""
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-09T08:18:59.402Z",

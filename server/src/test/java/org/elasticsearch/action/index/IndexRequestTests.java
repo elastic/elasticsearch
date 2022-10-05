@@ -146,10 +146,11 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
         assertEquals(
-            """
-                IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
-                {"total":%s,"successful":%s,"failed":0}]\
-                """.formatted(
+            formatted(
+                """
+                    IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
+                    {"total":%s,"successful":%s,"failed":0}]\
+                    """,
                 shardId.getIndexName(),
                 id,
                 version,
@@ -256,7 +257,7 @@ public class IndexRequestTests extends ESTestCase {
         request.source(source, XContentType.JSON);
         assertEquals("index {[index][null], source[" + source + "]}", request.toString());
 
-        source = String.format(java.util.Locale.ROOT, """
+        source = formatted("""
             {"name":"%s"}
             """, randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING));
         request.source(source, XContentType.JSON);

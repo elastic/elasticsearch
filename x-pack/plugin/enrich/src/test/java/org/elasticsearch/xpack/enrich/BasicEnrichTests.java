@@ -97,7 +97,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = """
+        String pipelineBody = formatted("""
             {
               "processors": [
                 {
@@ -109,7 +109,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                   }
                 }
               ]
-            }""".formatted(policyName, MATCH_FIELD, maxMatches);
+            }""", policyName, MATCH_FIELD, maxMatches);
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 
@@ -190,7 +190,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = """
+        String pipelineBody = formatted("""
             {
               "processors": [
                 {
@@ -202,7 +202,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                   }
                 }
               ]
-            }""".formatted(policyName, matchField);
+            }""", policyName, matchField);
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 
@@ -250,7 +250,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
             String pipelineName = "pipeline" + i;
-            String pipelineBody = String.format(java.util.Locale.ROOT, """
+            String pipelineBody = formatted("""
                 {
                   "processors": [ { "enrich": { "policy_name": "%s", "field": "key", "target_field": "target" } } ]
                 }""", policyName);
@@ -308,7 +308,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         });
 
         String pipelineName = "test-pipeline";
-        String pipelineBody = String.format(java.util.Locale.ROOT, """
+        String pipelineBody = formatted("""
             {
               "processors": [ { "enrich": { "policy_name": "%s", "field": "key", "target_field": "target" } } ]
             }""", policyName);
@@ -350,8 +350,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = String.format(
-            java.util.Locale.ROOT,
+        String pipelineBody = formatted(
             """
                 {"processors": [{"enrich": {"policy_name":"%s", "field": "{{indirection1}}", "target_field": "{{indirection2}}"}}]}""",
             policyName

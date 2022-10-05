@@ -54,7 +54,7 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {
-            bulk.append(String.format(Locale.ROOT, """
+            bulk.append(formatted("""
                 {"index":{}}
                 {"test_field":%s}
                 """, i));

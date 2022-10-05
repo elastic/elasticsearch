@@ -457,7 +457,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                 .preparePutStoredScript()
                 .setId("my_script")
                 // Source is not interpreted but my_script is defined in CustomScriptPlugin
-                .setContent(new BytesArray(String.format(java.util.Locale.ROOT, """
+                .setContent(new BytesArray(formatted("""
                     {
                       "script": {
                         "lang": "%s",

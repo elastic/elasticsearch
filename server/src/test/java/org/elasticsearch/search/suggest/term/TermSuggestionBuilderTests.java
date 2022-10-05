@@ -177,7 +177,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
 
     public void testMalformedJson() {
         final String field = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-        String suggest = String.format(Locale.ROOT, """
+        String suggest = formatted("""
             {
               "bad-payload" : {
                 "text" : "the amsterdma meetpu",

@@ -51,7 +51,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             %s
             allowed_role:
               cluster:

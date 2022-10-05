@@ -46,7 +46,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -179,9 +178,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
         // register repo on old ES and take snapshot
         Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
-        createRepoRequest.setJsonEntity(sourceOnlyRepository ? String.format(Locale.ROOT, """
+        createRepoRequest.setJsonEntity(sourceOnlyRepository ? formatted("""
             {"type":"source","settings":{"location":"%s","delegate_type":"fs"}}
-            """, repoLocation) : String.format(Locale.ROOT, """
+            """, repoLocation) : formatted("""
             {"type":"fs","settings":{"location":"%s"}}
             """, repoLocation));
         assertOK(oldEs.performRequest(createRepoRequest));
@@ -282,13 +281,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     }
 
     private static String sourceForDoc(int i) {
-        return "{\"test\":\"test"
-            + i
-            + "\",\"val\":"
-            + i
-            + ",\"create_date\":\"2020-01-"
-            + String.format(Locale.ROOT, "%02d", i + 1)
-            + "\"}";
+        return "{\"test\":\"test" + i + "\",\"val\":" + i + ",\"create_date\":\"2020-01-" + formatted("%02d", i + 1) + "\"}";
     }
 
     @SuppressWarnings("removal")

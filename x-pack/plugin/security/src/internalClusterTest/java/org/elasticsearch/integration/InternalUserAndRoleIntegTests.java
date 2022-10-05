@@ -53,7 +53,7 @@ public class InternalUserAndRoleIntegTests extends AbstractPrivilegeTestCase {
     }
 
     private String defaultRole(String roleName) {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             %s:
               cluster: [ none ]
               indices:

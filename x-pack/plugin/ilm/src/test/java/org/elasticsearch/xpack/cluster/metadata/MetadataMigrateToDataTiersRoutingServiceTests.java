@@ -1551,7 +1551,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private String getWarmPhaseDef() {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             {
               "policy": "%s",
               "phase_definition": {
@@ -1577,7 +1577,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private String getColdPhaseDefinitionWithTotalShardsPerNode() {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             {
               "policy": "%s",
               "phase_definition": {
@@ -1597,7 +1597,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private String getColdPhaseDefinition() {
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             {
               "policy": "%s",
               "phase_definition": {

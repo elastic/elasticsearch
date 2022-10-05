@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class GeoTileGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, String.format(java.util.Locale.ROOT, """
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, formatted("""
             {"field":"my_loc", "precision":%s, "size": 500, "shard_size": 550}""", precision));
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
@@ -31,7 +31,7 @@ public class GeoTileGridParserTests extends ESTestCase {
 
     public void testParseValidFromStrings() throws Exception {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, String.format(java.util.Locale.ROOT, """
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, formatted("""
             {"field":"my_loc", "precision":"%s", "size": "500", "shard_size": "550"}
             """, precision));
         XContentParser.Token token = stParser.nextToken();
@@ -71,7 +71,7 @@ public class GeoTileGridParserTests extends ESTestCase {
 
     public void testParseValidBounds() throws Exception {
         Rectangle bbox = GeometryTestUtils.randomRectangle();
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, """
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, formatted("""
             {
               "field": "my_loc",
               "precision": 5,
@@ -83,7 +83,7 @@ public class GeoTileGridParserTests extends ESTestCase {
                 "left": %s,
                 "right": %s
               }
-            }""".formatted(bbox.getMaxY(), bbox.getMinY(), bbox.getMinX(), bbox.getMaxX()));
+            }""", bbox.getMaxY(), bbox.getMinY(), bbox.getMinX(), bbox.getMaxX()));
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory

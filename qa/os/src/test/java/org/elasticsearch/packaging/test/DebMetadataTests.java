@@ -41,7 +41,7 @@ public class DebMetadataTests extends PackagingTestCase {
                 extraArgs += " --suppress-tags malformed-override,mismatched-override";
             }
         }
-        sh.run("lintian %s %s".formatted(extraArgs, FileUtils.getDistributionFile(distribution())));
+        sh.run(formatted("lintian %s %s", extraArgs, FileUtils.getDistributionFile(distribution())));
     }
 
     public void test06Dependencies() {

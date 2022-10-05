@@ -139,7 +139,7 @@ public class RestGetTokenActionTests extends ESTestCase {
     }
 
     public void testParser() throws Exception {
-        final String request = String.format(Locale.ROOT, """
+        final String request = formatted("""
             {
               "grant_type": "password",
               "username": "user1",
@@ -157,7 +157,7 @@ public class RestGetTokenActionTests extends ESTestCase {
 
     public void testParserRefreshRequest() throws Exception {
         final String token = randomAlphaOfLengthBetween(4, 32);
-        final String request = String.format(Locale.ROOT, """
+        final String request = formatted("""
             {
               "grant_type": "refresh_token",
               "refresh_token": "%s",

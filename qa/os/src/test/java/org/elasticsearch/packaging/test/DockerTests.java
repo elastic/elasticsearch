@@ -282,7 +282,7 @@ public class DockerTests extends PackagingTestCase {
             for (boolean useConfigFile : List.of(true, false)) {
                 mockServer.clearExpectations();
 
-                final String config = String.format(java.util.Locale.ROOT, """
+                final String config = formatted("""
                     plugins:
                         # This is the new plugin to install. We don't use an official plugin because then Elasticsearch
                         # will attempt an SSL connection and that just makes everything more complicated.

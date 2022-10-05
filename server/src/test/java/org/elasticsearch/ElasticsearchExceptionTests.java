@@ -597,7 +597,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 builder.endObject();
                 actual = Strings.toString(builder);
             }
-            assertThat(actual, startsWith(String.format(java.util.Locale.ROOT, """
+            assertThat(actual, startsWith(formatted("""
                 {"type":"exception","reason":"foo","caused_by":{"type":"illegal_state_exception","reason":"bar",\
                 "stack_trace":"java.lang.IllegalStateException: bar%s\\tat org.elasticsearch.""", Constants.WINDOWS ? "\\r\\n" : "\\n")));
         }

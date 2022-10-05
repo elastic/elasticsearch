@@ -162,7 +162,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     public void testWithValidPasswordHash() throws IOException {
         final Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString("secretpassword".toCharArray()));
-        final String json = String.format(java.util.Locale.ROOT, """
+        final String json = formatted("""
             {
               "password_hash": "%s",
               "roles": []
@@ -186,7 +186,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
             userHasher = getFastStoredHashAlgoForTests();
         }
         final char[] hash = userHasher.hash(new SecureString("secretpassword".toCharArray()));
-        final String json = String.format(java.util.Locale.ROOT, """
+        final String json = formatted("""
             {
               "password_hash": "%s",
               "roles": []

@@ -45,7 +45,7 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
     public void testWithHashedPassword() throws IOException {
         final Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString("superlongpassword".toCharArray()));
-        final String json = String.format(java.util.Locale.ROOT, """
+        final String json = formatted("""
             {
                 "password_hash": "%s"
             }""", new String(hash));
@@ -62,7 +62,7 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
             userHasher = getFastStoredHashAlgoForTests();
         }
         final char[] hash = userHasher.hash(new SecureString("superlongpassword".toCharArray()));
-        final String json = String.format(java.util.Locale.ROOT, """
+        final String json = formatted("""
             {"password_hash": "%s"}
             """, new String(hash));
         ChangePasswordRequestBuilder builder = new ChangePasswordRequestBuilder(mock(Client.class));
@@ -77,7 +77,7 @@ public class ChangePasswordRequestBuilderTests extends ESTestCase {
     public void testWithHashedPasswordNotHash() {
         final Hasher systemHasher = getFastStoredHashAlgoForTests();
         final char[] hash = randomAlphaOfLength(20).toCharArray();
-        final String json = String.format(java.util.Locale.ROOT, """
+        final String json = formatted("""
             {
                 "password_hash": "%s"
             }""", new String(hash));

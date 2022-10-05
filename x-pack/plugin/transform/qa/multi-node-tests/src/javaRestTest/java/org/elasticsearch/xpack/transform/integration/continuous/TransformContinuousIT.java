@@ -198,7 +198,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
             int numDocs = randomIntBetween(1000, 20000);
             Set<String> modifiedEvents = new HashSet<>();
-            String action = String.format(Locale.ROOT, """
+            String action = formatted("""
                 {"create":{"_index":"%s"}}
                 """, sourceIndexName);
             for (int numDoc = 0; numDoc < numDocs; numDoc++) {
@@ -415,13 +415,13 @@ public class TransformContinuousIT extends TransformRestTestCase {
             logger.info("Creating source index with: {}", indexSettingsAndMappings);
             if (isDataStream) {
                 Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
-                createCompositeTemplate.setJsonEntity("""
+                createCompositeTemplate.setJsonEntity(formatted("""
                     {
                       "index_patterns": [ "%s" ],
                       "data_stream": {
                       },
                       "template": %s
-                    }""".formatted(indexName, indexSettingsAndMappings));
+                    }""", indexName, indexSettingsAndMappings));
                 client().performRequest(createCompositeTemplate);
                 client().performRequest(new Request("PUT", "_data_stream/" + indexName));
             } else {

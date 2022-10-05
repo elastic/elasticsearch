@@ -330,12 +330,12 @@ public final class TimeSeriesRestDriver {
             writeIndexSnippet = "\"is_write_index\": true";
         }
         String m = mapping != null ? String.format(Locale.ROOT, "\"mappings\": %s, ", mapping) : "";
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
              "settings": %s,
              %s
              "aliases" : { "%s": { %s } }
-            }""".formatted(Strings.toString(settings.build()), m, alias, writeIndexSnippet));
+            }""", Strings.toString(settings.build()), m, alias, writeIndexSnippet));
         client.performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);

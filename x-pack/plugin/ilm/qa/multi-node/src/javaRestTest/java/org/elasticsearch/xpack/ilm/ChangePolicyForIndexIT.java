@@ -129,7 +129,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
             .put(LifecycleSettings.LIFECYCLE_NAME, "policy_1")
             .build();
         Request createIndexRequest = new Request("PUT", "/" + indexName);
-        createIndexRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+        createIndexRequest.setJsonEntity(formatted("""
             {
               "settings": %s,
               "aliases": {

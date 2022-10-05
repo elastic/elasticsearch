@@ -189,7 +189,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         }
         Map<String, BytesReference> additions = Maps.newMapWithExpectedSize(additionsCount);
         for (int i = 0; i < additionsCount; i++) {
-            additions.put("add_template_" + i, new BytesArray(String.format(java.util.Locale.ROOT, """
+            additions.put("add_template_" + i, new BytesArray(formatted("""
                 {"index_patterns" : "*", "order" : %s}
                 """, i)));
         }

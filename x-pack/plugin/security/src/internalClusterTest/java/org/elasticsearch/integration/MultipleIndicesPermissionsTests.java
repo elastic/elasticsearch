@@ -75,7 +75,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     @Override
     protected String configRoles() {
         // The definition of TEST_ROLE here is intentionally different than the definition in the superclass.
-        return String.format(java.util.Locale.ROOT, """
+        return formatted("""
             %s:
               cluster: [ all ]
               indices:

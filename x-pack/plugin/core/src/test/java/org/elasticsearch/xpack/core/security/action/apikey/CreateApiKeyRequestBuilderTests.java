@@ -27,7 +27,7 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
 
     public void testParserAndCreateApiRequestBuilder() throws IOException {
         boolean withExpiration = randomBoolean();
-        final String json = String.format(java.util.Locale.ROOT, """
+        final String json = formatted("""
             {
               "name": "my-api-key",
               %s

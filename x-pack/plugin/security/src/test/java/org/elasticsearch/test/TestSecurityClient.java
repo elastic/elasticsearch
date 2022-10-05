@@ -112,7 +112,7 @@ public class TestSecurityClient {
     public void changePassword(String username, SecureString password) throws IOException {
         final String endpoint = "/_security/user/" + username + "/_password";
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        final String body = String.format(java.util.Locale.ROOT, """
+        final String body = String.format(Locale.ROOT, """
             {
                 "password": "%s"
             }
@@ -160,7 +160,7 @@ public class TestSecurityClient {
     public void invalidateApiKeysForUser(String username) throws IOException {
         final String endpoint = "/_security/api_key/";
         final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        request.setJsonEntity(String.format(java.util.Locale.ROOT, """
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
                 "username":"%s"
             }
@@ -309,7 +309,7 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction
      */
     public OAuth2Token refreshToken(String refreshToken) throws IOException {
-        return createToken(String.format(java.util.Locale.ROOT, """
+        return createToken(String.format(Locale.ROOT, """
             {
               "grant_type":"refresh_token",
               "refresh_token":"%s"
@@ -346,7 +346,7 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateAccessToken(String accessToken) throws IOException {
-        return invalidateTokens(String.format(java.util.Locale.ROOT, """
+        return invalidateTokens(String.format(Locale.ROOT, """
             {
               "token":"%s"
             }
@@ -358,7 +358,7 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateRefreshToken(String refreshToken) throws IOException {
-        return invalidateTokens(String.format(java.util.Locale.ROOT, """
+        return invalidateTokens(String.format(Locale.ROOT, """
             {
               "refresh_token":"%s"
             }
@@ -370,7 +370,7 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateTokensForUser(String username) throws IOException {
-        return invalidateTokens(String.format(java.util.Locale.ROOT, """
+        return invalidateTokens(String.format(Locale.ROOT, """
             {
               "username":"%s"
             }
@@ -382,7 +382,7 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateTokensForRealm(String realmName) throws IOException {
-        return invalidateTokens(String.format(java.util.Locale.ROOT, """
+        return invalidateTokens(String.format(Locale.ROOT, """
             {
               "realm_name":"%s"
             }

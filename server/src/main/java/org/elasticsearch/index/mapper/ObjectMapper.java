@@ -25,10 +25,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper implements Cloneable {
@@ -67,6 +69,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
+        private final Set<String> subMapperNames = new HashSet<>(); // keeps track of dynamically added subfields
 
         public Builder(String name, Explicit<Boolean> subobjects) {
             super(name);
@@ -85,10 +88,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public Builder add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
+            subMapperNames.add(builder.name);
             return this;
         }
 
-        public List<Mapper.Builder> subBuilders() {
+        public Collection<Mapper.Builder> subBuilders() {
             return mappersBuilders;
         }
 
@@ -116,21 +120,25 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
                 ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChild, immediateChildFullName, context);
                 parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
-                add(parentBuilder);
             }
         }
 
         private ObjectMapper.Builder findObjectBuilder(String leafName, String fullName, DocumentParserContext context) {
-            // has the object mapper already been added here? if so, use that
-            if (mappersBuilders)
             // does the object mapper already exist? if so, use that
             ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
             if (objectMapper != null) {
-                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+                ObjectMapper.Builder builder = objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+                add(builder);
+                return builder;
             }
             // has the object mapper been added as a dynamic update already?
             ObjectMapper.Builder builder = context.getDynamicObjectMapper(fullName);
             if (builder != null) {
+                // we re-use builder instances so if the builder has already been
+                // added we don't need to do so again
+                if (subMapperNames.contains(leafName) == false) {
+                    add(builder);
+                }
                 return builder;
             }
             throw new IllegalStateException("Missing intermediate object " + fullName);

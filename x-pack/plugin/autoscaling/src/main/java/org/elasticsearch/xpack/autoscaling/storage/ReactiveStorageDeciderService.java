@@ -441,9 +441,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             // enable debug decisions to see all decisions and preserve the allocation decision label
             allocation.debugDecision(true);
             try {
-                List<NodeDecision> diskOnly = nodesInTier(allocation.routingNodes()).map(
+                List<NodeDecision> nodeDecisions = nodesInTier(allocation.routingNodes()).map(
                     node -> new NodeDecision(node.node(), allocationDeciders.canAllocate(shard, node, allocation))
-                ).filter(nar -> ReactiveStorageDeciderService.isDiskOnlyNoDecision(nar.decision())).toList();
+                ).toList();
+                List<NodeDecision> diskOnly = nodeDecisions.stream()
+                    .filter(nar -> ReactiveStorageDeciderService.isDiskOnlyNoDecision(nar.decision()))
+                    .toList();
                 if (diskOnly.size() > 0 && shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                     // For resize shards only allow autoscaling if there is no other node where the shard could fit had it not been
                     // a resize shard. Notice that we already removed any initial_recovery filters.
@@ -454,7 +457,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                         return Optional.empty();
                     }
                 }
-                return diskOnly.size() > 0 ? Optional.of(new ShardNodeDecisions(shard, diskOnly)) : Optional.empty();
+                return diskOnly.size() > 0 ? Optional.of(new ShardNodeDecisions(shard, nodeDecisions)) : Optional.empty();
             } finally {
                 allocation.debugDecision(false);
             }

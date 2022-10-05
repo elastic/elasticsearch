@@ -161,7 +161,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                         assertEquals(cappedShardIds(expectedShardIds), shardNodeDecisions.keySet());
                         assertEquals(
                             Decision.single(Decision.Type.NO, "disk_threshold", "test"),
-                            singleNoDecision(shardNodeDecisions.get(expectedShardIds.first()).canAllocateDecisions().get(0))
+                            firstNoDecision(shardNodeDecisions.get(expectedShardIds.first()).canAllocateDecisions().get(0))
                         );
                         assertEquals(List.of(), shardNodeDecisions.get(expectedShardIds.first()).canRemainDecisions());
                     } else {
@@ -204,7 +204,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                     assertEquals(cappedShardIds(expectedShardIds), shardIdNodeDecisions.keySet());
                     assertEquals(
                         Decision.single(Decision.Type.NO, "disk_threshold", "test"),
-                        singleNoDecision(shardIdNodeDecisions.get(expectedShardIds.first()).canAllocateDecisions().get(0))
+                        firstNoDecision(shardIdNodeDecisions.get(expectedShardIds.first()).canAllocateDecisions().get(0))
                     );
                     assertEquals(List.of(), shardIdNodeDecisions.get(expectedShardIds.first()).canRemainDecisions());
                     return true;
@@ -295,7 +295,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 assertEquals(cappedShardIds(expectedShardIds), shardIdNodeDecisions.keySet());
                 assertEquals(
                     Decision.single(Decision.Type.NO, "disk_threshold", "test"),
-                    singleNoDecision(shardIdNodeDecisions.get(expectedShardIds.first()).canAllocateDecisions().get(0))
+                    firstNoDecision(shardIdNodeDecisions.get(expectedShardIds.first()).canAllocateDecisions().get(0))
                 );
                 assertEquals(
                     Decision.Type.NO,
@@ -320,7 +320,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertEquals(Decision.Type.NO, shardNodeDecisions.get(expectedShardIds.first()).canRemainDecisions().get(0).decision().type());
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
-                singleNoDecision(shardNodeDecisions.values().iterator().next().canAllocateDecisions().get(0))
+                firstNoDecision(shardNodeDecisions.values().iterator().next().canAllocateDecisions().get(0))
             );
             return true;
         }, Map::isEmpty, mockCanAllocateDiskDecider);
@@ -438,7 +438,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             );
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
-                singleNoDecision(shardNodeDecisions.get(shardIds.first()).canRemainDecisions().get(0))
+                firstNoDecision(shardNodeDecisions.get(shardIds.first()).canRemainDecisions().get(0))
             );
             return true;
         }, mockCanRemainDiskDecider, CAN_ALLOCATE_NO_DECIDER);
@@ -466,7 +466,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             );
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
-                singleNoDecision(shardNodeDecisions.get(shardIds.first()).canRemainDecisions().get(0))
+                firstNoDecision(shardNodeDecisions.get(shardIds.first()).canRemainDecisions().get(0))
             );
             return true;
         }, mockCanAllocateDiskDecider, mockCanRemainDiskDecider);
@@ -483,7 +483,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             );
             assertEquals(
                 Decision.single(Decision.Type.NO, "disk_threshold", "test"),
-                singleNoDecision(shardNodeDecisions.get(shardIds.first()).canRemainDecisions().get(0))
+                firstNoDecision(shardNodeDecisions.get(shardIds.first()).canRemainDecisions().get(0))
             );
             return true;
         }, Map::isEmpty, mockCanRemainDiskDecider, CAN_ALLOCATE_NO_DECIDER);
@@ -495,7 +495,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         return shardIds.stream().limit(MAX_AMOUNT_OF_SHARD_DECISIONS).collect(Collectors.toCollection(TreeSet::new));
     }
 
-    private static Decision singleNoDecision(NodeDecision nodeAllocationResult) {
+    private static Decision firstNoDecision(NodeDecision nodeAllocationResult) {
         List<Decision> noDecisions = nodeAllocationResult.decision()
             .getDecisions()
             .stream()
@@ -503,8 +503,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             .toList();
         if (noDecisions.isEmpty()) {
             throw new IllegalStateException("Unable to find NO can_remain decision");
-        } else if (noDecisions.size() > 1) {
-            throw new IllegalStateException("Found multiple NO can_remain decisions");
         }
         return noDecisions.get(0);
     }

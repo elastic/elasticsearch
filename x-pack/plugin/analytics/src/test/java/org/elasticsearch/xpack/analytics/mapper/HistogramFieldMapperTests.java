@@ -331,7 +331,8 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeFalse("synthetic _source support for histogram doesn't support ignore_malformed", ignoreMalformed);
         return new HistogramFieldSyntheticSourceSupport();
     }
 

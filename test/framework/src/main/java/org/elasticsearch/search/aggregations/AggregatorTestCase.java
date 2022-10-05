@@ -54,6 +54,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
@@ -363,7 +364,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             true,
             isInSortOrderExecutionRequired
         );
-        releasables.add(context);
         return context;
     }
 
@@ -457,6 +457,27 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(AggTestConfig aggTestConfig) throws IOException {
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
+        runWithCrankyCircuitBreaker(indexSettings, aggTestConfig);
+        // Second run it to the end
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+        return searchAndReduce(
+            indexSettings,
+            aggTestConfig.searcher(),
+            aggTestConfig.query(),
+            aggTestConfig.builder(),
+            aggTestConfig.maxBuckets(),
+            aggTestConfig.splitLeavesIntoSeparateAggregators(),
+            aggTestConfig.shouldBeCached(),
+            breakerService,
+            aggTestConfig.fieldTypes()
+        );
+    }
+
+    /**
+     * This is extracted into a seperate function so that stack traces will indicate if a bad allocation happened in the
+     * cranky CB run or the happy path run.
+     */
+    private void runWithCrankyCircuitBreaker(IndexSettings indexSettings, AggTestConfig aggTestConfig) throws IOException {
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
         for (int i = 0; i < 5; i++) {
             try {
@@ -477,19 +498,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 throw e;
             }
         }
-        // Second run it to the end
-        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-        return searchAndReduce(
-            indexSettings,
-            aggTestConfig.searcher(),
-            aggTestConfig.query(),
-            aggTestConfig.builder(),
-            aggTestConfig.maxBuckets(),
-            aggTestConfig.splitLeavesIntoSeparateAggregators(),
-            aggTestConfig.shouldBeCached(),
-            breakerService,
-            aggTestConfig.fieldTypes()
-        );
     }
 
     @SuppressWarnings("unchecked")
@@ -509,21 +517,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         List<InternalAggregation> aggs = new ArrayList<>();
         Query rewritten = searcher.rewrite(query);
 
-        AggregationContext context = createAggregationContext(
-            searcher,
-            indexSettings,
-            query,
-            breakerService,
-            randomBoolean() ? 0 : builder.bytesToPreallocate(),
-            maxBucket,
-            builder.isInSortOrderExecutionRequired(),
-            fieldTypes
-        );
-        C root = createAggregator(builder, context);
-
         if (splitLeavesIntoSeparateAggregators
             && searcher.getIndexReader().leaves().size() > 0
-            && context.isInSortOrderExecutionRequired() == false) {
+            && builder.isInSortOrderExecutionRequired() == false) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
             final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
             final int size = compCTX.leaves().size();
@@ -533,79 +529,113 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
             }
             for (ShardSearcher subSearcher : subSearchers) {
-                C a = createAggregator(builder, context);
-                a.preCollection();
-                if (context.isInSortOrderExecutionRequired()) {
-                    new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
-                } else {
-                    Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
-                    subSearcher.search(weight, a.asCollector());
+                AggregationContext context = createAggregationContext(
+                    subSearcher,
+                    indexSettings,
+                    query,
+                    breakerService,
+                    randomBoolean() ? 0 : builder.bytesToPreallocate(),
+                    maxBucket,
+                    builder.isInSortOrderExecutionRequired(),
+                    fieldTypes
+                );
+                try {
+                    C a = createAggregator(builder, context);
+                    a.preCollection();
+                    if (context.isInSortOrderExecutionRequired()) {
+                        new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
+                    } else {
+                        Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
+                        subSearcher.search(weight, a.asCollector());
+                    }
+                    a.postCollection();
+                    assertEquals(shouldBeCached, context.isCacheable());
+                    aggs.add(a.buildTopLevel());
+                } finally {
+                    Releasables.close(context);
                 }
-                a.postCollection();
-                aggs.add(a.buildTopLevel());
             }
         } else {
-            root.preCollection();
-            if (context.isInSortOrderExecutionRequired()) {
-                new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
-            } else {
-                searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)).asCollector());
+            AggregationContext context = createAggregationContext(
+                searcher,
+                indexSettings,
+                query,
+                breakerService,
+                randomBoolean() ? 0 : builder.bytesToPreallocate(),
+                maxBucket,
+                builder.isInSortOrderExecutionRequired(),
+                fieldTypes
+            );
+            try {
+                C root = createAggregator(builder, context);
+                root.preCollection();
+                if (context.isInSortOrderExecutionRequired()) {
+                    new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+                } else {
+                    searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)).asCollector());
+                }
+                root.postCollection();
+                aggs.add(root.buildTopLevel());
+            } finally {
+                Releasables.close(context);
             }
-            root.postCollection();
-            aggs.add(root.buildTopLevel());
         }
-        assertEquals(shouldBeCached, context.isCacheable());
         assertRoundTrip(aggs);
-        if (randomBoolean() && aggs.size() > 1) {
-            // sometimes do an incremental reduce
-            int toReduceSize = aggs.size();
-            Collections.shuffle(aggs, random());
-            int r = randomIntBetween(1, toReduceSize);
-            List<InternalAggregation> toReduce = aggs.subList(0, r);
-            AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
-                context.bigArrays(),
+
+        BigArrays bigArraysForReduction = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
+        try {
+            if (randomBoolean() && aggs.size() > 1) {
+                // sometimes do an incremental reduce
+                int toReduceSize = aggs.size();
+                Collections.shuffle(aggs, random());
+                int r = randomIntBetween(1, toReduceSize);
+                List<InternalAggregation> toReduce = aggs.subList(0, r);
+                AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
+                    bigArraysForReduction,
+                    getMockScriptService(),
+                    () -> false,
+                    builder
+                );
+                A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
+                aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
+                aggs.add(reduced);
+                assertRoundTrip(aggs);
+            }
+
+            // now do the final reduce
+            MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
+                maxBucket,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+            );
+            AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+                bigArraysForReduction,
                 getMockScriptService(),
                 () -> false,
-                builder
+                builder,
+                reduceBucketConsumer,
+                pipelines
             );
-            A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
-            aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
-            aggs.add(reduced);
-            assertRoundTrip(aggs);
+
+            @SuppressWarnings("unchecked")
+            A internalAgg = (A) aggs.get(0).reduce(aggs, reduceContext);
+            assertRoundTrip(internalAgg);
+
+            // materialize any parent pipelines
+            internalAgg = (A) internalAgg.reducePipelines(internalAgg, reduceContext, pipelines);
+
+            // materialize any sibling pipelines at top level
+            for (PipelineAggregator pipelineAggregator : pipelines.aggregators()) {
+                internalAgg = (A) pipelineAggregator.reduce(internalAgg, reduceContext);
+            }
+            doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+            assertRoundTrip(internalAgg);
+            if (builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) {
+                verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) builder, internalAgg);
+            }
+            return internalAgg;
+        } finally {
+            Releasables.close(breakerService);
         }
-
-        // now do the final reduce
-        MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
-            maxBucket,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-        );
-        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
-            context.bigArrays(),
-            getMockScriptService(),
-            () -> false,
-            builder,
-            reduceBucketConsumer,
-            pipelines
-        );
-
-        @SuppressWarnings("unchecked")
-        A internalAgg = (A) aggs.get(0).reduce(aggs, reduceContext);
-        assertRoundTrip(internalAgg);
-
-        // materialize any parent pipelines
-        internalAgg = (A) internalAgg.reducePipelines(internalAgg, reduceContext, pipelines);
-
-        // materialize any sibling pipelines at top level
-        for (PipelineAggregator pipelineAggregator : pipelines.aggregators()) {
-            internalAgg = (A) pipelineAggregator.reduce(internalAgg, reduceContext);
-        }
-        doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
-        assertRoundTrip(internalAgg);
-
-        if (builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) {
-            verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) builder, internalAgg);
-        }
-        return internalAgg;
     }
 
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
@@ -766,29 +796,33 @@ public abstract class AggregatorTestCase extends ESTestCase {
             builder.isInSortOrderExecutionRequired(),
             fieldTypes
         );
-        Aggregator aggregator = createAggregator(builder, context);
-        aggregator.preCollection();
-        searcher.search(context.query(), aggregator.asCollector());
-        aggregator.postCollection();
-        InternalAggregation r = aggregator.buildTopLevel();
-        r = r.reduce(
-            List.of(r),
-            new AggregationReduceContext.ForFinal(
-                context.bigArrays(),
-                getMockScriptService(),
-                () -> false,
-                builder,
-                context.multiBucketConsumer(),
-                builder.buildPipelineTree()
-            )
-        );
-        @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok
-        R result = (R) r;
-        assertRoundTrip(result);
-        Map<String, Map<String, Object>> debug = new HashMap<>();
-        collectDebugInfo("", aggregator, debug);
-        verify.apply(result, aggregator.getClass(), debug);
-        verifyOutputFieldNames(builder, result);
+        try {
+            Aggregator aggregator = createAggregator(builder, context);
+            aggregator.preCollection();
+            searcher.search(context.query(), aggregator.asCollector());
+            aggregator.postCollection();
+            InternalAggregation r = aggregator.buildTopLevel();
+            r = r.reduce(
+                List.of(r),
+                new AggregationReduceContext.ForFinal(
+                    context.bigArrays(),
+                    getMockScriptService(),
+                    () -> false,
+                    builder,
+                    context.multiBucketConsumer(),
+                    builder.buildPipelineTree()
+                )
+            );
+            @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok
+            R result = (R) r;
+            assertRoundTrip(result);
+            Map<String, Map<String, Object>> debug = new HashMap<>();
+            collectDebugInfo("", aggregator, debug);
+            verify.apply(result, aggregator.getClass(), debug);
+            verifyOutputFieldNames(builder, result);
+        } finally {
+            Releasables.close(context);
+        }
     }
 
     private void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {

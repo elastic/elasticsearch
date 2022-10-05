@@ -378,34 +378,7 @@ public class CoordinatorTests extends ESTestCase {
                 });
             }
 
-            boolean success = completionCountdown.await(20L, TimeUnit.SECONDS);
-            if (success == false) {
-                Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
-                for (Map.Entry<Thread, StackTraceElement[]> entry : allStackTraces.entrySet()) {
-                    if (entry.getKey().getName().contains("generic")) {
-                        for (StackTraceElement stackTraceElement : entry.getValue()) {
-                            assertFalse(stackTraceElement.toString(), stackTraceElement.getClassName().contains("org.elasticsearch"));
-                        }
-                    }
-                }
-                System.out.println("**** We have failure");
-                int pass1QueueSize = coordinator.queue.size();
-                long pass1LatchSize = completionCountdown.getCount();
-                coordinator.coordinateLookups();
-                boolean secondSuccess = completionCountdown.await(20L, TimeUnit.SECONDS);
-                fail(
-                    "Succeeded on 2nd try: "
-                        + secondSuccess
-                        + ", queue size: "
-                        + coordinator.queue.size()
-                        + ", countdown latch size: "
-                        + completionCountdown.getCount()
-                        + ", original queue size: "
-                        + pass1QueueSize
-                        + ", original coundown latch size: "
-                        + pass1LatchSize
-                );
-            }
+            assertTrue(completionCountdown.await(20L, TimeUnit.SECONDS));
             assertThat(coordinator.queue, empty());
 
             assertBusy(() -> assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0)));

@@ -5,31 +5,6 @@ setup:
       features: headers
 
   - do:
-      security.put_role:
-        name: "index-role"
-        body: >
-          {
-            "indices": [
-              {
-                "names": ["source", "target"],
-                "privileges": ["all"],
-                "query": { "match_all": {} }
-              }
-            ]
-          }
-
-  - do:
-      security.put_user:
-        username: "index"
-        body: >
-          {
-            "password" : "x-pack-test-password",
-            "roles" : [ "index-role" ],
-            "full_name" : "user with all permissions on source and target index"
-          }
-
-  - do:
-      headers: { Authorization: "Basic aW5kZXg6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" }
       indices.create:
         index: source
         body:
@@ -72,7 +47,6 @@ setup:
                             time_series_metric: counter
 
   - do:
-      headers: { Authorization: "Basic aW5kZXg6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" }
       bulk:
         refresh: true
         index: source
@@ -96,7 +70,6 @@ setup:
 
   # Make the downsample source index read-only
   - do:
-      headers: { Authorization: "Basic aW5kZXg6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" }
       indices.put_settings:
         index: source
         body:

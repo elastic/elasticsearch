@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-@Seed("10ABB657AA389E3C")
 public class PercolateWithNestedQueryBuilderTests extends PercolateQueryBuilderTests {
 
     @Override

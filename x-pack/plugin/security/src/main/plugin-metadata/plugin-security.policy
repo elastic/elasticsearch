@@ -31,12 +31,6 @@ grant {
   // needed for kerberos file permission tests to access user information
   permission java.lang.RuntimePermission "accessUserInformation";
   permission java.lang.RuntimePermission "getFileStoreAttributes";
-
-  // needed for com.nimbusds.jose.shaded.gson.Gson.toJson
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-
-  // needed for com.nimbusds.oauth2.sdk.id.Identifier#value
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 grant codeBase "${codebase.netty-common}" {
@@ -50,4 +44,12 @@ grant codeBase "${codebase.netty-transport}" {
    // Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
    // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
+};
+
+grant {
+  // needed for com.nimbusds.jose.shaded.gson.Gson.toJson
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+
+  // needed for com.nimbusds.oauth2.sdk.id.Identifier#value
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

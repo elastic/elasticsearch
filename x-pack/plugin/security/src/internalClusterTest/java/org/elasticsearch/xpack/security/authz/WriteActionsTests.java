@@ -33,7 +33,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return """
+        return formatted("""
             %s:
               cluster: [ ALL ]
               indices:
@@ -45,7 +45,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
                   privileges: [ manage, write ]
                 - names: '/test.*/'
                   privileges: [ read ]
-            """.formatted(SecuritySettingsSource.TEST_ROLE);
+            """, SecuritySettingsSource.TEST_ROLE);
     }
 
     public void testIndex() {

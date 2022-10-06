@@ -174,7 +174,12 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     List.of(
                         new Diagnosis(
                             checkRecentlyFailedSnapshots(cause, action),
-                            unhealthyPolicies.stream().map(SnapshotLifecyclePolicyMetadata::getName).toList()
+                            List.of(
+                                new Diagnosis.Resource(
+                                    Diagnosis.Resource.Type.SLM_POLICY,
+                                    unhealthyPolicies.stream().map(SnapshotLifecyclePolicyMetadata::getName).toList()
+                                )
+                            )
                         )
                     )
                 );

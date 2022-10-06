@@ -12,7 +12,7 @@ except you can search for multiple values.
 [[terms-query-ex-request]]
 ==== Example request
 
-The following search returns documents where the `user.id` field contains `kimchy`
+The following search returns documents where the `user.id` field contains exactly `kimchy`
 or `elkbee`.
 
 [source,console]

@@ -60,8 +60,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         this.queryRewriter = queryRewriter;
     }
 
-    public RelevanceMatchQueryBuilder(RelevanceMatchQueryRewriter queryRewriter, StreamInput in)
-        throws IOException {
+    public RelevanceMatchQueryBuilder(RelevanceMatchQueryRewriter queryRewriter, StreamInput in) throws IOException {
         super(in);
 
         query = in.readString();
@@ -71,10 +70,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         this.queryRewriter = queryRewriter;
     }
 
-    public static RelevanceMatchQueryBuilder fromXContent(
-        final XContentParser parser,
-        RelevanceMatchQueryRewriter queryRewriter
-    ) {
+    public static RelevanceMatchQueryBuilder fromXContent(final XContentParser parser, RelevanceMatchQueryRewriter queryRewriter) {
 
         final RelevanceMatchQueryBuilder builder;
         try {
@@ -146,8 +142,6 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
         return queryRewriter.rewriteQuery(this, context);
     }
-
-
 
     String getCurationsSettingsId() {
         return curationsSettingsId;

@@ -121,18 +121,9 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
             )
         );
 
-        indexDocument(
-            DOCUMENTS_INDEX,
-            "1",
-            Map.of("textField", "text example hit")
-        );
-        indexDocument(
-            DOCUMENTS_INDEX,
-            "2",
-            Map.of("textField", "text another example hit")
-        );
-        indexDocument(DOCUMENTS_INDEX, "3", Map.of("textField", "this should not be found")
-        );
+        indexDocument(DOCUMENTS_INDEX, "1", Map.of("textField", "text example hit"));
+        indexDocument(DOCUMENTS_INDEX, "2", Map.of("textField", "text another example hit"));
+        indexDocument(DOCUMENTS_INDEX, "3", Map.of("textField", "this should not be found"));
 
         relevanceMatchQueryBuilder.setQuery(query);
         relevanceMatchQueryBuilder.setCurationsSettingsId(curationId);

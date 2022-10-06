@@ -33,7 +33,6 @@ import static org.mockito.Mockito.when;
 
 public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<RelevanceMatchQueryBuilder> {
 
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>();
@@ -68,8 +67,6 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
         assertEquals(json, "test-settings", parsed.getRelevanceSettingsId());
         assertEquals(json, "test-curations", parsed.getCurationsSettingsId());
     }
-
-
 
     @Override
     protected RelevanceMatchQueryBuilder doCreateTestQueryBuilder() {

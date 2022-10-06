@@ -236,7 +236,9 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
      */
     public void testRedNoBlockedIndicesAndRedAllRoleNodes() throws IOException {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
-        List<DiscoveryNode> affectedNodes = randomNonEmptySubsetOf(discoveryNodes);
+        List<DiscoveryNode> affectedNodes = randomNonEmptySubsetOf(discoveryNodes).stream()
+            .sorted(DiscoveryNode.DISCOVERY_NODE_COMPARATOR)
+            .collect(Collectors.toList());
         Map<String, Set<String>> indexNameToNodeIdsMap = new HashMap<>();
         Set<String> affectedNodeIds = affectedNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         for (int i = 0; i < randomIntBetween(1, 20); i++) {
@@ -276,18 +278,21 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.diagnosisList().size(), equalTo(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         List<Diagnosis.Resource> affectedResources = diagnosis.affectedResources();
-        assertThat(affectedResources.get(0), equalTo(1));
+        assertThat(affectedResources, iterableWithSize(2));
         assertThat(affectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
-        assertThat(affectedResources.get(0).getNodes().size(), is(affectedNodes));
+        assertThat(affectedResources.get(0).getNodes(), is(affectedNodes));
 
-        List<String> expectedRedNodeIds = healthInfo.diskInfoByNode()
-            .entrySet()
-            .stream()
-            .filter(entry -> HealthStatus.RED.equals(entry.getValue().healthStatus()))
-            .map(Map.Entry::getKey)
-            .sorted()
-            .collect(Collectors.toList());
-        assertThat(affectedResources, equalTo(expectedRedNodeIds));
+        assertThat(affectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
+        assertThat(
+            affectedResources.get(1).getValues(),
+            is(
+                indexNameToNodeIdsMap.keySet()
+                    .stream()
+                    .sorted(HealthIndicatorDisplayValues.indicesComparatorByPriorityAndName(clusterService.state().metadata()))
+                    .collect(Collectors.toList())
+            )
+        );
+
         Map<String, Object> details = xContentToMap(result.details());
         assertThat(details.get("green_nodes"), equalTo(discoveryNodes.size() - affectedNodes.size()));
         assertThat(details.get("unknown_nodes"), equalTo(0));

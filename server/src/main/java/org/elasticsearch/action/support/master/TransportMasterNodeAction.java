@@ -192,6 +192,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 listener.onFailure(new TaskCancelledException("Task was cancelled"));
                 return;
             }
+            final ClusterStateObserver.StoredState storedState = new ClusterStateObserver.StoredState(clusterState);
             try {
                 final DiscoveryNodes nodes = clusterState.nodes();
                 if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
@@ -203,7 +204,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             listener.onFailure(blockException);
                         } else {
                             logger.debug("can't execute due to a cluster block, retrying", blockException);
-                            retry(clusterState, blockException, newState -> {
+                            retry(storedState, blockException, newState -> {
                                 try {
                                     ClusterBlockException newException = checkBlockIfStateRecovered(request, newState);
                                     return (newException == null || newException.retryable() == false);
@@ -225,7 +226,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                     ),
                                     t
                                 );
-                                retryOnMasterChange(clusterState, t);
+                                retryOnMasterChange(storedState, t);
                             } else {
                                 logger.debug("unexpected exception during publication", t);
                                 delegatedListener.onFailure(t);
@@ -237,7 +238,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 } else {
                     if (nodes.getMasterNode() == null) {
                         logger.debug("no known master node, scheduling a retry");
-                        retryOnMasterChange(clusterState, null);
+                        retryOnMasterChange(storedState, null);
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         logger.trace("forwarding request [{}] to master [{}]", actionName, masterNode);
@@ -259,7 +260,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                             nodes.getMasterNode(),
                                             exp.getDetailedMessage()
                                         );
-                                        retryOnMasterChange(clusterState, cause);
+                                        retryOnMasterChange(storedState, cause);
                                     } else {
                                         logger.trace(
                                             () -> format("failure when forwarding request [%s] to master [%s]", actionName, masterNode),
@@ -278,11 +279,11 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             }
         }
 
-        private void retryOnMasterChange(ClusterState state, Throwable failure) {
+        private void retryOnMasterChange(ClusterStateObserver.StoredState state, Throwable failure) {
             retry(state, failure, MasterNodeChangePredicate.build(state));
         }
 
-        private void retry(ClusterState state, final Throwable failure, final Predicate<ClusterState> statePredicate) {
+        private void retry(ClusterStateObserver.StoredState state, final Throwable failure, final Predicate<ClusterState> statePredicate) {
             if (observer == null) {
                 final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
                 if (remainingTimeoutMS <= 0) {
@@ -292,7 +293,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 }
                 this.observer = new ClusterStateObserver(
                     state,
-                    clusterService,
+                    clusterService.getClusterApplierService(),
                     TimeValue.timeValueMillis(remainingTimeoutMS),
                     logger,
                     threadPool.getThreadContext()

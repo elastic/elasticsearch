@@ -121,7 +121,7 @@ public class ShardStateAction {
     ) {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
-        Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
+        Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(new ClusterStateObserver.StoredState(currentState));
         if (masterNode == null) {
             logger.warn("no master known for action [{}] for shard entry [{}]", actionName, request);
             waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);

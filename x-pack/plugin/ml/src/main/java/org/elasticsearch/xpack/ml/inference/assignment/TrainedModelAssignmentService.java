@@ -60,7 +60,7 @@ public class TrainedModelAssignmentService {
     ) {
         ClusterState currentState = clusterService.state();
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
-        Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(currentState);
+        Predicate<ClusterState> changePredicate = MasterNodeChangePredicate.build(new ClusterStateObserver.StoredState(currentState));
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         if (masterNode == null) {
             logger.warn("[{}] no master known for assignment update [{}]", request.getModelId(), request.getUpdate());

@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -70,11 +71,11 @@ public class ClusterStateObserver {
         Logger logger,
         ThreadContext contextHolder
     ) {
-        this(initialState, clusterService.getClusterApplierService(), timeout, logger, contextHolder);
+        this(new StoredState(initialState), clusterService.getClusterApplierService(), timeout, logger, contextHolder);
     }
 
     public ClusterStateObserver(
-        ClusterState initialState,
+        StoredState initialState,
         ClusterApplierService clusterApplierService,
         @Nullable TimeValue timeout,
         Logger logger,
@@ -82,7 +83,7 @@ public class ClusterStateObserver {
     ) {
         this.clusterApplierService = clusterApplierService;
         this.threadPool = clusterApplierService.threadPool();
-        this.lastObservedState = new AtomicReference<>(new StoredState(initialState));
+        this.lastObservedState = new AtomicReference<>(initialState);
         this.timeOutValue = timeout;
         if (timeOutValue != null) {
             this.startTimeMS = threadPool.relativeTimeInMillis();
@@ -273,20 +274,32 @@ public class ClusterStateObserver {
     /**
      * The observer considers two cluster states to be the same if they have the same version and master node id (i.e. null or set)
      */
-    private static class StoredState {
-        private final String masterNodeId;
+    public static class StoredState {
+
+        @Nullable
+        private final DiscoveryNode masterNode;
         private final long version;
 
-        StoredState(ClusterState clusterState) {
-            this.masterNodeId = clusterState.nodes().getMasterNodeId();
+        public StoredState(ClusterState clusterState) {
+            this.masterNode = clusterState.nodes().getMasterNode();
             this.version = clusterState.version();
+        }
+
+        public long version() {
+            return version;
+        }
+
+        @Nullable
+        public DiscoveryNode masterNode() {
+            return masterNode;
         }
 
         /**
          * returns true if stored state is older then given state or they are from a different master, meaning they can't be compared
          * */
         public boolean isOlderOrDifferentMaster(ClusterState clusterState) {
-            return version < clusterState.version() || Objects.equals(masterNodeId, clusterState.nodes().getMasterNodeId()) == false;
+            return version < clusterState.version()
+                || Objects.equals(masterNode == null ? null : masterNode.getId(), clusterState.nodes().getMasterNodeId()) == false;
         }
     }
 

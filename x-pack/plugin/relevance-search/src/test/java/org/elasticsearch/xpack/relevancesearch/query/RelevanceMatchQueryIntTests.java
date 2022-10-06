@@ -41,7 +41,7 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         relevanceMatchQueryBuilder = new RelevanceMatchQueryBuilder();
-        relevanceMatchQueryBuilder.setRelevanceSettingsService(getInstanceFromNode(RelevanceSettingsService.class));
+        relevanceMatchQueryBuilder.setQueryRewriter(getInstanceFromNode(RelevanceMatchQueryRewriter.class));
 
         createIndex(DOCUMENTS_INDEX);
         createIndex(RelevanceSettingsService.ENT_SEARCH_INDEX);

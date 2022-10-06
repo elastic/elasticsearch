@@ -13,28 +13,14 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
-import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationSettings;
-import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettings;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
-import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Parses and builds relevance_match queries
@@ -48,11 +34,6 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     private static final ParseField CURATIONS_SETTINGS_FIELD = new ParseField("curations");
 
     private static final ObjectParser<RelevanceMatchQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, RelevanceMatchQueryBuilder::new);
-
-    private RelevanceSettingsService relevanceSettingsService;
-    private CurationsService curationsService;
-
-    private QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
 
     static {
         declareStandardFields(PARSER);
@@ -68,11 +49,18 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
     private String curationsSettingsId;
 
+    private RelevanceMatchQueryRewriter queryRewriter;
+
     public RelevanceMatchQueryBuilder() {
         super();
     }
 
-    public RelevanceMatchQueryBuilder(RelevanceSettingsService relevanceSettingsService, CurationsService curationsService, StreamInput in)
+    public RelevanceMatchQueryBuilder(RelevanceMatchQueryRewriter queryRewriter) {
+        super();
+        this.queryRewriter = queryRewriter;
+    }
+
+    public RelevanceMatchQueryBuilder(RelevanceMatchQueryRewriter queryRewriter, StreamInput in)
         throws IOException {
         super(in);
 
@@ -80,18 +68,12 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         relevanceSettingsId = in.readOptionalString();
         curationsSettingsId = in.readOptionalString();
 
-        this.relevanceSettingsService = relevanceSettingsService;
-        this.curationsService = curationsService;
-    }
-
-    public void setRelevanceSettingsService(RelevanceSettingsService relevanceSettingsService) {
-        this.relevanceSettingsService = relevanceSettingsService;
+        this.queryRewriter = queryRewriter;
     }
 
     public static RelevanceMatchQueryBuilder fromXContent(
         final XContentParser parser,
-        RelevanceSettingsService relevanceSettingsService,
-        CurationsService curationsService
+        RelevanceMatchQueryRewriter queryRewriter
     ) {
 
         final RelevanceMatchQueryBuilder builder;
@@ -105,14 +87,17 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
             throw new ParsingException(parser.getTokenLocation(), "[relevance_match] requires a query, none specified");
         }
 
-        builder.setRelevanceSettingsService(relevanceSettingsService);
-        builder.setCurationsService(curationsService);
+        builder.setQueryRewriter(queryRewriter);
 
         return builder;
     }
 
-    public void setCurationsService(CurationsService curationsService) {
-        this.curationsService = curationsService;
+    RelevanceMatchQueryRewriter getQueryRewriter() {
+        return queryRewriter;
+    }
+
+    void setQueryRewriter(RelevanceMatchQueryRewriter queryRewriter) {
+        this.queryRewriter = queryRewriter;
     }
 
     public void setCurationsSettingsId(String curationsSettingsId) {
@@ -157,93 +142,12 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         return relevanceSettingsId;
     }
 
-    private static QueryBuilder applyHiddenDocs(QueryBuilder queryBuilder, CurationSettings curationSettings) {
-        if (curationSettings.hiddenDocs().isEmpty() == false) {
-            BoolQueryBuilder booleanQueryBuilder = new BoolQueryBuilder();
-            booleanQueryBuilder.should(queryBuilder);
-
-            BoolQueryBuilder hiddenDocsBuilder = new BoolQueryBuilder();
-            for (CurationSettings.DocumentReference hiddenDoc : curationSettings.hiddenDocs()) {
-                BoolQueryBuilder mustQueryBuilder = new BoolQueryBuilder();
-                mustQueryBuilder.must(new TermsQueryBuilder("_index", hiddenDoc.index()));
-                mustQueryBuilder.must(new TermsQueryBuilder("_id", hiddenDoc.id()));
-
-                hiddenDocsBuilder.mustNot(mustQueryBuilder);
-            }
-            booleanQueryBuilder.filter(hiddenDocsBuilder);
-
-            queryBuilder = booleanQueryBuilder;
-        }
-        return queryBuilder;
-    }
-
-    private static QueryBuilder applyPinnedDocs(
-        CombinedFieldsQueryBuilder combinedFieldsBuilder,
-        QueryBuilder queryBuilder,
-        CurationSettings curationSettings
-    ) {
-        if (curationSettings.pinnedDocs().isEmpty() == false) {
-            final PinnedQueryBuilder.Item[] items = curationSettings.pinnedDocs()
-                .stream()
-                .map(docRef -> new PinnedQueryBuilder.Item(docRef.index(), docRef.id()))
-                .toArray(PinnedQueryBuilder.Item[]::new);
-            queryBuilder = new PinnedQueryBuilder(combinedFieldsBuilder, items);
-        }
-        return queryBuilder;
-    }
-
     @Override
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
-
-        Map<String, Float> fieldsAndBoosts = retrieveFieldsAndBoosts(context);
-        final CombinedFieldsQueryBuilder combinedFieldsBuilder = new CombinedFieldsQueryBuilder(query, fieldsAndBoosts);
-
-        QueryBuilder queryBuilder = applyCurations(combinedFieldsBuilder);
-
-        return queryBuilder.toQuery(context);
+        return queryRewriter.rewriteQuery(this, context);
     }
 
-    private QueryBuilder applyCurations(CombinedFieldsQueryBuilder combinedFieldsBuilder) {
-        QueryBuilder queryBuilder = combinedFieldsBuilder;
 
-        if (curationsSettingsId != null) {
-            try {
-                CurationSettings curationSettings = curationsService.getCurationsSettings(curationsSettingsId);
-                final boolean conditionMatch = curationSettings.conditions().stream().anyMatch(c -> c.match(this));
-                if (conditionMatch) {
-                    queryBuilder = applyPinnedDocs(combinedFieldsBuilder, queryBuilder, curationSettings);
-                    queryBuilder = applyHiddenDocs(queryBuilder, curationSettings);
-                }
-
-            } catch (CurationsService.CurationsSettingsNotFoundException e) {
-                throw new IllegalArgumentException("[relevance_match] query cannot find curation settings: " + curationsSettingsId);
-            }
-        }
-
-        return queryBuilder;
-    }
-
-    private Map<String, Float> retrieveFieldsAndBoosts(SearchExecutionContext context) {
-        Map<String, Float> fieldsAndBoosts;
-        if (relevanceSettingsId != null) {
-            try {
-                RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
-                QueryConfiguration queryConfiguration = relevanceSettings.getQueryConfiguration();
-                fieldsAndBoosts = queryConfiguration.getFieldsAndBoosts();
-            } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
-                throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
-            } catch (RelevanceSettingsService.RelevanceSettingsInvalidException e) {
-                throw new IllegalArgumentException("[relevance_match] invalid relevance search settings for: " + relevanceSettingsId);
-            }
-        } else {
-            Collection<String> fields = queryFieldsResolver.getQueryFields(context);
-            if (fields.isEmpty()) {
-                throw new IllegalArgumentException("[relevance_match] query cannot find text fields in the index");
-            }
-            fieldsAndBoosts = fields.stream().collect(Collectors.toMap(Function.identity(), (field) -> AbstractQueryBuilder.DEFAULT_BOOST));
-        }
-        return fieldsAndBoosts;
-    }
 
     String getCurationsSettingsId() {
         return curationsSettingsId;
@@ -261,10 +165,6 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         return Objects.hash(query, relevanceSettingsId, curationsSettingsId);
     }
 
-    RelevanceSettingsService getRelevanceSettingsService() {
-        return relevanceSettingsService;
-    }
-
     @Override
     public String getWriteableName() {
         return NAME;
@@ -275,15 +175,4 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         return Version.V_8_6_0;
     }
 
-    CurationsService getCurationsService() {
-        return curationsService;
-    }
-
-    QueryFieldsResolver getQueryFieldsResolver() {
-        return queryFieldsResolver;
-    }
-
-    void setQueryFieldsResolver(QueryFieldsResolver queryFieldsResolver) {
-        this.queryFieldsResolver = queryFieldsResolver;
-    }
 }

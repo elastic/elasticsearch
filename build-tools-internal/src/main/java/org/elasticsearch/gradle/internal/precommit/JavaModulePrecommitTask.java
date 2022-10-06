@@ -98,14 +98,14 @@ public class JavaModulePrecommitTask extends PrecommitTask {
             return; // non-modular project, nothing to do
         }
         ModuleReference mod = esModuleFor(getClassesDirs().getSingleFile());
-        getLogger().info("%s checking module %s", this, mod);
+        getLogger().info("{} checking module {}", getPath(), mod);
         checkModuleVersion(mod);
         checkModuleNamePrefix(mod);
         checkModuleServices(mod);
     }
 
     private void checkModuleVersion(ModuleReference mref) {
-        getLogger().info("%s checking module version for %s", this, mref.descriptor().name());
+        getLogger().info("{} checking module version for {}", this, mref.descriptor().name());
         String mVersion = mref.descriptor()
             .rawVersion()
             .orElseThrow(() -> new GradleException("no version found in module " + mref.descriptor().name()));
@@ -115,17 +115,17 @@ public class JavaModulePrecommitTask extends PrecommitTask {
     }
 
     private void checkModuleNamePrefix(ModuleReference mref) {
-        getLogger().info("%s checking module name prefix for %s", this, mref.descriptor().name());
+        getLogger().info("{} checking module name prefix for {}", this, mref.descriptor().name());
         if (mref.descriptor().name().startsWith("org.elasticsearch.") == false) {
             throw new GradleException("Expected name starting with \"org.elasticsearch.\", in " + mref.descriptor());
         }
     }
 
     private void checkModuleServices(ModuleReference mref) {
-        getLogger().info("%s checking module services for %s", this, mref.descriptor().name());
+        getLogger().info("{} checking module services for {}", getPath(), mref.descriptor().name());
         Set<String> modServices = mref.descriptor().provides().stream().map(ModuleDescriptor.Provides::service).collect(toSet());
         Path servicesRoot = getResourcesDir().toPath().resolve("META-INF").resolve("services");
-        getLogger().info("%s servicesRoot %s", this, servicesRoot);
+        getLogger().info("{} servicesRoot {}", getPath(), servicesRoot);
         if (Files.exists(servicesRoot)) {
             try (var paths = Files.walk(servicesRoot)) {
                 paths.filter(Files::isRegularFile)
@@ -137,7 +137,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
                             throw new GradleException(
                                 String.format(
                                     Locale.ROOT,
-                                    "Expected provides %s in module %s with provides %s.",
+                                    "Expected provides {} in module %s with provides {}.",
                                     service,
                                     mref.descriptor().name(),
                                     mref.descriptor().provides()

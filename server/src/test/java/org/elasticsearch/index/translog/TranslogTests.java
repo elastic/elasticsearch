@@ -530,7 +530,7 @@ public class TranslogTests extends ESTestCase {
                 builder.startObject();
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
-                assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace("""
+                assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace(formatted("""
                     {
                       "translog": {
                         "operations": 4,
@@ -539,7 +539,7 @@ public class TranslogTests extends ESTestCase {
                         "uncommitted_size_in_bytes": %s,
                         "earliest_last_modified_age": %s
                       }
-                    }""".formatted(325L + sourceLength, 270L + sourceLength, stats.getEarliestLastModifiedAge()))));
+                    }""", 325L + sourceLength, 270L + sourceLength, stats.getEarliestLastModifiedAge()))));
             }
         }
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));

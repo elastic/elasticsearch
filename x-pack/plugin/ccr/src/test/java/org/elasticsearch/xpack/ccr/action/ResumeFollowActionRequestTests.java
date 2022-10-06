@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ResumeFollowActionRequestTests extends AbstractSerializingTestCase<ResumeFollowAction.Request> {
+public class ResumeFollowActionRequestTests extends AbstractXContentSerializingTestCase<ResumeFollowAction.Request> {
 
     @Override
     protected Writeable.Reader<ResumeFollowAction.Request> instanceReader() {

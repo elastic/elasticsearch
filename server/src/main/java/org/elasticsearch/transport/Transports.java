@@ -37,7 +37,16 @@ public enum Transports {
      * networking threads.
      */
     public static boolean isTransportThread(Thread t) {
-        final String threadName = t.getName();
+        return isTransportThread(t.getName());
+    }
+
+    /**
+     * Utility method to detect whether a thread is a network thread. Typically
+     * used in assertions to make sure that we do not call blocking code from
+     * networking threads.
+     * @param threadName the name of the thread
+     */
+    public static boolean isTransportThread(String threadName) {
         for (String s : TRANSPORT_THREAD_NAMES) {
             if (threadName.contains(s)) {
                 return true;

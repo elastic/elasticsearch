@@ -18,7 +18,10 @@ import java.io.IOException;
 public class SearchProfileDfsPhaseResultTests extends AbstractSerializingTestCase<SearchProfileDfsPhaseResult> {
 
     static SearchProfileDfsPhaseResult createTestItem() {
-        return new SearchProfileDfsPhaseResult(rarely() ? null : QueryProfileShardResultTests.createTestItem());
+        return new SearchProfileDfsPhaseResult(
+            randomBoolean() ? null : ProfileResultTests.createTestItem(1),
+            randomBoolean() ? null : QueryProfileShardResultTests.createTestItem()
+        );
     }
 
     @Override

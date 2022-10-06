@@ -68,13 +68,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<ElementType> elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT32, (n, c, o) -> {
-            ElementType elementType = namesToElementType.get((String) o);
-            if (elementType == null) {
-                throw new MapperParsingException("invalid element_type [" + o + "]; available types are " + namesToElementType.keySet());
-            }
-            return elementType;
-        }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
+        private final Parameter<ElementType> elementType = new Parameter<>(
+            "element_type",
+            false,
+            () -> ElementType.FLOAT32,
+            (n, c, o) -> {
+                ElementType elementType = namesToElementType.get((String) o);
+                if (elementType == null) {
+                    throw new MapperParsingException(
+                        "invalid element_type [" + o + "]; available types are " + namesToElementType.keySet());
+                }
+                return elementType;
+            },
+            m -> toType(m).elementType,
+            XContentBuilder::field,
+            Objects::toString
+        );
 
         private final Parameter<Integer> dims = new Parameter<>(
             "dims",
@@ -167,13 +176,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         INT8 {
             @Override
             public String toString() {
-                return "byte";
+                return "byte8";
             }
         },
         FLOAT32 {
             @Override
             public String toString() {
-                return "float";
+                return "float32";
             }
         }
     }

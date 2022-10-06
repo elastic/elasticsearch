@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -788,6 +789,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             T value = getValue();
+            if (name.equals("element_type")) {
+                throw new IllegalStateException(value + " " + builder.toString());
+            }
             if (serializerCheck.check(includeDefaults, isConfigured(), value)) {
                 serializer.serialize(builder, name, value);
             }

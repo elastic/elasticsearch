@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.WatchKey;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
@@ -157,7 +158,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         Files.createDirectories(service.operatorSettingsDir());
 
-        Files.write(service.operatorSettingsFile(), "{}".getBytes(StandardCharsets.UTF_8));
+        writeTestFile(service.operatorSettingsFile(), "{}");
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
@@ -185,7 +186,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         Files.createDirectories(service.operatorSettingsDir());
 
         // contents of the JSON don't matter, we just need a file to exist
-        Files.write(service.operatorSettingsFile(), "{}".getBytes(StandardCharsets.UTF_8));
+        writeTestFile(service.operatorSettingsFile(), "{}");
 
         Exception startupException = expectThrows(IllegalStateException.class, () -> service.start());
         assertThat(
@@ -249,7 +250,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         Files.createDirectories(service.operatorSettingsDir());
 
         // Make some fake settings file to cause the file settings service to process it
-        Files.write(service.operatorSettingsFile(), "{}".getBytes(StandardCharsets.UTF_8));
+        writeTestFile(service.operatorSettingsFile(), "{}");
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
@@ -295,7 +296,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         Files.createDirectories(service.operatorSettingsDir());
 
         // Make some fake settings file to cause the file settings service to process it
-        Files.write(service.operatorSettingsFile(), "{}".getBytes(StandardCharsets.UTF_8));
+        writeTestFile(service.operatorSettingsFile(), "{}");
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
@@ -329,5 +330,13 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(result != prevWatchKey);
 
         verify(service, times(2)).retryDelayMillis(anyInt());
+    }
+
+    // helpers
+    private void writeTestFile(Path path, String contents) throws IOException {
+        Path tempFilePath = createTempFile();
+
+        Files.write(tempFilePath, contents.getBytes(StandardCharsets.UTF_8));
+        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
     }
 }

@@ -418,19 +418,25 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
         final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
-        testCase(aggregation, DEFAULT_QUERY, iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
+        testCase(iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
             assertEquals(0, histogram.getBuckets().size());
             assertFalse(AggregationInspectionHelper.hasValue(histogram));
-        }, fieldType);
+        }, new AggTestConfig(aggregation, fieldType).withQuery(DEFAULT_QUERY));
     }
 
     public void testBooleanFieldDeprecated() throws IOException {
         final String fieldName = "bogusBoolean";
-        testCase(new AutoDateHistogramAggregationBuilder("name").field(fieldName), new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             Document d = new Document();
             d.add(new SortedNumericDocValuesField(fieldName, 0));
             iw.addDocument(d);
-        }, a -> {}, new BooleanFieldMapper.BooleanFieldType(fieldName));
+        },
+            a -> {},
+            new AggTestConfig(
+                new AutoDateHistogramAggregationBuilder("name").field(fieldName),
+                new BooleanFieldMapper.BooleanFieldType(fieldName)
+            )
+        );
         assertWarnings("Running AutoIntervalDateHistogram aggregations on [boolean] fields is deprecated");
     }
 
@@ -441,10 +447,10 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
         final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
-        testCase(aggregation, DEFAULT_QUERY, iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
+        testCase(iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
             assertEquals(0, histogram.getBuckets().size());
             assertFalse(AggregationInspectionHelper.hasValue(histogram));
-        }, fieldType);
+        }, new AggTestConfig(aggregation, fieldType).withQuery(DEFAULT_QUERY));
     }
 
     public void testIntervalYear() throws IOException {
@@ -932,7 +938,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
         AutoDateHistogramAggregationBuilder b = new AutoDateHistogramAggregationBuilder("a").field(DATE_FIELD)
             .subAggregation(new RangeAggregationBuilder("r").field(NUMERIC_FIELD).addRange(0, 2).addRange(3, 4));
-        testCase(b, new MatchAllDocsQuery(), iw -> indexSampleData(dates, iw), (InternalAutoDateHistogram h) -> {
+        testCase(iw -> indexSampleData(dates, iw), (InternalAutoDateHistogram h) -> {
             InternalAutoDateHistogram.Bucket bucket = h.getBuckets().get(0);
             InternalRange<?, ?> range = bucket.getAggregations().get("r");
             assertMap(
@@ -943,7 +949,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 range.getBuckets().stream().map(InternalRange.Bucket::getDocCount).toList(),
                 matchesList().item(firstBucketIpCount).item(0L)
             );
-        }, dateFieldType, numericFieldType);
+        }, new AggTestConfig(b, dateFieldType, numericFieldType));
     }
 
     public void testSubIpRange() throws IOException {
@@ -970,7 +976,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                     .addRange("192.168.0.0", "192.168.0.2")
                     .addRange("192.168.0.3", "192.168.0.4")
             );
-        testCase(b, new MatchAllDocsQuery(), iw -> indexSampleData(dates, iw), (InternalAutoDateHistogram h) -> {
+        testCase(iw -> indexSampleData(dates, iw), (InternalAutoDateHistogram h) -> {
             InternalAutoDateHistogram.Bucket bucket = h.getBuckets().get(0);
             InternalBinaryRange range = bucket.getAggregations().get("r");
             assertMap(
@@ -981,7 +987,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 range.getBuckets().stream().map(InternalBinaryRange.Bucket::getDocCount).toList(),
                 matchesList().item(firstBucketIpCount).item(0L)
             );
-        }, dateFieldType, ipFieldType);
+        }, new AggTestConfig(b, dateFieldType, ipFieldType));
     }
 
     @Override
@@ -1023,7 +1029,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 final InternalAutoDateHistogram histogram = searchAndReduce(
-                    new AggTestConfig(indexSearcher, aggregationBuilder, fieldType, instantFieldType, numericFieldType).withQuery(query)
+                    indexSearcher,
+                    new AggTestConfig(aggregationBuilder, fieldType, instantFieldType, numericFieldType).withQuery(query)
                 );
                 verify.accept(histogram);
             }

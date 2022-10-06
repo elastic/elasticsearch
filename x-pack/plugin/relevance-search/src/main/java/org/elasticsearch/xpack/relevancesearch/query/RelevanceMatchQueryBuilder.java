@@ -157,9 +157,73 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         return relevanceSettingsId;
     }
 
+    private static QueryBuilder applyHiddenDocs(QueryBuilder queryBuilder, CurationSettings curationSettings) {
+        if (curationSettings.hiddenDocs().isEmpty() == false) {
+            BoolQueryBuilder booleanQueryBuilder = new BoolQueryBuilder();
+            booleanQueryBuilder.should(queryBuilder);
+
+            BoolQueryBuilder hiddenDocsBuilder = new BoolQueryBuilder();
+            for (CurationSettings.DocumentReference hiddenDoc : curationSettings.hiddenDocs()) {
+                BoolQueryBuilder mustQueryBuilder = new BoolQueryBuilder();
+                mustQueryBuilder.must(new TermsQueryBuilder("_index", hiddenDoc.index()));
+                mustQueryBuilder.must(new TermsQueryBuilder("_id", hiddenDoc.id()));
+
+                hiddenDocsBuilder.mustNot(mustQueryBuilder);
+            }
+            booleanQueryBuilder.filter(hiddenDocsBuilder);
+
+            queryBuilder = booleanQueryBuilder;
+        }
+        return queryBuilder;
+    }
+
+    private static QueryBuilder applyPinnedDocs(
+        CombinedFieldsQueryBuilder combinedFieldsBuilder,
+        QueryBuilder queryBuilder,
+        CurationSettings curationSettings
+    ) {
+        if (curationSettings.pinnedDocs().isEmpty() == false) {
+            final PinnedQueryBuilder.Item[] items = curationSettings.pinnedDocs()
+                .stream()
+                .map(docRef -> new PinnedQueryBuilder.Item(docRef.index(), docRef.id()))
+                .toArray(PinnedQueryBuilder.Item[]::new);
+            queryBuilder = new PinnedQueryBuilder(combinedFieldsBuilder, items);
+        }
+        return queryBuilder;
+    }
+
     @Override
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
 
+        Map<String, Float> fieldsAndBoosts = retrieveFieldsAndBoosts(context);
+        final CombinedFieldsQueryBuilder combinedFieldsBuilder = new CombinedFieldsQueryBuilder(query, fieldsAndBoosts);
+
+        QueryBuilder queryBuilder = applyCurations(combinedFieldsBuilder);
+
+        return queryBuilder.toQuery(context);
+    }
+
+    private QueryBuilder applyCurations(CombinedFieldsQueryBuilder combinedFieldsBuilder) {
+        QueryBuilder queryBuilder = combinedFieldsBuilder;
+
+        if (curationsSettingsId != null) {
+            try {
+                CurationSettings curationSettings = curationsService.getCurationsSettings(curationsSettingsId);
+                final boolean conditionMatch = curationSettings.conditions().stream().anyMatch(c -> c.match(this));
+                if (conditionMatch) {
+                    queryBuilder = applyPinnedDocs(combinedFieldsBuilder, queryBuilder, curationSettings);
+                    queryBuilder = applyHiddenDocs(queryBuilder, curationSettings);
+                }
+
+            } catch (CurationsService.CurationsSettingsNotFoundException e) {
+                throw new IllegalArgumentException("[relevance_match] query cannot find curation settings: " + curationsSettingsId);
+            }
+        }
+
+        return queryBuilder;
+    }
+
+    private Map<String, Float> retrieveFieldsAndBoosts(SearchExecutionContext context) {
         Map<String, Float> fieldsAndBoosts;
         if (relevanceSettingsId != null) {
             try {
@@ -178,48 +242,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
             }
             fieldsAndBoosts = fields.stream().collect(Collectors.toMap(Function.identity(), (field) -> AbstractQueryBuilder.DEFAULT_BOOST));
         }
-
-        final CombinedFieldsQueryBuilder combinedFieldsBuilder = new CombinedFieldsQueryBuilder(query, fieldsAndBoosts);
-        QueryBuilder queryBuilder = combinedFieldsBuilder;
-
-        if (curationsSettingsId != null) {
-            try {
-                CurationSettings curationSettings = curationsService.getCurationsSettings(curationsSettingsId);
-                final boolean conditionMatch = curationSettings.conditions().stream().anyMatch(c -> c.match(this));
-                if (conditionMatch) {
-
-                    if (curationSettings.pinnedDocs().isEmpty() == false) {
-                        final PinnedQueryBuilder.Item[] items = curationSettings.pinnedDocs()
-                            .stream()
-                            .map(docRef -> new PinnedQueryBuilder.Item(docRef.index(), docRef.id()))
-                            .toArray(PinnedQueryBuilder.Item[]::new);
-                        queryBuilder = new PinnedQueryBuilder(combinedFieldsBuilder, items);
-                    }
-
-                    if (curationSettings.hiddenDocs().isEmpty() == false) {
-                        BoolQueryBuilder booleanQueryBuilder = new BoolQueryBuilder();
-                        booleanQueryBuilder.should(queryBuilder);
-
-                        BoolQueryBuilder hiddenDocsBuilder = new BoolQueryBuilder();
-                        for (CurationSettings.DocumentReference hiddenDoc : curationSettings.hiddenDocs()) {
-                            BoolQueryBuilder mustQueryBuilder = new BoolQueryBuilder();
-                            mustQueryBuilder.must(new TermsQueryBuilder("_index", hiddenDoc.index()));
-                            mustQueryBuilder.must(new TermsQueryBuilder("_id", hiddenDoc.id()));
-
-                            hiddenDocsBuilder.mustNot(mustQueryBuilder);
-                        }
-                        booleanQueryBuilder.filter(hiddenDocsBuilder);
-
-                        queryBuilder = booleanQueryBuilder;
-                    }
-                }
-
-            } catch (CurationsService.CurationsSettingsNotFoundException e) {
-                throw new IllegalArgumentException("[relevance_match] query cannot find curation settings: " + curationsSettingsId);
-            }
-        }
-
-        return queryBuilder.toQuery(context);
+        return fieldsAndBoosts;
     }
 
     String getCurationsSettingsId() {

@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -25,14 +26,14 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
-
 /**
  * Represents a collection of individual autoscaling decider results that can be aggregated into a single autoscaling capacity for a
  * policy
  */
 public class AutoscalingDeciderResults implements ToXContent, Writeable {
 
+    public static final Comparator<DiscoveryNode> DISCOVERY_NODE_COMPARATOR = Comparator.comparing(DiscoveryNode::getName)
+        .thenComparing(DiscoveryNode::getId);
     private final AutoscalingCapacity currentCapacity;
     private final SortedSet<DiscoveryNode> currentNodes;
     private final SortedMap<String, AutoscalingDeciderResult> results;

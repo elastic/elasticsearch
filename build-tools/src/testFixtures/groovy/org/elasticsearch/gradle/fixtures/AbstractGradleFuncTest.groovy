@@ -8,10 +8,6 @@
 
 package org.elasticsearch.gradle.fixtures
 
-
-import spock.lang.Specification
-import spock.lang.TempDir
-
 import org.apache.commons.io.FileUtils
 import org.elasticsearch.gradle.internal.test.ConfigurationCacheCompatibleAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
@@ -21,6 +17,8 @@ import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
+import spock.lang.Specification
+import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
 import java.util.jar.JarEntry

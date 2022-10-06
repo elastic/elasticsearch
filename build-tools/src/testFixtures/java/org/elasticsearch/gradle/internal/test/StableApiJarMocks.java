@@ -20,16 +20,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 public final class StableApiJarMocks {
-    private StableApiJarMocks() {
-    }
+    private StableApiJarMocks() {}
 
     public static Path createExtensibleApiJar(Path jar) throws IOException {
         jar = jar.resolve("plugin-extensible-api.jar");
-        DynamicType.Unloaded<ExtensibleInterface> extensible =
-            new ByteBuddy().decorate(ExtensibleInterface.class).make();
+        DynamicType.Unloaded<ExtensibleInterface> extensible = new ByteBuddy().decorate(ExtensibleInterface.class).make();
 
-        DynamicType.Unloaded<ExtensibleClass> extensibleClass =
-            new ByteBuddy().decorate(ExtensibleClass.class).make();
+        DynamicType.Unloaded<ExtensibleClass> extensibleClass = new ByteBuddy().decorate(ExtensibleClass.class).make();
 
         extensible.toJar(jar.toFile());
         extensibleClass.inject(jar.toFile());
@@ -39,11 +36,9 @@ public final class StableApiJarMocks {
     public static Path createPluginApiJar(Path jar) throws IOException {
         jar = jar.resolve("plugin-api.jar");
 
-        DynamicType.Unloaded<Extensible> extensible =
-            new ByteBuddy().decorate(Extensible.class).make();
+        DynamicType.Unloaded<Extensible> extensible = new ByteBuddy().decorate(Extensible.class).make();
         extensible.toJar(jar.toFile());
-        DynamicType.Unloaded<NamedComponent> namedComponent =
-            new ByteBuddy().decorate(NamedComponent.class).make();
+        DynamicType.Unloaded<NamedComponent> namedComponent = new ByteBuddy().decorate(NamedComponent.class).make();
         extensible.toJar(jar.toFile());
         namedComponent.inject(jar.toFile());
         return jar;

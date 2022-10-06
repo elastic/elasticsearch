@@ -9,6 +9,7 @@
 
 Updates certain properties of a trained model deployment.
 
+beta::[]
 
 [[ml-update-trained-model-deployment-request]]
 == {api-request-title}

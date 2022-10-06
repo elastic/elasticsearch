@@ -1,0 +1,20 @@
+oneField
+row a = 1;
+
+a:integer
+1
+;
+
+multipleFields
+row a = 1, b = 10, c = 100;
+
+a | b  | c
+1 | 10 | 100
+;
+
+implicitNames
+row 100, 10, c = 1;
+
+100:integer | 10:integer | c:integer
+100 | 10 | 1
+;

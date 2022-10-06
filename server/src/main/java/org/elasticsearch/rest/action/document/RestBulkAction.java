@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * </pre>
  */
 public class RestBulkAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in bulk requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
 
     private final boolean allowExplicitIndex;
 

@@ -39,6 +39,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractor;
@@ -96,6 +97,8 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.LENIENT;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.NONE;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 
 // TODO: add retry/back-off
@@ -254,7 +257,7 @@ public class Querier {
 
     /**
      * Listener used for local sorting (typically due to aggregations used inside `ORDER BY`).
-     *
+     * <p>
      * This listener consumes the whole result set, sorts it in memory then sends the paginated
      * results back to the client.
      */
@@ -588,7 +591,7 @@ public class Querier {
     static class SearchHitActionListener extends BaseActionListener {
         private final QueryContainer query;
         private final BitSet mask;
-        private final boolean multiValueFieldLeniency;
+        private final AbstractFieldHitExtractor.MultiValueSupport multiValueFieldLeniency;
         private final SearchSourceBuilder source;
 
         SearchHitActionListener(
@@ -602,7 +605,7 @@ public class Querier {
             super(listener, client, cfg, output);
             this.query = query;
             this.mask = query.columnMask(output);
-            this.multiValueFieldLeniency = cfg.multiValueFieldLeniency();
+            this.multiValueFieldLeniency = cfg.multiValueFieldLeniency() ? LENIENT : NONE;
             this.source = source;
         }
 
@@ -633,7 +636,8 @@ public class Querier {
             }
 
             if (ref instanceof ScriptFieldRef f) {
-                return new FieldHitExtractor(f.name(), null, cfg.zoneId(), multiValueFieldLeniency);
+                FieldHitExtractor fieldHitExtractor = new FieldHitExtractor(f.name(), null, cfg.zoneId(), multiValueFieldLeniency);
+                return fieldHitExtractor;
             }
 
             if (ref instanceof ComputedRef computedRef) {
@@ -727,14 +731,13 @@ public class Querier {
          *         If no tuple exists in {@code sortingColumns} for an output column, it means this column
          *         is not included at all in the ORDER BY
          *     </li>
-         *</ul>
-         *
+         * </ul>
+         * <p>
          * Take for example ORDER BY a, x, b, y
          * a, b - are sorted in ES
          * x, y - need to be sorted client-side
          * sorting on x kicks in only if the values for a are equal.
          * sorting on y kicks in only if the values for a, x and b are all equal
-         *
          */
         // thanks to @jpountz for the row ordering idea as a way to preserve ordering
         @SuppressWarnings("unchecked")

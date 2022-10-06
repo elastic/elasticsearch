@@ -1,5 +1,5 @@
 pr: 90271
-summary: Fix repeated error save loops in File Settings Service
+summary: Fix file permission errors to avoid repeated error save loops on Windows
 area: Infra/Core
 type: bug
 issues:

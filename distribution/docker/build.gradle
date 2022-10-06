@@ -285,7 +285,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
 }
 
 void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
-  tasks.register(taskName("transform", architecture, base, "DockerContext"), Sync) {
+  def transformTask = tasks.register(taskName("transform", architecture, base, "DockerContext"), Sync) {
     TaskProvider<Tar> buildContextTask = tasks.named(taskName("build", architecture, base, "DockerContext"))
     dependsOn(buildContextTask)
 
@@ -323,6 +323,18 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
 
     onlyIf { isArchitectureSupported(architecture) }
   }
+
+  // Register transformed context as a project artifact
+  def contextConfig = configurations.create(taskName("docker", architecture, base, "Context")) {
+    canBeResolved = false
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+      attribute(Attribute.of(Architecture), architecture)
+      attribute(Attribute.of(DockerBase), base)
+    }
+  }
+
+  artifacts.add(contextConfig.name, transformTask)
 }
 
 

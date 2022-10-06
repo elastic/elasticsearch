@@ -201,6 +201,11 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
         );
     }
 
+    @Override
+    public boolean isFragment() {
+        return false;
+    }
+
     public static GetSnapshotsResponse fromXContent(XContentParser parser) throws IOException {
         return GET_SNAPSHOT_PARSER.parse(parser, null);
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Iterator;
 
 /**
@@ -19,7 +20,7 @@ import java.util.Iterator;
  * This is used by the REST layer to implement flow control that does not rely on blocking the serializing thread when writing the
  * serialized bytes to a non-blocking channel.
  */
-public interface ChunkedToXContent {
+public interface ChunkedToXContent extends ToXContent {
 
     /**
      * Create an iterator of {@link ToXContent} chunks, that must be serialized individually with the same {@link XContentBuilder} and
@@ -27,6 +28,11 @@ public interface ChunkedToXContent {
      * @return iterator over chunks of {@link ToXContent}
      */
     Iterator<? extends ToXContent> toXContentChunked();
+
+    @Override
+    default XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return wrapAsXContentObject(this).toXContent(builder, params);
+    }
 
     /**
      * Wraps the given instance in a {@link ToXContentObject} that will fully serialize the instance when serialized.

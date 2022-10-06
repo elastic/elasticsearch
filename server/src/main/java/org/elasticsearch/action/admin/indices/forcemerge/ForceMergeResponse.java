@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadCastXContentResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -22,7 +21,7 @@ import java.util.List;
 /**
  * A response for force merge action.
  */
-public class ForceMergeResponse extends BroadCastXContentResponse {
+public class ForceMergeResponse extends BroadcastResponse {
 
     private static final ConstructingObjectParser<ForceMergeResponse, Void> PARSER = new ConstructingObjectParser<>(
         "force_merge",

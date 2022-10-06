@@ -13,8 +13,11 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,7 +29,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Base class for all broadcast operation based responses.
  */
-public class BroadcastResponse extends ActionResponse {
+public class BroadcastResponse extends ActionResponse implements ToXContentObject {
 
     public static final DefaultShardOperationFailedException[] EMPTY = new DefaultShardOperationFailedException[0];
 
@@ -136,4 +139,18 @@ public class BroadcastResponse extends ActionResponse {
         out.writeVInt(failedShards);
         out.writeArray(shardFailures);
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        RestActions.buildBroadcastShardsHeader(builder, params, this);
+        addCustomXContentFields(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    /**
+     * Override in subclass to add custom fields following the common `_shards` field
+     */
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {}
 }

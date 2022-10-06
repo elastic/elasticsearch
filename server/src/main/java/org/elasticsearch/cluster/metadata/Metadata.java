@@ -2365,7 +2365,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 }
 
                 for (SearchEngine searchEngine : searchEngineMetadata.searchEngines().values()) {
-                    assert searchEngine.getIndices().isEmpty() == false;
+                    assert searchEngine.getIndices().isEmpty() == false : "search engine " + searchEngine.getName() + " needs at least one index";
                     final IndexAbstraction.SearchEngine engineAbstraction = new IndexAbstraction.SearchEngine(searchEngine);
                     IndexAbstraction existing = indicesLookup.put(searchEngine.getName(), engineAbstraction);
                     assert existing == null : "duplicate engine for " + searchEngine.getName();

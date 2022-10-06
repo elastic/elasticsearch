@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: " - 8.4.99"
-      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+      reason: "downsampling: unsupported aggregations errors added in 8.5.0"
 
   - do:
       indices.create:
@@ -45,7 +45,7 @@ setup:
 "Histogram aggregation on aggregate_metric_double field":
   - skip:
       version: " - 8.4.99"
-      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+      reason: "downsampling: unsupported aggregations errors added in 8.5.0"
 
   - do:
       catch: bad_request
@@ -62,15 +62,15 @@ setup:
 
   - match: { status: 400 }
   # NOTE: the type of error is part of a contract with Kibana which uses it to detect specific
-  # errors while running aggregations on rollup indices.
-  - match: { error.root_cause.0.type: unsupported_aggregation_on_rollup_index }
+  # errors while running aggregations on downsampled indices.
+  - match: { error.root_cause.0.type: unsupported_aggregation_on_downsampled_index }
   - match: { error.root_cause.0.reason: "Field [total_memory_used] of type [aggregate_metric_double] is not supported for aggregation [histogram]" }
 
 ---
 "Range aggregation on aggregate_metric_double field":
   - skip:
       version: " - 8.4.99"
-      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+      reason: "downsample: unsupported aggregations errors added in 8.5.0"
 
   - do:
       catch: bad_request
@@ -94,15 +94,15 @@ setup:
 
   - match: { status: 400 }
   # NOTE: the type of error is part of a contract with Kibana which uses it to detect specific
-  # errors while running aggregations on rollup indices.
-  - match: { error.root_cause.0.type: unsupported_aggregation_on_rollup_index }
+  # errors while running aggregations on downsampled indices.
+  - match: { error.root_cause.0.type: unsupported_aggregation_on_downsampled_index }
   - match: { error.root_cause.0.reason: "Field [total_memory_used] of type [aggregate_metric_double] is not supported for aggregation [range]" }
 
 ---
 "Cardinality aggregation on aggregate_metric_double field":
   - skip:
       version: " - 8.4.99"
-      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+      reason: "downsampling: unsupported aggregations errors added in 8.5.0"
 
   - do:
       catch: bad_request
@@ -117,15 +117,15 @@ setup:
 
   - match: { status: 400 }
   # NOTE: the type of error is part of a contract with Kibana which uses it to detect specific
-  # errors while running aggregations on rollup indices.
-  - match: { error.root_cause.0.type: unsupported_aggregation_on_rollup_index }
+  # errors while running aggregations on downsampled indices.
+  - match: { error.root_cause.0.type: unsupported_aggregation_on_downsampled_index }
   - match: { error.root_cause.0.reason: "Field [total_memory_used] of type [aggregate_metric_double] is not supported for aggregation [cardinality]" }
 
 ---
 "Percentiles aggregation on aggregate_metric_double field":
   - skip:
       version: " - 8.4.99"
-      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+      reason: "downsampling: unsupported aggregations errors added in 8.5.0"
 
   - do:
       catch: bad_request
@@ -141,15 +141,15 @@ setup:
 
   - match: { status: 400 }
   # NOTE: the type of error is part of a contract with Kibana which uses it to detect specific
-  # errors while running aggregations on rollup indices.
-  - match: { error.root_cause.0.type: unsupported_aggregation_on_rollup_index }
+  # errors while running aggregations on downsampled indices.
+  - match: { error.root_cause.0.type: unsupported_aggregation_on_downsampled_index }
   - match: { error.root_cause.0.reason: "Field [total_memory_used] of type [aggregate_metric_double] is not supported for aggregation [percentiles]" }
 
 ---
 "Top-metrics aggregation on aggregate_metric_double field":
   - skip:
       version: " - 8.4.99"
-      reason: "rollup: unsupported aggregations errors added in 8.5.0"
+      reason: "downsampling: unsupported aggregations errors added in 8.5.0"
 
   - do:
       catch: bad_request
@@ -169,6 +169,6 @@ setup:
 
   - match: { status: 400 }
   # NOTE: the type of error is part of a contract with Kibana which uses it to detect specific
-  # errors while running aggregations on rollup indices.
-  - match: { error.root_cause.0.type: unsupported_aggregation_on_rollup_index }
+  # errors while running aggregations on downsampled indices.
+  - match: { error.root_cause.0.type: unsupported_aggregation_on_downsampled_index }
   - match: { error.root_cause.0.reason: "Field [total_memory_used] of type [aggregate_metric_double] is not supported for aggregation [top_metrics]" }

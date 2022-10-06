@@ -104,7 +104,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     @Override
     public void beforeStart() {
         if (debugServer) {
-            enableDebug(0);
+            enableDebug();
         }
     }
 }

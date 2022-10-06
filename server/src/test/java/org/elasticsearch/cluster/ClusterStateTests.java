@@ -301,6 +301,9 @@ public class ClusterStateTests extends ESTestCase {
                           "index": "index",
                           "allocation_id": {
                             "id": "%s"
+                          },
+                          "relocation_failure_info" : {
+                            "failed_attempts" : 0
                           }
                         }
                       ]
@@ -321,6 +324,9 @@ public class ClusterStateTests extends ESTestCase {
                       "index": "index",
                       "allocation_id": {
                         "id": "%s"
+                      },
+                      "relocation_failure_info" : {
+                        "failed_attempts" : 0
                       }
                     }
                   ],
@@ -505,6 +511,9 @@ public class ClusterStateTests extends ESTestCase {
                           "index" : "index",
                           "allocation_id" : {
                             "id" : "%s"
+                          },
+                          "relocation_failure_info" : {
+                            "failed_attempts" : 0
                           }
                         }
                       ]
@@ -525,6 +534,9 @@ public class ClusterStateTests extends ESTestCase {
                       "index" : "index",
                       "allocation_id" : {
                         "id" : "%s"
+                      },
+                      "relocation_failure_info" : {
+                        "failed_attempts" : 0
                       }
                     }
                   ],
@@ -716,6 +728,9 @@ public class ClusterStateTests extends ESTestCase {
                           "index" : "index",
                           "allocation_id" : {
                             "id" : "%s"
+                          },
+                          "relocation_failure_info" : {
+                            "failed_attempts" : 0
                           }
                         }
                       ]
@@ -736,6 +751,9 @@ public class ClusterStateTests extends ESTestCase {
                       "index" : "index",
                       "allocation_id" : {
                         "id" : "%s"
+                      },
+                      "relocation_failure_info" : {
+                        "failed_attempts" : 0
                       }
                     }
                   ],

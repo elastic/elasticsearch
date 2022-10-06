@@ -194,15 +194,6 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                 .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
-        MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder(new MlAutoscalingContext()).setPassedConfiguration(
-            Settings.EMPTY
-        )
-            .setCurrentMlCapacity(
-                AutoscalingCapacity.builder()
-                    .node(null, AUTO_NODE_TIERS_NO_MONITORING.get(0).v1(), null)
-                    .total(null, AUTO_NODE_TIERS_NO_MONITORING.get(0).v1(), null)
-                    .build()
-            );
         MlMemoryAutoscalingDecider decider = buildDecider();
         decider.setUseAuto(true);
         MlMemoryAutoscalingCapacity scaleUpResult = decider.checkForScaleUp(
@@ -244,8 +235,6 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                 .incNumAssignedAnomalyDetectorJobs()
                 .build()
         );
-        reasonBuilder = new MlScalingReason.Builder(new MlAutoscalingContext()).setPassedConfiguration(Settings.EMPTY)
-            .setCurrentMlCapacity(AutoscalingCapacity.builder().node(null, 2147483648L, null).total(null, 2147483648L, null).build());
         MlMemoryAutoscalingCapacity result = decider.checkForScaleDown(
             nodeForScaleDown,
             ByteSizeValue.ofMb(200).getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
@@ -956,9 +945,6 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         when(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(3));
         MlMemoryAutoscalingDecider decider = buildDecider();
         decider.setMaxMachineMemoryPercent(25);
-        MlScalingReason.Builder reasonBuilder = new MlScalingReason.Builder(new MlAutoscalingContext()).setPassedConfiguration(
-            Settings.EMPTY
-        ).setCurrentMlCapacity(AutoscalingCapacity.ZERO);
         { // Current capacity allows for smaller node
             List<NodeLoad> nodeLoads = List.of(
                 NodeLoad.builder("foo")
@@ -1197,6 +1183,40 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
 
         MlMemoryAutoscalingCapacity result = decider.scale(settings, deciderContext, mlAutoscalingContext);
         assertThat(result.reason(), containsString("but the number in the queue is less than the configured maximum allowed"));
+        assertThat(result.nodeSize(), equalTo(ByteSizeValue.ofGb(1)));
+        assertThat(result.tierSize(), equalTo(ByteSizeValue.ofGb(1)));
+    }
+
+    public void testScale_WithNoMlNodesButWaitingAnalytics() {
+        nodeLoadDetector = new NodeLoadDetector(mlMemoryTracker);
+        MlMemoryAutoscalingDecider decider = buildDecider();
+        decider.setUseAuto(true);
+
+        final String analyticsId = "waiting-analytics";
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addAnalyticsTask(analyticsId, null, DataFrameAnalyticsState.STARTING, tasksBuilder);
+        ClusterState.Builder clusterStateBuilder = ClusterState.builder(new ClusterName("_name"));
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build());
+        clusterStateBuilder.metadata(metadata);
+        ClusterState clusterState = clusterStateBuilder.build();
+
+        Settings settings = Settings.builder()
+            .put(MlAutoscalingDeciderService.NUM_ANALYTICS_JOBS_IN_QUEUE.getKey(), 0)
+            .put(MlAutoscalingDeciderService.NUM_ANOMALY_JOBS_IN_QUEUE.getKey(), 0)
+            .build();
+
+        DeciderContext deciderContext = new DeciderContext(clusterState, AutoscalingCapacity.ZERO);
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(clusterState);
+
+        MlMemoryAutoscalingCapacity result = decider.scale(settings, deciderContext, mlAutoscalingContext);
+        assertThat(
+            result.reason(),
+            containsString(
+                "requesting scale up as number of jobs in queues exceeded configured limit and there are no machine learning nodes"
+            )
+        );
         assertThat(result.nodeSize(), equalTo(ByteSizeValue.ofGb(1)));
         assertThat(result.tierSize(), equalTo(ByteSizeValue.ofGb(1)));
     }

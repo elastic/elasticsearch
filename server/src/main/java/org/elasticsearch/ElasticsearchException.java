@@ -23,7 +23,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.aggregations.UnsupportedAggregationOnRollupIndex;
+import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -1580,9 +1580,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             166,
             Version.V_8_5_0
         ),
-        UNSUPPORTED_AGGREGATION_ON_DOWNSAMPLED_FIELD_EXCEPTION(
-            UnsupportedAggregationOnRollupIndex.class,
-            UnsupportedAggregationOnRollupIndex::new,
+        UNSUPPORTED_AGGREGATION_ON_DOWNSAMPLED_INDEX_EXCEPTION(
+            UnsupportedAggregationOnDownsampledIndex.class,
+            UnsupportedAggregationOnDownsampledIndex::new,
             167,
             Version.V_8_5_0
         );

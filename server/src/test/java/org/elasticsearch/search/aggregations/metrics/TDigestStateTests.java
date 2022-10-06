@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 
@@ -33,7 +34,7 @@ public class TDigestStateTests extends ESTestCase {
         for (double q : quantiles) {
             final double v = digest.quantile(q);
             logger.trace("q=" + q + ", v=" + v);
-            assertTrue(v >= prev);
+            assertThat(v, Matchers.either(Matchers.closeTo(prev, 0.0000001D)).or(Matchers.greaterThan(prev)));
             assertTrue("Unexpectedly low value: " + v, v >= 0.0);
             assertTrue("Unexpectedly high value: " + v, v <= 1.0);
             prev = v;

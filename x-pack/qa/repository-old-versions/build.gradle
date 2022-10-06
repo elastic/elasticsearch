@@ -115,7 +115,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         false,
         "path.repo: ${repoLocation}",
         "path.data: ${dataPath}"
-      if ((version.onOrAfter('6.8.0') && Architecture.current() == Architecture.AARCH64) || BwcVersions.isMlCompatible(version) == false) {
+      if ((version.onOrAfter('6.8.0') && Architecture.current() == Architecture.AARCH64) || (version.onOrAfter("6.4.0") && BwcVersions.isMlCompatible(version) == false)) {
         // We need to explicitly disable ML when running old ES versions on ARM or on systems with newer GLIBC
         args 'xpack.ml.enabled: false'
       }

@@ -254,7 +254,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchException("Opening job [{}] timed out after [{}]", jobParams.getJob(), timeout));
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Opening job [{}] timed out after [{}]",
+                            RestStatus.REQUEST_TIMEOUT,
+                            jobParams.getJob().getId(),
+                            timeout
+                        )
+                    );
                 }
             }
         );

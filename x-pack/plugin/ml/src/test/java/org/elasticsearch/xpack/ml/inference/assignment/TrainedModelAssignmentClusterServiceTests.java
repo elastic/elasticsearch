@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReaso
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
@@ -79,6 +81,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private NodeLoadDetector nodeLoadDetector;
     private SystemAuditor systemAuditor;
+    private NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
 
     @Before
     public void setupObjects() {
@@ -265,16 +268,22 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     public void testCreateAssignment() throws Exception {
+        Settings settings = Settings.EMPTY;
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Set.of(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING)
+        );
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
+            .add(buildNode("ml-node-without-room", true, 1000L, 2))
+            .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 2))
+            .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
+            .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
+            .build();
+        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
-                    .add(buildNode("ml-node-without-room", true, 1000L, 2))
-                    .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 2))
-                    .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
-                    .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
-                    .build()
-            )
+            .nodes(discoveryNodes)
             .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
             .build();
 
@@ -300,8 +309,18 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     public void testCreateAssignmentWhileResetModeIsTrue() throws InterruptedException {
+        Settings settings = Settings.EMPTY;
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Set.of(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING)
+        );
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 8))
+            .build();
+        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
-            .nodes(DiscoveryNodes.builder().add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 8)).build())
+            .nodes(discoveryNodes)
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build()))
             .build();
         when(clusterService.state()).thenReturn(currentState);
@@ -1399,7 +1418,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     }
 
     private TrainedModelAssignmentClusterService createClusterService() {
-        return new TrainedModelAssignmentClusterService(Settings.EMPTY, clusterService, threadPool, nodeLoadDetector, systemAuditor);
+        return new TrainedModelAssignmentClusterService(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            nodeLoadDetector,
+            systemAuditor,
+            nodeAvailabilityZoneMapper
+        );
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, long nativeMemory, int allocatedProcessors) {

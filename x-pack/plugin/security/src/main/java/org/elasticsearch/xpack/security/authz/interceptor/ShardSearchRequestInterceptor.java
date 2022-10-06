@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermission
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor.VERSION_SHARD_SEARCH_INTERCEPTOR;
-
 public class ShardSearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
     private static final Logger logger = LogManager.getLogger(ShardSearchRequestInterceptor.class);
@@ -41,12 +39,7 @@ public class ShardSearchRequestInterceptor extends FieldAndDocumentLevelSecurity
         ActionListener<Void> listener
     ) {
         final ShardSearchRequest request = (ShardSearchRequest) indicesRequest;
-        // The 7.11.2 version check is needed because request caching has a bug related to DLS/FLS
-        // versions before 7.11.2. It is fixed by #69505. See also ESA-2021-08.
-        // TODO: The version check can be removed in 8.0 because 7.last will have support for request caching with DLS/FLS
-        if (clusterService.state().nodes().getMinNodeVersion().before(VERSION_SHARD_SEARCH_INTERCEPTOR)) {
-            request.requestCache(false);
-        } else if (dlsUsesStoredScripts(request, indexAccessControlByIndex)) {
+        if (dlsUsesStoredScripts(request, indexAccessControlByIndex)) {
             logger.debug("Disable shard search request cache because DLS queries use stored scripts");
             request.requestCache(false);
         }

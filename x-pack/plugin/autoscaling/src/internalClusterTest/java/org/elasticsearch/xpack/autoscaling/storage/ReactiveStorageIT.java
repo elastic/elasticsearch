@@ -383,6 +383,13 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         setTotalSpace(dataNode1Name, tooLittleSpaceForShrink + 1);
         assertAcked(client().admin().cluster().prepareReroute());
         ensureGreen();
+
+        client().admin().indices().prepareDelete(indexName).get();
+        response = capacity();
+        assertThat(
+            response.results().get(policyName).requiredCapacity().total().storage(),
+            equalTo(response.results().get(policyName).currentCapacity().total().storage())
+        );
     }
 
     public void testScaleDuringSplitOrClone() throws Exception {
@@ -489,6 +496,13 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         setTotalSpace(dataNode1Name, requiredSpaceForClone);
         assertAcked(client().admin().cluster().prepareReroute());
         ensureGreen();
+
+        client().admin().indices().prepareDelete(indexName).get();
+        response = capacity();
+        assertThat(
+            response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
+            equalTo(requiredSpaceForClone + enoughSpace)
+        );
     }
 
     /**

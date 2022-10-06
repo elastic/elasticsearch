@@ -279,6 +279,12 @@ POST image-index/_search
 ----
 // TEST[continued]
 
+NOTE: The filter is applied **during** the approximate kNN search to ensure
+that `k` matching documents are returned. This contrasts with a
+post-filtering approach, where the filter is applied **after** the approximate
+kNN search completes. Post-filtering has the downside that it sometimes
+returns fewer than k results, even when there are enough matching documents.
+
 [discrete]
 ==== Combine approximate kNN with other features
 

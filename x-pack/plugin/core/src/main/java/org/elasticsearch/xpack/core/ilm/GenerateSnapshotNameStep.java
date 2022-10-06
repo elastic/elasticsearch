@@ -19,8 +19,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -135,12 +133,9 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
     }
 
     public static String generateSnapshotName(String name, IndexNameExpressionResolver.Context context) {
-        List<String> candidates = IndexNameExpressionResolver.DateMathExpressionResolver.resolve(context, Collections.singletonList(name));
-        if (candidates.size() != 1) {
-            throw new IllegalStateException("resolving snapshot name " + name + " generated more than one candidate: " + candidates);
-        }
+        String candidate = IndexNameExpressionResolver.resolveDateMathExpression(name, context.getStartTime());
         // TODO: we are breaking the rules of UUIDs by lowercasing this here, find an alternative (snapshot names must be lowercase)
-        return candidates.get(0) + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
+        return candidate + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
     }
 
     @Nullable

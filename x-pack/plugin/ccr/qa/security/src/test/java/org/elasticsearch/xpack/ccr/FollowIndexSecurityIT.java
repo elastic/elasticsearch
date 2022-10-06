@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -79,7 +80,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             pauseFollow(allowedIndex);
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
-                assertNoPersistentTasks();
+                assertNoPendingPersistentTasks();
                 assertThat(getCcrNodeTasks(), empty());
             });
 
@@ -88,7 +89,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             pauseFollow(allowedIndex);
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
-                assertNoPersistentTasks();
+                assertNoPendingPersistentTasks();
                 assertThat(getCcrNodeTasks(), empty());
             });
 
@@ -266,7 +267,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             deleteIndex(client(), cleanFollower);
             // the shard follow task should have been cleaned up on behalf of the user, see ShardFollowTaskCleaner
             assertBusy(() -> {
-                assertNoPersistentTasks();
+                assertNoPendingPersistentTasks();
                 assertThat(getCcrNodeTasks(), empty());
             });
         }
@@ -340,9 +341,15 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         }
     }
 
-    private static void assertNoPersistentTasks() throws IOException {
+    private static void assertNoPendingPersistentTasks() throws IOException {
         Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
-        List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
+        List<?> tasks = ((List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState)).stream()
+            .filter(
+                task -> (((task instanceof Map<?, ?> taskMap)
+                    && taskMap.containsKey("id")
+                    && taskMap.get("id").equals(HealthNode.TASK_NAME))) == false
+            )
+            .toList();
         assertThat(tasks, empty());
     }
 }

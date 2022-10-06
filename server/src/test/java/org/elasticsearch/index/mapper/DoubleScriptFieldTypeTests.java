@@ -245,7 +245,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
                         emit(((Number) foo).doubleValue());
                     }
                 }
@@ -253,7 +253,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             case "add_param" -> (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
                         emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
                     }
                 }

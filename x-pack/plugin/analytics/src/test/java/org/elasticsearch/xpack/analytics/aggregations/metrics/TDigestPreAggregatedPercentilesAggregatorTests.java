@@ -130,7 +130,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
                 PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number")
                     .method(PercentilesMethod.TDIGEST);
 
-                MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap(), null);
+                MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap());
                 Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator.asCollector());

@@ -143,7 +143,7 @@ public class PermissionsIT extends ESRestTestCase {
                         equalTo(
                             "action [indices:monitor/stats] is unauthorized"
                                 + " for user [test_ilm]"
-                                + " with roles [ilm]"
+                                + " with effective roles [ilm]"
                                 + " on indices [not-ilm],"
                                 + " this action is granted by the index privileges [monitor,manage,all]"
                         )

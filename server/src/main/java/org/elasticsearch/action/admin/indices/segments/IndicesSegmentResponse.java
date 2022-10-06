@@ -15,23 +15,27 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.transport.Transports;
+import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class IndicesSegmentResponse extends BroadcastResponse {
+public class IndicesSegmentResponse extends BroadcastResponse implements ChunkedToXContent {
 
     private final ShardSegments[] shards;
 
@@ -77,12 +81,12 @@ public class IndicesSegmentResponse extends BroadcastResponse {
     }
 
     @Override
-    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        assert Transports.assertNotTransportThread("segments are very numerous, too expensive to serialize on a transport thread");
-
-        builder.startObject(Fields.INDICES);
-
-        for (IndexSegments indexSegments : getIndices().values()) {
+    public Iterator<? extends ToXContent> toXContentChunked() {
+        return Iterators.concat(Iterators.single(((builder, params) -> {
+            builder.startObject();
+            RestActions.buildBroadcastShardsHeader(builder, params, this);
+            return builder.startObject(Fields.INDICES);
+        })), getIndices().values().stream().map(indexSegments -> (ToXContent) (builder, params) -> {
             builder.startObject(indexSegments.getIndex());
 
             builder.startObject(Fields.SHARDS);
@@ -141,9 +145,15 @@ public class IndicesSegmentResponse extends BroadcastResponse {
             builder.endObject();
 
             builder.endObject();
-        }
+            return builder;
+        }).iterator(), Iterators.single((builder, params) -> builder.endObject().endObject()));
+    }
 
-        builder.endObject();
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        // override the BroadcastResponse behavior that is not compatible with the toXContentChunked implementation
+        // TODO: make this not a ToXContent to make this unnecessary
+        return ChunkedToXContent.super.toXContent(builder, params);
     }
 
     private static void toXContent(XContentBuilder builder, Sort sort) throws IOException {

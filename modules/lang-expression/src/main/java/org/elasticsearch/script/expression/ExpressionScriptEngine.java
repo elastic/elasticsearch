@@ -24,6 +24,7 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.ClassPermission;
+import org.elasticsearch.script.DoubleValuesScript;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.NumberSortScript;
@@ -132,6 +133,14 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 return newFieldScript(expr, lookup, params);
             }
 
+            @Override
+            public boolean isResultDeterministic() {
+                return true;
+            }
+        },
+
+        DoubleValuesScript.CONTEXT,
+        (Expression expr) -> new ExpressionDoubleValuesScript(expr) {
             @Override
             public boolean isResultDeterministic() {
                 return true;

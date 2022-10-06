@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -49,7 +50,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
                 randomNullableByteSizeValue(),
                 randomNullableByteSizeValue(),
                 randomInt(1000),
-                (float) randomInt(64)
+                randomProcessors()
             )
         );
     }
@@ -77,7 +78,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     }
 
     protected static AutoscalingCapacity.AutoscalingResources randomAutoscalingResources() {
-        return new AutoscalingCapacity.AutoscalingResources(randomByteSizeValue(), randomByteSizeValue(), (float) randomInt(128));
+        return new AutoscalingCapacity.AutoscalingResources(randomByteSizeValue(), randomByteSizeValue(), randomProcessors());
     }
 
     private static AutoscalingCapacity.AutoscalingResources randomNullValueAutoscalingResources() {
@@ -96,7 +97,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return new AutoscalingCapacity.AutoscalingResources(
             addStorage ? randomByteSizeValue() : null,
             addMemory ? randomByteSizeValue() : null,
-            addProcessors ? (float) randomInt(128) : null
+            addProcessors ? randomProcessors() : null
         );
     }
 
@@ -151,6 +152,10 @@ public abstract class AutoscalingTestCase extends ESTestCase {
 
     public static AutoscalingPolicy randomAutoscalingPolicyOfName(final String name) {
         return new AutoscalingPolicy(name, randomRoles(), randomAutoscalingDeciders());
+    }
+
+    public static Processors randomProcessors() {
+        return Processors.of(randomDoubleBetween(Double.MIN_VALUE, 512.9999999, true));
     }
 
     public static AutoscalingPolicy mutateAutoscalingPolicy(final AutoscalingPolicy instance) {

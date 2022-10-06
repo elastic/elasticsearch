@@ -277,7 +277,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) {
-            try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
+            try (ThreadContext.StoredContext ctx = threadContext.newStoredContextPreservingResponseHeaders()) {
                 String profile = channel.getProfileName();
                 ServerTransportFilter filter = profileFilters.get(profile);
 

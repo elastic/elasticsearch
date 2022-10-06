@@ -176,13 +176,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         INT8 {
             @Override
             public String toString() {
-                return "byte8";
+                return "byte";
             }
         },
         FLOAT32 {
             @Override
             public String toString() {
-                return "float32";
+                return "float";
             }
         }
     }

@@ -789,9 +789,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             T value = getValue();
-            if (name.equals("element_type")) {
-                throw new IllegalStateException(value + " " + builder.toString());
-            }
             if (serializerCheck.check(includeDefaults, isConfigured(), value)) {
                 serializer.serialize(builder, name, value);
             }

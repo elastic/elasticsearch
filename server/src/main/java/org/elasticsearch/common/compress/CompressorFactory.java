@@ -39,7 +39,8 @@ public class CompressorFactory {
             if (isAncient(bytes)) {
                 throw new IllegalStateException("unsupported compression: index was created before v2.0.0.beta1 and wasn't upgraded?");
             }
-            throw new NotXContentException("Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes");
+            //throw new NotXContentException("Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes");
+            throw new NotXContentException(bytes.utf8ToString());
         }
 
         return null;

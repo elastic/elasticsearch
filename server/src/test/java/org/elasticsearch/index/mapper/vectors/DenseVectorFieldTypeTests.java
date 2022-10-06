@@ -30,7 +30,15 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     private DenseVectorFieldType createFieldType() {
-        return new DenseVectorFieldType("f", Version.CURRENT, 5, indexed, VectorSimilarity.cosine, Collections.emptyMap());
+        return new DenseVectorFieldType(
+            "f",
+            Version.CURRENT,
+            DenseVectorFieldMapper.ElementType.FLOAT32,
+            5,
+            indexed,
+            VectorSimilarity.cosine,
+            Collections.emptyMap()
+        );
     }
 
     public void testHasDocValues() {
@@ -74,6 +82,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType unindexedField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
+            DenseVectorFieldMapper.ElementType.FLOAT32,
             3,
             false,
             VectorSimilarity.cosine,
@@ -88,6 +97,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType dotProductField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
+            DenseVectorFieldMapper.ElementType.FLOAT32,
             3,
             true,
             VectorSimilarity.dot_product,
@@ -99,6 +109,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
             "f",
             Version.CURRENT,
+            DenseVectorFieldMapper.ElementType.FLOAT32,
             3,
             true,
             VectorSimilarity.cosine,

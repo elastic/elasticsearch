@@ -67,6 +67,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     public static class Builder extends FieldMapper.Builder {
+
+        private final Parameter<ElementType> elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT32, (n, c, o) -> {
+            ElementType elementType = namesToElementType.get((String) o);
+            if (elementType == null) {
+                throw new MapperParsingException("invalid element_type [" + o + "]; available types are " + namesToElementType.keySet());
+            }
+            return elementType;
+        }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
+
         private final Parameter<Integer> dims = new Parameter<>(
             "dims",
             false,
@@ -126,7 +135,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { dims, indexed, similarity, indexOptions, meta };
+            return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
         }
 
         @Override
@@ -136,11 +145,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 new DenseVectorFieldType(
                     context.buildFullName(name),
                     indexVersionCreated,
+                    elementType.getValue(),
                     dims.getValue(),
                     indexed.getValue(),
                     similarity.getValue(),
                     meta.getValue()
                 ),
+                elementType.getValue(),
                 dims.getValue(),
                 indexed.getValue(),
                 similarity.getValue(),
@@ -151,6 +162,28 @@ public class DenseVectorFieldMapper extends FieldMapper {
             );
         }
     }
+
+    enum ElementType {
+        INT8 {
+            @Override
+            public String toString() {
+                return "byte";
+            }
+        },
+        FLOAT32 {
+            @Override
+            public String toString() {
+                return "float";
+            }
+        }
+    }
+
+    static final Map<String, ElementType> namesToElementType = Map.of(
+        ElementType.INT8.toString(),
+        ElementType.INT8,
+        ElementType.FLOAT32.toString(),
+        ElementType.FLOAT32
+    );
 
     enum VectorSimilarity {
         l2_norm(VectorSimilarityFunction.EUCLIDEAN),
@@ -232,6 +265,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     );
 
     public static final class DenseVectorFieldType extends SimpleMappedFieldType {
+        private final ElementType elementType;
         private final int dims;
         private final boolean indexed;
         private final VectorSimilarity similarity;
@@ -240,12 +274,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public DenseVectorFieldType(
             String name,
             Version indexVersionCreated,
+            ElementType elementType,
             int dims,
             boolean indexed,
             VectorSimilarity similarity,
             Map<String, String> meta
         ) {
             super(name, indexed, false, indexed == false, TextSearchInfo.NONE, meta);
+            this.elementType = elementType;
             this.dims = dims;
             this.indexed = indexed;
             this.similarity = similarity;
@@ -350,6 +386,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
+    private final ElementType elementType;
     private final int dims;
     private final boolean indexed;
     private final VectorSimilarity similarity;
@@ -359,6 +396,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private DenseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
+        ElementType elementType,
         int dims,
         boolean indexed,
         VectorSimilarity similarity,
@@ -368,6 +406,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         CopyTo copyTo
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.elementType = elementType;
         this.dims = dims;
         this.indexed = indexed;
         this.similarity = similarity;

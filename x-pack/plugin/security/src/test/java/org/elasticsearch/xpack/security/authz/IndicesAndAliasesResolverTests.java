@@ -632,7 +632,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME));
         assertNoIndices(request, indices);
         SearchRequest disallowNoIndicesRequest = new SearchRequest("*", "-foofoo*");
-        request.indicesOptions(IndicesOptions.fromOptions(true, false, false, false));
+        disallowNoIndicesRequest.indicesOptions(IndicesOptions.fromOptions(true, false, false, false));
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
             () -> resolveIndices(disallowNoIndicesRequest, buildAuthorizedIndices(user, SearchAction.NAME))

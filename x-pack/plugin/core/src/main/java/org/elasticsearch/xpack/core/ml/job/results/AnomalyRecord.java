@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,8 +20,6 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-// import org.elasticsearch.logging.LogManager;
-// import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +36,6 @@ import java.util.Objects;
  * can be returned if the members have not been set.
  */
 public class AnomalyRecord implements ToXContentObject, Writeable {
-    private static final Logger logger = LogManager.getLogger(AnomalyRecord.class);
     /**
      * Result type
      */
@@ -50,6 +45,8 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
      */
     public static final ParseField PROBABILITY = new ParseField("probability");
     public static final ParseField PROBABILITY_EXPLANATIONS = new ParseField("probability_explanations");
+
+    public static final ParseField ANOMALY_SCORE_EXPLANATION = new ParseField("anomaly_score_explanation");
     public static final ParseField MULTI_BUCKET_IMPACT = new ParseField("multi_bucket_impact");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
@@ -107,7 +104,6 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         parser.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
         parser.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
-        parser.declareString(AnomalyRecord::setProbabilityExplanations, PROBABILITY_EXPLANATIONS);
         parser.declareDouble(AnomalyRecord::setMultiBucketImpact, MULTI_BUCKET_IMPACT);
         parser.declareDouble(AnomalyRecord::setRecordScore, RECORD_SCORE);
         parser.declareDouble(AnomalyRecord::setInitialRecordScore, INITIAL_RECORD_SCORE);
@@ -140,6 +136,11 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             ignoreUnknownFields ? GeoResults.LENIENT_PARSER : GeoResults.STRICT_PARSER,
             GEO_RESULTS
         );
+        parser.declareObject(
+            AnomalyRecord::setAnomalyScoreExplanation,
+            ignoreUnknownFields ? AnomalyScoreExplanation.LENIENT_PARSER : AnomalyScoreExplanation.STRICT_PARSER,
+            ANOMALY_SCORE_EXPLANATION
+        );
 
         return parser;
     }
@@ -147,7 +148,6 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     private final String jobId;
     private int detectorIndex;
     private double probability;
-    private String probabilityExplanations;
     private Double multiBucketImpact;
     private String byFieldName;
     private String byFieldValue;
@@ -161,6 +161,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     private boolean isInterim;
     private GeoResults geoResults;
 
+    private AnomalyScoreExplanation anomalyScoreExplanation;
     private String fieldName;
 
     private String overFieldName;
@@ -187,8 +188,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         jobId = in.readString();
         detectorIndex = in.readInt();
         probability = in.readDouble();
-        // TODO: is the sequence of reads important?
-        probabilityExplanations = in.readOptionalString();
+
         multiBucketImpact = in.readOptionalDouble();
         byFieldName = in.readOptionalString();
         byFieldValue = in.readOptionalString();
@@ -218,6 +218,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             influences = in.readList(Influence::new);
         }
         geoResults = in.readOptionalWriteable(GeoResults::new);
+        anomalyScoreExplanation = in.readOptionalWriteable(AnomalyScoreExplanation::new);
     }
 
     @Override
@@ -225,7 +226,6 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         out.writeString(jobId);
         out.writeInt(detectorIndex);
         out.writeDouble(probability);
-        out.writeOptionalString(probabilityExplanations);
         out.writeOptionalDouble(multiBucketImpact);
         out.writeOptionalString(byFieldName);
         out.writeOptionalString(byFieldValue);
@@ -263,6 +263,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             out.writeList(influences);
         }
         out.writeOptionalWriteable(geoResults);
+        out.writeOptionalWriteable(anomalyScoreExplanation);
     }
 
     @Override
@@ -325,13 +326,8 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         if (geoResults != null) {
             builder.field(GEO_RESULTS.getPreferredName(), geoResults);
         }
-        if (probabilityExplanations != null) {
-            builder.field(PROBABILITY_EXPLANATIONS.getPreferredName(), probabilityExplanations);
-            logger.info("Probability explanation is " + probabilityExplanations);
-        }
-        else {
-            builder.field(PROBABILITY_EXPLANATIONS.getPreferredName(), "Probability explanation is empty");
-            logger.info("Probability explanation is empty");
+        if (anomalyScoreExplanation != null) {
+            builder.field(ANOMALY_SCORE_EXPLANATION.getPreferredName(), anomalyScoreExplanation);
         }
 
         Map<String, LinkedHashSet<String>> inputFields = inputFieldMap();
@@ -441,14 +437,6 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
 
     public void setProbability(double value) {
         probability = value;
-    }
-
-    public String getProbabilityExplanations() {
-        return probabilityExplanations;
-    }
-
-    public void setProbabilityExplanations(String value) {
-        probabilityExplanations = value;
     }
 
     public double getMultiBucketImpact() {
@@ -594,6 +582,14 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         this.geoResults = geoResults;
     }
 
+    public AnomalyScoreExplanation getAnomalyScoreExplanation() {
+        return anomalyScoreExplanation;
+    }
+
+    public void setAnomalyScoreExplanation(AnomalyScoreExplanation anomalyScoreExplanation) {
+        this.anomalyScoreExplanation = anomalyScoreExplanation;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(
@@ -601,7 +597,6 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             detectorIndex,
             bucketSpan,
             probability,
-            probabilityExplanations,
             multiBucketImpact,
             recordScore,
             initialRecordScore,
@@ -622,7 +617,8 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             causes,
             influences,
             jobId,
-            geoResults
+            geoResults,
+            anomalyScoreExplanation
         );
     }
 
@@ -642,7 +638,6 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             && this.detectorIndex == that.detectorIndex
             && this.bucketSpan == that.bucketSpan
             && this.probability == that.probability
-            && Objects.equals(this.probabilityExplanations, that.probabilityExplanations)
             && Objects.equals(this.multiBucketImpact, that.multiBucketImpact)
             && this.recordScore == that.recordScore
             && this.initialRecordScore == that.initialRecordScore
@@ -662,6 +657,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             && Objects.equals(this.isInterim, that.isInterim)
             && Objects.equals(this.causes, that.causes)
             && Objects.equals(this.geoResults, that.geoResults)
+            && Objects.equals(this.anomalyScoreExplanation, that.anomalyScoreExplanation)
             && Objects.equals(this.influences, that.influences);
     }
 

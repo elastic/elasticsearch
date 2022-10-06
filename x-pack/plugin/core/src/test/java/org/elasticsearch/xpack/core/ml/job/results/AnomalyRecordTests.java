@@ -42,7 +42,6 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         anomalyRecord.setActual(Collections.singletonList(randomDouble()));
         anomalyRecord.setTypical(Collections.singletonList(randomDouble()));
         anomalyRecord.setProbability(randomDouble());
-        anomalyRecord.setProbabilityExplanations(randomAlphaOfLength(12));
         if (randomBoolean()) {
             anomalyRecord.setMultiBucketImpact(randomDouble());
         }
@@ -89,6 +88,18 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
                 causes.add(new AnomalyCauseTests().createTestInstance());
             }
             anomalyRecord.setCauses(causes);
+        }
+        if (randomBoolean()) {
+            AnomalyScoreExplanation anomalyScoreExplanation = new AnomalyScoreExplanation();
+            anomalyScoreExplanation.setAnomalyType(randomAlphaOfLength(12));
+            anomalyScoreExplanation.setAnomalyLength(randomInt());
+            anomalyScoreExplanation.setSingleBucketImpact(randomInt());
+            anomalyScoreExplanation.setMultiBucketImpact(randomInt());
+            anomalyScoreExplanation.setLowerConfidenceBound(randomDouble());
+            anomalyScoreExplanation.setTypicalValue(randomDouble());
+            anomalyScoreExplanation.setUpperConfidenceBound(randomDouble());
+            anomalyScoreExplanation.setHighVariancePenalty(randomBoolean());
+            anomalyScoreExplanation.setIncompleteBucketPenalty(randomBoolean());
         }
 
         return anomalyRecord;

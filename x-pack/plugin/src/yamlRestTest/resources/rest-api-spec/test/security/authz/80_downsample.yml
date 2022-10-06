@@ -251,13 +251,3 @@ setup:
           }
 
   - is_true: acknowledged
-
-  - do:
-      headers: { Authorization: "Basic ZG93bnNhbXBsZS11c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" }
-      search:
-        index: target
-        body:
-          query:
-            match_all: {}
-
-  - length: { hits.hits: 4 }

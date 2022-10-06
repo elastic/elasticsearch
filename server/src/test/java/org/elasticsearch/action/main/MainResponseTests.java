@@ -57,25 +57,26 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
             XContentHelper.stripWhitespace(
-                """
-                    {
-                        "name": "nodeName",
-                        "cluster_name": "clusterName",
-                        "cluster_uuid": "%s",
-                        "version": {
-                            "number": "%s",
-                            "build_flavor": "default",
-                            "build_type": "%s",
-                            "build_hash": "%s",
-                            "build_date": "%s",
-                            "build_snapshot": %s,
-                            "lucene_version": "%s",
-                            "minimum_wire_compatibility_version": "%s",
-                            "minimum_index_compatibility_version": "%s"
-                        },
-                        "tagline": "You Know, for Search"
-                    }
-                    """.formatted(
+                formatted(
+                    """
+                        {
+                            "name": "nodeName",
+                            "cluster_name": "clusterName",
+                            "cluster_uuid": "%s",
+                            "version": {
+                                "number": "%s",
+                                "build_flavor": "default",
+                                "build_type": "%s",
+                                "build_hash": "%s",
+                                "build_date": "%s",
+                                "build_snapshot": %s,
+                                "lucene_version": "%s",
+                                "minimum_wire_compatibility_version": "%s",
+                                "minimum_index_compatibility_version": "%s"
+                            },
+                            "tagline": "You Know, for Search"
+                        }
+                        """,
                     clusterUUID,
                     build.qualifiedVersion(),
                     current.type().displayName(),

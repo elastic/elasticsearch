@@ -8,20 +8,15 @@
 
 package org.elasticsearch.gradle.fixtures
 
-import net.bytebuddy.ByteBuddy
-import net.bytebuddy.dynamic.DynamicType
+
 import spock.lang.Specification
 import spock.lang.TempDir
 
 import org.apache.commons.io.FileUtils
-import org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass
-import org.elasticsearch.plugin.scanner.test_classes.ExtensibleInterface
 import org.elasticsearch.gradle.internal.test.ConfigurationCacheCompatibleAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
-import org.elasticsearch.plugin.api.Extensible
-import org.elasticsearch.plugin.api.NamedComponent
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
@@ -141,35 +136,6 @@ abstract class AbstractGradleFuncTest extends Specification {
         }
 
         return jarFile;
-    }
-
-    //todo maybe we could refer to ../libs/plugin-api compile it and create a jar?
-    File pluginApiJar(File jarFolder){
-        File jarFile = new File(jarFolder, "plugin-api.jar")
-
-        DynamicType.Unloaded<Extensible> extensible =
-            new ByteBuddy().decorate(Extensible.class).make();
-        DynamicType.Unloaded<NamedComponent> namedComponent =
-            new ByteBuddy().decorate(NamedComponent.class).make();
-
-        extensible.toJar(jarFile);
-        namedComponent.inject(jarFile);
-
-        return jarFile;
-    }
-
-    File extensibleApiJar(File jarFolder) throws IOException {
-        File jar = new File(jarFolder, "plugin-extensible-api.jar")
-
-        DynamicType.Unloaded<?> extensible =
-            new ByteBuddy().decorate(ExtensibleInterface.class).make();
-
-        DynamicType.Unloaded<?> extensibleClass =
-            new ByteBuddy().decorate(ExtensibleClass.class).make();
-
-        extensible.toJar(jar);
-        extensibleClass.inject(jar);
-        return jar;
     }
 
     File internalBuild(

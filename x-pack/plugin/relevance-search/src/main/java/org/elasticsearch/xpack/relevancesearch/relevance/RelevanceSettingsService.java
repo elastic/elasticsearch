@@ -56,7 +56,13 @@ public class RelevanceSettingsService {
         if (fields == null || fields.isEmpty()) {
             throw new RelevanceSettingsInvalidException("[relevance_match] fields not specified in relevance settings. Source: " + source);
         }
+        @SuppressWarnings("unchecked")
+        final Map<String, List<Map<String, Object>>> scriptScores = (Map<String, List<Map<String, Object>>>) queryConfiguration.get(
+            "boosts"
+        );
+
         relevanceSettingsQueryConfiguration.parseFieldsAndBoosts(fields);
+        relevanceSettingsQueryConfiguration.parseScriptScores(scriptScores);
 
         relevanceSettings.setQueryConfiguration(relevanceSettingsQueryConfiguration);
 

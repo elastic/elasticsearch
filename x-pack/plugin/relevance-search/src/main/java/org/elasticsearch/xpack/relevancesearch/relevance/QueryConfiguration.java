@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.relevancesearch.relevance;
 
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ScriptScoreBoost;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -17,12 +20,30 @@ public class QueryConfiguration {
 
     private Map<String, Float> fieldsAndBoosts;
 
+    public Map<String, List<ScriptScoreBoost>> scriptScores;
+
     public Map<String, Float> getFieldsAndBoosts() {
         return fieldsAndBoosts;
     }
 
     public void setFieldsAndBoosts(Map<String, Float> fieldsAndBoosts) {
         this.fieldsAndBoosts = fieldsAndBoosts;
+    }
+
+    public Map<String, List<ScriptScoreBoost>> getScriptScores() {
+        return scriptScores;
+    }
+
+    public void parseScriptScores(Map<String, List<Map<String, Object>>> scriptScores) {
+        Map<String, List<ScriptScoreBoost>> result = new HashMap<>();
+        for (String field : scriptScores.keySet()) {
+            List<ScriptScoreBoost> fieldScores = new ArrayList<>();
+            for (Map<String, Object> boostProps : scriptScores.get(field)) {
+                fieldScores.add(ScriptScoreBoost.parse(boostProps));
+            }
+            result.put(field, fieldScores);
+        }
+        this.scriptScores = result;
     }
 
     public void parseFieldsAndBoosts(List<String> inputFields) throws RelevanceSettingsService.RelevanceSettingsInvalidException {

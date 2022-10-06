@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SearchEngineMetadata;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -67,6 +68,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             // Currently, two unknown top-level objects are present
             if (Metadata.Custom.class.isAssignableFrom(categoryClass)) {
                 if (DataStreamMetadata.TYPE.equals(name)
+                    || SearchEngineMetadata.TYPE.equals(name)
                     || ComposableIndexTemplateMetadata.TYPE.equals(name)
                     || ComponentTemplateMetadata.TYPE.equals(name)) {
                     // DataStreamMetadata is used inside Metadata class for validation purposes and building the indicesLookup,

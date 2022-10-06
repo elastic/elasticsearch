@@ -1,0 +1,16 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description 'Search Engines API Plugin'
+  classname 'org.elasticsearch.searchengines.SearchEnginesPlugin'
+}
+
+if (BuildParams.inFipsJvm){
+  // These fail in CI but only when run as part of checkPart2 and not individually.
+  // Tracked in :
+  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("yamlRestTest").configure{enabled = false }
+}

@@ -46,6 +46,7 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -2781,6 +2782,57 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(names, containsInAnyOrder(dataStream2));
 
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "*", "-*");
+        assertThat(names, empty());
+    }
+
+    public void testSearchEngineNames() {
+        final String engineName1 = "my-engine";
+        final String engineName2 = "other-engine";
+
+        IndexMetadata index1 = IndexMetadata.builder("my-index")
+            .settings(ESTestCase.settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        IndexMetadata index2 = IndexMetadata.builder("other-index")
+            .settings(ESTestCase.settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+
+        HashMap<String, SearchEngine> searchEngines = new HashMap<>();
+        searchEngines.put(
+            engineName1,
+            new SearchEngine(engineName1, Collections.singletonList(index1.getIndex()), false, false, "settings-1")
+        );
+        searchEngines.put(
+            engineName2,
+            new SearchEngine(engineName2, Collections.singletonList(index2.getIndex()), false, false, "settings-2")
+        );
+
+        SearchEngineMetadata engineMeta = new SearchEngineMetadata(searchEngines);
+
+        ClusterState state = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put(index1, false).put(index2, false).put(engineMeta))
+            .build();
+
+        List<String> names = indexNameExpressionResolver.searchEngineNames(state, IndicesOptions.lenientExpand(), "*");
+        assertThat(names, containsInAnyOrder(engineName1, engineName2));
+
+        names = indexNameExpressionResolver.searchEngineNames(state, IndicesOptions.lenientExpand(), engineName1);
+        assertEquals(Collections.singletonList(engineName1), names);
+
+        names = indexNameExpressionResolver.searchEngineNames(state, IndicesOptions.lenientExpand(), engineName2);
+        assertEquals(Collections.singletonList(engineName2), names);
+
+        names = indexNameExpressionResolver.searchEngineNames(state, IndicesOptions.lenientExpand(), "my*");
+        assertEquals(Collections.singletonList(engineName1), names);
+
+        names = indexNameExpressionResolver.searchEngineNames(state, IndicesOptions.lenientExpand(), "other*");
+        assertEquals(Collections.singletonList(engineName2), names);
+
+        names = indexNameExpressionResolver.searchEngineNames(state, IndicesOptions.lenientExpand(), "*", "-*");
         assertThat(names, empty());
     }
 

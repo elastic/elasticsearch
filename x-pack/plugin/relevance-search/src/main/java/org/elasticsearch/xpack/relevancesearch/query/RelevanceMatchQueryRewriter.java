@@ -27,6 +27,11 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Rewrites the relevance_match query using information stored in the {@link RelevanceMatchQueryBuilder} class.
+ *
+ * It holds other services used for this task to get relevance and curations settings
+ */
 public class RelevanceMatchQueryRewriter {
 
     private final RelevanceSettingsService relevanceSettingsService;

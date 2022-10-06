@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.relevancesearch.relevance.curations;
 
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 
+/**
+ * Conditions used to match a curation. This is a base class that can be implemented for different types of conditions.
+ */
 public abstract class Condition {
 
     private final String value;
@@ -36,6 +39,9 @@ public abstract class Condition {
 
     public abstract boolean match(RelevanceMatchQueryBuilder queryBuilder);
 
+    /**
+     * A condition that relies on the query exactly matching the value
+     */
     public static class QueryCondition extends Condition {
 
         public QueryCondition(String value) {

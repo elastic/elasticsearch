@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Parses and builds relevance_match queries
+ * Parses and serializes / deserializes relevance_match queries. Uses the {@link RelevanceMatchQueryRewriter} for rewriting the query
  */
 public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMatchQueryBuilder> {
 

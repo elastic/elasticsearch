@@ -14,6 +14,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.relevancesearch.relevance.boosts.FunctionalBoost;
+import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ProximityBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ScriptScoreBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ValueBoost;
 
@@ -79,6 +81,66 @@ public class RelevanceSettingsServiceTests extends ESTestCase {
         Map<String, List<ScriptScoreBoost>> expected = Collections.singletonMap(
             "world_heritage_site",
             Collections.singletonList(new ValueBoost("true", "multiply", 10f))
+        );
+        assertEquals(expected, actual);
+    }
+
+    public void testParseFunctionalBoost() throws RelevanceSettingsService.RelevanceSettingsInvalidException,
+        RelevanceSettingsService.RelevanceSettingsNotFoundException {
+        String source = """
+            {
+              "query_configuration": {
+                "fields": ["title","description", "visitors"],
+                "boosts": {
+                  "visitors": [
+                    {
+                      "type": "functional",
+                      "function": "linear",
+                      "operation": "add",
+                      "factor": 5
+                    }
+                  ]
+                }
+              }
+            }""";
+        Client client = this.clientWithSource(source);
+        final RelevanceSettingsService service = new RelevanceSettingsService(client);
+        RelevanceSettings settings = service.getRelevanceSettings("settings-id-here");
+        Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
+
+        Map<String, List<ScriptScoreBoost>> expected = Collections.singletonMap(
+            "visitors",
+            Collections.singletonList(new FunctionalBoost("linear", "add", 5f))
+        );
+        assertEquals(expected, actual);
+    }
+
+    public void testParseProximityBoost() throws RelevanceSettingsService.RelevanceSettingsInvalidException,
+        RelevanceSettingsService.RelevanceSettingsNotFoundException {
+        String source = """
+            {
+              "query_configuration": {
+                "fields": ["title","description", "location"],
+                "boosts": {
+                  "location": [
+                    {
+                      "type": "proximity",
+                      "center": "25.32, -80.93",
+                      "function": "gaussian",
+                      "factor": 5
+                    }
+                  ]
+                }
+              }
+            }""";
+        Client client = this.clientWithSource(source);
+        final RelevanceSettingsService service = new RelevanceSettingsService(client);
+        RelevanceSettings settings = service.getRelevanceSettings("settings-id-here");
+        Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
+
+        Map<String, List<ScriptScoreBoost>> expected = Collections.singletonMap(
+            "location",
+            Collections.singletonList(new ProximityBoost("25.32, -80.93", "gaussian", 5f))
         );
         assertEquals(expected, actual);
     }

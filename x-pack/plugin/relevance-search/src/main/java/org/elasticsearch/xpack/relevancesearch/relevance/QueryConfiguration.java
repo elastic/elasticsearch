@@ -34,11 +34,14 @@ public class QueryConfiguration {
         return scriptScores;
     }
 
-    public void parseScriptScores(Map<String, List<Map<String, Object>>> scriptScores) {
+    public void parseScriptScores(Map<String, List<Map<String, Object>>> scores) {
+        if (scores == null) {
+            return;
+        }
         Map<String, List<ScriptScoreBoost>> result = new HashMap<>();
-        for (String field : scriptScores.keySet()) {
+        for (String field : scores.keySet()) {
             List<ScriptScoreBoost> fieldScores = new ArrayList<>();
-            for (Map<String, Object> boostProps : scriptScores.get(field)) {
+            for (Map<String, Object> boostProps : scores.get(field)) {
                 fieldScores.add(ScriptScoreBoost.parse(boostProps));
             }
             result.put(field, fieldScores);

@@ -54,9 +54,9 @@ public class SearchContextIdTests extends ESTestCase {
         for (SearchPhaseResult result : queryResults.asList()) {
             final AliasFilter aliasFilter;
             if (randomBoolean()) {
-                aliasFilter = new AliasFilter(randomQueryBuilder());
+                aliasFilter = AliasFilter.of(randomQueryBuilder());
             } else if (randomBoolean()) {
-                aliasFilter = new AliasFilter(randomQueryBuilder(), "alias-" + between(1, 10));
+                aliasFilter = AliasFilter.of(randomQueryBuilder(), "alias-" + between(1, 10));
             } else {
                 aliasFilter = AliasFilter.EMPTY;
             }

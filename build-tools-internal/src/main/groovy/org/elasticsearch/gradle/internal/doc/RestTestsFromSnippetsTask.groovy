@@ -384,7 +384,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
         }
 
         private void testTearDown(Snippet snippet) {
-            if (previousTest.testSetup == false && lastDocsPath == snippet.path) {
+            if (previousTest != null && previousTest.testSetup == false && lastDocsPath == snippet.path) {
                 throw new InvalidUserDataException("$snippet must follow test setup or be first")
             }
             setupCurrent(snippet)

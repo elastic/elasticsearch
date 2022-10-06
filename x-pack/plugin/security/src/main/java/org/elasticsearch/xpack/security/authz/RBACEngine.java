@@ -13,8 +13,10 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
@@ -343,7 +345,7 @@ public class RBACEngine implements AuthorizationEngine {
             listener.onResponse(
                 new IndexAuthorizationResult(true, requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl())
             );
-        } else if (request instanceof IndicesRequest.Replaceable && ((IndicesRequest.Replaceable) request).allowsRemoteIndices()) {
+        } else if (request instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices()) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 assert resolvedIndices.isEmpty() == false
@@ -354,6 +356,10 @@ public class RBACEngine implements AuthorizationEngine {
                     // check action name
                     listener.onResponse(authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES));
                 } else {
+                    assert resolvedIndices.getLocal().stream().noneMatch(Regex::isSimpleMatchPattern)
+                        || replaceable.indicesOptions().expandWildcardExpressions() == false
+                        || (request instanceof AliasesRequest aliasesRequest && aliasesRequest.expandAliasesWildcards() == false)
+                        : "expanded wildcards for local indices OR the request should not expand wildcards at all";
                     listener.onResponse(
                         buildIndicesAccessControl(
                             action,
@@ -380,6 +386,14 @@ public class RBACEngine implements AuthorizationEngine {
                         if (resolvedIndices.isNoIndicesPlaceholder()) {
                             listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                         } else {
+                            assert resolvedIndices.getLocal().stream().noneMatch(Regex::isSimpleMatchPattern)
+                                || ((IndicesRequest) request).indicesOptions().expandWildcardExpressions() == false
+                                || (request instanceof AliasesRequest aliasesRequest && aliasesRequest.expandAliasesWildcards() == false)
+                                || (request instanceof IndicesAliasesRequest indicesAliasesRequest
+                                    && false == indicesAliasesRequest.getAliasActions()
+                                        .stream()
+                                        .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
+                                : "expanded wildcards for local indices OR the request should not expand wildcards at all";
                             listener.onResponse(
                                 buildIndicesAccessControl(
                                     action,
@@ -447,15 +461,20 @@ public class RBACEngine implements AuthorizationEngine {
             return false;
         }
 
+        assert Arrays.stream(indices).noneMatch(Regex::isSimpleMatchPattern)
+            || indicesRequest.indicesOptions().expandWildcardExpressions() == false
+            || (indicesRequest instanceof AliasesRequest aliasesRequest && aliasesRequest.expandAliasesWildcards() == false)
+            || (indicesRequest instanceof IndicesAliasesRequest indicesAliasesRequest
+                && false == indicesAliasesRequest.getAliasActions()
+                    .stream()
+                    .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
+            : "child request with action ["
+                + requestInfo.getAction()
+                + "] contains unexpanded wildcards "
+                + Arrays.stream(indices).filter(Regex::isSimpleMatchPattern).toList();
+
         // Check if the parent context has already successfully authorized access to the child's indices
-        for (String idx : indices) {
-            assert Regex.isSimpleMatchPattern(idx) == false
-                : "Wildcards should already be expanded but action [" + requestInfo.getAction() + "] has index [" + idx + "]";
-            if (indicesAccessControl.hasIndexPermissions(idx) == false) {
-                return false;
-            }
-        }
-        return true;
+        return Arrays.stream(indices).allMatch(indicesAccessControl::hasIndexPermissions);
     }
 
     private static IndexAuthorizationResult authorizeIndexActionName(

@@ -428,16 +428,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         int numberOfSourceIndices = 3;
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
-            IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source("""
-                {
-                  "idx": %s,
-                  "key": "key%s",
-                  "field1": "value1",
-                  "field2": 2,
-                  "field3": "ignored",
-                  "field4": "ignored",
-                  "field5": "value5"
-                }""".formatted(idx, idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
+            IndexResponse indexRequest = client().index(
+                new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(formatted("""
+                    {
+                      "idx": %s,
+                      "key": "key%s",
+                      "field1": "value1",
+                      "field2": 2,
+                      "field3": "ignored",
+                      "field4": "ignored",
+                      "field5": "value5"
+                    }""", idx, idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ).actionGet();
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
             SearchResponse sourceSearchResponse = client().search(
@@ -516,7 +518,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
             IndexResponse indexRequest = client().index(
-                new IndexRequest().index(sourceIndex).id(collidingDocId).routing(collidingDocId + idx).source("""
+                new IndexRequest().index(sourceIndex).id(collidingDocId).routing(collidingDocId + idx).source(formatted("""
                     {
                       "idx": %s,
                       "key": "key%s",
@@ -525,7 +527,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                       "field3": "ignored",
                       "field4": "ignored",
                       "field5": "value5"
-                    }""".formatted(idx, idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    }""", idx, idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             ).actionGet();
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
@@ -619,16 +621,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         int numberOfSourceIndices = 3;
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
-            IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source("""
-                {
-                  "idx": %s,
-                  "key": "key",
-                  "field1": "value1",
-                  "field2": 2,
-                  "field3": "ignored",
-                  "field4": "ignored",
-                  "field5": "value5"
-                }""".formatted(idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
+            IndexResponse indexRequest = client().index(
+                new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(formatted("""
+                    {
+                      "idx": %s,
+                      "key": "key",
+                      "field1": "value1",
+                      "field2": 2,
+                      "field3": "ignored",
+                      "field4": "ignored",
+                      "field5": "value5"
+                    }""", idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ).actionGet();
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
             SearchResponse sourceSearchResponse = client().search(

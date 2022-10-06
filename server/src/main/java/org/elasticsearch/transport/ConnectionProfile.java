@@ -134,7 +134,6 @@ public final class ConnectionProfile {
     private final TimeValue pingInterval;
     private final Compression.Enabled compressionEnabled;
     private final Compression.Scheme compressionScheme;
-    private final String authorization;
 
     private ConnectionProfile(
         List<ConnectionTypeHandle> handles,
@@ -143,8 +142,7 @@ public final class ConnectionProfile {
         TimeValue handshakeTimeout,
         TimeValue pingInterval,
         Compression.Enabled compressionEnabled,
-        Compression.Scheme compressionScheme,
-        String authorization
+        Compression.Scheme compressionScheme
     ) {
         this.handles = handles;
         this.numConnections = numConnections;
@@ -153,7 +151,6 @@ public final class ConnectionProfile {
         this.pingInterval = pingInterval;
         this.compressionEnabled = compressionEnabled;
         this.compressionScheme = compressionScheme;
-        this.authorization = authorization;
     }
 
     /**
@@ -168,7 +165,6 @@ public final class ConnectionProfile {
         private Compression.Enabled compressionEnabled;
         private Compression.Scheme compressionScheme;
         private TimeValue pingInterval;
-        private String authorization;
 
         /** create an empty builder */
         public Builder() {}
@@ -183,7 +179,6 @@ public final class ConnectionProfile {
             compressionEnabled = source.getCompressionEnabled();
             compressionScheme = source.getCompressionScheme();
             pingInterval = source.getPingInterval();
-            authorization = source.getAuthorization();
         }
 
         /**
@@ -233,14 +228,6 @@ public final class ConnectionProfile {
         }
 
         /**
-         * Sets authorization for this connection profile
-         */
-        public Builder setAuthorization(String authorization) {
-            this.authorization = authorization;
-            return this;
-        }
-
-        /**
          * Adds a number of connections for one or more types. Each type can only be added once.
          * @param numConnections the number of connections to use in the pool for the given connection types
          * @param types a set of types that should share the given number of connections
@@ -277,8 +264,7 @@ public final class ConnectionProfile {
                 handshakeTimeout,
                 pingInterval,
                 compressionEnabled,
-                compressionScheme,
-                authorization
+                compressionScheme
             );
         }
 
@@ -349,13 +335,6 @@ public final class ConnectionProfile {
      */
     List<ConnectionTypeHandle> getHandles() {
         return Collections.unmodifiableList(handles);
-    }
-
-    /**
-     * Returns the authorization for this profile
-     */
-    public String getAuthorization() {
-        return this.authorization;
     }
 
     /**

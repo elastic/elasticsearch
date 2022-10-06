@@ -142,7 +142,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        String authorization = RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias).get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder().setConnectTimeout(
             TransportSettings.CONNECT_TIMEOUT.get(settings)
         )
@@ -152,7 +151,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 RemoteClusterService.REMOTE_CLUSTER_COMPRESSION_SCHEME.getConcreteSettingForNamespace(clusterAlias).get(settings)
             )
             .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
-            .setAuthorization(authorization)
             .addConnections(
                 0,
                 TransportRequestOptions.Type.BULK,

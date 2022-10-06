@@ -42,8 +42,11 @@ public class IndicesSegmentResponseTests extends ESTestCase {
             0,
             Collections.emptyList()
         );
+        var serialization = response.toXContentChunked();
         try (XContentBuilder builder = jsonBuilder()) {
-            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            while (serialization.hasNext()) {
+                serialization.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+            }
         }
     }
 

@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.core.ilm.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.StepKeyTests;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction.Request;
 import org.junit.Before;
 
-public class MoveToStepRequestTests extends AbstractSerializingTestCase<Request> {
+public class MoveToStepRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     private String index;
     private static final StepKeyTests stepKeyTests = new StepKeyTests();

@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -104,7 +103,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         KeywordFieldMapper.KeywordFieldType k2ft = new KeywordFieldMapper.KeywordFieldType("k2");
         NumberFieldMapper.NumberFieldType nft = new NumberFieldMapper.NumberFieldType("n", NumberType.LONG);
         DateFieldMapper.DateFieldType dft = aggregableDateFieldType(false, randomBoolean());
-        testCase(builder, new MatchAllDocsQuery(), iw -> buildIndex.accept(iw, dft), verify, k1ft, k2ft, nft, dft);
+        testCase(iw -> buildIndex.accept(iw, dft), verify, new AggTestConfig(builder, k1ft, k2ft, nft, dft));
     }
 
     protected final DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {

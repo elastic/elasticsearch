@@ -80,3 +80,10 @@ Packaging::
 * Update OpenJDK to 18.0.2.1 {es-pull}89535[#89535] (issue: {es-issue}89531[#89531])
 
 
+[[known-issues-8.4.2]]
+[float]
+=== Known issues
+
+* When using date range search with format that does not have all date fields (missing month and/or day)
+and incorrectly parsed date could be used. The workaround is to use date pattern with all date fields (year, month, day)
+{es-issue}90187[#90187])

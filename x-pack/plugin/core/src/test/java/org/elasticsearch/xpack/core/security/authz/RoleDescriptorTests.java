@@ -77,6 +77,13 @@ public class RoleDescriptorTests extends ESTestCase {
         );
     }
 
+    public void testRemoteIndexGroupThrowsOnEmptyRemoteClusters() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> RoleDescriptor.RemoteIndicesPrivileges.builder().indices("idx").privileges("priv").allowRestrictedIndices(true).build()
+        );
+    }
+
     public void testEqualsOnEmptyRoles() {
         RoleDescriptor nullRoleDescriptor = new RoleDescriptor(
             "null_role",

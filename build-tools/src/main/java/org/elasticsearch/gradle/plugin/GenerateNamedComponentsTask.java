@@ -41,7 +41,6 @@ import javax.inject.Inject;
 public abstract class GenerateNamedComponentsTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(GenerateNamedComponentsTask.class);
     private static final String NAMED_COMPONENTS_FILE = "named_components.json";
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final WorkerExecutor workerExecutor;
     private FileCollection classpath;
@@ -73,6 +72,8 @@ public abstract class GenerateNamedComponentsTask extends DefaultTask {
     }
 
     public abstract static class GenerateNamedComponentsAction implements WorkAction<Parameters> {
+        private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
         @Override
         public void execute() {
             Set<File> classpathFiles = getParameters().getClasspath().getFiles();

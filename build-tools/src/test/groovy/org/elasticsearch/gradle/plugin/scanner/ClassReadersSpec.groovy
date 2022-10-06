@@ -44,10 +44,9 @@ class ClassReadersSpec extends Specification {
             "module-info.class", InMemoryJavaCompiler.compile(
             "module-info", """
             module p {}
-            """
+            """)
+            )
         )
-        )
-        );
 
 
         then:
@@ -70,14 +69,13 @@ class ClassReadersSpec extends Specification {
             "p.A", """
             package p;
             public class A {}
-            """
-        ), "p/B.class", InMemoryJavaCompiler.compile(
+            """),
+        "p/B.class", InMemoryJavaCompiler.compile(
             "p.B", """
             package p;
             public class B {}
-            """
-        )
-        )
+            """)
+            )
         );
 
 
@@ -102,14 +100,13 @@ class ClassReadersSpec extends Specification {
             "p.A", """
             package p;
             public class A {}
-            """
-        ), "p/B.class", InMemoryJavaCompiler.compile(
+            """),
+        "p/B.class", InMemoryJavaCompiler.compile(
             "p.B", """
             package p;
             public class B {}
-            """
-        )
-        )
+            """)
+            )
         );
 
         Path jar2 = dirWithJar.resolve("c_d.jar");
@@ -119,14 +116,13 @@ class ClassReadersSpec extends Specification {
             "p.C", """
             package p;
             public class C {}
-            """
-        ), "p/D.class", InMemoryJavaCompiler.compile(
+            """),
+        "p/D.class", InMemoryJavaCompiler.compile(
             "p.D", """
             package p;
             public class D {}
-            """
-        )
-        )
+            """)
+            )
         );
 
         InMemoryJavaCompiler.compile(
@@ -140,8 +136,7 @@ class ClassReadersSpec extends Specification {
             "p.E", """
             package p;
             public class E {}
-            """
-        )
+            """)
         );
 
 
@@ -167,14 +162,13 @@ class ClassReadersSpec extends Specification {
             "p.A", """
             package p;
             public class A {}
-            """
-        ), "p/B.class", InMemoryJavaCompiler.compile(
+            """),
+        "p/B.class", InMemoryJavaCompiler.compile(
             "p.B", """
             package p;
             public class B {}
-            """
-        )
-        )
+            """)
+            )
         );
 
         Path jar2 = dirWithJar.resolve("c_d.jar");
@@ -184,14 +178,13 @@ class ClassReadersSpec extends Specification {
             "p.C", """
             package p;
             public class C {}
-            """
-        ), "p/D.class", InMemoryJavaCompiler.compile(
+            """),
+        "p/D.class", InMemoryJavaCompiler.compile(
             "p.D", """
             package p;
             public class D {}
-            """
-        )
-        )
+            """)
+            )
         );
 
         then:

@@ -8,11 +8,11 @@
 
 package org.elasticsearch.gradle.plugin
 
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
+import groovy.json.JsonSlurper
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.internal.test.StableApiJarMocks
 import org.gradle.testkit.runner.TaskOutcome
 
 import java.nio.file.Files
@@ -62,7 +62,6 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
 
     def "can scan and create named components file"() {
         given:
-        println testProjectDir.root
         File jarFolder = new File(testProjectDir.root, "jars")
         jarFolder.mkdirs()
 
@@ -78,8 +77,8 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
             }
 
             dependencies {
-                implementation files('${pluginApiJar(jarFolder).absolutePath}')
-                implementation files('${extensibleApiJar(jarFolder).absolutePath}')
+                implementation files('${StableApiJarMocks.createPluginApiJar(jarFolder.toPath()).toAbsolutePath()}')
+                implementation files('${StableApiJarMocks.createExtensibleApiJar(jarFolder.toPath()).toAbsolutePath()}')
             }
 
             """
@@ -99,18 +98,9 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
         when:
         def result = gradleRunner(":assemble").build()
         Path namedComponents = file("build/generated-named-components/named_components.json").toPath();
-        ObjectMapper mapper = new ObjectMapper()
-        TypeReference<Map<String,Map<String,String>>> typeRef
-            = new TypeReference<HashMap<String,Object>>() {}
-
-        Map<String,Map<String,String>> map = mapper.readValue(namedComponents.toFile(), typeRef);
-
-
+        def map = new JsonSlurper().parse(namedComponents.toFile())
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
-
-        println Files.readString(namedComponents)
-        println namedComponents.toFile().exists()
 
         map  == ["org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass" : (["componentA" : "org.acme.A"]) ]
     }

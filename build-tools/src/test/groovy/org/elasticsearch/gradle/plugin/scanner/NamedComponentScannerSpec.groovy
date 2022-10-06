@@ -14,6 +14,7 @@ import spock.lang.Specification
 
 import org.elasticsearch.gradle.internal.test.InMemoryJavaCompiler
 import org.elasticsearch.gradle.internal.test.JarUtils
+import org.elasticsearch.gradle.internal.test.StableApiJarMocks
 import org.elasticsearch.gradle.plugin.scanner.ClassReaders
 import org.elasticsearch.gradle.plugin.scanner.NamedComponentScanner
 import org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass
@@ -89,8 +90,8 @@ class NamedComponentScannerSpec extends Specification {
         )
         )
         );
-        createPluginApiJar(dirWithJar.resolve("plugin-api.jar"));
-        createExtensibleApiJar(dirWithJar.resolve("plugin-extensible-api.jar"));//for instance analysis api
+        StableApiJarMocks.createPluginApiJar(dirWithJar);
+        StableApiJarMocks.createExtensibleApiJar(dirWithJar);//for instance analysis api
 
 
         Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).collect(Collectors.toList())
@@ -161,8 +162,8 @@ class NamedComponentScannerSpec extends Specification {
         Path jar = dirWithJar.resolve("plugin.jar");
         JarUtils.createJarWithEntries(jar, jarEntries);
 
-        createPluginApiJar(dirWithJar.resolve("plugin-api.jar"))
-        createExtensibleApiJar(dirWithJar.resolve("plugin-extensible-api.jar"));//for instance analysis api
+        StableApiJarMocks.createPluginApiJar(dirWithJar)
+        StableApiJarMocks.createExtensibleApiJar(dirWithJar);//for instance analysis api
 
         Collection<ClassReader> classReaderStream = ClassReaders.ofDirWithJars(dirWithJar.toString()).collect(Collectors.toList())
 
@@ -184,26 +185,7 @@ class NamedComponentScannerSpec extends Specification {
         );
     }
 
-    private void createExtensibleApiJar(Path jar) throws IOException {
-        DynamicType.Unloaded<ExtensibleInterface> extensible =
-            new ByteBuddy().decorate(ExtensibleInterface.class).make();
 
-        DynamicType.Unloaded<ExtensibleClass> extensibleClass =
-            new ByteBuddy().decorate(ExtensibleClass.class).make();
-
-        extensible.toJar(jar.toFile());
-        extensibleClass.inject(jar.toFile());
-    }
-
-    private void createPluginApiJar(Path jar) throws IOException {
-        DynamicType.Unloaded<Extensible> extensible =
-            new ByteBuddy().decorate(Extensible.class).make();
-        extensible.toJar(jar.toFile());
-        DynamicType.Unloaded<NamedComponent> namedComponent =
-            new ByteBuddy().decorate(NamedComponent.class).make();
-        extensible.toJar(jar.toFile());
-        namedComponent.inject(jar.toFile());
-    }
 
     private Collection<ClassReader> classReaderStream(Class<?>... classes) {
             try {

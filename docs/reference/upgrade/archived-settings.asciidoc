@@ -25,14 +25,19 @@ check for archived cluster settings. If the request returns an empty object
 GET _cluster/settings?flat_settings=true&filter_path=persistent.archived*
 ----
 
-To remove any archived cluster settings, use the following
-<<cluster-update-settings,cluster update settings>> request.
+To remove any archived cluster settings, use the
+<<cluster-update-settings,cluster update settings>> request. 
+If you have archived cluster settings at both persistent and transient levels,
+you must remove them using a single request as follows.
 
 [source,console]
 ----
 PUT _cluster/settings
 {
   "persistent": {
+    "archived.*": null
+  },
+  "transient": {
     "archived.*": null
   }
 }

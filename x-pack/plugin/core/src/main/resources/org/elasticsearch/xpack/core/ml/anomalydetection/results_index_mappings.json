@@ -125,40 +125,6 @@
             }
           }
         },
-        "anomaly_score_explanation": {
-          "properties": {
-            "anomaly_type": {
-              "type": "keyword"
-            },
-            "anomaly_length": {
-              "type": "integer"
-            },
-            "single_bucket_impact": {
-              "type": "integer"
-            },
-            "multi_bucket_impact": {
-              "type": "integer"
-            },
-            "anomaly_characteristics_impact": {
-              "type": "integer"
-            },
-            "lower_confidence_bound": {
-              "type": "double"
-            },
-            "typical_value": {
-              "type": "double"
-            },
-            "upper_confidence_bound": {
-              "type": "double"
-            },
-            "high_variance_penalty": {
-              "type": "boolean"
-            },
-            "incomplete_bucket_penalty": {
-              "type": "boolean"
-            }
-          }
-        },
         "over_field_name" : {
           "type" : "keyword"
         },
@@ -271,6 +237,40 @@
         },
         "typical_point" : {
           "type" : "geo_point"
+        }
+      }
+    },
+    "anomaly_score_explanation": {
+      "properties": {
+        "anomaly_type": {
+          "type": "keyword"
+        },
+        "anomaly_length": {
+          "type": "integer"
+        },
+        "single_bucket_impact": {
+          "type": "integer"
+        },
+        "multi_bucket_impact": {
+          "type": "integer"
+        },
+        "anomaly_characteristics_impact": {
+          "type": "integer"
+        },
+        "lower_confidence_bound": {
+          "type": "double"
+        },
+        "typical_value": {
+          "type": "double"
+        },
+        "upper_confidence_bound": {
+          "type": "double"
+        },
+        "high_variance_penalty": {
+          "type": "boolean"
+        },
+        "incomplete_bucket_penalty": {
+          "type": "boolean"
         }
       }
     },

@@ -28,7 +28,7 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 You can update a trained model deployment whose `assignment_state` is `started`.
 You can either increase or decrease the number of allocations of such a deployment.
 
-[[ml-update-datafeed-path-parms]]
+[[ml-update-trained-model-deployments-path-parms]]
 == {api-path-parms-title}
 
 `<model_id>`::

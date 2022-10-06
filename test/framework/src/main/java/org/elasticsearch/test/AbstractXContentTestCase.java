@@ -12,6 +12,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.ToXContent;
@@ -80,6 +81,23 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             (testInstance, xContentType) -> XContentHelper.toXContent(testInstance, xContentType, toXContentParams, false),
             fromXContent
         );
+    }
+
+    public static <T extends ChunkedToXContent> XContentTester<T> chunkedXContentTester(
+        CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParser,
+        Function<XContentType, T> instanceSupplier,
+        ToXContent.Params toXContentParams,
+        CheckedFunction<XContentParser, T, IOException> fromXContent
+    ) {
+        return new XContentTester<>(createParser, instanceSupplier, (testInstance, xContentType) -> {
+            try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+                var serialization = testInstance.toXContentChunked();
+                while (serialization.hasNext()) {
+                    serialization.next().toXContent(builder, toXContentParams);
+                }
+                return BytesReference.bytes(builder);
+            }
+        }, fromXContent);
     }
 
     /**

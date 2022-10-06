@@ -547,8 +547,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         // We can scale horizontally
         return maxLazyMLNodes > nodes.size()
             // We can scale vertically
-            // TODO this currently only considers memory. We should also consider CPU when autoscaling by CPU is possible.
-            || (smallestMLNode.isEmpty() == false && smallestMLNode.getAsLong() < maxMLNodeSize);
+
+            // TODO This checks if there is more space we could vertically scale to but
+            // not if it will be enough for the model to actually fit in. For example,
+            // we might be 32GB off of the maximum ML tier size and someone wants to start a 45GB model.
+            // As this code stands we'll scale up to maximum size then find we still cannot start that model.
+            || (smallestMLNode.isPresent() && smallestMLNode.getAsLong() < maxMLNodeSize);
     }
 
     static ClusterState setToStopping(ClusterState clusterState, String modelId, String reason) {

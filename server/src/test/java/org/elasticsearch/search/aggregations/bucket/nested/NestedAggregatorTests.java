@@ -22,7 +22,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -147,7 +146,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), nestedBuilder, fieldType));
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
 
                 assertEquals(NESTED_AGG, nested.getName());
                 assertEquals(0, nested.getDocCount());
@@ -192,7 +191,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), nestedBuilder, fieldType));
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
                 assertEquals(NESTED_AGG, nested.getName());
@@ -244,7 +243,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), nestedBuilder, fieldType));
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
                 assertEquals(NESTED_AGG, nested.getName());
@@ -297,7 +296,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(sumAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), nestedBuilder, fieldType));
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
                 assertEquals(NESTED_AGG, nested.getName());
@@ -378,9 +377,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
                 InternalNested nested = searchAndReduce(
-                    new AggTestConfig(newSearcher(indexReader, false, true), nestedBuilder, fieldType).withQuery(
-                        new ConstantScoreQuery(bq.build())
-                    )
+                    newSearcher(indexReader, false, true),
+                    new AggTestConfig(nestedBuilder, fieldType).withQuery(new ConstantScoreQuery(bq.build()))
                 );
 
                 assertEquals(NESTED_AGG, nested.getName());
@@ -419,7 +417,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 termsBuilder.subAggregation(nestedBuilder);
 
                 Terms terms = searchAndReduce(
-                    new AggTestConfig(newSearcher(indexReader, false, true), termsBuilder, fieldType1, fieldType2)
+                    newSearcher(indexReader, false, true),
+                    new AggTestConfig(termsBuilder, fieldType1, fieldType2)
                 );
 
                 assertEquals(7, terms.getBuckets().size());
@@ -469,7 +468,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 termsBuilder.subAggregation(nestedBuilder);
 
-                terms = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), termsBuilder, fieldType1, fieldType2));
+                terms = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(termsBuilder, fieldType1, fieldType2));
 
                 assertEquals(7, terms.getBuckets().size());
                 assertEquals("authors", terms.getName());
@@ -555,9 +554,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(minAgg);
                 termsBuilder.subAggregation(nestedBuilder);
 
-                Terms terms = searchAndReduce(
-                    new AggTestConfig(newSearcher(indexReader, false, true), termsBuilder, fieldType1, fieldType2)
-                );
+                AggTestConfig aggTestConfig = new AggTestConfig(termsBuilder, fieldType1, fieldType2);
+                Terms terms = searchAndReduce(newSearcher(indexReader, false, true), aggTestConfig);
 
                 assertEquals(books.size(), terms.getBuckets().size());
                 assertEquals("authors", terms.getName());
@@ -653,9 +651,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("value");
 
                 Filter filter = searchAndReduce(
-                    new AggTestConfig(newSearcher(indexReader, false, true), filterAggregationBuilder, fieldType1, fieldType2).withQuery(
-                        Queries.newNonNestedFilter()
-                    )
+                    newSearcher(indexReader, false, true),
+                    new AggTestConfig(filterAggregationBuilder, fieldType1, fieldType2).withQuery(Queries.newNonNestedFilter())
                 );
 
                 assertEquals("filterAgg", filter.getName());
@@ -717,8 +714,8 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias")
                 );
 
-                InternalNested nested = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), agg, fieldType));
-                Nested aliasNested = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), aliasAgg, fieldType));
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(agg, fieldType));
+                Nested aliasNested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(aliasAgg, fieldType));
 
                 assertEquals(nested, aliasNested);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
@@ -768,7 +765,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = searchAndReduce(new AggTestConfig(newSearcher(indexReader, false, true), nestedBuilder, fieldType));
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
 
                 assertEquals(expectedNestedDocs, nested.getDocCount());
                 assertEquals(NESTED_AGG, nested.getName());
@@ -802,7 +799,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     new TermsAggregationBuilder("resellers").field("reseller_id").size(numResellers)
                 )
             );
-        testCase(b, new MatchAllDocsQuery(), buildResellerData(numProducts, numResellers), result -> {
+        testCase(buildResellerData(numProducts, numResellers), result -> {
             LongTerms products = (LongTerms) result;
             assertThat(
                 products.getBuckets().stream().map(LongTerms.Bucket::getKeyAsNumber).collect(toList()),
@@ -819,7 +816,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     equalTo(LongStream.range(0, numResellers).mapToObj(Long::valueOf).collect(toList()))
                 );
             }
-        }, resellersMappedFields());
+        }, new AggTestConfig(b, resellersMappedFields()));
     }
 
     public static CheckedConsumer<RandomIndexWriter, IOException> buildResellerData(int numProducts, int numResellers) {

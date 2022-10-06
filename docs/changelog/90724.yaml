@@ -2,4 +2,5 @@ pr: 90724
 summary: Fix `TransportMasterNodeAction` holding a CS reference needlessly
 area: Cluster Coordination
 type: bug
-issues: []
+issues:
+ - 89220

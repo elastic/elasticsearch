@@ -222,7 +222,7 @@ setup:
           {
             "indices": [
               {
-                "names": ["source", "target"],
+                "names": ["source"],
                 "privileges": ["all"]
               }
             ]

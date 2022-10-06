@@ -36,6 +36,10 @@ import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
+import org.elasticsearch.xpack.esql.action.compute.planner.PlanNode;
+import org.elasticsearch.xpack.esql.action.compute.transport.ComputeAction;
+import org.elasticsearch.xpack.esql.action.compute.transport.RestComputeAction;
+import org.elasticsearch.xpack.esql.action.compute.transport.TransportComputeAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -83,7 +87,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class));
+        return Arrays.asList(
+            new ActionHandler<>(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+            new ActionHandler<>(ComputeAction.INSTANCE, TransportComputeAction.class));
     }
 
     @Override
@@ -96,6 +102,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Collections.singletonList(new RestEsqlQueryAction());
+        return List.of(new RestEsqlQueryAction(), new RestComputeAction());
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return PlanNode.getNamedXContentParsers();
     }
 }

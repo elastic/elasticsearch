@@ -48,6 +48,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Main component responsible for downloading new GeoIP databases.
@@ -90,10 +91,10 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     private final String endpoint;
 
     // visible for testing
-    protected volatile GeoIpTaskState state;
+    protected final AtomicReference<GeoIpTaskState> state = new AtomicReference<>();
     private volatile TimeValue pollInterval;
     private volatile Scheduler.ScheduledCancellable scheduled;
-    private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
+    private final AtomicReference<GeoIpDownloaderStats> stats = new AtomicReference<>(GeoIpDownloaderStats.EMPTY);
 
     GeoIpDownloader(
         Client client,
@@ -162,8 +163,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     void processDatabase(Map<String, Object> databaseInfo) {
         String name = databaseInfo.get("name").toString().replace(".tgz", "") + ".mmdb";
         String md5 = (String) databaseInfo.get("md5_hash");
-        if (state.contains(name) && Objects.equals(md5, state.get(name).md5())) {
-            updateTimestamp(name, state.get(name));
+        if (state.get().contains(name) && Objects.equals(md5, state.get().get(name).md5())) {
+            updateTimestamp(name, state.get().get(name));
             return;
         }
         logger.debug("downloading geoip database [{}]", name);
@@ -175,17 +176,19 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         }
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
-            int firstChunk = state.contains(name) ? state.get(name).lastChunk() + 1 : 0;
+            int firstChunk = state.get().contains(name) ? state.get().get(name).lastChunk() + 1 : 0;
             int lastChunk = indexChunks(name, is, firstChunk, md5, start);
             if (lastChunk > firstChunk) {
-                state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
+                state.updateAndGet(s -> s.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start)));
                 updateTaskState();
-                stats = stats.successfulDownload(System.currentTimeMillis() - start).databasesCount(state.getDatabases().size());
+                stats.updateAndGet(
+                    s -> s.successfulDownload(System.currentTimeMillis() - start).databasesCount(state.get().getDatabases().size())
+                );
                 logger.info("successfully downloaded geoip database [{}]", name);
                 deleteOldChunks(name, firstChunk);
             }
         } catch (Exception e) {
-            stats = stats.failedDownload();
+            stats.updateAndGet(GeoIpDownloaderStats::failedDownload);
             logger.error((Supplier<?>) () -> "error downloading geoip database [" + name + "]", e);
         }
     }
@@ -207,15 +210,17 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     // visible for testing
     protected void updateTimestamp(String name, Metadata old) {
         logger.debug("geoip database [{}] is up to date, updated timestamp", name);
-        state = state.put(name, new Metadata(old.lastUpdate(), old.firstChunk(), old.lastChunk(), old.md5(), System.currentTimeMillis()));
-        stats = stats.skippedDownload();
+        state.updateAndGet(
+            s -> s.put(name, new Metadata(old.lastUpdate(), old.firstChunk(), old.lastChunk(), old.md5(), System.currentTimeMillis()))
+        );
+        stats.updateAndGet(GeoIpDownloaderStats::skippedDownload);
         updateTaskState();
     }
 
     void updateTaskState() {
         PlainActionFuture<PersistentTask<?>> future = PlainActionFuture.newFuture();
-        updatePersistentTaskState(state, future);
-        state = ((GeoIpTaskState) future.actionGet().getState());
+        updatePersistentTaskState(state.get(), future);
+        state.set((GeoIpTaskState) future.actionGet().getState());
     }
 
     // visible for testing
@@ -263,7 +268,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     void setState(GeoIpTaskState state) {
-        this.state = state;
+        this.state.set(state);
     }
 
     void runDownloader() {
@@ -273,7 +278,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         try {
             updateDatabases();
         } catch (Exception e) {
-            stats = stats.failedDownload();
+            stats.updateAndGet(GeoIpDownloaderStats::failedDownload);
             logger.error("exception during geoip databases update", e);
         }
         try {
@@ -285,7 +290,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     private void cleanDatabases() {
-        long expiredDatabases = state.getDatabases()
+        long expiredDatabases = state.get()
+            .getDatabases()
             .entrySet()
             .stream()
             .filter(e -> e.getValue().isValid(clusterService.state().metadata().settings()) == false)
@@ -293,14 +299,13 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
                 String name = e.getKey();
                 Metadata meta = e.getValue();
                 deleteOldChunks(name, meta.lastChunk() + 1);
-                state = state.put(
-                    name,
-                    new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1)
+                state.updateAndGet(
+                    s -> s.put(name, new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1))
                 );
                 updateTaskState();
             })
             .count();
-        stats = stats.expiredDatabases((int) expiredDatabases);
+        stats.updateAndGet(s -> s.expiredDatabases((int) expiredDatabases));
     }
 
     @Override
@@ -313,7 +318,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     @Override
     public GeoIpDownloaderStats getStatus() {
-        return isCancelled() || isCompleted() ? null : stats;
+        return isCancelled() || isCompleted() ? null : stats.get();
     }
 
     private void scheduleNextRun(TimeValue time) {

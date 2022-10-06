@@ -297,8 +297,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(sumAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                AggTestConfig aggTestConfig = new AggTestConfig(nestedBuilder, fieldType);
-                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), aggTestConfig);
+                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
                 assertEquals(NESTED_AGG, nested.getName());
@@ -378,8 +377,10 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 bq.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
-                AggTestConfig aggTestConfig = new AggTestConfig(nestedBuilder, fieldType).withQuery(new ConstantScoreQuery(bq.build()));
-                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), aggTestConfig);
+                InternalNested nested = searchAndReduce(
+                    newSearcher(indexReader, false, true),
+                    new AggTestConfig(nestedBuilder, fieldType).withQuery(new ConstantScoreQuery(bq.build()))
+                );
 
                 assertEquals(NESTED_AGG, nested.getName());
                 // The bug manifests if 6 docs are returned, because currentRootDoc isn't reset the previous child docs from the first
@@ -416,8 +417,10 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 termsBuilder.subAggregation(nestedBuilder);
 
-                AggTestConfig aggTestConfig = new AggTestConfig(termsBuilder, fieldType1, fieldType2);
-                Terms terms = searchAndReduce(newSearcher(indexReader, false, true), aggTestConfig);
+                Terms terms = searchAndReduce(
+                    newSearcher(indexReader, false, true),
+                    new AggTestConfig(termsBuilder, fieldType1, fieldType2)
+                );
 
                 assertEquals(7, terms.getBuckets().size());
                 assertEquals("authors", terms.getName());
@@ -466,7 +469,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 termsBuilder.subAggregation(nestedBuilder);
 
-                terms = searchAndReduce(newSearcher(indexReader, false, true), aggTestConfig);
+                terms = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(termsBuilder, fieldType1, fieldType2));
 
                 assertEquals(7, terms.getBuckets().size());
                 assertEquals("authors", terms.getName());

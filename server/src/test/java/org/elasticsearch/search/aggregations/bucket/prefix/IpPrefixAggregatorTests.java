@@ -1054,7 +1054,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                 ipPrefix.getBuckets().stream().sorted(IP_ADDRESS_KEY_COMPARATOR).map(InternalIpPrefix.Bucket::getDocCount).toList(),
                 List.of(4L)
             );
-        }, new AggTestConfig(aggregationBuilder, fieldType));
+        }, new AggTestConfig(aggregationBuilder, fieldType).withQuery(query));
     }
 
     public void testMetricAggregation() throws IOException {

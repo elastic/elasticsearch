@@ -8,8 +8,8 @@
 
 package org.elasticsearch.aggregations;
 
-import org.elasticsearch.aggregations.bucket.AdjacencyMatrixAggregationBuilder;
-import org.elasticsearch.aggregations.bucket.InternalAdjacencyMatrix;
+import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.plugins.Plugin;

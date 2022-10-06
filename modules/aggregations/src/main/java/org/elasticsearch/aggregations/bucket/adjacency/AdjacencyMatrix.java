@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.aggregations.bucket;
+package org.elasticsearch.aggregations.bucket.adjacency;
 
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 

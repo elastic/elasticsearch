@@ -961,6 +961,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 return this;
             }
 
+            public Builder privileges(Collection<String> privileges) {
+                return privileges(privileges.toArray(new String[0]));
+            }
+
             public Builder grantedFields(String... grantedFields) {
                 indicesBuilder.grantedFields(grantedFields);
                 return this;
@@ -1155,7 +1159,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             return builder.endObject();
         }
 
-        void innerToXContent(XContentBuilder builder) throws IOException {
+        XContentBuilder innerToXContent(XContentBuilder builder) throws IOException {
             builder.array("names", indices);
             builder.array("privileges", privileges);
             if (grantedFields != null || deniedFields != null) {
@@ -1171,7 +1175,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             if (query != null) {
                 builder.field("query", query.utf8ToString());
             }
-            builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
+            return builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
         }
 
         public static void write(StreamOutput out, IndicesPrivileges privileges) throws IOException {

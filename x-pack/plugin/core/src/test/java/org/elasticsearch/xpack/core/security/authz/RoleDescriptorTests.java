@@ -63,6 +63,20 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals("{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true}", Strings.toString(b));
     }
 
+    public void testRemoteIndexGroup() throws Exception {
+        RoleDescriptor.RemoteIndicesPrivileges privs = RoleDescriptor.RemoteIndicesPrivileges.builder("remote")
+            .indices("idx")
+            .privileges("priv")
+            .allowRestrictedIndices(true)
+            .build();
+        XContentBuilder b = jsonBuilder();
+        privs.toXContent(b, ToXContent.EMPTY_PARAMS);
+        assertEquals(
+            "{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true,\"remote_clusters\":[\"remote\"]}",
+            Strings.toString(b)
+        );
+    }
+
     public void testEqualsOnEmptyRoles() {
         RoleDescriptor nullRoleDescriptor = new RoleDescriptor(
             "null_role",
@@ -117,7 +131,7 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testToXContentRoundtrip() throws Exception {
-        final RoleDescriptor descriptor = randomRoleDescriptor();
+        final RoleDescriptor descriptor = randomRoleDescriptor(true, true);
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference xContentValue = toShuffledXContent(descriptor, xContentType, ToXContent.EMPTY_PARAMS, false);
         final RoleDescriptor parsed = RoleDescriptor.parse(descriptor.getName(), xContentValue, false, xContentType);
@@ -637,28 +651,23 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata) {
-        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
-        for (int i = 0; i < indexPrivileges.length; i++) {
-            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
-                .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
-                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
-                .allowRestrictedIndices(randomBoolean());
-            if (randomBoolean()) {
-                builder.query(
-                    randomBoolean()
-                        ? "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
-                        : "{ \"match_all\": {} }"
+        return randomRoleDescriptor(allowReservedMetadata, true);
+    }
+
+    public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata, boolean allowRemoteIndices) {
+        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = randomIndicesPriveleges();
+        final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges;
+        if (false == allowRemoteIndices || randomBoolean()) {
+            remoteIndexPrivileges = null;
+        } else {
+            final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPriveleges();
+            remoteIndexPrivileges = new RoleDescriptor.RemoteIndicesPrivileges[innerIndexPrivileges.length];
+            for (int i = 0; i < remoteIndexPrivileges.length; i++) {
+                remoteIndexPrivileges[i] = new RoleDescriptor.RemoteIndicesPrivileges(
+                    innerIndexPrivileges[i],
+                    generateRandomStringArray(5, randomIntBetween(3, 9), false, false)
                 );
             }
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    builder.grantedFields("*");
-                    builder.deniedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
-                } else {
-                    builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
-                }
-            }
-            indexPrivileges[i] = builder.build();
         }
         final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(0, 2)];
         for (int i = 0; i < applicationPrivileges.length; i++) {
@@ -720,7 +729,35 @@ public class RoleDescriptorTests extends ESTestCase {
             configurableClusterPrivileges,
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             metadata,
-            Map.of()
+            Map.of(),
+            remoteIndexPrivileges
         );
+    }
+
+    private static RoleDescriptor.IndicesPrivileges[] randomIndicesPriveleges() {
+        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
+        for (int i = 0; i < indexPrivileges.length; i++) {
+            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+                .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
+                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+                .allowRestrictedIndices(randomBoolean());
+            if (randomBoolean()) {
+                builder.query(
+                    randomBoolean()
+                        ? "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
+                        : "{ \"match_all\": {} }"
+                );
+            }
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    builder.grantedFields("*");
+                    builder.deniedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
+                } else {
+                    builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
+                }
+            }
+            indexPrivileges[i] = builder.build();
+        }
+        return indexPrivileges;
     }
 }

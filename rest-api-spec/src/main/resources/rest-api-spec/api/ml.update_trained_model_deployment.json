@@ -27,7 +27,7 @@
       ]
     },
     "body":{
-      "description":"The datafeed update settings",
+      "description":"The updated trained model deployment settings",
       "required":true
     }
   }

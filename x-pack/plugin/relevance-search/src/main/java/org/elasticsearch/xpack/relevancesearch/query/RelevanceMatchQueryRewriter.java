@@ -49,6 +49,13 @@ public class RelevanceMatchQueryRewriter {
         this.queryFieldsResolver = queryFieldsResolver;
     }
 
+    public Query rewriteQuery(RelevanceMatchQueryBuilder relevanceMatchQueryBuilder, SearchExecutionContext context) throws IOException {
+        Map<String, Float> fieldsAndBoosts = retrieveFieldsAndBoosts(relevanceMatchQueryBuilder.getRelevanceSettingsId(), context);
+        final QueryBuilder combinedFieldsBuilder = new CombinedFieldsQueryBuilder(relevanceMatchQueryBuilder.getQuery(), fieldsAndBoosts);
+
+        return applyCurations(combinedFieldsBuilder, relevanceMatchQueryBuilder).toQuery(context);
+    }
+
     private static QueryBuilder applyHiddenDocs(QueryBuilder queryBuilder, CurationSettings curationSettings) {
         if (curationSettings.hiddenDocs().isEmpty() == false) {
             BoolQueryBuilder booleanQueryBuilder = new BoolQueryBuilder();
@@ -78,13 +85,6 @@ public class RelevanceMatchQueryRewriter {
             queryBuilder = new PinnedQueryBuilder(queryBuilder, items);
         }
         return queryBuilder;
-    }
-
-    public Query rewriteQuery(RelevanceMatchQueryBuilder relevanceMatchQueryBuilder, SearchExecutionContext context) throws IOException {
-        Map<String, Float> fieldsAndBoosts = retrieveFieldsAndBoosts(relevanceMatchQueryBuilder.getRelevanceSettingsId(), context);
-        final QueryBuilder combinedFieldsBuilder = new CombinedFieldsQueryBuilder(relevanceMatchQueryBuilder.getQuery(), fieldsAndBoosts);
-
-        return applyCurations(combinedFieldsBuilder, relevanceMatchQueryBuilder).toQuery(context);
     }
 
     private Map<String, Float> retrieveFieldsAndBoosts(String relevanceSettingsId, SearchExecutionContext context) {

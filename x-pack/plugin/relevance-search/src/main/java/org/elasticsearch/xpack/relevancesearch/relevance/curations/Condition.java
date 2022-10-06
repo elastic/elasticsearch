@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.relevancesearch.relevance.curations;
 
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 
+import java.util.Locale;
+
 /**
  * Conditions used to match a curation. This is a base class that can be implemented for different types of conditions.
  */
@@ -58,7 +60,7 @@ public abstract class Condition {
                 return value;
             }
 
-            return value.toLowerCase().trim();
+            return value.toLowerCase(Locale.ROOT).trim();
         }
     }
 }

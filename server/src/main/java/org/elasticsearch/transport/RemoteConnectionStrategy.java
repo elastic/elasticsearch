@@ -126,7 +126,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
     protected final String clusterAlias;
-    protected final String authorization;
 
     RemoteConnectionStrategy(
         String clusterAlias,
@@ -138,9 +137,6 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         this.transportService = transportService;
         this.connectionManager = connectionManager;
         this.maxPendingConnectionListeners = REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
-        this.authorization = TcpTransport.isUntrustedRemoteClusterEnabled()
-            ? RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(this.clusterAlias).get(settings)
-            : null;
         connectionManager.addListener(this);
     }
 
@@ -311,9 +307,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     boolean shouldRebuildConnection(Settings newSettings) {
         ConnectionStrategy newMode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        String newAuthorization = RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(clusterAlias)
-            .get(newSettings);
-        if ((newMode.equals(strategyType()) == false) || (newAuthorization.equals(this.authorization) == false)) {
+        if (newMode.equals(strategyType()) == false) {
             return true;
         } else {
             Compression.Enabled compressionEnabled = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(

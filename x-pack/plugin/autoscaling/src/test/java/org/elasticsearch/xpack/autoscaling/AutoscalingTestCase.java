@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
+
 public abstract class AutoscalingTestCase extends ESTestCase {
 
     public static AutoscalingDeciderResult randomAutoscalingDeciderResult() {
@@ -113,7 +115,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
                     Version.CURRENT
                 )
             )
-            .collect(Collectors.toCollection(() -> new TreeSet<>(AutoscalingDeciderResults.DISCOVERY_NODE_COMPARATOR)));
+            .collect(Collectors.toCollection(() -> new TreeSet<>(DISCOVERY_NODE_COMPARATOR)));
     }
 
     public static ByteSizeValue randomByteSizeValue() {

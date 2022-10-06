@@ -13,10 +13,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.xpack.esql.action.compute.data.ConstantIntBlock;
+import org.elasticsearch.xpack.esql.action.compute.data.IntBlock;
 import org.elasticsearch.xpack.esql.action.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.action.compute.data.Page;
 import org.elasticsearch.xpack.esql.action.compute.operator.Operator;
-import org.elasticsearch.xpack.esql.action.compute.data.IntBlock;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

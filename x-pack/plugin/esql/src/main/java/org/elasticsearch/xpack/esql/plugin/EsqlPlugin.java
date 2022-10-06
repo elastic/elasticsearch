@@ -33,13 +33,15 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.compute.planner.PlanNode;
+import org.elasticsearch.xpack.esql.action.compute.transport.ComputeAction;
+import org.elasticsearch.xpack.esql.action.compute.transport.ComputeAction2;
+import org.elasticsearch.xpack.esql.action.compute.transport.RestComputeAction;
+import org.elasticsearch.xpack.esql.action.compute.transport.TransportComputeAction;
+import org.elasticsearch.xpack.esql.action.compute.transport.TransportComputeAction2;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
-import org.elasticsearch.xpack.esql.action.compute.planner.PlanNode;
-import org.elasticsearch.xpack.esql.action.compute.transport.ComputeAction;
-import org.elasticsearch.xpack.esql.action.compute.transport.RestComputeAction;
-import org.elasticsearch.xpack.esql.action.compute.transport.TransportComputeAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -89,7 +91,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionHandler<>(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
-            new ActionHandler<>(ComputeAction.INSTANCE, TransportComputeAction.class));
+            new ActionHandler<>(ComputeAction.INSTANCE, TransportComputeAction.class),
+            new ActionHandler<>(ComputeAction2.INSTANCE, TransportComputeAction2.class)
+        );
     }
 
     @Override

@@ -24,7 +24,7 @@ import java.util.Objects;
  * blocks in the page are referred to as channels.
  *
  * More details on how this integrates with other components can be found in the package documentation of
- * {@link org.elasticsearch.xpack.sql.action.compute}
+ * {@link org.elasticsearch.xpack.esql.action.compute}
  */
 public class Page {
 
@@ -105,5 +105,13 @@ public class Page {
      */
     public int getBlockCount() {
         return blocks.length;
+    }
+
+    public Page getRow(int position) {
+        Block[] newBlocks = new Block[blocks.length];
+        for (int i = 0; i < blocks.length; i++) {
+            newBlocks[i] = blocks[i].getRow(position);
+        }
+        return new Page(false, 1, newBlocks);
     }
 }

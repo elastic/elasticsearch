@@ -43,6 +43,11 @@ public abstract class UnaryPlan extends LogicalPlan {
     }
 
     @Override
+    public boolean singleNode() {
+        return child().singleNode();
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hashCode(child());
     }

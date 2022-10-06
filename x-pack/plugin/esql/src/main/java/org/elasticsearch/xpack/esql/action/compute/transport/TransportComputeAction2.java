@@ -28,7 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.compute.data.Page;
 import org.elasticsearch.xpack.esql.action.compute.operator.Driver;
 import org.elasticsearch.xpack.esql.action.compute.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.action.compute.planner.PlanNode;
+import org.elasticsearch.xpack.esql.plan.logical.Output;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 /**
  * For simplicity, we run this on a single local shard for now
  */
-public class TransportComputeAction extends TransportAction<ComputeRequest, ComputeResponse> {
+public class TransportComputeAction2 extends TransportAction<ComputeRequest2, ComputeResponse> {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SearchService searchService;
@@ -48,7 +48,7 @@ public class TransportComputeAction extends TransportAction<ComputeRequest, Comp
     private final ThreadPool threadPool;
 
     @Inject
-    public TransportComputeAction(
+    public TransportComputeAction2(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
@@ -64,7 +64,7 @@ public class TransportComputeAction extends TransportAction<ComputeRequest, Comp
     }
 
     @Override
-    protected void doExecute(Task task, ComputeRequest request, ActionListener<ComputeResponse> listener) {
+    protected void doExecute(Task task, ComputeRequest2 request, ActionListener<ComputeResponse> listener) {
         try {
             asyncAction(task, request, listener);
         } catch (IOException e) {
@@ -72,7 +72,7 @@ public class TransportComputeAction extends TransportAction<ComputeRequest, Comp
         }
     }
 
-    private void asyncAction(Task task, ComputeRequest request, ActionListener<ComputeResponse> listener) throws IOException {
+    private void asyncAction(Task task, ComputeRequest2 request, ActionListener<ComputeResponse> listener) throws IOException {
         Index[] indices = indexNameExpressionResolver.concreteIndices(clusterService.state(), request);
         List<SearchContext> searchContexts = new ArrayList<>();
         for (Index index : indices) {
@@ -101,9 +101,10 @@ public class TransportComputeAction extends TransportAction<ComputeRequest, Comp
             );
 
             final List<Page> results = Collections.synchronizedList(new ArrayList<>());
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
-                new PlanNode.OutputNode(request.plan(), (l, p) -> { results.add(p); })
-            );
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(new Output(request.plan(), (l, p) -> {
+                logger.warn("adding page with columns {}: {}", l, p);
+                results.add(p);
+            }));
             List<Driver> drivers = localExecutionPlan.createDrivers();
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");

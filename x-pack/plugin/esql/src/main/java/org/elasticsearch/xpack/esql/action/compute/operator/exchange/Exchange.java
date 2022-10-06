@@ -43,7 +43,8 @@ public class Exchange {
 
         memoryManager = new ExchangeMemoryManager(bufferMaxPages);
 
-        if (partitioning == PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION || partitioning == PlanNode.ExchangeNode.Partitioning.FIXED_BROADCAST_DISTRIBUTION) {
+        if (partitioning == PlanNode.ExchangeNode.Partitioning.SINGLE_DISTRIBUTION
+            || partitioning == PlanNode.ExchangeNode.Partitioning.FIXED_BROADCAST_DISTRIBUTION) {
             exchangerSupplier = () -> new BroadcastExchanger(buffers, memoryManager);
         } else if (partitioning == PlanNode.ExchangeNode.Partitioning.FIXED_PASSTHROUGH_DISTRIBUTION) {
             Iterator<ExchangeSource> sourceIterator = this.sources.iterator();
@@ -54,6 +55,10 @@ public class Exchange {
         } else {
             throw new UnsupportedOperationException(partitioning.toString());
         }
+    }
+
+    public Exchange(int driverInstances, org.elasticsearch.xpack.esql.plan.logical.Exchange.Partitioning partitioning, int bufferMaxPages) {
+        this(driverInstances, PlanNode.ExchangeNode.Partitioning.from(partitioning), bufferMaxPages);
     }
 
     private void checkAllSourcesFinished() {

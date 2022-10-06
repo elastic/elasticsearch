@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 import org.elasticsearch.xpack.esql.action.compute.data.Page;
+import org.elasticsearch.xpack.esql.plan.logical.Exchange;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -360,8 +361,12 @@ public abstract class PlanNode implements NamedXContentObject {
             SINGLE_DISTRIBUTION, // single exchange source, no partitioning
             FIXED_ARBITRARY_DISTRIBUTION, // multiple exchange sources, random partitioning
             FIXED_BROADCAST_DISTRIBUTION, // multiple exchange sources, broadcasting
-            FIXED_PASSTHROUGH_DISTRIBUTION, // n:n forwarding
-            // FIXED_HASH_DISTRIBUTION, TODO: implement hash partitioning
+            FIXED_PASSTHROUGH_DISTRIBUTION,; // n:n forwarding
+                                             // FIXED_HASH_DISTRIBUTION, TODO: implement hash partitioning
+
+            public static Partitioning from(Exchange.Partitioning partitioning) {
+                return Partitioning.valueOf(partitioning.toString());
+            }
         }
     }
 

@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.action.compute.data.Page;
  * The component that's in charge of passing data between operators is the {@link Driver}.
  *
  * More details on how this integrates with other components can be found in the package documentation of
- * {@link org.elasticsearch.xpack.sql.action.compute}
+ * {@link org.elasticsearch.xpack.esql.action.compute}
  */
 public interface Operator {
 

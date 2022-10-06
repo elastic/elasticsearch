@@ -32,6 +32,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -282,7 +283,7 @@ public class DockerTests extends PackagingTestCase {
             for (boolean useConfigFile : List.of(true, false)) {
                 mockServer.clearExpectations();
 
-                final String config = formatted("""
+                final String config = String.format(Locale.ROOT, """
                     plugins:
                         # This is the new plugin to install. We don't use an official plugin because then Elasticsearch
                         # will attempt an SSL connection and that just makes everything more complicated.

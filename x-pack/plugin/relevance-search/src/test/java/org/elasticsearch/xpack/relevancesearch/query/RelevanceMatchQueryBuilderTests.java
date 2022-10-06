@@ -189,13 +189,11 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
         final SearchExecutionContext context = createSearchExecutionContext();
         Query obtainedQuery = queryBuilder.toQuery(context);
 
-        Query expectedQuery =
-            new PinnedQueryBuilder(
-                new CombinedFieldsQueryBuilder(queryText, fields.toArray(new String[0])),
-                new PinnedQueryBuilder.Item(PINNED_DOC_1_ID, PINNED_INDEX),
-                new PinnedQueryBuilder.Item(PINNED_DOC_2_ID, PINNED_INDEX)
-            )
-                .toQuery(context);
+        Query expectedQuery = new PinnedQueryBuilder(
+            new CombinedFieldsQueryBuilder(queryText, fields.toArray(new String[0])),
+            new PinnedQueryBuilder.Item(PINNED_DOC_1_ID, PINNED_INDEX),
+            new PinnedQueryBuilder.Item(PINNED_DOC_2_ID, PINNED_INDEX)
+        ).toQuery(context);
 
         assertEquals(expectedQuery, obtainedQuery);
     }

@@ -86,7 +86,7 @@ public class SearchEngineMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_3_0;
+        return Version.V_8_6_0;
     }
 
     public static SearchEngineMetadata fromXContent(XContentParser parser) throws IOException {

@@ -1418,18 +1418,17 @@ public class IndexNameExpressionResolver {
             return resources.flatMap(indexAbstraction -> {
                 if (context.isPreserveAliases() && indexAbstraction.getType() == Type.ALIAS) {
                     return Stream.of(indexAbstraction.getName());
-                } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM
-                    || indexAbstraction.getType() == Type.SEARCH_ENGINE) {
-                        return Stream.of(indexAbstraction.getName());
-                    } else {
-                        Stream<IndexMetadata> indicesStateStream = indexAbstraction.getIndices()
-                            .stream()
-                            .map(context.state.metadata()::index);
-                        if (excludeState != null) {
-                            indicesStateStream = indicesStateStream.filter(indexMeta -> indexMeta.getState() != excludeState);
-                        }
-                        return indicesStateStream.map(indexMeta -> indexMeta.getIndex().getName());
+                } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
+                    return Stream.of(indexAbstraction.getName());
+                } else if (indexAbstraction.getType() == Type.SEARCH_ENGINE) {
+                    return Stream.of(indexAbstraction.getName());
+                } else {
+                    Stream<IndexMetadata> indicesStateStream = indexAbstraction.getIndices().stream().map(context.state.metadata()::index);
+                    if (excludeState != null) {
+                        indicesStateStream = indicesStateStream.filter(indexMeta -> indexMeta.getState() != excludeState);
                     }
+                    return indicesStateStream.map(indexMeta -> indexMeta.getIndex().getName());
+                }
             });
         }
 

@@ -43,7 +43,6 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
         private final String name;
-        private final long startTime;
 
         private String[] indices;
 
@@ -65,12 +64,11 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(String name) {
-            this(name, System.currentTimeMillis(), new String[0], null);
+            this(name, new String[0], null);
         }
 
-        public Request(String name, long startTime, String[] indices, String relevanceSettingsId) {
+        public Request(String name, String[] indices, String relevanceSettingsId) {
             this.name = name;
-            this.startTime = startTime;
             this.indices = indices;
             this.relevanceSettingsId = relevanceSettingsId;
         }
@@ -85,10 +83,6 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
 
         public void setRelevanceSettingsId(String relevanceSettingsId) {
             this.relevanceSettingsId = relevanceSettingsId;
-        }
-
-        public long getStartTime() {
-            return startTime;
         }
 
         @Override
@@ -119,7 +113,6 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.name = in.readString();
-            this.startTime = in.readVLong();
             this.indices = in.readStringArray();
             this.relevanceSettingsId = in.readString();
         }
@@ -128,7 +121,6 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(name);
-            out.writeVLong(startTime);
             out.writeStringArray(indices);
             out.writeString(relevanceSettingsId);
         }
@@ -138,12 +130,12 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return name.equals(request.name) && startTime == request.startTime;
+            return name.equals(request.name) && indices.equals(request.indices);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, startTime);
+            return Objects.hash(name, indices);
         }
 
         @Override

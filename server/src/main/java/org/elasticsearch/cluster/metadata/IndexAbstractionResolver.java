@@ -174,8 +174,8 @@ public class IndexAbstractionResolver {
             // complicated to support those options with aliases pointing to multiple indices...
             return isVisible && indicesOptions.ignoreAliases() == false;
         }
-        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
-            || indexAbstraction.getType() == IndexAbstraction.Type.SEARCH_ENGINE) {
+
+        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && includeDataStreams == false) {
                 return false;
             }
@@ -185,6 +185,11 @@ public class IndexAbstractionResolver {
                 return isVisible;
             }
         }
+
+        if (indexAbstraction.getType() == IndexAbstraction.Type.SEARCH_ENGINE) {
+            return indexAbstraction.isSystem() ? isSystemIndexVisible(resolver, indexAbstraction) : isVisible;
+        }
+
         assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
         // since it is a date math expression, we consider the index visible regardless of open/closed/hidden as the user is using
         // date math to explicitly reference the index

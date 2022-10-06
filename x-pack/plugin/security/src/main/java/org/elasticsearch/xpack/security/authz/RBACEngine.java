@@ -359,10 +359,6 @@ public class RBACEngine implements AuthorizationEngine {
                     assert resolvedIndices.getLocal().stream().noneMatch(Regex::isSimpleMatchPattern)
                         || replaceable.indicesOptions().expandWildcardExpressions() == false
                         || (request instanceof AliasesRequest aliasesRequest && aliasesRequest.expandAliasesWildcards() == false)
-                        || (request instanceof IndicesAliasesRequest indicesAliasesRequest
-                            && false == indicesAliasesRequest.getAliasActions()
-                                .stream()
-                                .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
                     listener.onResponse(
                         buildIndicesAccessControl(

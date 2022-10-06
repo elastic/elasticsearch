@@ -111,7 +111,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     ) {
         initializeRemoteIndicesPrivilegesIfNull();
         this.remoteIndicesPrivileges.add(
-            new RoleDescriptor.RemoteIndicesPrivileges.Builder(remoteClusters).indices(indices)
+            RoleDescriptor.RemoteIndicesPrivileges.builder(remoteClusters)
+                .indices(indices)
                 .privileges(privileges)
                 .grantedFields(grantedFields)
                 .deniedFields(deniedFields)

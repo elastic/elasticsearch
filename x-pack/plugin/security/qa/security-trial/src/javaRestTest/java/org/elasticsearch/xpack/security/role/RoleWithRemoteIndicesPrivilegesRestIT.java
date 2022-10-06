@@ -13,14 +13,18 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicenseRestTestCase {
 
@@ -55,6 +59,24 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         final Response putRoleResponse1 = adminClient().performRequest(putRoleRequest);
         assertOK(putRoleResponse1);
 
+        final Response getRoleResponse = adminClient().performRequest(new Request("GET", "_security/role/" + REMOTE_SEARCH_ROLE));
+        assertOK(getRoleResponse);
+        expectRoleDescriptorInResponse(
+            getRoleResponse,
+            new RoleDescriptor(
+                REMOTE_SEARCH_ROLE,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-a", "*").indices("index-a", "*").privileges("read").build() }
+            )
+        );
+
         // Remote privilege does not authorize local search
         var searchRequest = new Request("GET", "/index-a/_search");
         searchRequest.setOptions(
@@ -88,5 +110,33 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         assertOK(putRoleResponse2);
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
+
+        final Response getRoleResponse2 = adminClient().performRequest(new Request("GET", "_security/role/" + REMOTE_SEARCH_ROLE));
+        assertOK(getRoleResponse2);
+        expectRoleDescriptorInResponse(
+            getRoleResponse2,
+            new RoleDescriptor(
+                REMOTE_SEARCH_ROLE,
+                null,
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("index-a").privileges("all").build() },
+                null,
+                null,
+                null,
+                null,
+                null,
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-a", "*").indices("index-a", "*").privileges("read").build() }
+            )
+        );
+    }
+
+    private void expectRoleDescriptorInResponse(final Response getRoleResponse, final RoleDescriptor expectedRoleDescriptor)
+        throws IOException {
+        final Map<String, RoleDescriptor> actual = responseAsParser(getRoleResponse).map(
+            HashMap::new,
+            p -> RoleDescriptor.parse(expectedRoleDescriptor.getName(), p, false)
+        );
+        assertThat(actual, equalTo(Map.of(expectedRoleDescriptor.getName(), expectedRoleDescriptor)));
     }
 }

@@ -876,10 +876,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return builder.build();
     }
 
-    public record RemoteIndicesPrivileges(IndicesPrivileges indicesPrivileges, String... remoteClusters)
-        implements
-            Writeable,
-            ToXContentObject {
+    public static final class RemoteIndicesPrivileges implements Writeable, ToXContentObject {
+        private final IndicesPrivileges indicesPrivileges;
+        private final String[] remoteClusters;
+
+        public RemoteIndicesPrivileges(IndicesPrivileges indicesPrivileges, String... remoteClusters) {
+            this.indicesPrivileges = indicesPrivileges;
+            this.remoteClusters = remoteClusters;
+        }
 
         public RemoteIndicesPrivileges(StreamInput in) throws IOException {
             this(new IndicesPrivileges(in), in.readStringArray());
@@ -897,6 +901,46 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             indicesPrivileges.writeTo(out);
             out.writeStringArray(remoteClusters);
+        }
+
+        public static Builder builder(String... remoteClusters) {
+            return new Builder(remoteClusters);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            RemoteIndicesPrivileges that = (RemoteIndicesPrivileges) o;
+
+            if (false == indicesPrivileges.equals(that.indicesPrivileges)) return false;
+            return Arrays.equals(remoteClusters, that.remoteClusters);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = indicesPrivileges.hashCode();
+            result = 31 * result + Arrays.hashCode(remoteClusters);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "RemoteIndicesPrivileges{"
+                + "indicesPrivileges="
+                + indicesPrivileges
+                + ", remoteClusters="
+                + Strings.arrayToCommaDelimitedString(remoteClusters)
+                + '}';
+        }
+
+        public IndicesPrivileges indicesPrivileges() {
+            return indicesPrivileges;
+        }
+
+        public String[] remoteClusters() {
+            return remoteClusters;
         }
 
         public static class Builder {
@@ -931,12 +975,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 return query(query == null ? null : new BytesArray(query));
             }
 
-            public RemoteIndicesPrivileges.Builder query(@Nullable BytesReference query) {
+            public Builder query(@Nullable BytesReference query) {
                 indicesBuilder.query(query);
                 return this;
             }
 
-            public RemoteIndicesPrivileges.Builder allowRestrictedIndices(boolean allow) {
+            public Builder allowRestrictedIndices(boolean allow) {
                 indicesBuilder.allowRestrictedIndices(allow);
                 return this;
             }
@@ -945,7 +989,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 if (remoteClusters == null || remoteClusters.length == 0) {
                     throw new IllegalArgumentException("remote clusters must refer to at least one cluster alias or cluster alias pattern");
                 }
-
                 return new RemoteIndicesPrivileges(indicesBuilder.build(), remoteClusters);
             }
         }

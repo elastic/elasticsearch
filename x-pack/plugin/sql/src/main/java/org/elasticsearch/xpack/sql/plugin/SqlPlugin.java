@@ -44,10 +44,6 @@ import org.elasticsearch.xpack.sql.SqlUsageTransportAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
-import org.elasticsearch.xpack.sql.action.compute.planner.PlanNode;
-import org.elasticsearch.xpack.sql.action.compute.transport.ComputeAction;
-import org.elasticsearch.xpack.sql.action.compute.transport.RestComputeAction;
-import org.elasticsearch.xpack.sql.action.compute.transport.TransportComputeAction;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeRegistry;
 
@@ -146,8 +142,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             new RestSqlStatsAction(),
             new RestSqlAsyncGetResultsAction(),
             new RestSqlAsyncGetStatusAction(),
-            new RestSqlAsyncDeleteResultsAction(),
-            new RestComputeAction()
+            new RestSqlAsyncDeleteResultsAction()
         );
     }
 
@@ -163,14 +158,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             new ActionHandler<>(SqlStatsAction.INSTANCE, TransportSqlStatsAction.class),
             new ActionHandler<>(SqlAsyncGetResultsAction.INSTANCE, TransportSqlAsyncGetResultsAction.class),
             new ActionHandler<>(SqlAsyncGetStatusAction.INSTANCE, TransportSqlAsyncGetStatusAction.class),
-            new ActionHandler<>(ComputeAction.INSTANCE, TransportComputeAction.class),
             usageAction,
             infoAction
         );
-    }
-
-    @Override
-    public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return PlanNode.getNamedXContentParsers();
     }
 }

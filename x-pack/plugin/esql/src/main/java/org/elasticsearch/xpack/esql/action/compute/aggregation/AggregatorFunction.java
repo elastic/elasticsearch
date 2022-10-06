@@ -1,0 +1,64 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action.compute.aggregation;
+
+import org.elasticsearch.xpack.esql.action.compute.data.Block;
+import org.elasticsearch.xpack.esql.action.compute.data.Page;
+
+import java.util.function.BiFunction;
+
+public interface AggregatorFunction {
+
+    void addRawInput(Page page);
+
+    void addIntermediateInput(Block block);
+
+    Block evaluateIntermediate();
+
+    Block evaluateFinal();
+
+    BiFunction<AggregatorMode, Integer, AggregatorFunction> doubleAvg = (AggregatorMode mode, Integer inputChannel) -> {
+        if (mode.isInputPartial()) {
+            return DoubleAvgAggregator.createIntermediate();
+        } else {
+            return DoubleAvgAggregator.create(inputChannel);
+        }
+    };
+
+    BiFunction<AggregatorMode, Integer, AggregatorFunction> longAvg = (AggregatorMode mode, Integer inputChannel) -> {
+        if (mode.isInputPartial()) {
+            return LongAvgAggregator.createIntermediate();
+        } else {
+            return LongAvgAggregator.create(inputChannel);
+        }
+    };
+
+    BiFunction<AggregatorMode, Integer, AggregatorFunction> count = (AggregatorMode mode, Integer inputChannel) -> {
+        if (mode.isInputPartial()) {
+            return CountRowsAggregator.createIntermediate();
+        } else {
+            return CountRowsAggregator.create(inputChannel);
+        }
+    };
+
+    BiFunction<AggregatorMode, Integer, AggregatorFunction> max = (AggregatorMode mode, Integer inputChannel) -> {
+        if (mode.isInputPartial()) {
+            return MaxAggregator.createIntermediate();
+        } else {
+            return MaxAggregator.create(inputChannel);
+        }
+    };
+
+    BiFunction<AggregatorMode, Integer, AggregatorFunction> sum = (AggregatorMode mode, Integer inputChannel) -> {
+        if (mode.isInputPartial()) {
+            return SumAggregator.createIntermediate();
+        } else {
+            return SumAggregator.create(inputChannel);
+        }
+    };
+}

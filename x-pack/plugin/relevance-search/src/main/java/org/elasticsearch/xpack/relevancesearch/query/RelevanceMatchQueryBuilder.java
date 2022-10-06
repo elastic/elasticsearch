@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.relevancesearch.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -81,6 +82,20 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
         if (builder.query == null) {
             throw new ParsingException(parser.getTokenLocation(), "[relevance_match] requires a query, none specified");
+        }
+
+        if (Strings.isEmpty(builder.relevanceSettingsId)) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "[relevance_match] " + RELEVANCE_SETTINGS_FIELD + " must have at least one character in length"
+            );
+        }
+
+        if (Strings.isEmpty(builder.curationsSettingsId)) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "[relevance_match] " + CURATIONS_SETTINGS_FIELD + " must have at least one character in length"
+            );
         }
 
         builder.setQueryRewriter(queryRewriter);

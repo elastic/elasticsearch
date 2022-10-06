@@ -13,6 +13,7 @@ import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.relevancesearch.RelevanceSearchPlugin;
+import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
 import org.elasticsearch.xpack.relevancesearch.relevance.curations.Condition;
 import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationSettings;
 import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
@@ -111,7 +113,7 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
         assertEquals(json, "test-curations", parsed.getCurationsSettingsId());
     }
 
-    public void testQueryWithRelevanceSettings() throws RelevanceSettingsService.RelevanceSettingsNotFoundException, IOException {
+    public void testQueryWithRelevanceSettings() throws IOException {
 
         final String queryText = "query";
         queryBuilder.setQuery(queryText);
@@ -126,17 +128,23 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
         assertEquals(expectedQuery, obtainedQuery);
     }
 
-    private void setRelevanceSettings()
-        throws RelevanceSettingsService.RelevanceSettingsNotFoundException {
+    private void setRelevanceSettings() {
         queryBuilder.setRelevanceSettingsId(RELEVANCE_SETTINGS_ID);
 
         RelevanceSettings relevanceSettings = new RelevanceSettings();
-        relevanceSettings.setFields(List.of(TEXT_FIELD_NAME));
-        when(relevanceSettingsService.getRelevanceSettings(RELEVANCE_SETTINGS_ID)).thenReturn(relevanceSettings);
+        QueryConfiguration queryConfiguration = new QueryConfiguration();
+        queryConfiguration.setFieldsAndBoosts(Collections.singletonMap(TEXT_FIELD_NAME, 1.0f));
+        relevanceSettings.setQueryConfiguration(queryConfiguration);
+
+        try {
+            when(relevanceSettingsService.getRelevanceSettings(RELEVANCE_SETTINGS_ID)).thenReturn(relevanceSettings);
+        } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException
+            | RelevanceSettingsService.RelevanceSettingsInvalidException e) {
+            // Can't happen at mock definition
+        }
     }
 
-    public void testQueryWithCurationsPinnedAndHiddenDocs() throws IOException, CurationsService.CurationsSettingsNotFoundException,
-        RelevanceSettingsService.RelevanceSettingsNotFoundException {
+    public void testQueryWithCurationsPinnedAndHiddenDocs() throws IOException, CurationsService.CurationsSettingsNotFoundException {
 
         final String queryText = "matching";
         queryBuilder.setQuery(queryText);
@@ -169,8 +177,7 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
         assertEquals(expectedQuery, obtainedQuery);
     }
 
-    public void testQueryWithCurationsNoHiddenDocs() throws IOException, CurationsService.CurationsSettingsNotFoundException,
-        RelevanceSettingsService.RelevanceSettingsNotFoundException {
+    public void testQueryWithCurationsNoHiddenDocs() throws IOException, CurationsService.CurationsSettingsNotFoundException {
 
         final String queryText = "matching";
         queryBuilder.setQuery(queryText);
@@ -193,8 +200,7 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
         assertEquals(expectedQuery, obtainedQuery);
     }
 
-    public void testQueryWithCurationsNoPinnedDocs() throws IOException, CurationsService.CurationsSettingsNotFoundException,
-        RelevanceSettingsService.RelevanceSettingsNotFoundException {
+    public void testQueryWithCurationsNoPinnedDocs() throws IOException, CurationsService.CurationsSettingsNotFoundException {
 
         final String queryText = "matching";
         queryBuilder.setQuery(queryText);
@@ -221,8 +227,7 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
         assertEquals(expectedQuery, obtainedQuery);
     }
 
-    public void testQueryWithCurationDoesNotMatchQuery() throws IOException, CurationsService.CurationsSettingsNotFoundException,
-        RelevanceSettingsService.RelevanceSettingsNotFoundException {
+    public void testQueryWithCurationDoesNotMatchQuery() throws IOException, CurationsService.CurationsSettingsNotFoundException {
 
         final String queryText = "matching";
         queryBuilder.setQuery(queryText);
@@ -280,13 +285,18 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
             queryBuilder.setRelevanceSettingsId(relevanceSettingsId);
 
             RelevanceSettings relevanceSettings = new RelevanceSettings();
-            relevanceSettings.setFields(List.of(generateRandomStringArray(10, 10, false, false)));
+            QueryConfiguration queryConfiguration = new QueryConfiguration();
+            queryConfiguration.setFieldsAndBoosts(
+                randomMap(1, 10, () -> new Tuple<>(randomString(), (float) randomDoubleBetween(1.0, 10.0, true)))
+            );
+            relevanceSettings.setQueryConfiguration(queryConfiguration);
             try {
                 when(relevanceSettingsService.getRelevanceSettings(eq(relevanceSettingsId))).thenReturn(relevanceSettings);
                 when(relevanceSettingsService.getRelevanceSettings(not(eq(relevanceSettingsId)))).thenThrow(
                     new RelevanceSettingsService.RelevanceSettingsNotFoundException("Relevance settings not found")
                 );
-            } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
+            } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException
+                | RelevanceSettingsService.RelevanceSettingsInvalidException e) {
                 // Can't happen defining mock
             }
 

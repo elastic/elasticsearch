@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.relevancesearch.relevance;
 
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 
 import java.util.List;
 import java.util.Map;
@@ -25,10 +26,10 @@ public class QueryConfigurationTests extends ESTestCase {
         assertEquals(expectedFieldsAndBoosts, fieldsAndBoosts);
     }
 
-    public void testParsingFieldsAndBoostsWithInvalidBoost() throws RelevanceSettingsService.RelevanceSettingsInvalidException {
+    public void testParsingFieldsAndBoostsWithInvalidBoost() {
         List<String> fields = List.of("foo^bar");
         QueryConfiguration queryConfiguration = new QueryConfiguration();
-        RelevanceSettingsService.RelevanceSettingsInvalidException e = expectThrows(
+        expectThrows(
             RelevanceSettingsService.RelevanceSettingsInvalidException.class,
             () -> queryConfiguration.parseFieldsAndBoosts(fields)
         );

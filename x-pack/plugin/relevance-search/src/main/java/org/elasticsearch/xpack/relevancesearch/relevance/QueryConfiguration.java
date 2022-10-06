@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.relevancesearch.relevance;
 
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 
 import java.util.List;
 import java.util.Map;

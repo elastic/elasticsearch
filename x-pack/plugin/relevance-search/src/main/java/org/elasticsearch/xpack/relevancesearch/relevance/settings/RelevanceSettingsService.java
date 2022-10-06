@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.relevancesearch.relevance.settings;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
 
 import java.util.List;
 import java.util.Map;

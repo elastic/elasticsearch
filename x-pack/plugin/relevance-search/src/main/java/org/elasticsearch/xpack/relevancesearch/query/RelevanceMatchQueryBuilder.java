@@ -22,12 +22,12 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
 import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationSettings;
 import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
 import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettings;
 import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
-import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
 
 import java.io.IOException;
 import java.util.Collection;

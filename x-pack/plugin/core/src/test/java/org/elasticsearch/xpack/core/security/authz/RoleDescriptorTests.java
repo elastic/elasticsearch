@@ -185,12 +185,44 @@ public class RoleDescriptorTests extends ESTestCase {
                     "match_all": {}
                   }
                 }
+              ],
+              "remote_indices": [
+                {
+                  "names": "idx1",
+                  "privileges": [ "p1", "p2" ],
+                  "remote_clusters": ["r1"]
+                },
+                {
+                  "names": "idx2",
+                  "allow_restricted_indices": true,
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "grant": [ "f1", "f2" ]
+                  },
+                  "remote_clusters": ["r1", "*-*"]
+                },
+                {
+                  "names": "idx2",
+                  "allow_restricted_indices": false,
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "grant": [ "f1", "f2" ]
+                  },
+                  "query": {
+                    "match_all": {}
+                  },
+                  "remote_clusters": ["*"]
+                }
               ]
             }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
         assertEquals(3, rd.getIndicesPrivileges().length);
+        assertEquals(3, rd.getRemoteIndicesPrivileges().length);
+        assertArrayEquals(new String[] { "r1" }, rd.getRemoteIndicesPrivileges()[0].remoteClusters());
+        assertArrayEquals(new String[] { "r1", "*-*" }, rd.getRemoteIndicesPrivileges()[1].remoteClusters());
+        assertArrayEquals(new String[] { "*" }, rd.getRemoteIndicesPrivileges()[2].remoteClusters());
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
 
         q = """

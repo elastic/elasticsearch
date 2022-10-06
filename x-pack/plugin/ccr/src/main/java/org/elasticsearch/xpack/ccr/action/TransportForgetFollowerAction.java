@@ -11,7 +11,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadCastXContentResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastXContentResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,7 +43,7 @@ import java.util.Objects;
 
 public class TransportForgetFollowerAction extends TransportBroadcastByNodeAction<
     ForgetFollowerAction.Request,
-    BroadCastXContentResponse,
+    BroadcastXContentResponse,
     TransportBroadcastByNodeAction.EmptyResult> {
 
     private final ClusterService clusterService;
@@ -76,7 +76,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
     }
 
     @Override
-    protected BroadCastXContentResponse newResponse(
+    protected BroadcastXContentResponse newResponse(
         final ForgetFollowerAction.Request request,
         final int totalShards,
         final int successfulShards,
@@ -85,7 +85,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
         final List<DefaultShardOperationFailedException> shardFailures,
         final ClusterState clusterState
     ) {
-        return new BroadCastXContentResponse(totalShards, successfulShards, failedShards, shardFailures);
+        return new BroadcastXContentResponse(totalShards, successfulShards, failedShards, shardFailures);
     }
 
     @Override

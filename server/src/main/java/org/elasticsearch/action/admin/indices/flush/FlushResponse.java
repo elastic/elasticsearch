@@ -9,8 +9,8 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadCastXContentResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastXContentResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
@@ -22,7 +22,7 @@ import java.util.List;
 /**
  * A response to flush action.
  */
-public class FlushResponse extends BroadCastXContentResponse {
+public class FlushResponse extends BroadcastXContentResponse {
 
     private static final ConstructingObjectParser<FlushResponse, Void> PARSER = new ConstructingObjectParser<>("flush", true, arg -> {
         BroadcastResponse response = (BroadcastResponse) arg[0];

@@ -788,7 +788,10 @@ public class Strings {
 
     /**
      * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
+     * @deprecated don't add usages of this method, it will be removed eventually
+     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
      */
+    @Deprecated
     public static String toString(ChunkedToXContent chunkedToXContent) {
         return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent));
     }
@@ -824,7 +827,10 @@ public class Strings {
     /**
      * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
+     * @deprecated don't add usages of this method, it will be removed eventually
+     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
      */
+    @Deprecated
     public static String toString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
         return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent), pretty, human);
     }

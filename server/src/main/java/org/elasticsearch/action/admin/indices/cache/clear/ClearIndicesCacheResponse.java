@@ -9,8 +9,8 @@
 package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadCastXContentResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastXContentResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
@@ -22,7 +22,7 @@ import java.util.List;
 /**
  * The response of a clear cache action.
  */
-public class ClearIndicesCacheResponse extends BroadCastXContentResponse {
+public class ClearIndicesCacheResponse extends BroadcastXContentResponse {
 
     private static final ConstructingObjectParser<ClearIndicesCacheResponse, Void> PARSER = new ConstructingObjectParser<>(
         "clear_cache",

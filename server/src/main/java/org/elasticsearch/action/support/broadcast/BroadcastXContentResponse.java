@@ -16,13 +16,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public class BroadCastXContentResponse extends BroadcastResponse implements ToXContentObject {
+public class BroadcastXContentResponse extends BroadcastResponse implements ToXContentObject {
 
-    public BroadCastXContentResponse(StreamInput in) throws IOException {
+    public BroadcastXContentResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    public BroadCastXContentResponse(
+    public BroadcastXContentResponse(
         int totalShards,
         int successfulShards,
         int failedShards,

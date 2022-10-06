@@ -9,8 +9,8 @@
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadCastXContentResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastXContentResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -31,7 +31,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *
  *
  */
-public class ValidateQueryResponse extends BroadCastXContentResponse {
+public class ValidateQueryResponse extends BroadcastXContentResponse {
 
     public static final String VALID_FIELD = "valid";
     public static final String EXPLANATIONS_FIELD = "explanations";

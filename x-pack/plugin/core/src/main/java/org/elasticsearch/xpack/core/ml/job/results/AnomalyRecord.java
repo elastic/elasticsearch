@@ -44,9 +44,6 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
      * Result fields (all detector types)
      */
     public static final ParseField PROBABILITY = new ParseField("probability");
-    public static final ParseField PROBABILITY_EXPLANATIONS = new ParseField("probability_explanations");
-
-    public static final ParseField ANOMALY_SCORE_EXPLANATION = new ParseField("anomaly_score_explanation");
     public static final ParseField MULTI_BUCKET_IMPACT = new ParseField("multi_bucket_impact");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
@@ -60,6 +57,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     public static final ParseField INFLUENCERS = new ParseField("influencers");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField GEO_RESULTS = new ParseField("geo_results");
+    public static final ParseField ANOMALY_SCORE_EXPLANATION = new ParseField("anomaly_score_explanation");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("records");

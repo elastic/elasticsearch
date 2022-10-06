@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -74,6 +75,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ReservedLifecycleStateServiceTests extends ESTestCase {
+
+    public void testDependencies() {
+        var action = new ReservedLifecycleAction(mock(NamedXContentRegistry.class), mock(Client.class), mock(XPackLicenseState.class));
+        assertTrue(action.optionalDependencies().contains(ReservedRepositoryAction.NAME));
+    }
 
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());

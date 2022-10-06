@@ -8,7 +8,6 @@
 
 package org.elasticsearch.plugins.scanners;
 
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
@@ -26,9 +25,9 @@ public class NamedComponentReaderTests extends ESTestCase {
     NamedComponentReader namedComponentReader = new NamedComponentReader(extensiblesRegistry);
 
     @SuppressForbidden(reason = "test resource")
-    public void testReadNamedComponentsFromFile() throws IOException {
-        final String resource = this.getClass().getClassLoader().getResource("named_components.json").getPath();
-        Path namedComponentPath = PathUtils.get(resource);
+    public void testReadNamedComponentsFromFile() throws Exception {
+        final URL resource = this.getClass().getClassLoader().getResource("named_components.json");
+        Path namedComponentPath = Path.of(resource.toURI());
 
         Map<String, NameToPluginInfo> namedComponents = namedComponentReader.readFromFile(
             namedComponentPath,

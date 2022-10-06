@@ -395,3 +395,44 @@ stored keyword with ignore_above:
         kwd:
           - short
           - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
+
+---
+_source filtering:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+              extra:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: foo
+          extra: bar
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: kwd
+          query:
+            ids:
+              values: [1]
+  - is_false: hits.hits.0.fields
+  - match:
+      hits.hits.0._source:
+        kwd: foo

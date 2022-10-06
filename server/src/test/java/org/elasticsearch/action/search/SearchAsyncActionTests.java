@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
@@ -94,7 +93,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
-        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
+        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", AliasFilter.EMPTY);
         AtomicInteger numRequests = new AtomicInteger(0);
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
             "test",
@@ -203,7 +202,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
-        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
+        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", AliasFilter.EMPTY);
         CountDownLatch awaitInitialRequests = new CountDownLatch(1);
         AtomicInteger numRequests = new AtomicInteger(0);
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
@@ -312,7 +311,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<String, Transport.Connection> lookup = new HashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
-        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
+        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", AliasFilter.EMPTY);
         ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean latchTriggered = new AtomicBoolean();
@@ -434,7 +433,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<String, Transport.Connection> lookup = new HashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
-        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
+        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", AliasFilter.EMPTY);
         ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(
             "test",
@@ -542,7 +541,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
-        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
+        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", AliasFilter.EMPTY);
         AtomicInteger numRequests = new AtomicInteger(0);
         AtomicInteger numFailReplicas = new AtomicInteger(0);
         AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction = new AbstractSearchAsyncAction<>(
@@ -649,7 +648,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node);
             },
-            Map.of("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Map.of("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             null,
             request,

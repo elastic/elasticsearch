@@ -113,6 +113,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
+        public boolean isAggregatable() {
+            return fieldDataEnabled.getAsBoolean();
+        }
+
+        @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             return termsQuery(Arrays.asList(value), context);
         }

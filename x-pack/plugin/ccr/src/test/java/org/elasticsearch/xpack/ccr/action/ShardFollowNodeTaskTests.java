@@ -19,6 +19,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.net.ConnectException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1483,8 +1483,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         List<Translog.Operation> ops = new ArrayList<>();
         for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
             String id = UUIDs.randomBase64UUID();
-            byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-            ops.add(new Translog.Index(id, seqNo, 0, source));
+            ops.add(TranslogOperationsUtils.indexOp(id, seqNo, 0));
         }
         return new ShardChangesAction.Response(
             mappingVersion,

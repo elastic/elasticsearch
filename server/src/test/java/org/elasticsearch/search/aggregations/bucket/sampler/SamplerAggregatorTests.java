@@ -17,7 +17,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -66,11 +65,9 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalSampler sampler = searchAndReduce(
-                    searcher,
-                    new TermQuery(new Term("text", "good")),
-                    aggBuilder,
-                    textFieldType,
-                    numericFieldType
+                    new AggTestConfig(searcher, aggBuilder, textFieldType, numericFieldType).withQuery(
+                        new TermQuery(new Term("text", "good"))
+                    )
                 );
                 Min min = sampler.getAggregations().get("min");
                 assertEquals(5.0, min.value(), 0);
@@ -105,11 +102,9 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalSampler sampler = searchAndReduce(
-                    searcher,
-                    new TermQuery(new Term("text", "good")),
-                    aggBuilder,
-                    textFieldType,
-                    numericFieldType
+                    new AggTestConfig(searcher, aggBuilder, textFieldType, numericFieldType).withQuery(
+                        new TermQuery(new Term("text", "good"))
+                    )
                 );
                 Min min = sampler.getAggregations().get("min");
                 assertEquals(3.0, min.value(), 0);
@@ -136,7 +131,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                 SamplerAggregationBuilder sampler = new SamplerAggregationBuilder("sampler").subAggregation(samplerChild);
                 samplerParent.subAggregation(sampler);
 
-                InternalFilters response = searchAndReduce(searcher, new MatchAllDocsQuery(), samplerParent);
+                InternalFilters response = searchAndReduce(new AggTestConfig(searcher, samplerParent));
                 assertEquals(response.getBuckets().size(), 2);
                 assertEquals(response.getBuckets().get(0).getDocCount(), 1);
                 assertEquals(response.getBuckets().get(1).getDocCount(), 0);

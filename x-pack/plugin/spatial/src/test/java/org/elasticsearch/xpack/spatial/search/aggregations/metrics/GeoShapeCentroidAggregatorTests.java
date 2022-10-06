@@ -12,7 +12,6 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -71,7 +70,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             );
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -97,11 +96,11 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     null,
                     Collections.emptyMap()
                 );
-                InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
                 assertNull(result.centroid());
 
                 fieldType = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
-                result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -131,7 +130,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     null,
                     Collections.emptyMap()
                 );
-                InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
                 assertThat(result.centroid(), equalTo(expectedCentroid));
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
@@ -208,7 +207,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
         GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg").field("field");
         try (IndexReader reader = w.getReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
-            InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+            InternalGeoCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
 
             assertEquals("my_agg", result.getName());
             SpatialPoint centroid = result.centroid();

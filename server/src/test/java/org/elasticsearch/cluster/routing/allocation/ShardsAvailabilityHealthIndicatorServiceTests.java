@@ -83,6 +83,7 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -154,12 +155,16 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     List.of(
                         new HealthIndicatorImpact(
+                            NAME,
+                            ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID,
                             2,
                             "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index [yellow-index].",
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("yellow-index")))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("yellow-index"))))
+                    )
                 )
             )
         );
@@ -181,12 +186,16 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("unassigned_primaries", 1, "started_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
+                            NAME,
+                            ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
                             1,
                             "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("red-index"))))
+                    )
                 )
             )
         );
@@ -205,12 +214,16 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
+                            NAME,
+                            ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
                             1,
                             "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of("red-index"))))
+                    )
                 )
             )
         );
@@ -230,6 +243,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(
             result.impacts().get(0),
             new HealthIndicatorImpact(
+                NAME,
+                ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
                 1,
                 "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
                 List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
@@ -260,6 +275,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(
             result.impacts().get(0),
             new HealthIndicatorImpact(
+                NAME,
+                ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
                 1,
                 "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
                 List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
@@ -270,6 +287,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             result.impacts().get(1),
             equalTo(
                 new HealthIndicatorImpact(
+                    NAME,
+                    ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID,
                     2,
                     "Searches might be slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-2, "
                         + "yellow-index-1].",
@@ -303,6 +322,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             result.impacts().get(0),
             equalTo(
                 new HealthIndicatorImpact(
+                    NAME,
+                    ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID,
                     2,
                     "Searches might be slower than usual. Fewer redundant copies of the data exist on 3 indices [index-2, "
                         + "index-1, index-3].",
@@ -382,13 +403,20 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("started_primaries", 1, "unassigned_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
+                            NAME,
+                            ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID,
                             2,
                             "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index "
                                 + "[restarting-index].",
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS, List.of("restarting-index")))
+                    List.of(
+                        new Diagnosis(
+                            DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS,
+                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting-index")))
+                        )
+                    )
                 )
             )
         );
@@ -457,12 +485,19 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
+                            NAME,
+                            ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
                             1,
                             "Cannot add data to 1 index [restarting-index]. Searches might return incomplete results.",
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS, List.of("restarting-index")))
+                    List.of(
+                        new Diagnosis(
+                            DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS,
+                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting-index")))
+                        )
+                    )
                 )
             )
         );
@@ -494,6 +529,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     "This cluster has 1 unavailable primary.",
                     List.of(
                         new HealthIndicatorImpact(
+                            NAME,
+                            ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
                             1,
                             "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)

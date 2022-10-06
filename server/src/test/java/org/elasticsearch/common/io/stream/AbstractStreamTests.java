@@ -222,7 +222,11 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     public void testLargeBigIntArray() throws IOException {
-        assertBigIntArray(between(PageCacheRecycler.INT_PAGE_SIZE, 10000));
+        assertBigIntArray(between(PageCacheRecycler.INT_PAGE_SIZE, 5_000_000));
+    }
+
+    public void testBigIntArraySizeAligned() throws IOException {
+        assertBigIntArray(PageCacheRecycler.INT_PAGE_SIZE * between(2, 1000));
     }
 
     private void assertBigIntArray(int size) throws IOException {

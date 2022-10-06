@@ -6,29 +6,29 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
-import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SerialDifferenceTests extends BasePipelineAggregationTestCase<SerialDiffPipelineAggregationBuilder> {
+public class DerivativeTests extends BasePipelineAggregationTestCase<DerivativePipelineAggregationBuilder> {
 
     @Override
-    protected SerialDiffPipelineAggregationBuilder createTestAggregatorFactory() {
+    protected DerivativePipelineAggregationBuilder createTestAggregatorFactory() {
         String name = randomAlphaOfLengthBetween(3, 20);
         String bucketsPath = randomAlphaOfLengthBetween(3, 20);
-        SerialDiffPipelineAggregationBuilder factory = new SerialDiffPipelineAggregationBuilder(name, bucketsPath);
+        DerivativePipelineAggregationBuilder factory = new DerivativePipelineAggregationBuilder(name, bucketsPath);
         if (randomBoolean()) {
             factory.format(randomAlphaOfLengthBetween(1, 10));
         }
@@ -36,7 +36,11 @@ public class SerialDifferenceTests extends BasePipelineAggregationTestCase<Seria
             factory.gapPolicy(randomFrom(GapPolicy.values()));
         }
         if (randomBoolean()) {
-            factory.lag(randomIntBetween(1, 1000));
+            if (randomBoolean()) {
+                factory.unit(String.valueOf(randomInt()));
+            } else {
+                factory.unit(String.valueOf(randomIntBetween(1, 10) + randomFrom("s", "m", "h", "d", "w", "M", "y")));
+            }
         }
         return factory;
     }
@@ -48,31 +52,26 @@ public class SerialDifferenceTests extends BasePipelineAggregationTestCase<Seria
         assertThat(
             validate(
                 PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(),
-                new SerialDiffPipelineAggregationBuilder("name", "valid")
+                new DerivativePipelineAggregationBuilder("name", "valid")
             ),
             nullValue()
         );
     }
 
-    public void testInvalidParent() throws IOException {
+    /**
+     * The validation should throw an IllegalArgumentException, since parent
+     * aggregation is not a type of HistogramAggregatorFactory,
+     * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
+     */
+    public void testValidateException() throws IOException {
         final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
-        aggBuilders.add(createTestAggregatorFactory());
-        AggregationBuilder parent = new TermsAggregationBuilder("t");
+        aggBuilders.add(new DerivativePipelineAggregationBuilder("deriv", "der"));
+        AggregationBuilder parent = new TermsAggregationBuilder("name");
         assertThat(
-            validate(parent, new SerialDiffPipelineAggregationBuilder("name", "invalid_agg>metric")),
+            validate(parent, new DerivativePipelineAggregationBuilder("name", "invalid_agg>metric")),
             equalTo(
-                "Validation Failed: 1: serial_diff aggregation [name] must have a histogram, "
+                "Validation Failed: 1: derivative aggregation [name] must have a histogram, "
                     + "date_histogram or auto_date_histogram as parent;"
-            )
-        );
-    }
-
-    public void testNoParent() {
-        assertThat(
-            validate(emptyList(), new SerialDiffPipelineAggregationBuilder("name", "invalid_agg>metric")),
-            equalTo(
-                "Validation Failed: 1: serial_diff aggregation [name] must have a histogram, "
-                    + "date_histogram or auto_date_histogram as parent but doesn't have a parent;"
             )
         );
     }

@@ -898,6 +898,57 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             indicesPrivileges.writeTo(out);
             out.writeStringArray(remoteClusters);
         }
+
+        public static class Builder {
+            private final IndicesPrivileges.Builder indicesBuilder = new IndicesPrivileges.Builder();
+            private final String[] remoteClusters;
+
+            public Builder(String... remoteClusters) {
+                this.remoteClusters = remoteClusters;
+            }
+
+            public Builder indices(String... indices) {
+                indicesBuilder.indices(indices);
+                return this;
+            }
+
+            public Builder privileges(String... privileges) {
+                indicesBuilder.privileges(privileges);
+                return this;
+            }
+
+            public Builder grantedFields(String... grantedFields) {
+                indicesBuilder.grantedFields(grantedFields);
+                return this;
+            }
+
+            public Builder deniedFields(String... deniedFields) {
+                indicesBuilder.deniedFields(deniedFields);
+                return this;
+            }
+
+            public Builder query(@Nullable String query) {
+                return query(query == null ? null : new BytesArray(query));
+            }
+
+            public RemoteIndicesPrivileges.Builder query(@Nullable BytesReference query) {
+                indicesBuilder.query(query);
+                return this;
+            }
+
+            public RemoteIndicesPrivileges.Builder allowRestrictedIndices(boolean allow) {
+                indicesBuilder.allowRestrictedIndices(allow);
+                return this;
+            }
+
+            public RemoteIndicesPrivileges build() {
+                if (remoteClusters == null || remoteClusters.length == 0) {
+                    throw new IllegalArgumentException("remote clusters must refer to at least one cluster alias or cluster alias pattern");
+                }
+
+                return new RemoteIndicesPrivileges(indicesBuilder.build(), remoteClusters);
+            }
+        }
     }
 
     /**

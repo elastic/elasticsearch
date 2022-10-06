@@ -96,10 +96,29 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     }
 
     public void addRemoteIndex(RoleDescriptor.RemoteIndicesPrivileges... privileges) {
-        if (this.remoteIndicesPrivileges == null) {
-            this.remoteIndicesPrivileges = new ArrayList<>();
-        }
+        initializeRemoteIndicesPrivilegesIfNull();
         this.remoteIndicesPrivileges.addAll(Arrays.asList(privileges));
+    }
+
+    public void addRemoteIndex(
+        String[] remoteClusters,
+        String[] indices,
+        String[] privileges,
+        String[] grantedFields,
+        String[] deniedFields,
+        @Nullable BytesReference query,
+        boolean allowRestrictedIndices
+    ) {
+        initializeRemoteIndicesPrivilegesIfNull();
+        this.remoteIndicesPrivileges.add(
+            new RoleDescriptor.RemoteIndicesPrivileges.Builder(remoteClusters).indices(indices)
+                .privileges(privileges)
+                .grantedFields(grantedFields)
+                .deniedFields(deniedFields)
+                .query(query)
+                .allowRestrictedIndices(allowRestrictedIndices)
+                .build()
+        );
     }
 
     public void addIndex(
@@ -208,5 +227,11 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
             Collections.emptyMap(),
             remoteIndicesPrivileges == null ? null : remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0])
         );
+    }
+
+    private void initializeRemoteIndicesPrivilegesIfNull() {
+        if (this.remoteIndicesPrivileges == null) {
+            this.remoteIndicesPrivileges = new ArrayList<>();
+        }
     }
 }

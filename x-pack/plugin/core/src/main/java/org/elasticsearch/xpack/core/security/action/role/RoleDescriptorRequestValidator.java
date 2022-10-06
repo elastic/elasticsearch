@@ -56,12 +56,9 @@ public class RoleDescriptorRequestValidator {
         final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndicesPrivileges = roleDescriptor.getRemoteIndicesPrivileges();
         if (remoteIndicesPrivileges != null) {
             for (RoleDescriptor.RemoteIndicesPrivileges ridp : remoteIndicesPrivileges) {
-                if (ridp.remoteClusters().length == 0) {
-                    validationException = addValidationError("at least one remote cluster is required", validationException);
-                }
                 if (Arrays.asList(ridp.remoteClusters()).contains(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                     validationException = addValidationError(
-                        "cannot use [" + RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY + "] as remote cluster for remote indices privilege",
+                        "cluster alias in [" + RoleDescriptor.Fields.REMOTE_CLUSTERS + "] cannot be an empty string",
                         validationException
                     );
                 }

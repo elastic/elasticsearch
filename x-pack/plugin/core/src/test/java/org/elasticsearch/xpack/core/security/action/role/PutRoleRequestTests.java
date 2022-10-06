@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -83,6 +84,22 @@ public class PutRoleRequestTests extends ESTestCase {
 
         // Fail
         assertValidationError("unknown index privilege [" + unknownIndexPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
+    }
+
+    public void testValidationErrorWithEmptyClustersInRemoteIndices() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        request.addRemoteIndex(
+            new String[] { randomAlphaOfLength(5), "" },
+            new String[] { randomAlphaOfLength(5) },
+            new String[] { "index", "write", "indices:data/read" },
+            null,
+            null,
+            null,
+            randomBoolean()
+        );
+
+        assertValidationError("cluster alias in [" + RoleDescriptor.Fields.REMOTE_CLUSTERS + "] cannot be an empty string", request);
     }
 
     public void testValidationSuccessWithCorrectIndexPrivilegeName() {

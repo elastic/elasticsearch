@@ -8,11 +8,10 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-public class UnresolvedRemovedAttribute extends UnresolvedStar {
-    public UnresolvedRemovedAttribute(Source source, UnresolvedAttribute qualifier) {
-        super(source, qualifier);
+public class UnresolvedRemovedAttribute extends UnresolvedAttribute {
+    public UnresolvedRemovedAttribute(Source source, String name) {
+        super(source, name);
     }
 }

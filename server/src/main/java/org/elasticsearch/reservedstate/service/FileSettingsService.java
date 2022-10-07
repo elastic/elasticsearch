@@ -10,6 +10,11 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -56,6 +61,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
     private final Path operatorSettingsDir;
+    private final NodeClient nodeClient;
 
     private WatchService watchService; // null;
     private CountDownLatch watcherThreadLatch;
@@ -70,6 +76,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     public static final String OPERATOR_DIRECTORY = "operator";
 
+    private volatile NodesInfoResponse nodesInfoResponse = null;
+    private volatile boolean nodeInfosRefreshRequired = true;
+
     /**
      * Constructs the {@link FileSettingsService}
      *
@@ -77,10 +86,16 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      * @param stateService an instance of the immutable cluster state controller, so we can perform the cluster state changes
      * @param environment we need the environment to pull the location of the config and operator directories
      */
-    public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
+    public FileSettingsService(
+        ClusterService clusterService,
+        ReservedClusterStateService stateService,
+        Environment environment,
+        NodeClient nodeClient
+    ) {
         this.clusterService = clusterService;
         this.stateService = stateService;
         this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
+        this.nodeClient = nodeClient;
     }
 
     public Path operatorSettingsDir() {
@@ -134,6 +149,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
         startIfMaster(clusterState);
+        checkForNodeChanges(event);
     }
 
     private void startIfMaster(ClusterState clusterState) {
@@ -378,7 +394,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         );
     }
 
-    CountDownLatch processFileSettings(Path path, Consumer<Exception> errorHandler) throws IOException {
+    CountDownLatch processFileSettings(Path path, Consumer<Exception> errorHandler) {
         CountDownLatch waitForCompletion = new CountDownLatch(1);
         logger.info("processing path [{}] for [{}]", path, NAMESPACE);
         try (
@@ -386,18 +402,47 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             var bis = new BufferedInputStream(fis);
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            stateService.process(NAMESPACE, parser, (e) -> {
-                try {
-                    if (e != null) {
-                        errorHandler.accept(e);
+            ReservedStateChunk parsedState = stateService.parse(NAMESPACE, parser);
+            if (nodeInfosRefreshRequired || nodesInfoResponse == null) {
+                var nodesInfoRequest = NodesInfoRequest.requestWithMetrics(NodesInfoRequest.Metric.INGEST);
+
+                clusterAdminClient().nodesInfo(nodesInfoRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(NodesInfoResponse response) {
+                        // stash the latest node infos response and continue with processing the file
+                        nodesInfoResponse = response;
+                        nodeInfosRefreshRequired = false;
+                        stateService.process(NAMESPACE, parsedState, (e) -> completeProcessing(e, errorHandler, waitForCompletion));
                     }
-                } finally {
-                    waitForCompletion.countDown();
-                }
-            });
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        completeProcessing(e, errorHandler, waitForCompletion);
+                    }
+                });
+            } else {
+                stateService.process(NAMESPACE, parsedState, (e) -> completeProcessing(e, errorHandler, waitForCompletion));
+            }
+        } catch (Exception e) {
+            completeProcessing(e, errorHandler, waitForCompletion);
         }
 
         return waitForCompletion;
+    }
+
+    // package private for testing, separate method so that it can be mocked in tests
+    ClusterAdminClient clusterAdminClient() {
+        return nodeClient.admin().cluster();
+    }
+
+    private void completeProcessing(Exception e, Consumer<Exception> errorHandler, CountDownLatch completionLatch) {
+        try {
+            if (e != null) {
+                errorHandler.accept(e);
+            }
+        } finally {
+            completionLatch.countDown();
+        }
     }
 
     /**
@@ -414,5 +459,15 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         public FileSettingsStartupException(String message, Throwable t) {
             super(message, t);
         }
+    }
+
+    void checkForNodeChanges(ClusterChangedEvent event) {
+        if (currentNodeMaster(event.state()) && event.nodesChanged()) {
+            nodeInfosRefreshRequired = true;
+        }
+    }
+
+    public NodesInfoResponse nodeInfos() {
+        return nodesInfoResponse;
     }
 }

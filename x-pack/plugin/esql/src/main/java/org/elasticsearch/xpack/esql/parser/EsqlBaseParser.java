@@ -17,6 +17,7 @@ public class EsqlBaseParser extends Parser {
   protected static final PredictionContextCache _sharedContextCache =
     new PredictionContextCache();
   public static final int
+<<<<<<< HEAD
     EVAL=1, EXPLAIN=2, FROM=3, ROW=4, STATS=5, WHERE=6, SORT=7, LIMIT=8, PROJECT=9, 
     UNKNOWN_COMMAND=10, LINE_COMMENT=11, MULTILINE_COMMENT=12, WS=13, PIPE=14, 
     STRING=15, INTEGER_LITERAL=16, DECIMAL_LITERAL=17, BY=18, AND=19, ASC=20, 
@@ -27,6 +28,17 @@ public class EsqlBaseParser extends Parser {
     EXPR_LINE_COMMENT=50, EXPR_MULTILINE_COMMENT=51, EXPR_WS=52, SRC_UNQUOTED_IDENTIFIER=53, 
     SRC_QUOTED_IDENTIFIER=54, SRC_LINE_COMMENT=55, SRC_MULTILINE_COMMENT=56, 
     SRC_WS=57;
+=======
+    EVAL=1, EXPLAIN=2, FROM=3, ROW=4, STATS=5, WHERE=6, SORT=7, LIMIT=8, LINE_COMMENT=9, 
+    MULTILINE_COMMENT=10, WS=11, PIPE=12, STRING=13, INTEGER_LITERAL=14, DECIMAL_LITERAL=15, 
+    BY=16, AND=17, ASC=18, ASSIGN=19, COMMA=20, DESC=21, DOT=22, FALSE=23, 
+    FIRST=24, LAST=25, LP=26, OPENING_BRACKET=27, CLOSING_BRACKET=28, NOT=29, 
+    NULL=30, NULLS=31, OR=32, RP=33, TRUE=34, EQ=35, NEQ=36, LT=37, LTE=38, 
+    GT=39, GTE=40, PLUS=41, MINUS=42, ASTERISK=43, SLASH=44, PERCENT=45, UNQUOTED_IDENTIFIER=46, 
+    QUOTED_IDENTIFIER=47, EXPR_LINE_COMMENT=48, EXPR_MULTILINE_COMMENT=49, 
+    EXPR_WS=50, SRC_UNQUOTED_IDENTIFIER=51, SRC_QUOTED_IDENTIFIER=52, SRC_LINE_COMMENT=53, 
+    SRC_MULTILINE_COMMENT=54, SRC_WS=55;
+>>>>>>> fe45b81e08a0983d2518cd98b718f7b0d037f103
   public static final int
     RULE_singleStatement = 0, RULE_query = 1, RULE_sourceCommand = 2, RULE_processingCommand = 3, 
     RULE_whereCommand = 4, RULE_booleanExpression = 5, RULE_valueExpression = 6, 
@@ -54,17 +66,26 @@ public class EsqlBaseParser extends Parser {
   private static String[] makeLiteralNames() {
     return new String[] {
       null, "'eval'", "'explain'", "'from'", "'row'", "'stats'", "'where'", 
+<<<<<<< HEAD
       "'sort'", "'limit'", "'project'", null, null, null, null, null, null, 
       null, null, "'by'", "'and'", "'asc'", "'='", null, "'desc'", "'.'", "'false'", 
       "'first'", "'last'", "'('", "'['", "']'", "'not'", "'null'", "'nulls'", 
       "'or'", "')'", "'true'", "'=='", "'!='", "'<'", "'<='", "'>'", "'>='", 
       "'+'", "'-'", "'*'", "'/'", "'%'"
+=======
+      "'sort'", "'limit'", null, null, null, null, null, null, null, "'by'", 
+      "'and'", "'asc'", "'='", null, "'desc'", "'.'", "'false'", "'first'", 
+      "'last'", "'('", "'['", "']'", "'not'", "'null'", "'nulls'", "'or'", 
+      "')'", "'true'", "'=='", "'!='", "'<'", "'<='", "'>'", "'>='", "'+'", 
+      "'-'", "'*'", "'/'", "'%'"
+>>>>>>> fe45b81e08a0983d2518cd98b718f7b0d037f103
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
   private static String[] makeSymbolicNames() {
     return new String[] {
       null, "EVAL", "EXPLAIN", "FROM", "ROW", "STATS", "WHERE", "SORT", "LIMIT", 
+<<<<<<< HEAD
       "PROJECT", "UNKNOWN_COMMAND", "LINE_COMMENT", "MULTILINE_COMMENT", "WS", 
       "PIPE", "STRING", "INTEGER_LITERAL", "DECIMAL_LITERAL", "BY", "AND", 
       "ASC", "ASSIGN", "COMMA", "DESC", "DOT", "FALSE", "FIRST", "LAST", "LP", 
@@ -73,6 +94,16 @@ public class EsqlBaseParser extends Parser {
       "SLASH", "PERCENT", "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", 
       "EXPR_MULTILINE_COMMENT", "EXPR_WS", "SRC_UNQUOTED_IDENTIFIER", "SRC_QUOTED_IDENTIFIER", 
       "SRC_LINE_COMMENT", "SRC_MULTILINE_COMMENT", "SRC_WS"
+=======
+      "LINE_COMMENT", "MULTILINE_COMMENT", "WS", "PIPE", "STRING", "INTEGER_LITERAL", 
+      "DECIMAL_LITERAL", "BY", "AND", "ASC", "ASSIGN", "COMMA", "DESC", "DOT", 
+      "FALSE", "FIRST", "LAST", "LP", "OPENING_BRACKET", "CLOSING_BRACKET", 
+      "NOT", "NULL", "NULLS", "OR", "RP", "TRUE", "EQ", "NEQ", "LT", "LTE", 
+      "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", "UNQUOTED_IDENTIFIER", 
+      "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", "EXPR_MULTILINE_COMMENT", "EXPR_WS", 
+      "SRC_UNQUOTED_IDENTIFIER", "SRC_QUOTED_IDENTIFIER", "SRC_LINE_COMMENT", 
+      "SRC_MULTILINE_COMMENT", "SRC_WS"
+>>>>>>> fe45b81e08a0983d2518cd98b718f7b0d037f103
     };
   }
   private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -2961,6 +2992,7 @@ public class EsqlBaseParser extends Parser {
   }
 
   public static final String _serializedATN =
+<<<<<<< HEAD
     "\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3;\u0132\4\2\t\2\4"+
     "\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13\t"+
     "\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
@@ -3066,6 +3098,89 @@ public class EsqlBaseParser extends Parser {
     "\u0130C\3\2\2\2$OU]fnpx~\u0086\u0088\u0098\u009b\u009f\u00a9\u00b1\u00b9"+
     "\u00c3\u00cc\u00d4\u00dd\u00e8\u00ed\u00f1\u00f9\u00fe\u0102\u0109\u010e"+
     "\u0113\u0115\u0117\u011a\u011e\u0124";
+=======
+    "\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\39\u00fc\4\2\t\2\4"+
+    "\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13\t"+
+    "\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
+    "\4\23\t\23\4\24\t\24\4\25\t\25\4\26\t\26\4\27\t\27\4\30\t\30\4\31\t\31"+
+    "\4\32\t\32\4\33\t\33\4\34\t\34\4\35\t\35\4\36\t\36\3\2\3\2\3\2\3\3\3\3"+
+    "\3\3\3\3\3\3\3\3\7\3F\n\3\f\3\16\3I\13\3\3\4\3\4\3\4\5\4N\n\4\3\5\3\5"+
+    "\3\5\3\5\3\5\5\5U\n\5\3\6\3\6\3\6\3\7\3\7\3\7\3\7\5\7^\n\7\3\7\3\7\3\7"+
+    "\3\7\3\7\3\7\7\7f\n\7\f\7\16\7i\13\7\3\b\3\b\3\b\3\b\3\b\5\bp\n\b\3\t"+
+    "\3\t\3\t\3\t\5\tv\n\t\3\t\3\t\3\t\3\t\3\t\3\t\7\t~\n\t\f\t\16\t\u0081"+
+    "\13\t\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\3\n\7\n\u008e\n\n\f\n\16"+
+    "\n\u0091\13\n\5\n\u0093\n\n\3\n\3\n\5\n\u0097\n\n\3\13\3\13\3\13\3\f\3"+
+    "\f\3\f\7\f\u009f\n\f\f\f\16\f\u00a2\13\f\3\r\3\r\3\r\3\r\3\r\5\r\u00a9"+
+    "\n\r\3\16\3\16\3\16\3\16\7\16\u00af\n\16\f\16\16\16\u00b2\13\16\3\17\3"+
+    "\17\3\17\3\20\3\20\3\20\3\20\5\20\u00bb\n\20\3\21\3\21\3\22\3\22\3\22"+
+    "\7\22\u00c2\n\22\f\22\16\22\u00c5\13\22\3\23\3\23\3\23\7\23\u00ca\n\23"+
+    "\f\23\16\23\u00cd\13\23\3\24\3\24\3\25\3\25\3\25\3\25\5\25\u00d5\n\25"+
+    "\3\26\3\26\3\26\3\27\3\27\3\27\3\27\7\27\u00de\n\27\f\27\16\27\u00e1\13"+
+    "\27\3\30\3\30\5\30\u00e5\n\30\3\30\3\30\5\30\u00e9\n\30\3\31\3\31\3\32"+
+    "\3\32\5\32\u00ef\n\32\3\33\3\33\3\34\3\34\3\35\3\35\3\35\3\36\3\36\3\36"+
+    "\3\36\3\36\2\5\4\f\20\37\2\4\6\b\n\f\16\20\22\24\26\30\32\34\36 \"$&("+
+    "*,.\60\62\64\668:\2\n\3\2+,\3\2-/\3\2\65\66\3\2\60\61\4\2\24\24\27\27"+
+    "\3\2\32\33\4\2\31\31$$\3\2%*\2\u00fe\2<\3\2\2\2\4?\3\2\2\2\6M\3\2\2\2"+
+    "\bT\3\2\2\2\nV\3\2\2\2\f]\3\2\2\2\16o\3\2\2\2\20u\3\2\2\2\22\u0096\3\2"+
+    "\2\2\24\u0098\3\2\2\2\26\u009b\3\2\2\2\30\u00a8\3\2\2\2\32\u00aa\3\2\2"+
+    "\2\34\u00b3\3\2\2\2\36\u00b6\3\2\2\2 \u00bc\3\2\2\2\"\u00be\3\2\2\2$\u00c6"+
+    "\3\2\2\2&\u00ce\3\2\2\2(\u00d4\3\2\2\2*\u00d6\3\2\2\2,\u00d9\3\2\2\2."+
+    "\u00e2\3\2\2\2\60\u00ea\3\2\2\2\62\u00ee\3\2\2\2\64\u00f0\3\2\2\2\66\u00f2"+
+    "\3\2\2\28\u00f4\3\2\2\2:\u00f7\3\2\2\2<=\5\4\3\2=>\7\2\2\3>\3\3\2\2\2"+
+    "?@\b\3\1\2@A\5\6\4\2AG\3\2\2\2BC\f\3\2\2CD\7\16\2\2DF\5\b\5\2EB\3\2\2"+
+    "\2FI\3\2\2\2GE\3\2\2\2GH\3\2\2\2H\5\3\2\2\2IG\3\2\2\2JN\58\35\2KN\5\32"+
+    "\16\2LN\5\24\13\2MJ\3\2\2\2MK\3\2\2\2ML\3\2\2\2N\7\3\2\2\2OU\5\34\17\2"+
+    "PU\5*\26\2QU\5,\27\2RU\5\36\20\2SU\5\n\6\2TO\3\2\2\2TP\3\2\2\2TQ\3\2\2"+
+    "\2TR\3\2\2\2TS\3\2\2\2U\t\3\2\2\2VW\7\b\2\2WX\5\f\7\2X\13\3\2\2\2YZ\b"+
+    "\7\1\2Z[\7\37\2\2[^\5\f\7\6\\^\5\16\b\2]Y\3\2\2\2]\\\3\2\2\2^g\3\2\2\2"+
+    "_`\f\4\2\2`a\7\23\2\2af\5\f\7\5bc\f\3\2\2cd\7\"\2\2df\5\f\7\4e_\3\2\2"+
+    "\2eb\3\2\2\2fi\3\2\2\2ge\3\2\2\2gh\3\2\2\2h\r\3\2\2\2ig\3\2\2\2jp\5\20"+
+    "\t\2kl\5\20\t\2lm\5\66\34\2mn\5\20\t\2np\3\2\2\2oj\3\2\2\2ok\3\2\2\2p"+
+    "\17\3\2\2\2qr\b\t\1\2rv\5\22\n\2st\t\2\2\2tv\5\20\t\5uq\3\2\2\2us\3\2"+
+    "\2\2v\177\3\2\2\2wx\f\4\2\2xy\t\3\2\2y~\5\20\t\5z{\f\3\2\2{|\t\2\2\2|"+
+    "~\5\20\t\4}w\3\2\2\2}z\3\2\2\2~\u0081\3\2\2\2\177}\3\2\2\2\177\u0080\3"+
+    "\2\2\2\u0080\21\3\2\2\2\u0081\177\3\2\2\2\u0082\u0097\5(\25\2\u0083\u0097"+
+    "\5\"\22\2\u0084\u0085\7\34\2\2\u0085\u0086\5\f\7\2\u0086\u0087\7#\2\2"+
+    "\u0087\u0097\3\2\2\2\u0088\u0089\5&\24\2\u0089\u0092\7\34\2\2\u008a\u008f"+
+    "\5\f\7\2\u008b\u008c\7\26\2\2\u008c\u008e\5\f\7\2\u008d\u008b\3\2\2\2"+
+    "\u008e\u0091\3\2\2\2\u008f\u008d\3\2\2\2\u008f\u0090\3\2\2\2\u0090\u0093"+
+    "\3\2\2\2\u0091\u008f\3\2\2\2\u0092\u008a\3\2\2\2\u0092\u0093\3\2\2\2\u0093"+
+    "\u0094\3\2\2\2\u0094\u0095\7#\2\2\u0095\u0097\3\2\2\2\u0096\u0082\3\2"+
+    "\2\2\u0096\u0083\3\2\2\2\u0096\u0084\3\2\2\2\u0096\u0088\3\2\2\2\u0097"+
+    "\23\3\2\2\2\u0098\u0099\7\6\2\2\u0099\u009a\5\26\f\2\u009a\25\3\2\2\2"+
+    "\u009b\u00a0\5\30\r\2\u009c\u009d\7\26\2\2\u009d\u009f\5\30\r\2\u009e"+
+    "\u009c\3\2\2\2\u009f\u00a2\3\2\2\2\u00a0\u009e\3\2\2\2\u00a0\u00a1\3\2"+
+    "\2\2\u00a1\27\3\2\2\2\u00a2\u00a0\3\2\2\2\u00a3\u00a9\5\f\7\2\u00a4\u00a5"+
+    "\5\"\22\2\u00a5\u00a6\7\25\2\2\u00a6\u00a7\5\f\7\2\u00a7\u00a9\3\2\2\2"+
+    "\u00a8\u00a3\3\2\2\2\u00a8\u00a4\3\2\2\2\u00a9\31\3\2\2\2\u00aa\u00ab"+
+    "\7\5\2\2\u00ab\u00b0\5 \21\2\u00ac\u00ad\7\26\2\2\u00ad\u00af\5 \21\2"+
+    "\u00ae\u00ac\3\2\2\2\u00af\u00b2\3\2\2\2\u00b0\u00ae\3\2\2\2\u00b0\u00b1"+
+    "\3\2\2\2\u00b1\33\3\2\2\2\u00b2\u00b0\3\2\2\2\u00b3\u00b4\7\3\2\2\u00b4"+
+    "\u00b5\5\26\f\2\u00b5\35\3\2\2\2\u00b6\u00b7\7\7\2\2\u00b7\u00ba\5\26"+
+    "\f\2\u00b8\u00b9\7\22\2\2\u00b9\u00bb\5$\23\2\u00ba\u00b8\3\2\2\2\u00ba"+
+    "\u00bb\3\2\2\2\u00bb\37\3\2\2\2\u00bc\u00bd\t\4\2\2\u00bd!\3\2\2\2\u00be"+
+    "\u00c3\5&\24\2\u00bf\u00c0\7\30\2\2\u00c0\u00c2\5&\24\2\u00c1\u00bf\3"+
+    "\2\2\2\u00c2\u00c5\3\2\2\2\u00c3\u00c1\3\2\2\2\u00c3\u00c4\3\2\2\2\u00c4"+
+    "#\3\2\2\2\u00c5\u00c3\3\2\2\2\u00c6\u00cb\5\"\22\2\u00c7\u00c8\7\26\2"+
+    "\2\u00c8\u00ca\5\"\22\2\u00c9\u00c7\3\2\2\2\u00ca\u00cd\3\2\2\2\u00cb"+
+    "\u00c9\3\2\2\2\u00cb\u00cc\3\2\2\2\u00cc%\3\2\2\2\u00cd\u00cb\3\2\2\2"+
+    "\u00ce\u00cf\t\5\2\2\u00cf\'\3\2\2\2\u00d0\u00d5\7 \2\2\u00d1\u00d5\5"+
+    "\62\32\2\u00d2\u00d5\5\60\31\2\u00d3\u00d5\5\64\33\2\u00d4\u00d0\3\2\2"+
+    "\2\u00d4\u00d1\3\2\2\2\u00d4\u00d2\3\2\2\2\u00d4\u00d3\3\2\2\2\u00d5)"+
+    "\3\2\2\2\u00d6\u00d7\7\n\2\2\u00d7\u00d8\7\20\2\2\u00d8+\3\2\2\2\u00d9"+
+    "\u00da\7\t\2\2\u00da\u00df\5.\30\2\u00db\u00dc\7\26\2\2\u00dc\u00de\5"+
+    ".\30\2\u00dd\u00db\3\2\2\2\u00de\u00e1\3\2\2\2\u00df\u00dd\3\2\2\2\u00df"+
+    "\u00e0\3\2\2\2\u00e0-\3\2\2\2\u00e1\u00df\3\2\2\2\u00e2\u00e4\5\f\7\2"+
+    "\u00e3\u00e5\t\6\2\2\u00e4\u00e3\3\2\2\2\u00e4\u00e5\3\2\2\2\u00e5\u00e8"+
+    "\3\2\2\2\u00e6\u00e7\7!\2\2\u00e7\u00e9\t\7\2\2\u00e8\u00e6\3\2\2\2\u00e8"+
+    "\u00e9\3\2\2\2\u00e9/\3\2\2\2\u00ea\u00eb\t\b\2\2\u00eb\61\3\2\2\2\u00ec"+
+    "\u00ef\7\21\2\2\u00ed\u00ef\7\20\2\2\u00ee\u00ec\3\2\2\2\u00ee\u00ed\3"+
+    "\2\2\2\u00ef\63\3\2\2\2\u00f0\u00f1\7\17\2\2\u00f1\65\3\2\2\2\u00f2\u00f3"+
+    "\t\t\2\2\u00f3\67\3\2\2\2\u00f4\u00f5\7\4\2\2\u00f5\u00f6\5:\36\2\u00f6"+
+    "9\3\2\2\2\u00f7\u00f8\7\35\2\2\u00f8\u00f9\5\4\3\2\u00f9\u00fa\7\36\2"+
+    "\2\u00fa;\3\2\2\2\32GMT]egou}\177\u008f\u0092\u0096\u00a0\u00a8\u00b0"+
+    "\u00ba\u00c3\u00cb\u00d4\u00df\u00e4\u00e8\u00ee";
+>>>>>>> fe45b81e08a0983d2518cd98b718f7b0d037f103
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

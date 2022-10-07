@@ -25,7 +25,8 @@ import java.util.Objects;
 public class Explain extends LeafPlan implements Executable {
 
     public enum Type {
-        PARSED
+        PARSED,
+        ANALYZED
     }
 
     private final LogicalPlan query;
@@ -37,7 +38,21 @@ public class Explain extends LeafPlan implements Executable {
 
     @Override
     public void execute(EsqlSession session, ActionListener<Result> listener) {
-        listener.onResponse(new Result(output(), List.of(List.of(query.toString(), Type.PARSED.toString()))));
+        ActionListener<String> analyzedStringListener = listener.map(
+            analyzed -> new Result(
+                output(),
+                List.of(List.of(query.toString(), Type.PARSED.toString()), List.of(analyzed, Type.ANALYZED.toString()))
+            )
+        );
+
+        session.analyzedPlan(
+            query,
+            ActionListener.wrap(
+                analyzed -> analyzedStringListener.onResponse(analyzed.toString()),
+                e -> analyzedStringListener.onResponse(e.toString())
+            )
+        );
+
     }
 
     @Override

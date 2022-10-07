@@ -90,7 +90,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
         String expectedDestIndex,
         String expectedDestPipeline
     ) throws IOException {
-        BytesArray json = new BytesArray("""
+        BytesArray json = new BytesArray(formatted("""
             {
               %s
               "source": {
@@ -116,7 +116,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
                   }
                 }
               }
-            }""".formatted(transformIdJson, destConfigJson));
+            }""", transformIdJson, destConfigJson));
 
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(

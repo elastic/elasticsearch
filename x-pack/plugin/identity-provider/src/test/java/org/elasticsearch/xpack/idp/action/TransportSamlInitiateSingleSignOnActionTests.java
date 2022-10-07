@@ -225,10 +225,10 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
     }
 
     private void assertContainsAttributeWithValue(String message, String attribute, String value) {
-        assertThat(message, containsString("""
+        assertThat(message, containsString(formatted("""
             <saml2:Attribute FriendlyName="%s" Name="https://saml.elasticsearch.org/attributes/%s" \
             NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri"><saml2:AttributeValue \
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xsd:string">%s</saml2:AttributeValue>\
-            </saml2:Attribute>""".formatted(attribute, attribute, value)));
+            </saml2:Attribute>""", attribute, attribute, value)));
     }
 }

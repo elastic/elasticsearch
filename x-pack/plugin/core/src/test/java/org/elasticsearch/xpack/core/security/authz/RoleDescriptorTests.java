@@ -494,7 +494,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final String grant = grantAll ? "\"*\"" : "\"f1\",\"f2\"";
         final String except = grantAll ? "\"_fx\",\"f8\"" : "\"f1\"";
 
-        final String json = """
+        final String json = formatted("""
             {
               "indices": [
                 {
@@ -506,7 +506,7 @@ public class RoleDescriptorTests extends ESTestCase {
                   }
                 }
               ]
-            }""".formatted(grant, except);
+            }""", grant, except);
         final RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertEquals(1, rd.getIndicesPrivileges().length);
@@ -588,7 +588,7 @@ public class RoleDescriptorTests extends ESTestCase {
             }
             profileNamesString.append("\"" + profileNames[i] + "\"");
         }
-        String json = """
+        String json = formatted("""
             {
               "global": {
                 "profile": {
@@ -602,10 +602,10 @@ public class RoleDescriptorTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(profileNamesString, applicationNamesString);
+            }""", profileNamesString, applicationNamesString);
         RoleDescriptor role3 = RoleDescriptor.parse(roleName, new BytesArray(json), false, XContentType.JSON);
         assertThat(role3, is(role1));
-        json = """
+        json = formatted("""
             {
               "global": {
                 "application": {
@@ -619,7 +619,7 @@ public class RoleDescriptorTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(applicationNamesString, profileNamesString);
+            }""", applicationNamesString, profileNamesString);
         RoleDescriptor role4 = RoleDescriptor.parse(roleName, new BytesArray(json), false, XContentType.JSON);
         assertThat(role4, is(role1));
     }

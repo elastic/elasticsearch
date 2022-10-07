@@ -325,6 +325,10 @@ wizard, open the menu and go to *Stack Management > Index Management*. In the
 [role="screenshot"]
 image:images/ilm/create-template-wizard.png[Create template page]
 
+After creating the template navigate back to the ILM policy you created and click on the `+` sign.
+
+Select your index template and set your rollover alias.
+
 The create template request for the example template looks like this:
 
 [source,console]

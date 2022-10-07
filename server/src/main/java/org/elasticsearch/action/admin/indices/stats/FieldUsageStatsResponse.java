@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastXContentResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class FieldUsageStatsResponse extends BroadcastXContentResponse {
+public class FieldUsageStatsResponse extends BroadcastResponse {
     private final Map<String, List<FieldUsageShardResponse>> stats;
 
     FieldUsageStatsResponse(

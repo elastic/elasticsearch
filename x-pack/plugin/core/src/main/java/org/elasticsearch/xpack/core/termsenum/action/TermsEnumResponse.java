@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.action.support.broadcast.BroadcastXContentResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -26,7 +26,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * The response of the _terms_enum action.
  */
-public class TermsEnumResponse extends BroadcastXContentResponse {
+public class TermsEnumResponse extends BroadcastResponse {
 
     public static final String TERMS_FIELD = "terms";
     public static final String COMPLETE_FIELD = "complete";
@@ -36,7 +36,7 @@ public class TermsEnumResponse extends BroadcastXContentResponse {
         "term_enum_results",
         true,
         arg -> {
-            BroadcastResponse response = (BroadcastResponse) arg[0];
+            BaseBroadcastResponse response = (BaseBroadcastResponse) arg[0];
             return new TermsEnumResponse(
                 (List<String>) arg[1],
                 response.getTotalShards(),

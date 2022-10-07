@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastXContentResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.List;
 
-public class ClearSearchableSnapshotsCacheResponse extends BroadcastXContentResponse {
+public class ClearSearchableSnapshotsCacheResponse extends BroadcastResponse {
 
     ClearSearchableSnapshotsCacheResponse(StreamInput in) throws IOException {
         super(in);

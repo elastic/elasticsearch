@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
-import org.elasticsearch.action.support.broadcast.BroadcastXContentResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -160,7 +160,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         }
     }
 
-    public static class Response extends BroadcastXContentResponse implements Writeable {
+    public static class Response extends BroadcastResponse implements Writeable {
         private final boolean created;
 
         private final long numIndexed;

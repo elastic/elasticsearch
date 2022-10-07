@@ -19,7 +19,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.broadcast.BroadcastXContentResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -1058,7 +1058,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             .get();
         final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
 
-        final BroadcastXContentResponse forgetFollowerResponse = leaderClient().execute(
+        final BroadcastResponse forgetFollowerResponse = leaderClient().execute(
             ForgetFollowerAction.INSTANCE,
             new ForgetFollowerAction.Request(
                 getFollowerCluster().getClusterName(),

@@ -37,8 +37,11 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
+
+    private final UnresolvedRelation UNSPECIFIED_RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
 
     protected LogicalPlan plan(ParseTree ctx) {
         return typedParsing(this, ctx, LogicalPlan.class);
@@ -120,13 +123,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> new OrderBy(source, input, orders);
     }
 
-    private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {
-        return ctx.sourceIdentifier().stream().map(this::visitSourceIdentifier).collect(Collectors.joining(","));
-    }
-
     @Override
     public Object visitExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) {
         return new Explain(source(ctx), typedParsing(this, ctx.subqueryExpression().query(), LogicalPlan.class));
+    }
+
+    @Override
+    public PlanFactory visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx) {
+        List<NamedExpression> projections = visitList(this, ctx.projectClause(), NamedExpression.class);
+        return input -> new Project(source(ctx), input, projections);
+    }
+
+    private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {
+        return ctx.sourceIdentifier().stream().map(this::visitSourceIdentifier).collect(Collectors.joining(","));
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

@@ -9,9 +9,14 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.xpack.esql.expression.UnresolvedRemovedAttribute;
+import org.elasticsearch.xpack.esql.expression.UnresolvedRemovedStarAttribute;
+import org.elasticsearch.xpack.esql.expression.UnresolvedRenamedAttribute;
+import org.elasticsearch.xpack.esql.expression.UnresolvedStarAttribute;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
@@ -172,7 +177,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
+    public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         return new UnresolvedFunction(
             source(ctx),
             visitIdentifier(ctx.identifier()),
@@ -201,6 +206,36 @@ public class ExpressionBuilder extends IdentifierBuilder {
                 ? Order.NullsPosition.LAST
                 : Order.NullsPosition.FIRST
         );
+    }
+
+    @Override
+    public NamedExpression visitProjectReorderAll(EsqlBaseParser.ProjectReorderAllContext ctx) {
+        return new UnresolvedStarAttribute(source(ctx), null);
+    }
+
+    @Override
+    public NamedExpression visitProjectAwayOrKeepStar(EsqlBaseParser.ProjectAwayOrKeepStarContext ctx) {
+        Source src = source(ctx);
+        if (ctx.MINUS() != null) {
+            return new UnresolvedRemovedStarAttribute(src, new UnresolvedAttribute(src, ctx.getText().substring(1)));
+        }
+        return new UnresolvedStarAttribute(src, new UnresolvedAttribute(src, ctx.getText()));
+    }
+
+    @Override
+    public NamedExpression visitProjectAwayOrKeep(EsqlBaseParser.ProjectAwayOrKeepContext ctx) {
+        UnresolvedAttribute qualifiedName = visitQualifiedName(ctx.qualifiedName());
+        if (ctx.MINUS() != null) {
+            return new UnresolvedRemovedAttribute(source(ctx), qualifiedName);
+        }
+        return qualifiedName;
+    }
+
+    @Override
+    public NamedExpression visitProjectRename(EsqlBaseParser.ProjectRenameContext ctx) {
+        UnresolvedAttribute newName = visitQualifiedName(ctx.newName);
+        UnresolvedAttribute oldName = visitQualifiedName(ctx.oldName);
+        return new UnresolvedRenamedAttribute(source(ctx), newName, oldName);
     }
 
     private static String unquoteString(Source source) {

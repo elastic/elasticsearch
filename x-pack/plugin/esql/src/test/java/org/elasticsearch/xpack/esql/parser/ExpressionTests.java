@@ -8,9 +8,15 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.UnresolvedRemovedAttribute;
+import org.elasticsearch.xpack.esql.expression.UnresolvedRemovedStarAttribute;
+import org.elasticsearch.xpack.esql.expression.UnresolvedRenamedAttribute;
+import org.elasticsearch.xpack.esql.expression.UnresolvedStarAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -26,6 +32,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Great
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
@@ -45,78 +52,78 @@ public class ExpressionTests extends ESTestCase {
     private final EsqlParser parser = new EsqlParser();
 
     public void testBooleanLiterals() {
-        assertEquals(Literal.TRUE, expression("true"));
-        assertEquals(Literal.FALSE, expression("false"));
-        assertEquals(Literal.NULL, expression("null"));
+        assertEquals(Literal.TRUE, whereExpression("true"));
+        assertEquals(Literal.FALSE, whereExpression("false"));
+        assertEquals(Literal.NULL, whereExpression("null"));
     }
 
     public void testNumberLiterals() {
-        assertEquals(l(123, INTEGER), expression("123"));
-        assertEquals(l(123, INTEGER), expression("+123"));
-        assertEquals(new Neg(null, l(123, INTEGER)), expression("-123"));
-        assertEquals(l(123.123, DOUBLE), expression("123.123"));
-        assertEquals(l(123.123, DOUBLE), expression("+123.123"));
-        assertEquals(new Neg(null, l(123.123, DOUBLE)), expression("-123.123"));
-        assertEquals(l(0.123, DOUBLE), expression(".123"));
-        assertEquals(l(0.123, DOUBLE), expression("0.123"));
-        assertEquals(l(0.123, DOUBLE), expression("+0.123"));
-        assertEquals(new Neg(null, l(0.123, DOUBLE)), expression("-0.123"));
-        assertEquals(l(12345678901L, LONG), expression("12345678901"));
-        assertEquals(l(12345678901L, LONG), expression("+12345678901"));
-        assertEquals(new Neg(null, l(12345678901L, LONG)), expression("-12345678901"));
-        assertEquals(l(123e12, DOUBLE), expression("123e12"));
-        assertEquals(l(123e-12, DOUBLE), expression("123e-12"));
-        assertEquals(l(123E12, DOUBLE), expression("123E12"));
-        assertEquals(l(123E-12, DOUBLE), expression("123E-12"));
+        assertEquals(l(123, INTEGER), whereExpression("123"));
+        assertEquals(l(123, INTEGER), whereExpression("+123"));
+        assertEquals(new Neg(null, l(123, INTEGER)), whereExpression("-123"));
+        assertEquals(l(123.123, DOUBLE), whereExpression("123.123"));
+        assertEquals(l(123.123, DOUBLE), whereExpression("+123.123"));
+        assertEquals(new Neg(null, l(123.123, DOUBLE)), whereExpression("-123.123"));
+        assertEquals(l(0.123, DOUBLE), whereExpression(".123"));
+        assertEquals(l(0.123, DOUBLE), whereExpression("0.123"));
+        assertEquals(l(0.123, DOUBLE), whereExpression("+0.123"));
+        assertEquals(new Neg(null, l(0.123, DOUBLE)), whereExpression("-0.123"));
+        assertEquals(l(12345678901L, LONG), whereExpression("12345678901"));
+        assertEquals(l(12345678901L, LONG), whereExpression("+12345678901"));
+        assertEquals(new Neg(null, l(12345678901L, LONG)), whereExpression("-12345678901"));
+        assertEquals(l(123e12, DOUBLE), whereExpression("123e12"));
+        assertEquals(l(123e-12, DOUBLE), whereExpression("123e-12"));
+        assertEquals(l(123E12, DOUBLE), whereExpression("123E12"));
+        assertEquals(l(123E-12, DOUBLE), whereExpression("123E-12"));
     }
 
     public void testMinusSign() {
-        assertEquals(new Neg(null, l(123, INTEGER)), expression("+(-123)"));
-        assertEquals(new Neg(null, l(123, INTEGER)), expression("+(+(-123))"));
+        assertEquals(new Neg(null, l(123, INTEGER)), whereExpression("+(-123)"));
+        assertEquals(new Neg(null, l(123, INTEGER)), whereExpression("+(+(-123))"));
         // we could do better here. ES SQL is smarter and accounts for the number of minuses
-        assertEquals(new Neg(null, new Neg(null, l(123, INTEGER))), expression("-(-123)"));
+        assertEquals(new Neg(null, new Neg(null, l(123, INTEGER))), whereExpression("-(-123)"));
     }
 
     public void testStringLiterals() {
-        assertEquals(l("abc", KEYWORD), expression("\"abc\""));
-        assertEquals(l("123.123", KEYWORD), expression("\"123.123\""));
+        assertEquals(l("abc", KEYWORD), whereExpression("\"abc\""));
+        assertEquals(l("123.123", KEYWORD), whereExpression("\"123.123\""));
 
-        assertEquals(l("hello\"world", KEYWORD), expression("\"hello\\\"world\""));
-        assertEquals(l("hello'world", KEYWORD), expression("\"hello'world\""));
-        assertEquals(l("\"hello\"world\"", KEYWORD), expression("\"\\\"hello\\\"world\\\"\""));
-        assertEquals(l("\"hello\nworld\"", KEYWORD), expression("\"\\\"hello\\nworld\\\"\""));
-        assertEquals(l("hello\nworld", KEYWORD), expression("\"hello\\nworld\""));
-        assertEquals(l("hello\\world", KEYWORD), expression("\"hello\\\\world\""));
-        assertEquals(l("hello\rworld", KEYWORD), expression("\"hello\\rworld\""));
-        assertEquals(l("hello\tworld", KEYWORD), expression("\"hello\\tworld\""));
-        assertEquals(l("C:\\Program Files\\Elastic", KEYWORD), expression("\"C:\\\\Program Files\\\\Elastic\""));
+        assertEquals(l("hello\"world", KEYWORD), whereExpression("\"hello\\\"world\""));
+        assertEquals(l("hello'world", KEYWORD), whereExpression("\"hello'world\""));
+        assertEquals(l("\"hello\"world\"", KEYWORD), whereExpression("\"\\\"hello\\\"world\\\"\""));
+        assertEquals(l("\"hello\nworld\"", KEYWORD), whereExpression("\"\\\"hello\\nworld\\\"\""));
+        assertEquals(l("hello\nworld", KEYWORD), whereExpression("\"hello\\nworld\""));
+        assertEquals(l("hello\\world", KEYWORD), whereExpression("\"hello\\\\world\""));
+        assertEquals(l("hello\rworld", KEYWORD), whereExpression("\"hello\\rworld\""));
+        assertEquals(l("hello\tworld", KEYWORD), whereExpression("\"hello\\tworld\""));
+        assertEquals(l("C:\\Program Files\\Elastic", KEYWORD), whereExpression("\"C:\\\\Program Files\\\\Elastic\""));
 
-        assertEquals(l("C:\\Program Files\\Elastic", KEYWORD), expression("\"\"\"C:\\Program Files\\Elastic\"\"\""));
-        assertEquals(l("\"\"hello world\"\"", KEYWORD), expression("\"\"\"\"\"hello world\"\"\"\"\""));
-        assertEquals(l("hello \"\"\" world", KEYWORD), expression("\"hello \\\"\\\"\\\" world\""));
-        assertEquals(l("hello\\nworld", KEYWORD), expression("\"\"\"hello\\nworld\"\"\""));
-        assertEquals(l("hello\\tworld", KEYWORD), expression("\"\"\"hello\\tworld\"\"\""));
-        assertEquals(l("hello world\\", KEYWORD), expression("\"\"\"hello world\\\"\"\""));
-        assertEquals(l("hello            world\\", KEYWORD), expression("\"\"\"hello            world\\\"\"\""));
-        assertEquals(l("\t \n \r \" \\ ", KEYWORD), expression("\"\\t \\n \\r \\\" \\\\ \""));
+        assertEquals(l("C:\\Program Files\\Elastic", KEYWORD), whereExpression("\"\"\"C:\\Program Files\\Elastic\"\"\""));
+        assertEquals(l("\"\"hello world\"\"", KEYWORD), whereExpression("\"\"\"\"\"hello world\"\"\"\"\""));
+        assertEquals(l("hello \"\"\" world", KEYWORD), whereExpression("\"hello \\\"\\\"\\\" world\""));
+        assertEquals(l("hello\\nworld", KEYWORD), whereExpression("\"\"\"hello\\nworld\"\"\""));
+        assertEquals(l("hello\\tworld", KEYWORD), whereExpression("\"\"\"hello\\tworld\"\"\""));
+        assertEquals(l("hello world\\", KEYWORD), whereExpression("\"\"\"hello world\\\"\"\""));
+        assertEquals(l("hello            world\\", KEYWORD), whereExpression("\"\"\"hello            world\\\"\"\""));
+        assertEquals(l("\t \n \r \" \\ ", KEYWORD), whereExpression("\"\\t \\n \\r \\\" \\\\ \""));
     }
 
     public void testStringLiteralsExceptions() {
-        assertParsingException(() -> expression("\"\"\"\"\"\"foo\"\""), "line 1:22: mismatched input 'foo' expecting {<EOF>,");
-        assertParsingException(() -> expression("\"foo\" == \"\"\"\"\"\"bar\"\"\""), "line 1:31: mismatched input 'bar' expecting {<EOF>,");
+        assertParsingException(() -> whereExpression("\"\"\"\"\"\"foo\"\""), "line 1:22: mismatched input 'foo' expecting {<EOF>,");
+        assertParsingException(() -> whereExpression("\"foo\" == \"\"\"\"\"\"bar\"\"\""), "line 1:31: mismatched input 'bar' expecting {<EOF>,");
         assertParsingException(
-            () -> expression("\"\"\"\"\"\\\"foo\"\"\"\"\"\" != \"\"\"bar\"\"\""),
+            () -> whereExpression("\"\"\"\"\"\\\"foo\"\"\"\"\"\" != \"\"\"bar\"\"\""),
             "line 1:31: mismatched input '\" != \"' expecting {<EOF>,"
         );
         assertParsingException(
-            () -> expression("\"\"\"\"\"\\\"foo\"\"\\\"\"\"\" == \"\"\"\"\"\\\"bar\\\"\\\"\"\"\"\"\""),
+            () -> whereExpression("\"\"\"\"\"\\\"foo\"\"\\\"\"\"\" == \"\"\"\"\"\\\"bar\\\"\\\"\"\"\"\"\""),
             "line 1:55: token recognition error at: '\"'"
         );
-        assertParsingException(() -> expression("\"\"\"\"\"\" foo \"\"\"\" == abc"), "line 1:23: mismatched input 'foo' expecting {<EOF>,");
+        assertParsingException(() -> whereExpression("\"\"\"\"\"\" foo \"\"\"\" == abc"), "line 1:23: mismatched input 'foo' expecting {<EOF>,");
     }
 
     public void testBooleanLiteralsCondition() {
-        Expression expression = expression("true and false");
+        Expression expression = whereExpression("true and false");
         assertThat(expression, instanceOf(And.class));
         And and = (And) expression;
         assertThat(and.left(), equalTo(Literal.TRUE));
@@ -124,7 +131,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testArithmeticOperationCondition() {
-        Expression expression = expression("-a-b*c == 123");
+        Expression expression = whereExpression("-a-b*c == 123");
         assertThat(expression, instanceOf(Equals.class));
         Equals eq = (Equals) expression;
         assertThat(eq.right(), instanceOf(Literal.class));
@@ -143,7 +150,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testConjunctionDisjunctionCondition() {
-        Expression expression = expression("not aaa and b or c");
+        Expression expression = whereExpression("not aaa and b or c");
         assertThat(expression, instanceOf(Or.class));
         Or or = (Or) expression;
         assertThat(or.right(), instanceOf(UnresolvedAttribute.class));
@@ -160,7 +167,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testParenthesizedExpression() {
-        Expression expression = expression("((a and ((b and c))) or (((x or y))))");
+        Expression expression = whereExpression("((a and ((b and c))) or (((x or y))))");
         assertThat(expression, instanceOf(Or.class));
         Or or = (Or) expression;
 
@@ -186,7 +193,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCommandNamesAsIdentifiers() {
-        Expression expr = expression("from and where");
+        Expression expr = whereExpression("from and where");
         assertThat(expr, instanceOf(And.class));
         And and = (And) expr;
 
@@ -198,7 +205,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testIdentifiersCaseSensitive() {
-        Expression expr = expression("hElLo");
+        Expression expr = whereExpression("hElLo");
 
         assertThat(expr, instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) expr).name(), equalTo("hElLo"));
@@ -208,7 +215,7 @@ public class ExpressionTests extends ESTestCase {
      * a > 1 and b > 1 + 2 => (a > 1) and (b > (1 + 2))
      */
     public void testOperatorsPrecedenceWithConjunction() {
-        Expression expression = expression("a > 1 and b > 1 + 2");
+        Expression expression = whereExpression("a > 1 and b > 1 + 2");
         assertThat(expression, instanceOf(And.class));
         And and = (And) expression;
 
@@ -233,7 +240,7 @@ public class ExpressionTests extends ESTestCase {
      * a <= 1 or b >= 5 / 2 and c != 5 => (a <= 1) or (b >= (5 / 2) and not(c == 5))
      */
     public void testOperatorsPrecedenceWithDisjunction() {
-        Expression expression = expression("a <= 1 or b >= 5 / 2 and c != 5");
+        Expression expression = whereExpression("a <= 1 or b >= 5 / 2 and c != 5");
         assertThat(expression, instanceOf(Or.class));
         Or or = (Or) expression;
 
@@ -270,7 +277,7 @@ public class ExpressionTests extends ESTestCase {
      * not a == 1 or not b >= 5 and c == 5 => (not (a == 1)) or ((not (b >= 5)) and c == 5)
      */
     public void testOperatorsPrecedenceWithNegation() {
-        Expression expression = expression("not a == 1 or not b >= 5 and c == 5");
+        Expression expression = whereExpression("not a == 1 or not b >= 5 and c == 5");
         assertThat(expression, instanceOf(Or.class));
         Or or = (Or) expression;
 
@@ -299,23 +306,23 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testOperatorsPrecedenceExpressionsEquality() {
-        assertThat(expression("a-1>2 or b>=5 and c-1>=5"), equalTo(expression("((a-1)>2 or (b>=5 and (c-1)>=5))")));
+        assertThat(whereExpression("a-1>2 or b>=5 and c-1>=5"), equalTo(whereExpression("((a-1)>2 or (b>=5 and (c-1)>=5))")));
         assertThat(
-            expression("a*5==25 and b>5 and c%4>=1 or true or false"),
-            equalTo(expression("(((((a*5)==25) and (b>5) and ((c%4)>=1)) or true) or false)"))
+            whereExpression("a*5==25 and b>5 and c%4>=1 or true or false"),
+            equalTo(whereExpression("(((((a*5)==25) and (b>5) and ((c%4)>=1)) or true) or false)"))
         );
         assertThat(
-            expression("a*4-b*5<100 and b/2+c*6>=50 or c%5+x>=5"),
-            equalTo(expression("((((a*4)-(b*5))<100) and (((b/2)+(c*6))>=50)) or (((c%5)+x)>=5)"))
+            whereExpression("a*4-b*5<100 and b/2+c*6>=50 or c%5+x>=5"),
+            equalTo(whereExpression("((((a*4)-(b*5))<100) and (((b/2)+(c*6))>=50)) or (((c%5)+x)>=5)"))
         );
         assertThat(
-            expression("true and false or true and c/12+x*5-y%2>=50"),
-            equalTo(expression("((true and false) or (true and (((c/12)+(x*5)-(y%2))>=50)))"))
+            whereExpression("true and false or true and c/12+x*5-y%2>=50"),
+            equalTo(whereExpression("((true and false) or (true and (((c/12)+(x*5)-(y%2))>=50)))"))
         );
     }
 
     public void testFunctionExpressions() {
-        assertEquals(new UnresolvedFunction(EMPTY, "fn", DEFAULT, new ArrayList<>()), expression("fn()"));
+        assertEquals(new UnresolvedFunction(EMPTY, "fn", DEFAULT, new ArrayList<>()), whereExpression("fn()"));
         assertEquals(
             new UnresolvedFunction(
                 EMPTY,
@@ -328,15 +335,86 @@ public class ExpressionTests extends ESTestCase {
                     )
                 )
             ),
-            expression("invoke(a, b + c)")
+            whereExpression("invoke(a, b + c)")
         );
-        assertEquals(expression("(invoke((a + b)))"), expression("invoke(a+b)"));
-        assertEquals(expression("((fn()) + fn(fn()))"), expression("fn() + fn(fn())"));
+        assertEquals(whereExpression("(invoke((a + b)))"), whereExpression("invoke(a+b)"));
+        assertEquals(whereExpression("((fn()) + fn(fn()))"), whereExpression("fn() + fn(fn())"));
     }
 
-    private Expression expression(String e) {
+    public void testWildcardProjectKeepPatterns() {
+        String[] exp = new String[] {"a*", "*a", "a.*", "a.a.*.*.a", "*.a.a.a.*", "*abc.*", "a*b*c", "*a*", "*a*b", "a*b*", "*a*b*c*", "a*b*c*", "*a*b*c", "a*b*c*a.b*", "a*b*c*a.b.*", "*a.b.c*b*c*a.b.*"};
+        List<?> projections;
+        for (String e : exp) {
+            projections = projectExpression(e);
+            assertThat(projections.size(), equalTo(1));
+            assertThat("Projection [" + e + "] has an unexpected type", projections.get(0), instanceOf(UnresolvedStarAttribute.class));
+            assertThat(((UnresolvedStarAttribute) projections.get(0)).qualifier().name(), equalTo(e));
+        }
+
+        projections = projectExpression("*");
+        assertThat(projections.size(), equalTo(1));
+        assertThat(projections.get(0), instanceOf(UnresolvedStarAttribute.class));
+        assertThat(((UnresolvedStarAttribute) projections.get(0)).qualifier(), equalTo(null));
+    }
+
+    public void testWildcardProjectAwayPatterns() {
+        String[] exp = new String[] {"-a*", "-*a", "-a.*", "-a.a.*.*.a", "-*.a.a.a.*", "-*abc.*", "-a*b*c", "-*a*", "-*a*b", "-a*b*", "-*a*b*c*", "-a*b*c*", "-*a*b*c", "-a*b*c*a.b*", "-a*b*c*a.b.*", "-*a.b.c*b*c*a.b.*"};
+        List<?> projections;
+        for (String e : exp) {
+            projections = projectExpression(e);
+            assertThat(projections.size(), equalTo(1));
+            assertThat("Projection [" + e + "] has an unexpected type", projections.get(0), instanceOf(UnresolvedRemovedStarAttribute.class));
+            assertThat(((UnresolvedRemovedStarAttribute) projections.get(0)).qualifier().name(), equalTo(e.substring(1)));
+        }
+    }
+
+    public void testProjectKeepPatterns() {
+        String[] exp = new String[] {"abc", "abc.xyz", "a.b.c.d.e"};
+        List<?> projections;
+        for (String e : exp) {
+            projections = projectExpression(e);
+            assertThat(projections.size(), equalTo(1));
+            assertThat(projections.get(0), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) projections.get(0)).name(), equalTo(e));
+        }
+    }
+
+    public void testProjectAwayPatterns() {
+        String[] exp = new String[] {"-abc", "-abc.xyz", "-a.b.c.d.e"};
+        List<?> projections;
+        for (String e : exp) {
+            projections = projectExpression(e);
+            assertThat(projections.size(), equalTo(1));
+            assertThat(projections.get(0), instanceOf(UnresolvedRemovedAttribute.class));
+            assertThat(((UnresolvedRemovedAttribute) projections.get(0)).qualifier().name(), equalTo(e.substring(1)));
+        }
+    }
+
+    public void testProjectRename() {
+        String[] newName = new String[] {"a", "a.b", "a", "x.y"};
+        String[] oldName = new String[] {"b", "a.c", "x.y", "a"};
+        List<?> projections;
+        for (int i = 0; i < newName.length; i++) {
+            projections = projectExpression(newName[i] + "=" + oldName[i]);
+            assertThat(projections.size(), equalTo(1));
+            assertThat(projections.get(0), instanceOf(UnresolvedRenamedAttribute.class));
+            UnresolvedRenamedAttribute attr = (UnresolvedRenamedAttribute) projections.get(0);
+            assertThat(attr.newName().name(), equalTo(newName[i]));
+            assertThat(attr.oldName().name(), equalTo(oldName[i]));
+        }
+
+        // wildcarded renaming projections are not supported at the moment
+        assertParsingException(() -> projectExpression("a*=b*"), "line 1:20: mismatched input '='");
+    }
+
+    private Expression whereExpression(String e) {
         LogicalPlan plan = parser.createStatement("from a | where " + e);
         return ((Filter) plan).condition();
+    }
+
+    private List<? extends NamedExpression> projectExpression(String e) {
+        LogicalPlan plan = parser.createStatement("from a | project " + e);
+        return ((Project) plan).projections();
     }
 
     private Literal l(Object value, DataType type) {

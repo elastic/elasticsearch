@@ -436,6 +436,90 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterProjectCommand(EsqlBaseParser.ProjectCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterProjectReorderAll(EsqlBaseParser.ProjectReorderAllContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitProjectReorderAll(EsqlBaseParser.ProjectReorderAllContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterProjectAwayOrKeep(EsqlBaseParser.ProjectAwayOrKeepContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitProjectAwayOrKeep(EsqlBaseParser.ProjectAwayOrKeepContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterProjectAwayOrKeepStar(EsqlBaseParser.ProjectAwayOrKeepStarContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitProjectAwayOrKeepStar(EsqlBaseParser.ProjectAwayOrKeepStarContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterProjectRename(EsqlBaseParser.ProjectRenameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitProjectRename(EsqlBaseParser.ProjectRenameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterAsteriskIdentifier(EsqlBaseParser.AsteriskIdentifierContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitAsteriskIdentifier(EsqlBaseParser.AsteriskIdentifierContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterDotAsterisk(EsqlBaseParser.DotAsteriskContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDotAsterisk(EsqlBaseParser.DotAsteriskContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterBooleanValue(EsqlBaseParser.BooleanValueContext ctx) { }
   /**
    * {@inheritDoc}

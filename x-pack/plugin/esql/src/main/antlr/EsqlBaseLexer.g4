@@ -8,6 +8,7 @@ STATS : 'stats' -> pushMode(EXPRESSION);
 WHERE : 'where' -> pushMode(EXPRESSION);
 SORT : 'sort' -> pushMode(EXPRESSION);
 LIMIT : 'limit' -> pushMode(EXPRESSION);
+PROJECT : 'project' -> pushMode(EXPRESSION);
 UNKNOWN_COMMAND : ~[ \r\n\t]+ -> pushMode(EXPRESSION);
 
 LINE_COMMENT

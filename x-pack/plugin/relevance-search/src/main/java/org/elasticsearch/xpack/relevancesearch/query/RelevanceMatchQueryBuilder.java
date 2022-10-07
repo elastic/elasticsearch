@@ -14,7 +14,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -112,11 +115,13 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
 
         Map<String, Float> fieldsAndBoosts;
+        String scriptSource = null;
         if (relevanceSettingsId != null) {
             try {
                 RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
                 QueryConfiguration queryConfiguration = relevanceSettings.getQueryConfiguration();
                 fieldsAndBoosts = queryConfiguration.getFieldsAndBoosts();
+                scriptSource = queryConfiguration.getScriptSource();
             } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
                 throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
             } catch (RelevanceSettingsService.RelevanceSettingsInvalidException e) {
@@ -130,9 +135,14 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
             fieldsAndBoosts = fields.stream().collect(Collectors.toMap(Function.identity(), (field) -> AbstractQueryBuilder.DEFAULT_BOOST));
         }
 
-        final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fieldsAndBoosts);
-
+        QueryBuilder builder;
+        if (scriptSource == null) {
+            builder = new CombinedFieldsQueryBuilder(query, fieldsAndBoosts);
+        } else {
+            builder = QueryBuilders.scriptScoreQuery(new CombinedFieldsQueryBuilder(query, fieldsAndBoosts), new Script(scriptSource));
+        }
         return builder.toQuery(context);
+
     }
 
     @Override

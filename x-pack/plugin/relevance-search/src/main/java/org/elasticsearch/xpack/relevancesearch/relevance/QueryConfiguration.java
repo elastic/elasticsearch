@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.relevancesearch.relevance;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ScriptScoreBoost;
 
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -64,5 +65,45 @@ public class QueryConfiguration {
                 "Invalid boost detected in relevance settings, must be numeric"
             );
         }
+    }
+
+    public String getScriptSource() {
+        if (this.scriptScores == null || this.scriptScores.isEmpty()) {
+            return null;
+        }
+        String addScores = String.join(" + ", additiveScriptSources());
+        String mulScores = String.join(" * ", multiplicativeScriptSources());
+        if (addScores.length() > 0 && mulScores.length() > 0) {
+            return MessageFormat.format("Math.max(_score * ({0}) + ({1}) - _score, 0)", mulScores, addScores);
+        } else if (addScores.length() > 0) {
+            return MessageFormat.format("Math.max({0} - _score, 0)", addScores);
+        } else if (mulScores.length() > 0) {
+            return MessageFormat.format("Math.max(_score * ({0}) - _score, 0)", mulScores);
+        }
+        return null;
+    }
+
+    public List<String> additiveScriptSources() {
+        List<String> scriptSources = new ArrayList<>();
+        for (String field : this.scriptScores.keySet()) {
+            for (ScriptScoreBoost boost : this.scriptScores.get(field)) {
+                if (boost.isAdditive()) {
+                    scriptSources.add(boost.getSource(field));
+                }
+            }
+        }
+        return scriptSources;
+    }
+
+    public List<String> multiplicativeScriptSources() {
+        List<String> scriptSources = new ArrayList<>();
+        for (String field : this.scriptScores.keySet()) {
+            for (ScriptScoreBoost boost : this.scriptScores.get(field)) {
+                if (boost.isMultiplicative()) {
+                    scriptSources.add(boost.getSource(field));
+                }
+            }
+        }
+        return scriptSources;
     }
 }

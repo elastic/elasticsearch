@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 import java.util.Objects;
 
 public class ProximityBoost extends ScriptScoreBoost {
-    private String center;
-    private String function;
-    private Float factor;
+    private final String center;
+    private final String function;
+    private final Float factor;
 
     public static final String TYPE = "proximity";
 
     public ProximityBoost(String center, String function, Float factor) {
-        super(TYPE);
+        super(TYPE, null);
         this.center = center;
         this.function = function;
         this.factor = factor;
@@ -46,5 +46,10 @@ public class ProximityBoost extends ScriptScoreBoost {
     @Override
     public int hashCode() {
         return Objects.hash(type, center, function, factor);
+    }
+
+    @Override
+    public String getSource(String field) {
+        throw new UnsupportedOperationException("Not implemented");
     }
 }

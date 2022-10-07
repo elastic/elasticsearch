@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 
+import java.text.MessageFormat;
 import java.util.Objects;
 
 public class ValueBoost extends ScriptScoreBoost {
@@ -17,7 +18,7 @@ public class ValueBoost extends ScriptScoreBoost {
     public static final String TYPE = "value";
 
     public ValueBoost(String value, String operation, Float factor) {
-        super(TYPE);
+        super(TYPE, operation);
         this.value = value;
         this.operation = operation;
         this.factor = factor;
@@ -25,10 +26,6 @@ public class ValueBoost extends ScriptScoreBoost {
 
     public String getValue() {
         return value;
-    }
-
-    public String getOperation() {
-        return operation;
     }
 
     public Float getFactor() {
@@ -46,5 +43,9 @@ public class ValueBoost extends ScriptScoreBoost {
     @Override
     public int hashCode() {
         return Objects.hash(type, value, operation, factor);
+    }
+
+    public String getSource(String field) {
+        return MessageFormat.format("(((doc[''{0}''].size() > 0) && (doc[''{0}''].value == {1})) ? {2} : 0)", field, value, factor);
     }
 }

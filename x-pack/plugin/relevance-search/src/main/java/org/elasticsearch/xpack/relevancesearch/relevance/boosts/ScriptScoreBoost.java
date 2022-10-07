@@ -8,16 +8,40 @@
 package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 
 import java.util.Map;
+import java.util.Objects;
 
 public abstract class ScriptScoreBoost {
     protected String type;
+    protected String operation = "multiply";
 
-    protected ScriptScoreBoost(String type) {
+    protected ScriptScoreBoost(String type, String operation) {
         this.type = type;
+        this.operation = operation;
+    }
+
+    public String getOperation() {
+        return operation;
     }
 
     public String getType() {
         return type;
+    }
+
+    public abstract String getSource(String field);
+
+    public boolean isAdditive() {
+        return Objects.equals(this.operation, "add");
+    }
+
+    public boolean isMultiplicative() {
+        return Objects.equals(this.operation, "multiply");
+    }
+
+    protected String constantFactor() {
+        if (Objects.equals(this.operation, "add")) {
+            return "0";
+        }
+        return "1";
     }
 
     public static ScriptScoreBoost parse(Map<String, Object> props) {

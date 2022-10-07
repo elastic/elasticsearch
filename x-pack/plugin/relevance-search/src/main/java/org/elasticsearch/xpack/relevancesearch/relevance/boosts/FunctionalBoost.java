@@ -7,28 +7,23 @@
 
 package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 
+import java.text.MessageFormat;
 import java.util.Objects;
 
 public class FunctionalBoost extends ScriptScoreBoost {
-    private String function;
-    private String operation;
-    private Float factor;
+    private final String function;
+    private final Float factor;
 
     public static final String TYPE = "functional";
 
     public FunctionalBoost(String function, String operation, Float factor) {
-        super(TYPE);
+        super(TYPE, operation);
         this.function = function;
-        this.operation = operation;
         this.factor = factor;
     }
 
     public String getFunction() {
         return function;
-    }
-
-    public String getOperation() {
-        return operation;
     }
 
     public Float getFactor() {
@@ -48,5 +43,27 @@ public class FunctionalBoost extends ScriptScoreBoost {
     @Override
     public int hashCode() {
         return Objects.hash(type, function, operation, factor);
+    }
+
+    @Override
+    public String getSource(String field) {
+        switch (function) {
+            case "logarithmic":
+                return MessageFormat.format("{0} * Math.max(0.0001, Math.log(Math.max(0.0001, {1})))", factor, safeLogValue(field));
+            case "exponential":
+                return MessageFormat.format("{0} * Math.exp({1})", factor, safeValue(field));
+            case "linear":
+                return MessageFormat.format("{0} * ({1})", factor, safeValue(field));
+            default:
+                throw new IllegalArgumentException("Incorrect function: [" + function + "]");
+        }
+    }
+
+    private String safeValue(String field) {
+        return MessageFormat.format("(doc[''{0}''].size() > 0) ? doc[''{0}''].value : {1}", field, constantFactor());
+    }
+
+    private String safeLogValue(String field) {
+        return MessageFormat.format("(doc[''{0}''].size() > 0) ? (doc[''{0}''].value + 1) : {1}", field, constantFactor());
     }
 }

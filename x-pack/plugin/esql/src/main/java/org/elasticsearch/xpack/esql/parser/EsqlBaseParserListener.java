@@ -394,6 +394,84 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitOrderExpression(EsqlBaseParser.OrderExpressionContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#projectCommand}.
+   * @param ctx the parse tree
+   */
+  void enterProjectCommand(EsqlBaseParser.ProjectCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#projectCommand}.
+   * @param ctx the parse tree
+   */
+  void exitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code projectReorderAll}
+   * labeled alternative in {@link EsqlBaseParser#projectClause}.
+   * @param ctx the parse tree
+   */
+  void enterProjectReorderAll(EsqlBaseParser.ProjectReorderAllContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code projectReorderAll}
+   * labeled alternative in {@link EsqlBaseParser#projectClause}.
+   * @param ctx the parse tree
+   */
+  void exitProjectReorderAll(EsqlBaseParser.ProjectReorderAllContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code projectAwayOrKeep}
+   * labeled alternative in {@link EsqlBaseParser#projectClause}.
+   * @param ctx the parse tree
+   */
+  void enterProjectAwayOrKeep(EsqlBaseParser.ProjectAwayOrKeepContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code projectAwayOrKeep}
+   * labeled alternative in {@link EsqlBaseParser#projectClause}.
+   * @param ctx the parse tree
+   */
+  void exitProjectAwayOrKeep(EsqlBaseParser.ProjectAwayOrKeepContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code projectAwayOrKeepStar}
+   * labeled alternative in {@link EsqlBaseParser#projectClause}.
+   * @param ctx the parse tree
+   */
+  void enterProjectAwayOrKeepStar(EsqlBaseParser.ProjectAwayOrKeepStarContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code projectAwayOrKeepStar}
+   * labeled alternative in {@link EsqlBaseParser#projectClause}.
+   * @param ctx the parse tree
+   */
+  void exitProjectAwayOrKeepStar(EsqlBaseParser.ProjectAwayOrKeepStarContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code projectRename}
+   * labeled alternative in {@link EsqlBaseParser#projectClause}.
+   * @param ctx the parse tree
+   */
+  void enterProjectRename(EsqlBaseParser.ProjectRenameContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code projectRename}
+   * labeled alternative in {@link EsqlBaseParser#projectClause}.
+   * @param ctx the parse tree
+   */
+  void exitProjectRename(EsqlBaseParser.ProjectRenameContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#asteriskIdentifier}.
+   * @param ctx the parse tree
+   */
+  void enterAsteriskIdentifier(EsqlBaseParser.AsteriskIdentifierContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#asteriskIdentifier}.
+   * @param ctx the parse tree
+   */
+  void exitAsteriskIdentifier(EsqlBaseParser.AsteriskIdentifierContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#dotAsterisk}.
+   * @param ctx the parse tree
+   */
+  void enterDotAsterisk(EsqlBaseParser.DotAsteriskContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#dotAsterisk}.
+   * @param ctx the parse tree
+   */
+  void exitDotAsterisk(EsqlBaseParser.DotAsteriskContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#booleanValue}.
    * @param ctx the parse tree
    */

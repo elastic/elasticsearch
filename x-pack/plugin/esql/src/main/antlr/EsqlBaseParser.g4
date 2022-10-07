@@ -28,6 +28,7 @@ sourceCommand
 processingCommand
     : evalCommand
     | limitCommand
+    | projectCommand
     | sortCommand
     | statsCommand
     | whereCommand
@@ -123,6 +124,25 @@ sortCommand
 
 orderExpression
     : booleanExpression ordering=(ASC | DESC)? (NULLS nullOrdering=(FIRST | LAST))?
+    ;
+
+projectCommand
+    : PROJECT projectClause (COMMA projectClause)*
+    ;
+
+projectClause
+    : ASTERISK                                                                     #projectReorderAll
+    | MINUS? qualifiedName                                                         #projectAwayOrKeep
+    | MINUS? asteriskIdentifier                                                    #projectAwayOrKeepStar
+    | newName=qualifiedName ASSIGN oldName=qualifiedName                           #projectRename
+    ;
+
+asteriskIdentifier
+    : ((dotAsterisk qualifiedName dotAsterisk?) | (qualifiedName dotAsterisk qualifiedName?))+
+    ;
+
+dotAsterisk
+    : DOT? ASTERISK DOT?
     ;
 
 booleanValue

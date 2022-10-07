@@ -177,6 +177,15 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
     }
 
     /**
+     * @return whether wildcard expression should get expanded
+     */
+    public boolean expandWildcardExpressions() {
+        // only check open/closed since if we do not expand to open or closed it doesn't make sense to
+        // expand to hidden
+        return expandWildcardsOpen() || expandWildcardsClosed();
+    }
+
+    /**
      * @return Whether wildcard expressions should get expanded to hidden indices
      */
     public boolean expandWildcardsHidden() {

@@ -84,7 +84,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, true);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(XContentHelper.stripWhitespace("""
+        assertEquals(XContentHelper.stripWhitespace(formatted("""
             {
               "index": "idx",
               "shard": 0,
@@ -100,7 +100,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
               "can_rebalance_cluster": "yes",
               "can_rebalance_to_other_node": "no",
               "rebalance_explanation": "%s"
-            }""".formatted(cae.getCurrentNode().getAddress(), Explanations.Rebalance.ALREADY_BALANCED)), Strings.toString(builder));
+            }""", cae.getCurrentNode().getAddress(), Explanations.Rebalance.ALREADY_BALANCED)), Strings.toString(builder));
     }
 
     public void testRandomShardExplanationToXContent() throws Exception {
@@ -112,24 +112,25 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             actual,
             equalTo(
                 XContentHelper.stripWhitespace(
-                    """
-                        {
-                          "note": "%s",
-                          "index": "idx",
-                          "shard": 0,
-                          "primary": true,
-                          "current_state": "started",
-                          "current_node": {
-                            "id": "node-0",
-                            "name": "",
-                            "transport_address": "%s",
-                            "weight_ranking": 3
-                          },
-                          "can_remain_on_current_node": "yes",
-                          "can_rebalance_cluster": "yes",
-                          "can_rebalance_to_other_node": "no",
-                          "rebalance_explanation": "%s"
-                        }""".formatted(
+                    formatted(
+                        """
+                            {
+                              "note": "%s",
+                              "index": "idx",
+                              "shard": 0,
+                              "primary": true,
+                              "current_state": "started",
+                              "current_node": {
+                                "id": "node-0",
+                                "name": "",
+                                "transport_address": "%s",
+                                "weight_ranking": 3
+                              },
+                              "can_remain_on_current_node": "yes",
+                              "can_rebalance_cluster": "yes",
+                              "can_rebalance_to_other_node": "no",
+                              "rebalance_explanation": "%s"
+                            }""",
                         ClusterAllocationExplanation.NO_SHARD_SPECIFIED_MESSAGE,
                         cae.getCurrentNode().getAddress(),
                         Explanations.Rebalance.ALREADY_BALANCED

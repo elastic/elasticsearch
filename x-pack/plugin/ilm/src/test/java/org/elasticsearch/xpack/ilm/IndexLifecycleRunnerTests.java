@@ -370,7 +370,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .stream()
             .findFirst()
             .orElseThrow(() -> new AssertionError("failed to register ILM history"));
-        assertThat(historyItem.toString(), containsString("""
+        assertThat(historyItem.toString(), containsString(formatted("""
             {
               "index": "test",
               "policy": "foo",
@@ -382,7 +382,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 "step": "next_cluster_state_action_step",
                 "step_time": "%s"
               }
-            }""".formatted(stepTime, stepTime).replaceAll("\\s", "")));
+            }""", stepTime, stepTime).replaceAll("\\s", "")));
     }
 
     public void testRunPeriodicPolicyWithFailureToReadPolicy() throws Exception {

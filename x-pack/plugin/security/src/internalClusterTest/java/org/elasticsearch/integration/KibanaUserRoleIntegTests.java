@@ -37,7 +37,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     @Override
     public String configRoles() {
-        return """
+        return formatted("""
             %s
             my_kibana_user:
               indices:
@@ -45,7 +45,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
                   privileges:
                     - view_index_metadata
                     - read
-            """.formatted(super.configRoles());
+            """, super.configRoles());
     }
 
     @Override

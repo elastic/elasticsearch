@@ -103,7 +103,9 @@ public class DeploymentManager {
             var recentStats = stats.recentStats();
             return new ModelStats(
                 processContext.startTime,
-                stats.timingStats(),
+                stats.timingStats().getCount(),
+                stats.timingStats().getAverage(),
+                stats.timingStatsExcludingCacheHits().getAverage(),
                 stats.lastUsed(),
                 processContext.executorService.queueSize() + stats.numberOfPendingResults(),
                 stats.errorCount(),

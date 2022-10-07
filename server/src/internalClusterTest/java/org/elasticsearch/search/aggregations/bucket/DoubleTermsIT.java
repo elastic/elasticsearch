@@ -40,7 +40,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -521,7 +520,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            String key = String.format(Locale.ROOT, "%07.2f", (double) i);
+            String key = formatted("%07.2f", (double) i);
             DoubleTerms.Bucket bucket = terms.getBucketByKey(key);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsString(), equalTo(key));

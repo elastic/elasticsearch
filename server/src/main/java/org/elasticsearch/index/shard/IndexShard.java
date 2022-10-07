@@ -2001,7 +2001,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
-        recoveryState().setStage(RecoveryState.Stage.INIT);
+        synchronized (mutex) {
+            this.recoveryState = recoveryState().reset();
+        }
     }
 
     /**

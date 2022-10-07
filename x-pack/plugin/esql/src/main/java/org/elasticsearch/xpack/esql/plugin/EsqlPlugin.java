@@ -33,11 +33,15 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
@@ -62,7 +66,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     }
 
     private Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService) {
-        return Collections.emptyList();
+        return Arrays.asList(
+            new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), DefaultDataTypeRegistry.INSTANCE, Set::of))
+        );
     }
 
     /**

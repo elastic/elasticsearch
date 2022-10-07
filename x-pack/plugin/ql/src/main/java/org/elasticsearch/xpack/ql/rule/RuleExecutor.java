@@ -68,7 +68,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         }
     }
 
-    private final Iterable<Batch> batches = batches();
+    private Iterable<Batch> batches = batches();
 
     protected abstract Iterable<RuleExecutor<TreeType>.Batch> batches();
 

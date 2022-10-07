@@ -228,6 +228,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return List.of();
     }
 
+    /**
+     * Deprecated - this will be made private in a future update
+     */
+    @Deprecated
     protected <A extends Aggregator> A createAggregator(
         AggregationBuilder aggregationBuilder,
         IndexSearcher searcher,
@@ -236,6 +240,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return createAggregator(aggregationBuilder, createAggregationContext(searcher, new MatchAllDocsQuery(), fieldTypes));
     }
 
+    /**
+     * Deprecated - this will be made private in a future update
+     */
+    @Deprecated
     protected <A extends Aggregator> A createAggregator(AggregationBuilder builder, AggregationContext context) throws IOException {
         QueryRewriteContext rewriteContext = new QueryRewriteContext(
             parserConfig(),
@@ -253,7 +261,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * While {@linkplain AggregationContext} is {@link Releasable} the caller is
      * not responsible for releasing it. Instead, it is released automatically in
      * in {@link #cleanupReleasables()}.
+     *
+     * Deprecated - this will be made private in a future update
      */
+    @Deprecated
     protected AggregationContext createAggregationContext(IndexSearcher indexSearcher, Query query, MappedFieldType... fieldTypes)
         throws IOException {
         return createAggregationContext(
@@ -273,7 +284,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * While {@linkplain AggregationContext} is {@link Releasable} the caller is
      * not responsible for releasing it. Instead, it is released automatically in
      * in {@link #cleanupReleasables()}.
+     *
+     * Deprecated - this will be made private in a future update
      */
+    @Deprecated
     protected AggregationContext createAggregationContext(
         IndexSearcher indexSearcher,
         IndexSettings indexSettings,
@@ -622,7 +636,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-                V agg = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldTypes));
+                V agg = searchAndReduce(new AggTestConfig(indexSearcher, aggregationBuilder, fieldTypes).withQuery(query));
                 verify.accept(agg);
 
                 verifyOutputFieldNames(aggregationBuilder, agg);
@@ -665,7 +679,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 try (MultiReader multiReader = new MultiReader(readers)) {
                     IndexSearcher indexSearcher = newIndexSearcher(multiReader);
 
-                    V agg = searchAndReduce(new AggTestConfig(indexSearcher, query, aggregationBuilder, fieldTypes));
+                    V agg = searchAndReduce(new AggTestConfig(indexSearcher, aggregationBuilder, fieldTypes).withQuery(query));
                     verify.accept(agg);
 
                     verifyOutputFieldNames(aggregationBuilder, agg);
@@ -1009,7 +1023,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     AssertionError failure = null;
                     try {
                         InternalAggregation internalAggregation = searchAndReduce(
-                            new AggTestConfig(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType)
+                            new AggTestConfig(indexSearcher, aggregationBuilder, fieldType)
                         );
                         // We should make sure if the builder says it supports sampling, that the internal aggregations returned override
                         // finalizeSampling
@@ -1481,10 +1495,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
     ) {
         public AggTestConfig(IndexSearcher searcher, AggregationBuilder builder, MappedFieldType... fieldTypes) {
             this(searcher, new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
-        }
-
-        public AggTestConfig(IndexSearcher searcher, Query query, AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this(searcher, query, builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
         }
 
         public AggTestConfig withQuery(Query query) {

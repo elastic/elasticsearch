@@ -17,20 +17,24 @@ import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 
 import java.util.List;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
 
+    private final PlanExecutor planExecutor;
+
     @Inject
-    public TransportEsqlQueryAction(TransportService transportService, ActionFilters actionFilters) {
+    public TransportEsqlQueryAction(TransportService transportService, ActionFilters actionFilters, PlanExecutor planExecutor) {
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new);
+        this.planExecutor = planExecutor;
     }
 
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        new EsqlSession().execute(request.query(), listener.map(r -> {
+        new EsqlSession(planExecutor.indexResolver()).execute(request.query(), listener.map(r -> {
             List<ColumnInfo> columns = r.columns().stream().map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType())).toList();
             return new EsqlQueryResponse(columns, r.values());
         }));

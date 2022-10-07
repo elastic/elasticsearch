@@ -126,6 +126,7 @@ import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
+import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
@@ -3538,7 +3539,7 @@ public class InternalEngineTests extends EngineTestCase {
             primaryTerm::get,
             seqNo -> {}
         );
-        translog.add(new Translog.Index("SomeBogusId", 0, primaryTerm.get(), "{}".getBytes(Charset.forName("UTF-8"))));
+        translog.add(TranslogOperationsUtils.indexOp("SomeBogusId", 0, primaryTerm.get()));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
         translog.close();
 

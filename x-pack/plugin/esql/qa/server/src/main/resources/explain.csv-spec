@@ -2,14 +2,18 @@ explainFrom
 explain [ from foo ];
 
 plan:keyword | type:keyword
-"Project[[?*]]
-\_UnresolvedRelation[foo]" | PARSED
+"?foo" | PARSED
+"org.elasticsearch.xpack.esql.analyzer.VerificationException: Found 1 problem
+ line 1:11: Unknown index [foo]" | ANALYZED
 ;
+
 
 explainCompositeQuery
 explain [ row a = 1 | where a > 0 ];
 
 plan:keyword | type:keyword
 "Filter[?a > 0[INTEGER]]
- \_Row[[1[INTEGER] AS a]]" | PARSED
+\_Row[[1[INTEGER] AS a]]" | PARSED
+"Filter[?a > 0[INTEGER]]
+\_Row[[1[INTEGER] AS a]]" | ANALYZED
 ;

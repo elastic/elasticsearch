@@ -17,19 +17,16 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -73,12 +70,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
         TableIdentifier tables = new TableIdentifier(source, null, indexPatterns(ctx));
-
-        return new Project(
-            source,
-            new UnresolvedRelation(source, tables, "", false, null),
-            Collections.singletonList(new UnresolvedStar(source, null))
-        );
+        return new UnresolvedRelation(source, tables, "", false, null);
     }
 
     @Override

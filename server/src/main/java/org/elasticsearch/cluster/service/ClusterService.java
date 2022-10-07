@@ -104,6 +104,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     protected synchronized void doStart() {
         clusterApplierService.start();
         masterService.start();
+        addHighPriorityApplier(operationRouting);
     }
 
     @Override

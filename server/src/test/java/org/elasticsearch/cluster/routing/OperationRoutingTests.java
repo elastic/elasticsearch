@@ -196,7 +196,7 @@ public class OperationRoutingTests extends ESTestCase {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(shardId.getIndexName(), shardId.getId());
         int routingHash = Murmur3HashFunction.hash(sessionId);
         routingHash = 31 * routingHash + indexShard.shardId.hashCode();
-        return indexShard.activeInitializingShardsIt(routingHash);
+        return indexShard.activeInitializingShardsIt(routingHash, null);
     }
 
     public void testThatOnlyNodesSupportNodeIds() throws InterruptedException, IOException {

@@ -13,9 +13,13 @@ import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ValueBoost;
 
 public class ScriptScoreBoostsTests extends ESTestCase {
     public void testValueSource() {
-        ValueBoost boost = new ValueBoost("5", "add", 2f);
-        String actual = boost.getSource("foo");
-        assertEquals("(((doc['foo'].size() > 0) && (doc['foo'].value == 5)) ? 2 : 0)", actual);
+        ValueBoost val1 = new ValueBoost("5", "add", 2f);
+        String actualVal1 = val1.getSource("foo");
+        assertEquals("(((doc['foo'].size() > 0) && (doc['foo'].value.toString() == '5')) ? 2 : 0)", actualVal1);
+
+        ValueBoost val2 = new ValueBoost("5", "multiply", 2f);
+        String actualVal2 = val2.getSource("foo");
+        assertEquals("(((doc['foo'].size() > 0) && (doc['foo'].value.toString() == '5')) ? 2 : 1)", actualVal2);
     }
 
     public void testFunctionalSource() {

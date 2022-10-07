@@ -46,6 +46,12 @@ public class ValueBoost extends ScriptScoreBoost {
     }
 
     public String getSource(String field) {
-        return MessageFormat.format("(((doc[''{0}''].size() > 0) && (doc[''{0}''].value == {1})) ? {2} : 0)", field, value, factor);
+        return MessageFormat.format(
+            "(((doc[''{0}''].size() > 0) && (doc[''{0}''].value.toString() == ''{1}'')) ? {2} : {3})",
+            field,
+            value,
+            factor,
+            constantFactor()
+        );
     }
 }

@@ -74,11 +74,11 @@ public class QueryConfiguration {
         String addScores = String.join(" + ", additiveScriptSources());
         String mulScores = String.join(" * ", multiplicativeScriptSources());
         if (addScores.length() > 0 && mulScores.length() > 0) {
-            return MessageFormat.format("Math.max(_score * ({0}) + ({1}) - _score, 0)", mulScores, addScores);
+            return MessageFormat.format("Math.max(_score * ({0}) + ({1}) + _score, _score)", mulScores, addScores);
         } else if (addScores.length() > 0) {
-            return MessageFormat.format("Math.max({0} - _score, 0)", addScores);
+            return MessageFormat.format("Math.max({0} + _score, _score)", addScores);
         } else if (mulScores.length() > 0) {
-            return MessageFormat.format("Math.max(_score * ({0}) - _score, 0)", mulScores);
+            return MessageFormat.format("Math.max(_score * ({0}) + _score, _score)", mulScores);
         }
         return null;
     }

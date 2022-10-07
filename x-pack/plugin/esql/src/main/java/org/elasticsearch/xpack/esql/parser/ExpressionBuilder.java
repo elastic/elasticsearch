@@ -226,7 +226,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     public NamedExpression visitProjectAwayOrKeep(EsqlBaseParser.ProjectAwayOrKeepContext ctx) {
         UnresolvedAttribute qualifiedName = visitQualifiedName(ctx.qualifiedName());
         if (ctx.MINUS() != null) {
-            return new UnresolvedRemovedAttribute(source(ctx), qualifiedName);
+            return new UnresolvedRemovedAttribute(source(ctx), qualifiedName.name());
         }
         return qualifiedName;
     }

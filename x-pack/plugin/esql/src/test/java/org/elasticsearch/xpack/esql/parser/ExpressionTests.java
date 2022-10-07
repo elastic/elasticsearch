@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -110,7 +109,10 @@ public class ExpressionTests extends ESTestCase {
 
     public void testStringLiteralsExceptions() {
         assertParsingException(() -> whereExpression("\"\"\"\"\"\"foo\"\""), "line 1:22: mismatched input 'foo' expecting {<EOF>,");
-        assertParsingException(() -> whereExpression("\"foo\" == \"\"\"\"\"\"bar\"\"\""), "line 1:31: mismatched input 'bar' expecting {<EOF>,");
+        assertParsingException(
+            () -> whereExpression("\"foo\" == \"\"\"\"\"\"bar\"\"\""),
+            "line 1:31: mismatched input 'bar' expecting {<EOF>,"
+        );
         assertParsingException(
             () -> whereExpression("\"\"\"\"\"\\\"foo\"\"\"\"\"\" != \"\"\"bar\"\"\""),
             "line 1:31: mismatched input '\" != \"' expecting {<EOF>,"
@@ -119,7 +121,10 @@ public class ExpressionTests extends ESTestCase {
             () -> whereExpression("\"\"\"\"\"\\\"foo\"\"\\\"\"\"\" == \"\"\"\"\"\\\"bar\\\"\\\"\"\"\"\"\""),
             "line 1:55: token recognition error at: '\"'"
         );
-        assertParsingException(() -> whereExpression("\"\"\"\"\"\" foo \"\"\"\" == abc"), "line 1:23: mismatched input 'foo' expecting {<EOF>,");
+        assertParsingException(
+            () -> whereExpression("\"\"\"\"\"\" foo \"\"\"\" == abc"),
+            "line 1:23: mismatched input 'foo' expecting {<EOF>,"
+        );
     }
 
     public void testBooleanLiteralsCondition() {
@@ -342,34 +347,79 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testWildcardProjectKeepPatterns() {
-        String[] exp = new String[] {"a*", "*a", "a.*", "a.a.*.*.a", "*.a.a.a.*", "*abc.*", "a*b*c", "*a*", "*a*b", "a*b*", "*a*b*c*", "a*b*c*", "*a*b*c", "a*b*c*a.b*", "a*b*c*a.b.*", "*a.b.c*b*c*a.b.*"};
+        String[] exp = new String[] {
+            "a*",
+            "*a",
+            "a.*",
+            "a.a.*.*.a",
+            "*.a.a.a.*",
+            "*abc.*",
+            "a*b*c",
+            "*a*",
+            "*a*b",
+            "a*b*",
+            "*a*b*c*",
+            "a*b*c*",
+            "*a*b*c",
+            "a*b*c*a.b*",
+            "a*b*c*a.b.*",
+            "*a.b.c*b*c*a.b.*" };
         List<?> projections;
         for (String e : exp) {
             projections = projectExpression(e);
             assertThat(projections.size(), equalTo(1));
             assertThat("Projection [" + e + "] has an unexpected type", projections.get(0), instanceOf(UnresolvedStarAttribute.class));
-            assertThat(((UnresolvedStarAttribute) projections.get(0)).qualifier().name(), equalTo(e));
+            UnresolvedStarAttribute usa = (UnresolvedStarAttribute) projections.get(0);
+            assertThat(usa.qualifier().name(), equalTo(e));
+            assertThat(usa.unresolvedMessage(), equalTo("Cannot determine columns for [" + e + "]"));
         }
 
         projections = projectExpression("*");
         assertThat(projections.size(), equalTo(1));
         assertThat(projections.get(0), instanceOf(UnresolvedStarAttribute.class));
-        assertThat(((UnresolvedStarAttribute) projections.get(0)).qualifier(), equalTo(null));
+        UnresolvedStarAttribute usa = (UnresolvedStarAttribute) projections.get(0);
+        assertThat(usa.qualifier(), equalTo(null));
+        assertThat(usa.unresolvedMessage(), equalTo("Cannot determine columns for [*]"));
     }
 
     public void testWildcardProjectAwayPatterns() {
-        String[] exp = new String[] {"-a*", "-*a", "-a.*", "-a.a.*.*.a", "-*.a.a.a.*", "-*abc.*", "-a*b*c", "-*a*", "-*a*b", "-a*b*", "-*a*b*c*", "-a*b*c*", "-*a*b*c", "-a*b*c*a.b*", "-a*b*c*a.b.*", "-*a.b.c*b*c*a.b.*"};
+        String[] exp = new String[] {
+            "-a*",
+            "-*a",
+            "-a.*",
+            "-a.a.*.*.a",
+            "-*.a.a.a.*",
+            "-*abc.*",
+            "-a*b*c",
+            "-*a*",
+            "-*a*b",
+            "-a*b*",
+            "-*a*b*c*",
+            "-a*b*c*",
+            "-*a*b*c",
+            "-a*b*c*a.b*",
+            "-a*b*c*a.b.*",
+            "-*a.b.c*b*c*a.b.*" };
         List<?> projections;
         for (String e : exp) {
             projections = projectExpression(e);
             assertThat(projections.size(), equalTo(1));
-            assertThat("Projection [" + e + "] has an unexpected type", projections.get(0), instanceOf(UnresolvedRemovedStarAttribute.class));
-            assertThat(((UnresolvedRemovedStarAttribute) projections.get(0)).qualifier().name(), equalTo(e.substring(1)));
+            assertThat(
+                "Projection [" + e + "] has an unexpected type",
+                projections.get(0),
+                instanceOf(UnresolvedRemovedStarAttribute.class)
+            );
+            UnresolvedRemovedStarAttribute ursa = (UnresolvedRemovedStarAttribute) projections.get(0);
+            String qualifier = e.substring(1);
+            assertThat(ursa.qualifier().name(), equalTo(qualifier));
+            assertThat(ursa.unresolvedMessage(), equalTo("Cannot determine columns for [" + qualifier + "]"));
         }
+
+        assertParsingException(() -> projectExpression("-*"), "line 1:20: missing {UNQUOTED_IDENTIFIER");
     }
 
     public void testProjectKeepPatterns() {
-        String[] exp = new String[] {"abc", "abc.xyz", "a.b.c.d.e"};
+        String[] exp = new String[] { "abc", "abc.xyz", "a.b.c.d.e" };
         List<?> projections;
         for (String e : exp) {
             projections = projectExpression(e);
@@ -380,19 +430,19 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testProjectAwayPatterns() {
-        String[] exp = new String[] {"-abc", "-abc.xyz", "-a.b.c.d.e"};
+        String[] exp = new String[] { "-abc", "-abc.xyz", "-a.b.c.d.e" };
         List<?> projections;
         for (String e : exp) {
             projections = projectExpression(e);
             assertThat(projections.size(), equalTo(1));
             assertThat(projections.get(0), instanceOf(UnresolvedRemovedAttribute.class));
-            assertThat(((UnresolvedRemovedAttribute) projections.get(0)).qualifier().name(), equalTo(e.substring(1)));
+            assertThat(((UnresolvedRemovedAttribute) projections.get(0)).name(), equalTo(e.substring(1)));
         }
     }
 
     public void testProjectRename() {
-        String[] newName = new String[] {"a", "a.b", "a", "x.y"};
-        String[] oldName = new String[] {"b", "a.c", "x.y", "a"};
+        String[] newName = new String[] { "a", "a.b", "a", "x.y" };
+        String[] oldName = new String[] { "b", "a.c", "x.y", "a" };
         List<?> projections;
         for (int i = 0; i < newName.length; i++) {
             projections = projectExpression(newName[i] + "=" + oldName[i]);

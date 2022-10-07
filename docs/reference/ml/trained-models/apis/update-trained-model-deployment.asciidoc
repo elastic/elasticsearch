@@ -1,5 +1,5 @@
 [role="xpack"]
-[[ml-update-trained-model-deployment]]
+[[update-trained-model-deployment]]
 = Update trained model deployment API
 
 [subs="attributes"]
@@ -11,35 +11,33 @@ Updates certain properties of a trained model deployment.
 
 beta::[]
 
-[[ml-update-trained-model-deployment-request]]
+[[update-trained-model-deployment-request]]
 == {api-request-title}
 
 `POST _ml/trained_models/<model_id>/deployment/_update`
 
 
-[[ml-update-trained-model-deployments-prereqs]]
+[[update-trained-model-deployments-prereqs]]
 == {api-prereq-title}
 
 Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 
-[[ml-update-trained-model-deployment-desc]]
+[[update-trained-model-deployment-desc]]
 == {api-description-title}
 
 You can update a trained model deployment whose `assignment_state` is `started`.
 You can either increase or decrease the number of allocations of such a deployment.
 
-[[ml-update-trained-model-deployments-path-parms]]
+[[update-trained-model-deployments-path-parms]]
 == {api-path-parms-title}
 
 `<model_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
-[[ml-update-trained-model-deployment-request-body]]
+[[update-trained-model-deployment-request-body]]
 == {api-request-body-title}
-
-The following property can be updated after the trained model deployment is started:
 
 `number_of_allocations`::
 (Optional, integer)
@@ -47,7 +45,7 @@ The total number of allocations this model is assigned across {ml} nodes.
 Increasing this value generally increases the throughput.
 
 
-[[ml-update-trained-model-deployment-example]]
+[[update-trained-model-deployment-example]]
 == {api-examples-title}
 
 The following example updates the deployment for a

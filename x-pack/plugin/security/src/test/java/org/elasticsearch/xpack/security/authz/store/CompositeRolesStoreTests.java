@@ -1030,19 +1030,83 @@ public class CompositeRolesStoreTests extends ESTestCase {
             )
         );
 
-        assertHasRemoteIndicesForCluster(role, "remote-1", List.of("index-1"));
-        assertHasRemoteIndicesForCluster(role, "remote-2", List.of());
+        assertHasGroupsForClusterAliases(role, List.of(Set.of("remote-1")));
+        assertHasRemoteGroups(role, "remote-1", new ExpectedGroup(false, "index-1"));
 
         role = buildRole(
             roleDescriptorWithRemoteIndicesPrivileges(
-                "r1",
+                "r2",
                 new RoleDescriptor.RemoteIndicesPrivileges[] {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("index-1").privileges("read").build() }
             )
         );
 
-        assertHasRemoteIndicesForCluster(role, "remote-1", List.of("index-1"));
-        assertHasRemoteIndicesForCluster(role, randomAlphaOfLengthBetween(1, 5), List.of("index-1"));
+        assertHasGroupsForClusterAliases(role, List.of(Set.of("*")));
+        assertHasRemoteGroups(role, "remote-1", new ExpectedGroup(false, "index-1"));
+
+        role = buildRole(
+            roleDescriptorWithRemoteIndicesPrivileges(
+                "r2",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("*")
+                        .indices("index-1")
+                        .allowRestrictedIndices(true)
+                        .privileges("read")
+                        .build() }
+            )
+        );
+
+        assertHasGroupsForClusterAliases(role, List.of(Set.of("*")));
+        assertHasRemoteGroups(role, "remote-1", new ExpectedGroup(true, "index-1"));
+    }
+
+    public void testBuildingRoleWithMultipleRemoteIndicesDefinitions() {
+        Role role = buildRole(
+            roleDescriptorWithRemoteIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build() }
+            ),
+            roleDescriptorWithRemoteIndicesPrivileges(
+                "r2",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1")
+                        .indices("index-1")
+                        .privileges("read")
+                        .allowRestrictedIndices(true)
+                        .build() }
+            )
+        );
+
+        assertHasGroupsForClusterAliases(role, List.of(Set.of("remote-1")));
+        assertHasRemoteGroups(role, "remote-1", new ExpectedGroup(false, "index-1"), new ExpectedGroup(true, "index-1"));
+
+        role = buildRole(
+            roleDescriptorWithRemoteIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1", "index-2").privileges("read").build(),
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1", "remote-2")
+                        .indices("index-1", "index-2")
+                        .privileges("read")
+                        .build(), }
+            ),
+            roleDescriptorWithRemoteIndicesPrivileges(
+                "r2",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build() }
+            )
+        );
+
+        assertHasGroupsForClusterAliases(role, List.of(Set.of("remote-1"), Set.of("remote-1", "remote-2")));
+        assertHasRemoteGroups(
+            role,
+            "remote-1",
+            new ExpectedGroup("index-1"),
+            new ExpectedGroup("index-1", "index-2"),
+            new ExpectedGroup("index-1", "index-2")
+        );
+        assertHasRemoteGroups(role, "remote-2", new ExpectedGroup("index-1", "index-2"));
     }
 
     private RoleDescriptor roleDescriptorWithRemoteIndicesPrivileges(String name, RoleDescriptor.RemoteIndicesPrivileges[] rips) {
@@ -1065,11 +1129,53 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     private void assertHasRemoteIndicesForCluster(final Role role, final String cluster, final List<String> expectedIndexNames) {
         assertThat(
-            Arrays.stream(getIndexGroups(role.remoteIndices().forCluster(cluster)))
-                .flatMap(group -> Arrays.stream(group.indices()))
-                .toList(),
+            Arrays.stream(
+                role.remoteIndices()
+                    .forCluster(cluster)
+                    .remoteIndicesGroups()
+                    .stream()
+                    .flatMap(it -> it.indicesPermissionGroups().stream())
+                    .toArray(IndicesPermission.Group[]::new)
+            ).flatMap(group -> Arrays.stream(group.indices())).toList(),
             containsInAnyOrder(expectedIndexNames.toArray())
         );
+    }
+
+    private void assertHasGroupsForClusterAliases(final Role role, List<Set<String>> aliases) {
+        var actual = role.remoteIndices()
+            .remoteIndicesGroups()
+            .stream()
+            .map(RemoteIndicesPermission.RemoteIndicesGroup::remoteClusterAliases)
+            .toList();
+        assertThat(actual, containsInAnyOrder(aliases.toArray()));
+    }
+
+    private void assertHasRemoteGroups(final Role role, String cluster, ExpectedGroup... expected) {
+        var actual = role.remoteIndices()
+            .forCluster(cluster)
+            .remoteIndicesGroups()
+            .stream()
+            .flatMap(it -> it.indicesPermissionGroups().stream().map(i -> new ExpectedGroup(i.allowRestrictedIndices(), i.indices())))
+            .toList();
+        System.out.println(actual);
+        assertThat(actual, containsInAnyOrder(expected));
+    }
+
+    private record ExpectedRemoteGroup(Set<String> clusters, List<ExpectedGroup> indices) {
+
+        ExpectedRemoteGroup(Set<String> clusters, ExpectedGroup... indices) {
+            this(clusters, Arrays.stream(indices).toList());
+        }
+    }
+
+    private record ExpectedGroup(boolean allow, List<String> indices) {
+        ExpectedGroup(boolean allow, String... indices) {
+            this(allow, Arrays.stream(indices).toList());
+        }
+
+        ExpectedGroup(String... indices) {
+            this(false, Arrays.stream(indices).toList());
+        }
     }
 
     public void testCustomRolesProviderFailures() throws Exception {

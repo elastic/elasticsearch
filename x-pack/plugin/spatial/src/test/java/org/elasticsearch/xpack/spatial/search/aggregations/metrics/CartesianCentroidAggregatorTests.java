@@ -46,7 +46,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new PointFieldMapper.PointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalCartesianCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
+                InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -64,11 +64,11 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new PointFieldMapper.PointFieldType("another_field");
-                InternalCartesianCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
+                InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
 
                 fieldType = new PointFieldMapper.PointFieldType("another_field");
-                result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
+                result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -88,7 +88,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new PointFieldMapper.PointFieldType("another_field");
-                InternalCartesianCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
+                InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertEquals(expectedCentroid, result.centroid());
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
@@ -155,7 +155,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
         CartesianCentroidAggregationBuilder aggBuilder = new CartesianCentroidAggregationBuilder("my_agg").field("field");
         try (IndexReader reader = w.getReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
-            InternalCartesianCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
+            InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
 
             assertEquals("my_agg", result.getName());
             SpatialPoint centroid = result.centroid();

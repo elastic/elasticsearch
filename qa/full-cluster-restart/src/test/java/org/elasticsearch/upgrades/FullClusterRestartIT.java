@@ -569,12 +569,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testRollover() throws IOException {
         if (isRunningAgainstOldCluster()) {
             Request createIndex = new Request("PUT", "/" + index + "-000001");
-            createIndex.setJsonEntity("""
+            createIndex.setJsonEntity(formatted("""
                 {
                   "aliases": {
                     "%s_write": {}
                   }
-                }""".formatted(index));
+                }""", index));
             client().performRequest(createIndex);
         }
 
@@ -995,9 +995,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Stick a routing attribute into to cluster settings so we can see it after the restore
         Request addRoutingSettings = new Request("PUT", "/_cluster/settings");
-        addRoutingSettings.setJsonEntity("""
+        addRoutingSettings.setJsonEntity(formatted("""
             {"persistent": {"cluster.routing.allocation.exclude.test_attr": "%s"}}
-            """.formatted(getOldClusterVersion()));
+            """, getOldClusterVersion()));
         client().performRequest(addRoutingSettings);
 
         // Stick a template into the cluster so we can see it after the restore
@@ -1296,10 +1296,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         int extras = between(1, 100);
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < extras; i++) {
-            bulk.append("""
+            bulk.append(formatted("""
                 {"index":{"_id":"%s"}}
                 {"test":"test"}
-                """.formatted(count + i));
+                """, count + i));
         }
 
         Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/_bulk");

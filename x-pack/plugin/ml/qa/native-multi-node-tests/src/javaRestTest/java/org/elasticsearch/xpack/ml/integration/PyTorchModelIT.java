@@ -930,7 +930,7 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         assertAllocationCount(modelId, 1);
 
-        ResponseException ex = expectThrows(ResponseException.class, () -> updateDeployment(modelId, 42));
+        ResponseException ex = expectThrows(ResponseException.class, () -> updateDeployment(modelId, 257));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
         assertThat(
             EntityUtils.toString(ex.getResponse().getEntity()),

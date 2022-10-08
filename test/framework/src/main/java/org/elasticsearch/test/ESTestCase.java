@@ -129,6 +129,8 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1690,8 +1692,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static boolean isUnusableLocale() {
         return inFipsJvm()
             && (Locale.getDefault().toLanguageTag().equals("th-TH")
-                || Locale.getDefault().toLanguageTag().equals("ja-JP-u-ca-japanese-x-lvariant-JP")
-                || Locale.getDefault().toLanguageTag().equals("th-TH-u-nu-thai-x-lvariant-TH"));
+            || Locale.getDefault().toLanguageTag().equals("ja-JP-u-ca-japanese-x-lvariant-JP")
+            || Locale.getDefault().toLanguageTag().equals("th-TH-u-nu-thai-x-lvariant-TH"));
     }
 
     public static boolean inFipsJvm() {
@@ -1809,10 +1811,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    protected static String formatted(String string, Object... args) {
-        return String.format(Locale.ROOT, string, args);
-    }
-
     /**
      * Call method at the beginning of a test to disable its execution
      * until a given Lucene version is released and integrated into Elasticsearch
@@ -1823,5 +1821,26 @@ public abstract class ESTestCase extends LuceneTestCase {
         final boolean currentVersionHasFix = Version.CURRENT.luceneVersion.onOrAfter(luceneVersionWithFix);
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
+    }
+
+    /**
+     * Get a deterministic SecureRandom SHA1PRNG instance seeded by deterministic LuceneTestCase.random().
+     * @return SecureRandom SHA1PRNG instance.
+     * @throws NoSuchAlgorithmException SHA1PRNG algorithm not found.
+     */
+    public static SecureRandom secureRandom() throws NoSuchAlgorithmException {
+        return secureRandom(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * Get a deterministic SecureRandom SHA1PRNG instance seeded by the input value.
+     * @param seed Byte array to use for seeding the SecureRandom SHA1PRNG instance.
+     * @return SecureRandom SHA1PRNG instance.
+     * @throws NoSuchAlgorithmException SHA1PRNG algorithm not found.
+     */
+    public static SecureRandom secureRandom(final byte[] seed) throws NoSuchAlgorithmException {
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        secureRandom.setSeed(seed);
+        return secureRandom;
     }
 }

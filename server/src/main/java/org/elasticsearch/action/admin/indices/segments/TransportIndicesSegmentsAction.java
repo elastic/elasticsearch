@@ -89,8 +89,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
         int successfulShards,
         int failedShards,
         List<ShardSegments> results,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
+        List<DefaultShardOperationFailedException> shardFailures
     ) {
         return new IndicesSegmentResponse(
             results.toArray(new ShardSegments[results.size()]),

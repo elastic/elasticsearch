@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
+import org.elasticsearch.action.support.broadcast.node.AbstractTransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -46,7 +46,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Stream;
 
-public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAction<
+public class DataStreamsStatsTransportAction extends AbstractTransportBroadcastByNodeAction<
     DataStreamsStatsAction.Request,
     DataStreamsStatsAction.Response,
     DataStreamsStatsAction.DataStreamShardStats> {

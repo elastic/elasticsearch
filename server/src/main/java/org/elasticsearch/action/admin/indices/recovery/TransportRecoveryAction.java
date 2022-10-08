@@ -77,8 +77,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
         int successfulShards,
         int failedShards,
         List<RecoveryState> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
+        List<DefaultShardOperationFailedException> shardFailures
     ) {
         Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
         for (RecoveryState recoveryState : responses) {

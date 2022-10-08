@@ -73,8 +73,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
         int successfulShards,
         int failedShards,
         List<FieldUsageShardResponse> fieldUsages,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
+        List<DefaultShardOperationFailedException> shardFailures
     ) {
         final Map<String, List<FieldUsageShardResponse>> combined = new HashMap<>();
         for (FieldUsageShardResponse response : fieldUsages) {

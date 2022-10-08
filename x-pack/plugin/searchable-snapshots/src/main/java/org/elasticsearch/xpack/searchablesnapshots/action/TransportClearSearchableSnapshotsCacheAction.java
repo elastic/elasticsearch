@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction.EmptyResult;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.broadcast.node.AbstractTransportBroadcastByNodeAction.EmptyResult;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -64,8 +63,7 @@ public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransp
         int successfulShards,
         int failedShards,
         List<EmptyResult> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
+        List<DefaultShardOperationFailedException> shardFailures
     ) {
         return new ClearSearchableSnapshotsCacheResponse(totalShards, successfulShards, failedShards, shardFailures);
     }

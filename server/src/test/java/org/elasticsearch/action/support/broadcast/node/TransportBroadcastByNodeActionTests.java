@@ -116,7 +116,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     class TestTransportBroadcastByNodeAction extends TransportBroadcastByNodeAction<
         Request,
         Response,
-        TransportBroadcastByNodeAction.EmptyResult> {
+        AbstractTransportBroadcastByNodeAction.EmptyResult> {
         private final Map<ShardRouting, Object> shards = new HashMap<>();
 
         TestTransportBroadcastByNodeAction(
@@ -149,8 +149,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             int successfulShards,
             int failedShards,
             List<EmptyResult> emptyResults,
-            List<DefaultShardOperationFailedException> shardFailures,
-            ClusterState clusterState
+            List<DefaultShardOperationFailedException> shardFailures
         ) {
             return new Response(totalShards, successfulShards, failedShards, shardFailures);
         }
@@ -359,10 +358,10 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 shards.add(shard);
             }
         }
-        final TransportBroadcastByNodeAction<
+        final AbstractTransportBroadcastByNodeAction<
             Request,
             Response,
-            TransportBroadcastByNodeAction.EmptyResult>.BroadcastByNodeTransportRequestHandler handler =
+            AbstractTransportBroadcastByNodeAction.EmptyResult>.BroadcastByNodeTransportRequestHandler handler =
                 action.new BroadcastByNodeTransportRequestHandler();
 
         final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
@@ -421,10 +420,10 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 shards.add(shard);
             }
         }
-        final TransportBroadcastByNodeAction<
+        final AbstractTransportBroadcastByNodeAction<
             Request,
             Response,
-            TransportBroadcastByNodeAction.EmptyResult>.BroadcastByNodeTransportRequestHandler handler =
+            AbstractTransportBroadcastByNodeAction.EmptyResult>.BroadcastByNodeTransportRequestHandler handler =
                 action.new BroadcastByNodeTransportRequestHandler();
 
         final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
@@ -436,9 +435,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         assertEquals(shards, action.getResults().keySet());
 
         TransportResponse response = future.actionGet();
-        assertTrue(response instanceof TransportBroadcastByNodeAction.NodeResponse);
+        assertTrue(response instanceof AbstractTransportBroadcastByNodeAction.NodeResponse);
         @SuppressWarnings("rawtypes")
-        TransportBroadcastByNodeAction.NodeResponse nodeResponse = (TransportBroadcastByNodeAction.NodeResponse) response;
+        AbstractTransportBroadcastByNodeAction.NodeResponse nodeResponse = (AbstractTransportBroadcastByNodeAction.NodeResponse) response;
 
         // check the operation was executed on the correct node
         assertEquals("node id", nodeId, nodeResponse.getNodeId());
@@ -506,7 +505,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 transport.handleRemoteError(requestId, new Exception());
             } else {
                 List<ShardRouting> shards = map.get(entry.getKey());
-                List<TransportBroadcastByNodeAction.EmptyResult> shardResults = new ArrayList<>();
+                List<AbstractTransportBroadcastByNodeAction.EmptyResult> shardResults = new ArrayList<>();
                 for (ShardRouting shard : shards) {
                     totalShards++;
                     if (rarely()) {
@@ -514,12 +513,11 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                         totalFailedShards++;
                         exceptions.add(new BroadcastShardOperationFailedException(shard.shardId(), "operation indices:admin/test failed"));
                     } else {
-                        shardResults.add(TransportBroadcastByNodeAction.EmptyResult.INSTANCE);
+                        shardResults.add(AbstractTransportBroadcastByNodeAction.EmptyResult.INSTANCE);
                     }
                 }
                 totalSuccessfulShards += shardResults.size();
-                TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult>.NodeResponse nodeResponse =
-                    action.new NodeResponse(entry.getKey(), shards.size(), shardResults, exceptions);
+                var nodeResponse = action.new NodeResponse(entry.getKey(), shards.size(), shardResults, exceptions);
                 transport.handleResponse(requestId, nodeResponse);
             }
         }
@@ -538,8 +536,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Request request = new Request(new String[] { TEST_INDEX });
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
-        TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult>.AsyncAction asyncAction =
-            action.new AsyncAction(task, request, listener);
+        var asyncAction = action.new AsyncAction(task, request, listener);
         asyncAction.start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
         int cancelAt = randomIntBetween(0, Math.max(0, capturedRequests.size() - 2));

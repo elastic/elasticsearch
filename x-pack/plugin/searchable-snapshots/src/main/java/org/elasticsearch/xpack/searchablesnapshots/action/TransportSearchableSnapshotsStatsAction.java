@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -68,8 +67,7 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
         int successfulShards,
         int failedShards,
         List<SearchableSnapshotShardStats> shardsStats,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
+        List<DefaultShardOperationFailedException> shardFailures
     ) {
         return new SearchableSnapshotsStatsResponse(shardsStats, totalShards, successfulShards, failedShards, shardFailures);
     }

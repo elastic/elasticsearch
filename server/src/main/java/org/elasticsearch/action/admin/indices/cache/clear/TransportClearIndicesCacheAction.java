@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.cache.clear;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.node.AbstractTransportBroadcastByNodeAction;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -35,7 +36,7 @@ import java.util.List;
 public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAction<
     ClearIndicesCacheRequest,
     ClearIndicesCacheResponse,
-    TransportBroadcastByNodeAction.EmptyResult> {
+    AbstractTransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
 
@@ -72,8 +73,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
         int successfulShards,
         int failedShards,
         List<EmptyResult> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
+        List<DefaultShardOperationFailedException> shardFailures
     ) {
         return new ClearIndicesCacheResponse(totalShards, successfulShards, failedShards, shardFailures);
     }

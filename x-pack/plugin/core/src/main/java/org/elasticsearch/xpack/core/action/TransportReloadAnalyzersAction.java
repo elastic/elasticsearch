@@ -87,8 +87,7 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
         int successfulShards,
         int failedShards,
         List<ReloadResult> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
+        List<DefaultShardOperationFailedException> shardFailures
     ) {
         Map<String, ReloadDetails> reloadedIndicesDetails = new HashMap<String, ReloadDetails>();
         for (ReloadResult result : responses) {

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.node.AbstractTransportBroadcastByNodeAction;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -38,7 +39,7 @@ import java.util.List;
 public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     ForceMergeRequest,
     ForceMergeResponse,
-    TransportBroadcastByNodeAction.EmptyResult> {
+    AbstractTransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
@@ -76,8 +77,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         int successfulShards,
         int failedShards,
         List<EmptyResult> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
+        List<DefaultShardOperationFailedException> shardFailures
     ) {
         return new ForceMergeResponse(totalShards, successfulShards, failedShards, shardFailures);
     }
@@ -92,7 +92,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         ForceMergeRequest request,
         ShardRouting shardRouting,
         Task task,
-        ActionListener<TransportBroadcastByNodeAction.EmptyResult> listener
+        ActionListener<AbstractTransportBroadcastByNodeAction.EmptyResult> listener
     ) {
         assert (task instanceof CancellableTask) == false; // TODO: add cancellation handling here once the task supports it
         threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(listener, () -> {

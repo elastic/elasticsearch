@@ -502,9 +502,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         super(in);
         fields = in.readOptionalStringArray();
         likeTexts = in.readStringArray();
-        likeItems = in.readList(Item::new).toArray(new Item[0]);
+        likeItems = in.readArray(Item::new, Item[]::new);
         unlikeTexts = in.readStringArray();
-        unlikeItems = in.readList(Item::new).toArray(new Item[0]);
+        unlikeItems = in.readArray(Item::new, Item[]::new);
         maxQueryTerms = in.readVInt();
         minTermFreq = in.readVInt();
         minDocFreq = in.readVInt();

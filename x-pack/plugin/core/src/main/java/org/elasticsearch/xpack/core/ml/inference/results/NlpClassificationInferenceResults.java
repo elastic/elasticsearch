@@ -45,7 +45,7 @@ public class NlpClassificationInferenceResults extends NlpInferenceResults {
     public NlpClassificationInferenceResults(StreamInput in) throws IOException {
         super(in);
         this.classificationLabel = in.readString();
-        this.topClasses = Collections.unmodifiableList(in.readList(TopClassEntry::new));
+        this.topClasses = in.readImmutableList(TopClassEntry::new);
         this.resultsField = in.readString();
         this.predictionProbability = in.readOptionalDouble();
     }

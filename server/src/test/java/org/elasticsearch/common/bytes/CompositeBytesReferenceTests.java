@@ -163,4 +163,18 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
         Exception e = expectThrows(ArrayIndexOutOfBoundsException.class, () -> comp.getIntLE(5));
         assertThat(e.getMessage(), equalTo("Index 4 out of bounds for length 4"));
     }
+
+    public void testGetDoubleLE() {
+        // first bytes array = 1.2, second bytes array = 1.4, third bytes array = 1.6
+        BytesReference[] refs = new BytesReference[] {
+            new BytesArray(new byte[] { 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, -0xD, 0x3F }),
+            new BytesArray(new byte[] { 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, -0xA, 0x3F }),
+            new BytesArray(new byte[] { -0x66, -0x67, -0x67, -0x67, -0x67, -0x67, -0x7, 0x3F }) };
+        BytesReference comp = CompositeBytesReference.of(refs);
+        assertThat(comp.getDoubleLE(0), equalTo(1.2));
+        assertThat(comp.getDoubleLE(8), equalTo(1.4));
+        assertThat(comp.getDoubleLE(16), equalTo(1.6));
+        Exception e = expectThrows(IndexOutOfBoundsException.class, () -> comp.getDoubleLE(17));
+        assertThat(e.getMessage(), equalTo("Index 8 out of bounds for length 8"));
+    }
 }

@@ -70,4 +70,14 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
          * the number of bytes in an int. Get it? I'm not sure I do either....
          */
     }
+
+    public void testGetDoubleLE() {
+        // first 8 bytes = 1.2, second 8 bytes = 1.4
+        byte[] array = new byte[] { 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, -0xD, 0x3F, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, -0xA, 0x3F };
+        BytesReference ref = new BytesArray(array, 0, array.length);
+        assertThat(ref.getDoubleLE(0), equalTo(1.2));
+        assertThat(ref.getDoubleLE(8), equalTo(1.4));
+        Exception e = expectThrows(ArrayIndexOutOfBoundsException.class, () -> ref.getDoubleLE(9));
+        assertThat(e.getMessage(), equalTo("Index 9 out of bounds for length 9"));
+    }
 }

@@ -1,0 +1,5 @@
+pr: 89938
+summary: Add YAML min or max version settings for transport handshake
+area: Cluster Coordination
+type: enhancement
+issues: []

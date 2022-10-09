@@ -15,8 +15,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,7 +41,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public abstract class TransportBroadcastReplicationAction<
     Request extends BroadcastRequest<Request>,
-    Response extends BroadcastResponse,
+    Response extends BaseBroadcastResponse,
     ShardRequest extends ReplicationRequest<ShardRequest>,
     ShardResponse extends ReplicationResponse> extends HandledTransportAction<Request, Response> {
 

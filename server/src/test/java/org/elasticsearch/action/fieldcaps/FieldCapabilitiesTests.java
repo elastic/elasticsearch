@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -167,9 +166,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
     }
 
     public void testRandomBuilder() {
-        List<String> indices = IntStream.range(0, randomIntBetween(1, 50))
-            .mapToObj(n -> String.format(Locale.ROOT, "index_%2d", n))
-            .toList();
+        List<String> indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> formatted("index_%2d", n)).toList();
         Set<String> searchableIndices = new HashSet<>(randomSubsetOf(indices));
         Set<String> aggregatableIndices = new HashSet<>(randomSubsetOf(indices));
         Set<String> dimensionIndices = new HashSet<>(randomSubsetOf(indices));
@@ -231,9 +228,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
     }
 
     public void testBuilderSingleMetricType() {
-        List<String> indices = IntStream.range(0, randomIntBetween(1, 50))
-            .mapToObj(n -> String.format(Locale.ROOT, "index_%2d", n))
-            .toList();
+        List<String> indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> formatted("index_%2d", n)).toList();
         TimeSeriesParams.MetricType metric = randomBoolean() ? null : randomFrom(TimeSeriesParams.MetricType.values());
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
         for (String index : indices) {
@@ -245,9 +240,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
     }
 
     public void testBuilderMixedMetricType() {
-        List<String> indices = IntStream.range(0, randomIntBetween(1, 50))
-            .mapToObj(n -> String.format(Locale.ROOT, "index_%2d", n))
-            .toList();
+        List<String> indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> formatted("index_%2d", n)).toList();
         Map<String, TimeSeriesParams.MetricType> metricTypes = new HashMap<>();
         for (String index : indices) {
             if (randomBoolean()) {

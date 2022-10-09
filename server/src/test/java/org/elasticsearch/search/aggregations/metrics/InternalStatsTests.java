@@ -227,28 +227,30 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        String expected = """
-            {
-              "count" : %s,
-              "min" : %s,
-              "max" : %s,
-              "avg" : %s,
-              "sum" : %s
-              %s
-            }""".formatted(
+        String expected = formatted(
+            """
+                {
+                  "count" : %s,
+                  "min" : %s,
+                  "max" : %s,
+                  "avg" : %s,
+                  "sum" : %s
+                  %s
+                }""",
             count,
             min,
             max,
             internalStats.getAvg(),
             sum,
             format != DocValueFormat.RAW
-                ? """
-                    ,
-                    "min_as_string" : "%s",
-                    "max_as_string" : "%s",
-                    "avg_as_string" : "%s",
-                    "sum_as_string" : "%s"
-                    """.formatted(
+                ? formatted(
+                    """
+                        ,
+                        "min_as_string" : "%s",
+                        "max_as_string" : "%s",
+                        "avg_as_string" : "%s",
+                        "sum_as_string" : "%s"
+                        """,
                     format.format(internalStats.getMin()),
                     format.format(internalStats.getMax()),
                     format.format(internalStats.getAvg()),

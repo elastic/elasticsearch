@@ -4,3 +4,9 @@ area: Snapshot/Restore
 type: enhancement
 issues:
  - 88732
+highlight: 
+  title: Make `SnapshotsInProgress` Diffable
+  body: |-
+    The overhead of the snapshot operation has been reduced significantly. 
+Snapshots now execute in a more efficient order and require much less network
+traffic than before.

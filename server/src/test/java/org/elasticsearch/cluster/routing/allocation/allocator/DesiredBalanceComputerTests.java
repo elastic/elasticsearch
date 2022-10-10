@@ -629,6 +629,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .put("index.routing.allocation.exclude._name", "node-2")
             .build();
 
+        ShardRouting index0Shard = null;
         {
             var indexName = "index-0";
 
@@ -637,9 +638,17 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             var indexId = metadataBuilder.get(indexName).getIndex();
             var shardId = new ShardId(indexId, 0);
 
-            routingTableBuilder.add(
-                IndexRoutingTable.builder(indexId).addShard(newShardRouting(shardId, "node-0", null, true, ShardRoutingState.STARTED))
-            );
+            index0Shard = switch (randomIntBetween(0, 2)) {
+                // started on the desired node
+                case 0 -> newShardRouting(shardId, "node-0", null, true, ShardRoutingState.STARTED);
+                // initializing on the desired node
+                case 1 -> newShardRouting(shardId, "node-0", null, true, ShardRoutingState.INITIALIZING);
+                // started on undesired node, assumed to be relocated to the desired node in the future
+                case 2 -> newShardRouting(shardId, "node-2", null, true, ShardRoutingState.STARTED);
+                default -> throw new IllegalStateException();
+            };
+
+            routingTableBuilder.add(IndexRoutingTable.builder(indexId).addShard(index0Shard));
         }
 
         for (int i = 1; i < 10; i++) {
@@ -661,7 +670,10 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .routingTable(routingTableBuilder)
             .build();
 
-        var node0Usage = new DiskUsage("node-0", "node-0", "/data", 1000, 100);
+        var node0RemainingBytes = (index0Shard.started() || index0Shard.initializing()) && index0Shard.currentNodeId().equals("node-0")
+            ? 100
+            : 1000;
+        var node0Usage = new DiskUsage("node-0", "node-0", "/data", 1000, node0RemainingBytes);
         var node1Usage = new DiskUsage("node-1", "node-1", "/data", 1000, 100);
 
         var clusterInfo = new ClusterInfo(

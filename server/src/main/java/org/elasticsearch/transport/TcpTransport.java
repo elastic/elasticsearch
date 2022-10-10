@@ -186,6 +186,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         this.handshaker = new TransportHandshaker(
             version,
+            TransportSettings.MIN_ACCEPTED_VERSION.get(settings),
             threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(
                 node,

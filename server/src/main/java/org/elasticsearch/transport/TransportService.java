@@ -79,6 +79,7 @@ public class TransportService extends AbstractLifecycleComponent
     protected final ConnectionManager connectionManager;
     protected final ThreadPool threadPool;
     protected final ClusterName clusterName;
+    protected final Version minAcceptedVersion;
     protected final TaskManager taskManager;
     private final TransportInterceptor.AsyncSender asyncSender;
     private final Function<BoundTransportAddress, DiscoveryNode> localNodeFactory;
@@ -268,6 +269,7 @@ public class TransportService extends AbstractLifecycleComponent
             }
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
         }
+        this.minAcceptedVersion = TransportSettings.MIN_ACCEPTED_VERSION.get(settings);
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
             ThreadPool.Names.SAME,
@@ -556,9 +558,22 @@ public class TransportService extends AbstractLifecycleComponent
                                 + "]"
                         )
                     );
-                } else {
-                    l.onResponse(response);
-                }
+                } else if ((Version.V_EMPTY.equals(this.minAcceptedVersion) == false)
+                    && (response.version.compareTo(this.minAcceptedVersion) < 0)) {
+                        l.onFailure(
+                            new IllegalStateException(
+                                "handshake with ["
+                                    + node
+                                    + "] failed: remote node response version ["
+                                    + response.version
+                                    + "] is not accepted due to local node minimum accepted version ["
+                                    + this.minAcceptedVersion
+                                    + "]"
+                            )
+                        );
+                    } else {
+                        l.onResponse(response);
+                    }
             }), HandshakeResponse::new, ThreadPool.Names.GENERIC)
         );
     }

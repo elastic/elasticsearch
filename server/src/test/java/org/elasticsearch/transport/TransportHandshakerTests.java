@@ -52,7 +52,7 @@ public class TransportHandshakerTests extends ESTestCase {
             Version.CURRENT
         );
         threadPool = new TestThreadPool("thread-poll");
-        handshaker = new TransportHandshaker(Version.CURRENT, threadPool, requestSender, false);
+        handshaker = new TransportHandshaker(Version.CURRENT, Version.V_EMPTY, threadPool, requestSender, false);
     }
 
     @Override

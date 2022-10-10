@@ -36,17 +36,20 @@ final class TransportHandshaker {
     private final CounterMetric numHandshakes = new CounterMetric();
 
     private final Version version;
+    private final Version minAcceptedVersion;
     private final ThreadPool threadPool;
     private final HandshakeRequestSender handshakeRequestSender;
     private final boolean ignoreDeserializationErrors;
 
     TransportHandshaker(
         Version version,
+        Version minAcceptedVersion,
         ThreadPool threadPool,
         HandshakeRequestSender handshakeRequestSender,
         boolean ignoreDeserializationErrors
     ) {
         this.version = version;
+        this.minAcceptedVersion = minAcceptedVersion;
         this.threadPool = threadPool;
         this.handshakeRequestSender = handshakeRequestSender;
         this.ignoreDeserializationErrors = ignoreDeserializationErrors;
@@ -84,9 +87,10 @@ final class TransportHandshaker {
     }
 
     void handleHandshake(TransportChannel channel, long requestId, StreamInput stream) throws IOException {
+        final HandshakeRequest request;
         try {
             // Must read the handshake request to exhaust the stream
-            new HandshakeRequest(stream);
+            request = new HandshakeRequest(stream);
         } catch (Exception e) {
             assert ignoreDeserializationErrors : e;
             throw e;
@@ -105,7 +109,22 @@ final class TransportHandshaker {
             assert ignoreDeserializationErrors : exception;
             throw exception;
         }
-        channel.sendResponse(new HandshakeResponse(this.version));
+        if ((request.version != null)
+            && (this.minAcceptedVersion != null)
+            && (Version.V_EMPTY.equals(this.minAcceptedVersion) == false)
+            && (request.version.compareTo(this.minAcceptedVersion) < 0)) {
+            channel.sendResponse(
+                new IllegalStateException(
+                    "remote node request version ["
+                        + request.version
+                        + "] is not allowed with local node minimum accepted version ["
+                        + this.minAcceptedVersion
+                        + "]"
+                )
+            );
+        } else {
+            channel.sendResponse(new HandshakeResponse(this.version));
+        }
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {

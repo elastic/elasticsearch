@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -248,6 +249,14 @@ public final class TransportSettings {
     );
     // only used in tests: RST connections when closing to avoid actively closing sockets to end up in time_wait in tests
     public static final Setting<Boolean> RST_ON_CLOSE = boolSetting("transport.rst_on_close", false, Setting.Property.NodeScope);
+
+    // Minimum accepted version during handshake.
+    // Example: Even though 8.6.0 is compatible with 7.17.0 and 8.7.0, either side of handshake may only want to accept 8.5.0 or higher.
+    public static final Setting<Version> MIN_ACCEPTED_VERSION = Setting.versionSetting(
+        "transport.min_accepted_version",
+        Version.V_EMPTY,
+        Setting.Property.NodeScope
+    );
 
     private TransportSettings() {}
 }

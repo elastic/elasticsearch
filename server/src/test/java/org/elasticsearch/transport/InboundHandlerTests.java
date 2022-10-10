@@ -65,7 +65,13 @@ public class InboundHandlerTests extends ESTestCase {
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final boolean ignoreDeserializationErrors = true; // suppress assertions to test production error-handling
-        TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {}, ignoreDeserializationErrors);
+        TransportHandshaker handshaker = new TransportHandshaker(
+            version,
+            Version.V_EMPTY,
+            threadPool,
+            (n, c, r, v) -> {},
+            ignoreDeserializationErrors
+        );
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
         OutboundHandler outboundHandler = new OutboundHandler(
             "node",

@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class SnapshotUpgradeTaskParamsTests extends AbstractSerializingTestCase<SnapshotUpgradeTaskParams> {
+public class SnapshotUpgradeTaskParamsTests extends AbstractXContentSerializingTestCase<SnapshotUpgradeTaskParams> {
 
     @Override
     protected SnapshotUpgradeTaskParams doParseInstance(XContentParser parser) throws IOException {

@@ -95,25 +95,27 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         }
         assertEquals(
             XContentHelper.stripWhitespace(
-                """
-                    {
-                      "index": "idx",
-                      "shard": 0,
-                      "primary": true,
-                      "current_state": "%s"
-                      %s,
-                      "current_node": {
-                        "id": "%s",
-                        "name": "%s",
-                        "transport_address": "%s"
-                      },
-                      "explanation": "%s"
-                    }""".formatted(
+                formatted(
+                    """
+                        {
+                          "index": "idx",
+                          "shard": 0,
+                          "primary": true,
+                          "current_state": "%s"
+                          %s,
+                          "current_node": {
+                            "id": "%s",
+                            "name": "%s",
+                            "transport_address": "%s"
+                          },
+                          "explanation": "%s"
+                        }""",
                     shardRoutingState.toString().toLowerCase(Locale.ROOT),
                     shard.unassignedInfo() != null
-                        ? """
-                            ,"unassigned_info": {"reason": "%s", "at": "%s", "last_allocation_status": "%s"}
-                            """.formatted(
+                        ? formatted(
+                            """
+                                ,"unassigned_info": {"reason": "%s", "at": "%s", "last_allocation_status": "%s"}
+                                """,
                             shard.unassignedInfo().getReason(),
                             UnassignedInfo.DATE_TIME_FORMATTER.format(
                                 Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis())

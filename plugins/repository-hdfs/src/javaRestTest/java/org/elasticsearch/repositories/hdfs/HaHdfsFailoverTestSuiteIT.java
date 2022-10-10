@@ -100,7 +100,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         // Create repository
         {
             Request request = new Request("PUT", "/_snapshot/hdfs_ha_repo_read");
-            request.setJsonEntity("""
+            request.setJsonEntity(formatted("""
                 {
                   "type": "hdfs",
                   "settings": {
@@ -115,7 +115,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
                     "conf.dfs.client.failover.proxy.provider.ha-hdfs": \
                 "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider"
                   }
-                }""".formatted(securityCredentials(securityEnabled, esKerberosPrincipal), nn1Port, nn2Port));
+                }""", securityCredentials(securityEnabled, esKerberosPrincipal), nn1Port, nn2Port));
             Response response = client.performRequest(request);
 
             Assert.assertEquals(200, response.getStatusLine().getStatusCode());
@@ -139,8 +139,8 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
 
     private String securityCredentials(boolean securityEnabled, String kerberosPrincipal) {
         if (securityEnabled) {
-            return """
-                "security.principal": "%s","conf.dfs.data.transfer.protection": "authentication",""".formatted(kerberosPrincipal);
+            return String.format(java.util.Locale.ROOT, """
+                "security.principal": "%s","conf.dfs.data.transfer.protection": "authentication",""", kerberosPrincipal);
         } else {
             return "";
         }

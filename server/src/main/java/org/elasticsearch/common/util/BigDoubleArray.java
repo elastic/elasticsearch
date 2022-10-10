@@ -28,7 +28,7 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
 
     static {
         if (ByteOrder.nativeOrder() != ByteOrder.LITTLE_ENDIAN) {
-            throw new Error("The deserialization assumes this class is written with little-endian ints.");
+            throw new Error("The deserialization assumes this class is written with little-endian numbers.");
         }
     }
 

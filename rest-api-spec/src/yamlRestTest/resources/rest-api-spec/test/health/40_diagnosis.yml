@@ -19,7 +19,7 @@
 
   - is_true: cluster_name
   - match:   { indicators.shards_availability.status: "red" }
-  - match:   { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary." }
+  - match:   { indicators.shards_availability.symptom: "This cluster has 1 unavailable primary shard." }
   - is_true: indicators.shards_availability.diagnosis
   - length:  { indicators.shards_availability.diagnosis: 1 }
   - is_true: indicators.shards_availability.diagnosis.0.affected_resources

@@ -563,7 +563,7 @@ public class TransportService extends AbstractLifecycleComponent
                         new IllegalStateException(
                             "handshake with ["
                                 + node
-                                + "] failed: remote node response version ["
+                                + "] failed: remote node version ["
                                 + response.version
                                 + "] is not allowed with local node minimum accepted version ["
                                 + this.minVersion

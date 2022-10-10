@@ -52,7 +52,7 @@ public class TransportHandshakerTests extends ESTestCase {
             Version.CURRENT
         );
         threadPool = new TestThreadPool("thread-poll");
-        handshaker = new TransportHandshaker(Version.CURRENT, Version.V_EMPTY, threadPool, requestSender, false);
+        handshaker = new TransportHandshaker(Version.CURRENT, threadPool, requestSender, false);
     }
 
     @Override
@@ -162,40 +162,5 @@ public class TransportHandshakerTests extends ESTestCase {
         assertThat(cte.getMessage(), containsString("handshake_timeout"));
 
         assertNull(handshaker.removeHandlerForHandshake(reqId));
-    }
-
-    public void testHandshakeMinVersion() throws IOException {
-        long reqId = randomLongBetween(1, 10);
-        handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), PlainActionFuture.newFuture());
-
-        verify(requestSender).sendRequest(node, channel, reqId, Version.CURRENT.minimumCompatibilityVersion());
-
-        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(Version.CURRENT);
-        BytesStreamOutput currentHandshakeBytes = new BytesStreamOutput();
-        handshakeRequest.writeTo(currentHandshakeBytes);
-
-        BytesStreamOutput lengthCheckingHandshake = new BytesStreamOutput();
-        BytesStreamOutput futureHandshake = new BytesStreamOutput();
-        TaskId.EMPTY_TASK_ID.writeTo(lengthCheckingHandshake);
-        TaskId.EMPTY_TASK_ID.writeTo(futureHandshake);
-        try (BytesStreamOutput internalMessage = new BytesStreamOutput()) {
-            Version.writeVersion(Version.CURRENT, internalMessage);
-            lengthCheckingHandshake.writeBytesReference(internalMessage.bytes());
-            internalMessage.write(new byte[1024]);
-            futureHandshake.writeBytesReference(internalMessage.bytes());
-        }
-        StreamInput futureHandshakeStream = futureHandshake.bytes().streamInput();
-        // We check that the handshake we serialize for this test equals the actual request.
-        // Otherwise, we need to update the test.
-        assertEquals(currentHandshakeBytes.bytes().length(), lengthCheckingHandshake.bytes().length());
-        assertEquals(1031, futureHandshakeStream.available());
-        final PlainActionFuture<TransportResponse> responseFuture = PlainActionFuture.newFuture();
-        final TestTransportChannel channel = new TestTransportChannel(responseFuture);
-        handshaker.handleHandshake(channel, reqId, futureHandshakeStream);
-        assertEquals(0, futureHandshakeStream.available());
-
-        TransportHandshaker.HandshakeResponse response = (TransportHandshaker.HandshakeResponse) responseFuture.actionGet();
-
-        assertEquals(Version.CURRENT, response.getResponseVersion());
     }
 }

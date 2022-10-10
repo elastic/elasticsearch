@@ -88,10 +88,11 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("action [" + SearchAction.NAME + "] is unauthorized for user"));
 
-        // Add local privilege and check local search authorized
+        // Add local privileges and check local authorization works
         putRoleRequest = new Request("PUT", "_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
+              "cluster": ["all"],
               "indices": [
                 {
                   "names": ["index-a"],
@@ -111,13 +112,22 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
 
+        // Check local cluster privilege also works
+        var clusterActionRequest = new Request("GET", "/_cluster/health");
+        clusterActionRequest.setOptions(
+            clusterActionRequest.getOptions()
+                .toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
+        );
+        assertOK(client().performRequest(clusterActionRequest));
+
         final Response getRoleResponse2 = adminClient().performRequest(new Request("GET", "_security/role/" + REMOTE_SEARCH_ROLE));
         assertOK(getRoleResponse2);
         expectRoleDescriptorInResponse(
             getRoleResponse2,
             new RoleDescriptor(
                 REMOTE_SEARCH_ROLE,
-                null,
+                new String[] { "all" },
                 new RoleDescriptor.IndicesPrivileges[] {
                     RoleDescriptor.IndicesPrivileges.builder().indices("index-a").privileges("all").build() },
                 null,

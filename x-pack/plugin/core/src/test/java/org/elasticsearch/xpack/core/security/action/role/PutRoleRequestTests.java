@@ -20,7 +20,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
@@ -103,15 +105,20 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testValidationSuccessWithCorrectRemoteIndexPrivilegeClusters() {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
-        request.addRemoteIndex(
-            new String[] { randomAlphaOfLength(5), "*", "* " },
-            new String[] { randomAlphaOfLength(5) },
-            new String[] { "index", "write", "indices:data/read" },
-            null,
-            null,
-            null,
-            randomBoolean()
-        );
+        if (randomBoolean()) {
+            request.addRemoteIndex(
+                new String[] { randomAlphaOfLength(5), "*", "* " },
+                new String[] { randomAlphaOfLength(5) },
+                new String[] { "index", "write", "indices:data/read" },
+                null,
+                null,
+                null,
+                randomBoolean()
+            );
+        } else {
+            // Empty remote index section is valid
+            request.addRemoteIndex();
+        }
         assertSuccessfulValidation(request);
     }
 
@@ -152,14 +159,14 @@ public class PutRoleRequestTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        final PutRoleRequest original = buildRandomRequest();
-
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
             final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
             logger.info("Serializing with version {}", version);
             out.setVersion(version);
         }
+        final boolean mayIncludeRemoteIndices = out.getVersion().onOrAfter(Version.V_8_6_0);
+        final PutRoleRequest original = buildRandomRequest(mayIncludeRemoteIndices);
         original.writeTo(out);
 
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
@@ -167,7 +174,14 @@ public class PutRoleRequestTests extends ESTestCase {
         in.setVersion(out.getVersion());
         final PutRoleRequest copy = new PutRoleRequest(in);
 
-        assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
+        final RoleDescriptor actual = copy.roleDescriptor();
+        final RoleDescriptor expected = original.roleDescriptor();
+        if (mayIncludeRemoteIndices) {
+            assertThat(actual, equalTo(expected));
+        } else {
+            RoleDescriptorTests.assertRoleDescriptorsEqualExcludingRemoteIndices(actual, expected);
+            assertThat(actual.getRemoteIndicesPrivileges(), nullValue());
+        }
     }
 
     private void assertSuccessfulValidation(PutRoleRequest request) {
@@ -194,7 +208,10 @@ public class PutRoleRequestTests extends ESTestCase {
     }
 
     private PutRoleRequest buildRandomRequest() {
+        return buildRandomRequest(true);
+    }
 
+    private PutRoleRequest buildRandomRequest(boolean allowRemoteIndices) {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
 
@@ -213,6 +230,20 @@ public class PutRoleRequestTests extends ESTestCase {
                 null,
                 randomBoolean()
             );
+        }
+
+        if (allowRemoteIndices) {
+            for (int i = randomIntBetween(0, 4); i > 0; i--) {
+                request.addRemoteIndex(
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), false, false),
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), false, false),
+                    randomSubsetOf(randomIntBetween(1, 2), "read", "write", "index", "all").toArray(Strings.EMPTY_ARRAY),
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
+                    generateRandomStringArray(randomIntBetween(1, 3), randomIntBetween(3, 8), true),
+                    null,
+                    randomBoolean()
+                );
+            }
         }
 
         final Supplier<String> stringWithInitialLowercase = () -> randomAlphaOfLength(1).toLowerCase(Locale.ROOT)

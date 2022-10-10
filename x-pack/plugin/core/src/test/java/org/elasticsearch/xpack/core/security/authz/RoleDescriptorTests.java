@@ -388,11 +388,12 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(Version.V_8_6_0);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(version);
 
-        final RoleDescriptor descriptor = randomRoleDescriptor();
+        final RoleDescriptor descriptor = randomRoleDescriptor(true, canIncludeRemoteIndices);
         descriptor.writeTo(output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(
@@ -402,18 +403,22 @@ public class RoleDescriptorTests extends ESTestCase {
         streamInput.setVersion(version);
         final RoleDescriptor serialized = new RoleDescriptor(streamInput);
 
-        if (version.onOrAfter(Version.V_8_6_0)) {
+        if (canIncludeRemoteIndices) {
             assertThat(serialized, equalTo(descriptor));
         } else {
-            assertThat(serialized.getName(), equalTo(descriptor.getName()));
-            assertThat(serialized.getIndicesPrivileges(), equalTo(descriptor.getIndicesPrivileges()));
-            assertThat(serialized.getClusterPrivileges(), equalTo(descriptor.getClusterPrivileges()));
-            assertThat(serialized.getApplicationPrivileges(), equalTo(descriptor.getApplicationPrivileges()));
-            assertThat(serialized.getConditionalClusterPrivileges(), equalTo(descriptor.getConditionalClusterPrivileges()));
-            assertThat(serialized.getRunAs(), equalTo(descriptor.getRunAs()));
-            assertThat(serialized.getMetadata(), equalTo(descriptor.getMetadata()));
+            assertRoleDescriptorsEqualExcludingRemoteIndices(descriptor, serialized);
             assertThat(serialized.getRemoteIndicesPrivileges(), nullValue());
         }
+    }
+
+    public static void assertRoleDescriptorsEqualExcludingRemoteIndices(RoleDescriptor actual, RoleDescriptor expected) {
+        assertThat(expected.getName(), equalTo(actual.getName()));
+        assertThat(expected.getIndicesPrivileges(), equalTo(actual.getIndicesPrivileges()));
+        assertThat(expected.getClusterPrivileges(), equalTo(actual.getClusterPrivileges()));
+        assertThat(expected.getApplicationPrivileges(), equalTo(actual.getApplicationPrivileges()));
+        assertThat(expected.getConditionalClusterPrivileges(), equalTo(actual.getConditionalClusterPrivileges()));
+        assertThat(expected.getRunAs(), equalTo(actual.getRunAs()));
+        assertThat(expected.getMetadata(), equalTo(actual.getMetadata()));
     }
 
     public void testParseEmptyQuery() throws Exception {
@@ -702,7 +707,7 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata) {
-        return randomRoleDescriptor(allowReservedMetadata, true);
+        return randomRoleDescriptor(allowReservedMetadata, false);
     }
 
     public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata, boolean allowRemoteIndices) {

@@ -573,6 +573,72 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
     }
 
+    public void testRemoteIndicesNotSupportedForApiKeys() {
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity("""
+            {
+              "name": "k1",
+              "role_descriptors": {
+                "r1": {
+                  "remote_indices": [
+                    {
+                      "names": ["index-a", "*"],
+                      "privileges": ["read"],
+                      "remote_clusters": ["remote-a", "*"]
+                    }
+                  ]
+                }
+              }
+            }""");
+        assertRemoteIndicesNotSupported(createApiKeyRequest);
+
+        final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
+        grantApiKeyRequest.setJsonEntity("""
+            {
+               "grant_type":"password",
+               "username":"manage_own_api_key_user",
+               "password":"end-user-password",
+               "api_key":{
+                  "name":"k1",
+                  "role_descriptors":{
+                     "r1":{
+                        "remote_indices":[
+                           {
+                              "names":["index-a","*"],
+                              "privileges":["read"],
+                              "remote_clusters":["remote-a", "*"]
+                           }
+                        ]
+                     }
+                  }
+               }
+            }""");
+        assertRemoteIndicesNotSupported(grantApiKeyRequest);
+
+        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/id");
+        updateApiKeyRequest.setJsonEntity("""
+            {
+              "role_descriptors": {
+                "r1": {
+                  "remote_indices": [
+                    {
+                      "names": ["index-a", "*"],
+                      "privileges": ["read"],
+                      "remote_clusters": ["remote-a", "*"]
+                    }
+                  ]
+                }
+              }
+            }""");
+        assertRemoteIndicesNotSupported(updateApiKeyRequest);
+    }
+
+    private void assertRemoteIndicesNotSupported(final Request request) {
+        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e.getMessage(), containsString("remote indices not supported for API keys"));
+    }
+
     private void doTestAuthenticationWithApiKey(final String apiKeyName, final String apiKeyId, final String apiKeyEncoded)
         throws IOException {
         final var authenticateRequest = new Request("GET", "_security/_authenticate");

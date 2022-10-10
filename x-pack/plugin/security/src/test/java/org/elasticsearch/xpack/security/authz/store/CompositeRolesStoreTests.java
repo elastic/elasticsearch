@@ -1017,13 +1017,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
     }
 
-    private IndicesPermission.Group[] getIndexGroups(final RemoteIndicesPermission remoteIndices) {
-        return remoteIndices.remoteIndicesGroups()
-            .stream()
-            .flatMap(it -> it.indicesPermissionGroups().stream())
-            .toArray(IndicesPermission.Group[]::new);
-    }
-
     public void testBuildingRoleWithSingleRemoteIndicesDefinition() {
         Role role = buildRole(
             roleDescriptorWithRemoteIndicesPrivileges(
@@ -1032,7 +1025,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build() }
             )
         );
-
         assertThat(role.remoteIndices(), equalTo(RemoteIndicesPermission.builder().addGroup(Set.of("remote-1"), "index-1").build()));
 
         role = buildRole(
@@ -1042,7 +1034,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("index-1").privileges("read").build() }
             )
         );
-
         assertThat(role.remoteIndices(), equalTo(RemoteIndicesPermission.builder().addGroup(Set.of("*"), "index-1").build()));
 
         role = buildRole(
@@ -1056,7 +1047,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         .build() }
             )
         );
-
         assertThat(role.remoteIndices(), equalTo(RemoteIndicesPermission.builder().addGroup(Set.of("*"), true, "index-1").build()));
 
         role = buildRole(
@@ -1066,7 +1056,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("none").build() }
             )
         );
+        assertThat(role.remoteIndices(), equalTo(RemoteIndicesPermission.builder().build()));
 
+        role = buildRole(roleDescriptorWithRemoteIndicesPrivileges("r1", new RoleDescriptor.RemoteIndicesPrivileges[] {}));
         assertThat(role.remoteIndices(), equalTo(RemoteIndicesPermission.builder().build()));
 
         role = buildRole(
@@ -1077,7 +1069,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build(), }
             )
         );
-
         assertThat(
             role.remoteIndices(),
             equalTo(
@@ -1112,7 +1103,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         .build() }
             )
         );
-
         assertThat(
             role.remoteIndices(),
             equalTo(
@@ -1139,7 +1129,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build() }
             )
         );
-
         assertThat(
             role.remoteIndices(),
             equalTo(
@@ -1166,7 +1155,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("*").privileges("read").build(), }
             )
         );
-
         assertThat(
             role.remoteIndices(),
             equalTo(RemoteIndicesPermission.builder().addGroup(Set.of("remote-1"), "index-1").addGroup(Set.of("*"), "*").build())
@@ -1184,7 +1172,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("none").build(), }
             )
         );
-
         assertThat(role.remoteIndices(), equalTo(RemoteIndicesPermission.builder().addGroup(Set.of("remote-1"), "index-1").build()));
     }
 

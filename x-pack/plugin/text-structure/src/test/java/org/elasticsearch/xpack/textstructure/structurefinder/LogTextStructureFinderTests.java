@@ -99,6 +99,120 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
         assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
+    public void testCreateConfigsGivenElasticsearchLogWithNoTimestamps() throws Exception {
+        assertTrue(factory.canCreateFromSample(explanation, TEXT_WITH_NO_TIMESTAMPS_SAMPLE, 0.0));
+
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.createFromSample(
+                explanation,
+                TEXT_WITH_NO_TIMESTAMPS_SAMPLE,
+                charset,
+                hasByteOrderMarker,
+                TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+                TextStructureOverrides.EMPTY_OVERRIDES,
+                NOOP_TIMEOUT_CHECKER
+            )
+        );
+
+        assertEquals("Could not find a timestamp in the sample provided", e.getMessage());
+
+        // Now try to determine the format by first specifying that no timestamp is expected in the text samples,
+        // in which case we assume one log message per line.
+        TextStructureOverrides overrides = TextStructureOverrides.builder()
+            .setTimestampFormat(TextStructureUtils.NULL_TIMESTAMP_FORMAT)
+            .build();
+
+        {
+            TextStructureFinder structureFinder = factory.createFromSample(
+                explanation,
+                TEXT_WITH_NO_TIMESTAMPS_SAMPLE,
+                charset,
+                hasByteOrderMarker,
+                TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+                overrides,
+                NOOP_TIMEOUT_CHECKER
+            );
+
+            TextStructure structure = structureFinder.getStructure();
+
+            assertEquals(TextStructure.Format.SEMI_STRUCTURED_TEXT, structure.getFormat());
+            assertEquals(charset, structure.getCharset());
+            if (hasByteOrderMarker == null) {
+                assertNull(structure.getHasByteOrderMarker());
+            } else {
+                assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
+            }
+            assertNull(structure.getExcludeLinesPattern());
+            assertNull(structure.getMultilineStartPattern());
+            assertNull(structure.getDelimiter());
+            assertNull(structure.getQuote());
+            assertNull(structure.getHasHeaderRow());
+            assertNull(structure.getShouldTrimFields());
+            assertEquals("\\[%{LOGLEVEL:loglevel} \\]\\[.*?    .*? .*? .*? .*? .*? .*? .*? .*? .*? .*?\\].*?", structure.getGrokPattern());
+            assertNull(structure.getTimestampField());
+            assertNull(structure.getJodaTimestampFormats());
+            FieldStats messageFieldStats = structure.getFieldStats().get("message");
+            assertNotNull(messageFieldStats);
+            for (String statMessage : messageFieldStats.getTopHits()
+                .stream()
+                .map(m -> (String) m.get("value"))
+                .collect(Collectors.toList())) {
+                assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
+            }
+            assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
+        }
+
+        {
+            // Finally, test the behaviour when parsing single-line log messages that _do_ contain timestamps
+            // but the timestamp format override has been set to TextStructureUtils.NULL_TIMESTAMP_FORMAT ("null")
+            TextStructureFinder structureFinder = factory.createFromSample(
+                explanation,
+                TEXT_SAMPLE,
+                charset,
+                hasByteOrderMarker,
+                TextStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+                overrides,
+                NOOP_TIMEOUT_CHECKER
+            );
+
+            TextStructure structure = structureFinder.getStructure();
+
+            assertEquals(TextStructure.Format.SEMI_STRUCTURED_TEXT, structure.getFormat());
+            assertEquals(charset, structure.getCharset());
+            if (hasByteOrderMarker == null) {
+                assertNull(structure.getHasByteOrderMarker());
+            } else {
+                assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
+            }
+            assertNull(structure.getExcludeLinesPattern());
+            assertNull(structure.getMultilineStartPattern());
+            assertNull(structure.getDelimiter());
+            assertNull(structure.getQuote());
+            assertNull(structure.getHasHeaderRow());
+            assertNull(structure.getShouldTrimFields());
+            // a timestamp field is detected but it's not set to be the primary one.
+            assertEquals(
+                "\\[%{TIMESTAMP_ISO8601:extra_timestamp}\\]" +
+                    "\\[%{LOGLEVEL:loglevel} \\]\\[.*?    .*? .*? .*? .*? .*? .*? .*? .*? .*? .*?\\].*?",
+                structure.getGrokPattern()
+            );
+            assertNull(structure.getTimestampField());
+            assertNull(structure.getJodaTimestampFormats());
+            FieldStats messageFieldStats = structure.getFieldStats().get("message");
+            assertNotNull(messageFieldStats);
+            for (String statMessage : messageFieldStats.getTopHits()
+                .stream()
+                .map(m -> (String) m.get("value"))
+                .collect(Collectors.toList())) {
+                assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
+            }
+            assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
+        }
+    }
+
     public void testCreateConfigsGivenElasticsearchLogAndTimestampFormatOverride() throws Exception {
 
         String sample = """

@@ -783,10 +783,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 Request createDataStreamRequest = new Request("PUT", "/_data_stream/" + leaderDataStreamName);
                 assertOK(leaderClient.performRequest(createDataStreamRequest));
                 Request updateAliasesRequest = new Request("POST", "/_aliases");
-                updateAliasesRequest.setJsonEntity("""
+                updateAliasesRequest.setJsonEntity(formatted("""
                     {
                       "actions": [ { "add": { "index": "%s", "alias": "logs-http", "is_write_index": true } } ]
-                    }""".formatted(leaderDataStreamName));
+                    }""", leaderDataStreamName));
                 assertOK(leaderClient.performRequest(updateAliasesRequest));
 
                 for (int i = 0; i < numDocs; i++) {
@@ -808,10 +808,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             Request createDataStreamRequest = new Request("PUT", "/_data_stream/" + followerDataStreamName);
             assertOK(client().performRequest(createDataStreamRequest));
             Request updateAliasesRequest = new Request("POST", "/_aliases");
-            updateAliasesRequest.setJsonEntity("""
+            updateAliasesRequest.setJsonEntity(formatted("""
                 {
                   "actions": [ { "add": { "index": "%s", "alias": "logs-http", "is_write_index": true } } ]
-                }""".formatted(followerDataStreamName));
+                }""", followerDataStreamName));
             assertOK(client().performRequest(updateAliasesRequest));
 
             for (int i = 0; i < numDocs; i++) {
@@ -827,10 +827,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             // (only set the write flag to logs-http-na)
             // Create alias in follower cluster that point to leader and follower data streams:
             updateAliasesRequest = new Request("POST", "/_aliases");
-            updateAliasesRequest.setJsonEntity("""
+            updateAliasesRequest.setJsonEntity(formatted("""
                 {
                   "actions": [ { "add": { "index": "%s", "alias": "logs-http" } } ]
-                }""".formatted(leaderDataStreamName));
+                }""", leaderDataStreamName));
             assertOK(client().performRequest(updateAliasesRequest));
 
             try (var leaderClient = buildLeaderClient()) {
@@ -844,10 +844,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                     verifyDocuments(leaderClient, followerDataStreamName, numDocs);
                 });
                 updateAliasesRequest = new Request("POST", "/_aliases");
-                updateAliasesRequest.setJsonEntity("""
+                updateAliasesRequest.setJsonEntity(formatted("""
                     {
                       "actions": [ { "add": { "index": "%s", "alias": "logs-http" } } ]
-                    }""".formatted(followerDataStreamName));
+                    }""", followerDataStreamName));
                 assertOK(leaderClient.performRequest(updateAliasesRequest));
             }
 

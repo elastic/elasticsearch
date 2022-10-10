@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -53,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -74,6 +76,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private volatile int maxMemoryPercentage;
     private volatile boolean useAuto;
     private volatile int maxOpenJobs;
+    protected volatile int maxLazyMLNodes;
+    protected volatile long maxMLNodeSize;
 
     public TrainedModelAssignmentClusterService(
         Settings settings,
@@ -91,6 +95,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         this.maxMemoryPercentage = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
         this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         this.maxOpenJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
+        this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
+        this.maxMLNodeSize = MachineLearning.MAX_ML_NODE_SIZE.get(settings).getBytes();
         // Only nodes that can possibly be master nodes really need this service running
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(this);
@@ -99,6 +105,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_ML_NODE_SIZE, this::setMaxMLNodeSize);
         }
     }
 
@@ -112,6 +120,14 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     private void setMaxOpenJobs(int maxOpenJobs) {
         this.maxOpenJobs = maxOpenJobs;
+    }
+
+    private void setMaxLazyMLNodes(int value) {
+        this.maxLazyMLNodes = value;
+    }
+
+    private void setMaxMLNodeSize(ByteSizeValue value) {
+        this.maxMLNodeSize = value.getBytes();
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -469,7 +485,39 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             nodeAvailabilityZoneMapper,
             modelToAdd
         );
-        return rebalancer.rebalance();
+        TrainedModelAssignmentMetadata.Builder rebalanced = rebalancer.rebalance();
+        if (modelToAdd.isPresent()) {
+            checkModelIsFullyAllocatedIfScalingIsNotPossible(modelToAdd.get().getModelId(), rebalanced, nodes);
+        }
+        return rebalanced;
+    }
+
+    private void checkModelIsFullyAllocatedIfScalingIsNotPossible(
+        String modelId,
+        TrainedModelAssignmentMetadata.Builder assignments,
+        List<DiscoveryNode> nodes
+    ) {
+        TrainedModelAssignment assignment = assignments.getAssignment(modelId).build();
+        if (isScalingPossible(nodes) || assignment.isSatisfied(nodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet()))) {
+            return;
+        }
+
+        if (assignment.getNodeRoutingTable().isEmpty()) {
+            String msg = "Could not start deployment because no suitable nodes were found, allocation explanation ["
+                + assignment.getReason()
+                + "]";
+            logger.warn("[{}] {}", modelId, msg);
+            Exception detail = new IllegalStateException(msg);
+            throw new ElasticsearchStatusException(
+                "Could not start deployment because no ML nodes with sufficient capacity were found",
+                RestStatus.TOO_MANY_REQUESTS,
+                detail
+            );
+        }
+
+        String msg = "Could not start deployment because there are not enough resources to provide all requested allocations";
+        logger.debug(() -> format("[%s] %s", modelId, msg));
+        throw new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
     }
 
     private static List<DiscoveryNode> getAssignableNodes(ClusterState clusterState) {
@@ -491,6 +539,20 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     n -> nodeLoadDetector.detectNodeLoad(clusterState, null, n, maxOpenJobs, maxMemoryPercentage, useAuto)
                 )
             );
+    }
+
+    private boolean isScalingPossible(List<DiscoveryNode> nodes) {
+        OptionalLong smallestMLNode = nodes.stream().map(NodeLoadDetector::getNodeSize).flatMapToLong(OptionalLong::stream).min();
+
+        // We can scale horizontally
+        return maxLazyMLNodes > nodes.size()
+            // We can scale vertically
+
+            // TODO This checks if there is more space we could vertically scale to but
+            // not if it will be enough for the model to actually fit in. For example,
+            // we might be 32GB off of the maximum ML tier size and someone wants to start a 45GB model.
+            // As this code stands we'll scale up to maximum size then find we still cannot start that model.
+            || (smallestMLNode.isPresent() && smallestMLNode.getAsLong() < maxMLNodeSize);
     }
 
     static ClusterState setToStopping(ClusterState clusterState, String modelId, String reason) {

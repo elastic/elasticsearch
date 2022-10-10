@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
  * Group operator that adds grouping information to pages
  * based on a long field.
  */
+@Experimental
 public class LongGroupingOperator implements Operator {
 
     private final int channel;

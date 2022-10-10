@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 
 /**
@@ -21,6 +22,7 @@ import org.elasticsearch.compute.data.Page;
  * More details on how this integrates with other components can be found in the package documentation of
  * {@link org.elasticsearch.compute}
  */
+@Experimental
 public interface Operator {
 
     /**

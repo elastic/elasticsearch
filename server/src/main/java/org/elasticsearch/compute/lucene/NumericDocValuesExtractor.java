@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.LongArrayBlock;
@@ -28,6 +29,7 @@ import java.util.List;
  * out of pages that have been produced by {@link LuceneCollector}
  * and outputs them to a new column.
  */
+@Experimental
 public class NumericDocValuesExtractor implements Operator {
 
     private final List<IndexReader> indexReaders;

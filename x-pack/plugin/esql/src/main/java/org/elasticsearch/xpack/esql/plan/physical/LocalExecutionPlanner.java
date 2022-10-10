@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -63,6 +64,7 @@ import java.util.stream.IntStream;
  * The local execution planner takes a plan (represented as PlanNode tree / digraph) as input and creates the corresponding
  * drivers that are used to execute the given plan.
  */
+@Experimental
 public class LocalExecutionPlanner {
 
     private final List<IndexReaderReference> indexReaders;

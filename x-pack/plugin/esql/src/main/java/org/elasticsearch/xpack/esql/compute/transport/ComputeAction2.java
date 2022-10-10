@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.compute.transport;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.compute.Experimental;
 
+@Experimental
 public class ComputeAction2 extends ActionType<ComputeResponse> {
 
     public static final ComputeAction2 INSTANCE = new ComputeAction2();

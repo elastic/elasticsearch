@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
@@ -17,6 +18,7 @@ import java.util.function.LongFunction;
 /**
  * Streaming operator that applies a long-value transformation to a given field
  */
+@Experimental
 public class LongTransformerOperator implements Operator {
 
     private final int channel;

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 /**
  * Exchanger implementation that randomly hands off the data to various exchange sources.
  */
+@Experimental
 public class RandomExchanger implements Exchanger {
 
     private final List<Consumer<ExchangeSource.PageReference>> buffers;

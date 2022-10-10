@@ -8,6 +8,9 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Experimental;
+
+@Experimental
 public enum AggregatorMode {
 
     INITIAL(false, true),

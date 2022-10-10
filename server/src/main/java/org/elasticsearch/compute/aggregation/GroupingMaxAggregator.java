@@ -8,6 +8,9 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Experimental;
+
+@Experimental
 final class GroupingMaxAggregator extends AbstractGroupingMinMaxAggregator {
 
     private static final double INITIAL_VALUE = Double.MIN_VALUE;

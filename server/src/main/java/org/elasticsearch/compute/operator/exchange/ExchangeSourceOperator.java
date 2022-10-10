@@ -9,12 +9,14 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 
 /**
  * Source operator implementation that retrieves data from an {@link ExchangeSource}
  */
+@Experimental
 public class ExchangeSourceOperator implements Operator {
 
     private final ExchangeSource source;

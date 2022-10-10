@@ -8,12 +8,15 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Experimental;
+
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Objects;
 
+@Experimental
 final class DoubleArrayState implements AggregatorState<DoubleArrayState> {
 
     private double[] values;

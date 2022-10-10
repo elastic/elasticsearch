@@ -8,11 +8,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.function.BiFunction;
 
+@Experimental
 public class GroupingAggregator {
     private final GroupingAggregatorFunction aggregatorFunction;
 

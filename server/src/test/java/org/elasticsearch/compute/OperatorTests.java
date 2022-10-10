@@ -64,6 +64,7 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 
+@Experimental
 public class OperatorTests extends ESTestCase {
 
     private ThreadPool threadPool;

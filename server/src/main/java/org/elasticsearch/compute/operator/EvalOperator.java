@@ -8,10 +8,12 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 
+@Experimental
 public class EvalOperator implements Operator {
 
     private final ExpressionEvaluator evaluator;

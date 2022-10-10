@@ -211,6 +211,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.util.set;
     exports org.elasticsearch.common.xcontent;
     exports org.elasticsearch.common.xcontent.support;
+    exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;
     exports org.elasticsearch.compute.data;
     exports org.elasticsearch.compute.lucene;

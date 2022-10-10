@@ -11,6 +11,7 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.Page;
@@ -22,6 +23,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
  * contain a block with the doc ids as well as block with the corresponding
  * segment ordinal where the doc was collected from.
  */
+@Experimental
 public class LuceneCollector extends SimpleCollector {
     private static final int PAGE_SIZE = 4096;
 

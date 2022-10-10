@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 
@@ -24,6 +25,7 @@ import java.util.function.Consumer;
  * More details on how this integrates with other components can be found in the package documentation of
  * {@link org.elasticsearch.compute}
  */
+@Experimental
 public class ExchangeSource {
 
     private final BlockingQueue<PageReference> buffer = new LinkedBlockingDeque<>();

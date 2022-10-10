@@ -9,8 +9,10 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 
+@Experimental
 public class TopNOperator implements Operator {
 
     // monotonically increasing state

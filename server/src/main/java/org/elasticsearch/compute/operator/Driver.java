@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
  * More details on how this integrates with other components can be found in the package documentation of
  * {@link org.elasticsearch.compute}
  */
+@Experimental
 public class Driver implements Runnable {
 
     private final List<Operator> activeOperators;

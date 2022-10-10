@@ -36,17 +36,17 @@ image::images/troubleshooting/disk/reduce_replicas.png[Reducing replicas,align="
 // end::cloud[]
 
 // tag::self-managed[]
-n order to increase the data node capacity in your cluster, you will need to calculate the amount of extra disk space
-you need.
+In order to estimate how many replicas need to be removed, first you need to estimate the amount of disk space that
+needs to be released.
 
-. First, we need to retrieve the relevant disk thresholds that will indicate how much space we need to release. This
-is the <<cluster-routing-watermark-high, high watermark>> or for the frozen tier the
-<<cluster-routing-flood-stage-frozen, flood stage watermark>>. We can retrieve them via the following commands:
+. First, retrieve the relevant disk thresholds that will indicate how much space should be released. The
+relevant thresholds are the <<cluster-routing-watermark-high, high watermark>> for all the tiers apart from the frozen
+one and the <<cluster-routing-flood-stage-frozen, frozen flood stage watermark>> for the frozen tier. The following
+example demonstrates disk shortage in the hot tier, so we will only retrieve the high watermark:
 +
 [source,console]
 ----
 GET _cluster/settings?include_defaults&filter_path=*.cluster.routing.allocation.disk.watermark.high*
-GET _cluster/settings?include_defaults&filter_path=*.cluster.routing.allocation.disk.watermark.flood_stage*
 ----
 +
 The response will look like this:
@@ -69,32 +69,14 @@ The response will look like this:
     }
   }
 }
-
-# Frozen tier
-{
-  "defaults": {
-    "cluster": {
-      "routing": {
-        "allocation": {
-          "disk": {
-            "watermark": {
-              "flood_stage.frozen.max_headroom": "20GB",
-              "flood_stage.frozen": "95%"
-            }
-          }
-        }
-      }
-    }
-  }
-}
 ----
 // TEST[skip:illustration purposes only]
 +
 The above means that in order to resolve the disk shortage we need to either drop our disk usage below the 90% or have
-more than 150GB available.
+more than 150GB available, read more on how this threshold works <<cluster-routing-watermark-high, here>>.
 
-. The next step is to find out our current disk usage, this way we can calculate how much space we need. For simplicity,
-our example has one node, but you can apply the same for every node over relevant threshold.
+. The next step is to find out the current disk usage, this will indicate how much space should be freed. For simplicity,
+our example has one node, but you can apply the same for every node over the relevant threshold.
 +
 [source,console]
 ----
@@ -110,16 +92,15 @@ instance-0000000000           91     4.6gb       35gb    31.1gb       29.9gb    
 ----
 // TEST[skip:illustration purposes only]
 
-. The desirable situation is to drop all disk usages bellow the relevant threshold, in our example 90%. So calculate
-how much you need for this and allow for some padding, so it will not go over the threshold in the near future. To
-achieve this, need to release approximately 7GB.
+. The high watermark configuration indicates that the disk usage needs to drop below 90%. Consider allowing some
+padding, so the node will not go over the threshold in the near future. In this example, let's release approximately 7GB.
 
-. List all the indices and choose which replicas to reduce.
+. The next step is to list all the indices and choose which replicas to reduce.
 +
 NOTE: The following command orders the indices with descending number of replicas and primary store size. We do this to
-help you choose which replicas to reduce under the assumption that the more replicas you have the more you will lose if
-you remove a copy and the bigger the replica the more space you will release. This does not take into consideration any
-functional requirements so please see it as a mere suggestion.
+help you choose which replicas to reduce under the assumption that the more replicas you have the smaller the risk if
+you remove a copy and the bigger the replica the more space will be released. This does not take into consideration any
+functional requirements, so please see it as a mere suggestion.
 +
 [source,console]
 ----
@@ -139,8 +120,9 @@ green  logs-000001                                                  1   0      7
 // TEST[skip:illustration purposes only]
 +
 . In the list above we see that if we reduce the replicas to 1 of the indices `my_index` and  `my_other_index` we will
-save the required disk space. Even if `logs-000001` has the larger primary store size, we cannot use it since it has no
-replicas. You can reduce the replicas of one or more indices with the <<indices-update-settings, index update settings API>>:
+release the required disk space. It is not necessary to reduce the replicas of `search-products` and `logs-000001` does
+not have any replicas anyway. Reduce the replicas of one or more indices with the <<indices-update-settings,
+index update settings API>>:
 +
 [source,console]
 ----
@@ -152,7 +134,7 @@ PUT my_index,my_other_index/_settings
 // TEST[skip:illustration purposes only]
 // end::self-managed[]
 
-IMPORTANT: After reducing the replicas please consider if you still have enough replicas to ensure your search
+IMPORTANT: After reducing the replicas please consider there are enough replicas to ensure your search
 performance and reliability requirements. If not, at your earliest convenience (i) consider using
 <<overview-index-lifecycle-management, Index Lifecycle Management>> to manage more efficiently the
 retention of your timeseries data, or (ii) reduce the amount of data you have by disabling the `source` or removing

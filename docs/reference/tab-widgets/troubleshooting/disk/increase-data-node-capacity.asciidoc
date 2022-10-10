@@ -38,7 +38,7 @@ at the bottom of the page.
 In order to increase the data node capacity in your cluster, you will need to calculate the amount of extra disk space
 needed.
 
-. First, retrieve the relevant disk thresholds that will indicate how much space should be released. The
+. First, retrieve the relevant disk thresholds that will indicate how much space should be available. The
 relevant thresholds are the <<cluster-routing-watermark-high, high watermark>> for all the tiers apart from the frozen
 one and the <<cluster-routing-flood-stage-frozen, frozen flood stage watermark>> for the frozen tier. The following
 example demonstrates disk shortage in the hot tier, so we will only retrieve the high watermark:

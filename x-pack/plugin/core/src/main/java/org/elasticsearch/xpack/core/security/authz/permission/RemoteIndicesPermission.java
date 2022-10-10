@@ -82,11 +82,21 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
         }
     }
 
-    public record RemoteIndicesGroup(
-        Set<String> remoteClusterAliases,
-        StringMatcher remoteClusterAliasMatcher,
-        List<IndicesPermission.Group> indicesPermissionGroups
-    ) {
+    public static final class RemoteIndicesGroup {
+        private final Set<String> remoteClusterAliases;
+        private final StringMatcher remoteClusterAliasMatcher;
+        private final List<IndicesPermission.Group> indicesPermissionGroups;
+
+        public RemoteIndicesGroup(
+            Set<String> remoteClusterAliases,
+            StringMatcher remoteClusterAliasMatcher,
+            List<IndicesPermission.Group> indicesPermissionGroups
+        ) {
+            this.remoteClusterAliases = remoteClusterAliases;
+            this.remoteClusterAliasMatcher = remoteClusterAliasMatcher;
+            this.indicesPermissionGroups = indicesPermissionGroups;
+        }
+
         public RemoteIndicesGroup(Set<String> remoteClusterAliases, List<IndicesPermission.Group> indicesPermissionGroups) {
             this(remoteClusterAliases, StringMatcher.of(remoteClusterAliases), indicesPermissionGroups);
         }
@@ -112,5 +122,17 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
             result = 31 * result + indicesPermissionGroups.hashCode();
             return result;
         }
+
+        @Override
+        public String toString() {
+            return "RemoteIndicesGroup["
+                + "remoteClusterAliases="
+                + remoteClusterAliases
+                + ", "
+                + "indicesPermissionGroups="
+                + indicesPermissionGroups
+                + ']';
+        }
+
     }
 }

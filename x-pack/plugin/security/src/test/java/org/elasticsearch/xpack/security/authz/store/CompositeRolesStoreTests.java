@@ -910,14 +910,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*", "remote2")
-                    .indices("ind-1-*", "remote-only-idx-1-*")
-                    .privileges("all")
-                    .build(),
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*")
-                    .indices("ind-1-*", "ind-2-*", "remote-only-idx-2-*")
-                    .privileges("all")
-                    .build(), }
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*", "remote").indices("abc-*", "xyz-*").privileges("read").build(),
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-1-*").privileges("read").build(), }
         );
 
         ConfigurableClusterPrivilege ccp2 = new MockConfigurableClusterPrivilege() {
@@ -943,11 +937,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*")
-                    .indices("ind-2-*", "remote-only-idx-1-*")
-                    .privileges("read")
-                    .build(),
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote1").indices("remote-only-idx-2").privileges("read").build() }
+                RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("remote-idx-2-*").privileges("read").build(),
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-3-*").privileges("read").build() }
         );
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -1000,6 +991,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("abc")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("xyz")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("remote-idx-1-1")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("remote-idx-2-1")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("remote-idx-3-1")), equalTo(false));
 
         final Predicate<IndexAbstraction> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
         assertThat(allowedWrite.test(mockIndexAbstraction("abc-123")), equalTo(true));
@@ -1015,6 +1009,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
         role.application().grants(new ApplicationPrivilege("app1", "app1-read", "read"), "settings/hostname");
         role.application().grants(new ApplicationPrivilege("app2a", "app2a-all", "all"), "user/joe");
         role.application().grants(new ApplicationPrivilege("app2b", "app2b-read", "read"), "settings/hostname");
+
+        assertThat(
+            role.remoteIndices(),
+            equalTo(
+                RemoteIndicesPermission.builder()
+                    .addGroup(Set.of("remote-*", "remote"), "xyz-*", "abc-*")
+                    .addGroup(Set.of("remote-*"), "remote-idx-1-*")
+                    .addGroup(Set.of("remote-*"), "remote-idx-3-*")
+                    .addGroup(Set.of("*"), "remote-idx-2-*")
+                    .build()
+            )
+        );
     }
 
     public void testBuildingRoleWithSingleRemoteIndicesDefinition() {

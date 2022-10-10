@@ -63,12 +63,13 @@ public class Strings {
      * @param separator the separator to split on
      * @param decode    decode backslash escaping
      */
+    @Deprecated // this method is too complicated for its own good
     public static List<String> splitSmart(String s, String separator, boolean decode) {
         ArrayList<String> lst = new ArrayList<>(2);
         StringBuilder sb = new StringBuilder();
         int pos = 0, end = s.length();
         while (pos < end) {
-            if (s.startsWith(separator, pos)) {
+            if (separator.isEmpty() == false && s.startsWith(separator, pos)) {
                 if (sb.length() > 0) {
                     lst.add(sb.toString());
                     sb.setLength(0);
@@ -283,7 +284,7 @@ public class Strings {
      * @return the resulting String
      */
     public static String deleteAny(String inString, String charsToDelete) {
-        return deleteAny((CharSequence) inString, charsToDelete).toString();
+        return inString != null ? deleteAny((CharSequence) inString, charsToDelete).toString() : null;
     }
 
     /**

@@ -29,12 +29,14 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -274,7 +276,7 @@ public class EmbeddedCli implements Closeable {
      * while we're typing a command.
      */
     private List<String> expectedCommandEchos(String command) {
-        List<String> commandLines = Strings.splitSmart(command, "\n", false);
+        List<String> commandLines = Arrays.stream(command.split("\n")).filter(s -> s.isEmpty() == false).toList();
         List<String> result = new ArrayList<>(commandLines.size() * 2);
         result.add("[?1h=[?2004h[33msql> [0m" + commandLines.get(0));
         // Every line gets an extra new line because, I dunno, but it looks right in the CLI

@@ -34,11 +34,23 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
         );
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     public static class Builder {
         final Map<Set<String>, List<IndicesPermission.Group>> remoteIndicesGroups;
 
         public Builder() {
             this.remoteIndicesGroups = new HashMap<>();
+        }
+
+        public Builder addGroup(final Set<String> remoteClusterAliases, final String... indices) {
+            return addGroup(remoteClusterAliases, IndexPrivilege.READ, FieldPermissions.DEFAULT, null, false, indices);
+        }
+
+        public Builder addGroup(final Set<String> remoteClusterAliases, final boolean allowRestrictedIndices, final String... indices) {
+            return addGroup(remoteClusterAliases, IndexPrivilege.READ, FieldPermissions.DEFAULT, null, allowRestrictedIndices, indices);
         }
 
         public Builder addGroup(
@@ -81,6 +93,24 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
 
         public boolean checkRemoteClusterAlias(final String remoteClusterAlias) {
             return remoteClusterAliasMatcher.test(remoteClusterAlias);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            RemoteIndicesGroup that = (RemoteIndicesGroup) o;
+
+            if (false == remoteClusterAliases.equals(that.remoteClusterAliases)) return false;
+            return indicesPermissionGroups.equals(that.indicesPermissionGroups);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = remoteClusterAliases.hashCode();
+            result = 31 * result + indicesPermissionGroups.hashCode();
+            return result;
         }
     }
 }

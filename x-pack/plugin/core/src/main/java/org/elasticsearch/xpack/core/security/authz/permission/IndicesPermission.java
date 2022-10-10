@@ -11,6 +11,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -687,6 +688,46 @@ public final class IndicesPermission {
                 && privilege == IndexPrivilege.ALL
                 && query == null
                 && false == fieldPermissions.hasFieldLevelSecurity();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Group group = (Group) o;
+
+            if (allowRestrictedIndices != group.allowRestrictedIndices) return false;
+            if (false == privilege.equals(group.privilege)) return false;
+            if (false == Arrays.equals(indices, group.indices)) return false;
+            if (false == Objects.equals(fieldPermissions, group.fieldPermissions)) return false;
+            return Objects.equals(query, group.query);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = privilege.hashCode();
+            result = 31 * result + Arrays.hashCode(indices);
+            result = 31 * result + (fieldPermissions != null ? fieldPermissions.hashCode() : 0);
+            result = 31 * result + (query != null ? query.hashCode() : 0);
+            result = 31 * result + (allowRestrictedIndices ? 1 : 0);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "Group{"
+                + "privilege="
+                + privilege
+                + ", indices="
+                + Strings.arrayToCommaDelimitedString(indices)
+                + ", fieldPermissions="
+                + fieldPermissions
+                + ", query="
+                + query
+                + ", allowRestrictedIndices="
+                + allowRestrictedIndices
+                + '}';
         }
     }
 

@@ -401,7 +401,19 @@ public class RoleDescriptorTests extends ESTestCase {
         );
         streamInput.setVersion(version);
         final RoleDescriptor serialized = new RoleDescriptor(streamInput);
-        assertThat(serialized, equalTo(descriptor));
+
+        if (version.onOrAfter(Version.V_8_6_0)) {
+            assertThat(serialized, equalTo(descriptor));
+        } else {
+            assertThat(serialized.getName(), equalTo(descriptor.getName()));
+            assertThat(serialized.getIndicesPrivileges(), equalTo(descriptor.getIndicesPrivileges()));
+            assertThat(serialized.getClusterPrivileges(), equalTo(descriptor.getClusterPrivileges()));
+            assertThat(serialized.getApplicationPrivileges(), equalTo(descriptor.getApplicationPrivileges()));
+            assertThat(serialized.getConditionalClusterPrivileges(), equalTo(descriptor.getConditionalClusterPrivileges()));
+            assertThat(serialized.getRunAs(), equalTo(descriptor.getRunAs()));
+            assertThat(serialized.getMetadata(), equalTo(descriptor.getMetadata()));
+            assertThat(serialized.getRemoteIndicesPrivileges(), nullValue());
+        }
     }
 
     public void testParseEmptyQuery() throws Exception {

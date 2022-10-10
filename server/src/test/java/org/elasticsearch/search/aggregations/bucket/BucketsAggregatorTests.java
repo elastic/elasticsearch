@@ -36,7 +36,8 @@ public class BucketsAggregatorTests extends AggregatorTestCase {
     private List<AggregationContext> toRelease = new ArrayList<>();
 
     @Override
-    protected AggregationContext createAggregationContext(IndexSearcher indexSearcher, Query query, MappedFieldType... fieldTypes) throws IOException {
+    protected AggregationContext createAggregationContext(IndexSearcher indexSearcher, Query query, MappedFieldType... fieldTypes)
+        throws IOException {
         AggregationContext context = super.createAggregationContext(indexSearcher, query, fieldTypes);
         // Generally, we should avoid doing this, but
         toRelease.add(context);

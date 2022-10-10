@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -633,7 +634,8 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .put("index.routing.allocation.exclude._name", "node-2")
             .build();
 
-        ShardRouting index0Shard = null;
+        ShardRouting index0PrimaryShard = null;
+        ShardRouting index0ReplicaShard = null;
         {
             var indexName = "index-0";
 
@@ -642,20 +644,21 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             var indexId = metadataBuilder.get(indexName).getIndex();
             var shardId = new ShardId(indexId, 0);
 
-            var scenario = randomIntBetween(0, 3);
-            index0Shard = switch (scenario) {
+            var scenario = 2;// randomIntBetween(0, 3);
+            index0PrimaryShard = newShardRouting(shardId, "node-1", null, true, STARTED);
+            index0ReplicaShard = switch (scenario) {
                 // started on the desired node
-                case 0 -> newShardRouting(shardId, "node-0", null, true, STARTED);
+                case 0 -> newShardRouting(shardId, "node-0", null, false, STARTED);
                 // initializing on the desired node
-                case 1 -> newShardRouting(shardId, "node-0", null, true, INITIALIZING);
+                case 1 -> newShardRouting(shardId, "node-0", null, false, INITIALIZING);
                 // started on undesired node, assumed to be relocated to the desired node in the future
-                case 2 -> newShardRouting(shardId, "node-2", null, true, STARTED);
+                case 2 -> newShardRouting(shardId, "node-2", null, false, STARTED);
                 // shard is already relocating to the desired node
-                case 3 -> newShardRouting(shardId, "node-2", "node-0", true, RELOCATING);
+                case 3 -> newShardRouting(shardId, "node-2", "node-0", false, RELOCATING);
                 default -> throw new IllegalStateException();
             };
 
-            routingTableBuilder.add(IndexRoutingTable.builder(indexId).addShard(index0Shard));
+            routingTableBuilder.add(IndexRoutingTable.builder(indexId).addShard(index0PrimaryShard).addShard(index0ReplicaShard));
         }
 
         for (int i = 1; i < 10; i++) {
@@ -666,7 +669,9 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             var indexId = metadataBuilder.get(indexName).getIndex();
             var shardId = new ShardId(indexId, 0);
 
-            routingTableBuilder.add(IndexRoutingTable.builder(indexId).addShard(newShardRouting(shardId, "node-1", null, true, STARTED)));
+            routingTableBuilder.add(
+                IndexRoutingTable.builder(indexId).addShard(newShardRouting(shardId, i == 1 ? "node-0" : "node-1", null, true, STARTED))
+            );
         }
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -675,9 +680,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .routingTable(routingTableBuilder)
             .build();
 
-        var node0RemainingBytes = (index0Shard.started() || index0Shard.initializing()) && index0Shard.currentNodeId().equals("node-0")
-            ? 100
-            : 1000;
+        var node0RemainingBytes = index0ReplicaShard.started() && index0ReplicaShard.currentNodeId().equals("node-0") ? 100 : 600;
         var node0Usage = new DiskUsage("node-0", "node-0", "/data", 1000, node0RemainingBytes);
         var node1Usage = new DiskUsage("node-1", "node-1", "/data", 1000, 100);
 
@@ -685,18 +688,20 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage),
             Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage),
             Map.ofEntries(
+                // node-0 & node-1
+                indexSize(clusterState, "index-0", 500, true),
+                indexSize(clusterState, "index-0", 500, false),
                 // node-0
-                indexSize(clusterState, "index-0", 900),
+                indexSize(clusterState, "index-1", 400, true),
                 // node-1
-                indexSize(clusterState, "index-1", 500),
-                indexSize(clusterState, "index-2", 50),
-                indexSize(clusterState, "index-3", 50),
-                indexSize(clusterState, "index-4", 50),
-                indexSize(clusterState, "index-5", 50),
-                indexSize(clusterState, "index-6", 50),
-                indexSize(clusterState, "index-7", 50),
-                indexSize(clusterState, "index-8", 50),
-                indexSize(clusterState, "index-9", 50)
+                indexSize(clusterState, "index-2", 50, true),
+                indexSize(clusterState, "index-3", 50, true),
+                indexSize(clusterState, "index-4", 50, true),
+                indexSize(clusterState, "index-5", 50, true),
+                indexSize(clusterState, "index-6", 50, true),
+                indexSize(clusterState, "index-7", 50, true),
+                indexSize(clusterState, "index-8", 50, true),
+                indexSize(clusterState, "index-9", 50, true)
             ),
             Map.of(),
             Map.of(),
@@ -716,9 +721,9 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             1,
             Map.of(
                 findShardId(clusterState, "index-0"),
-                new ShardAssignment(Set.of("node-0"), 1, 0, 0),
+                new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0),
                 findShardId(clusterState, "index-1"),
-                new ShardAssignment(Set.of("node-1"), 1, 0, 0)
+                new ShardAssignment(Set.of("node-0"), 1, 0, 0)
             )
         );
 
@@ -731,16 +736,17 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var resultDiskUsage = new HashMap<String, Long>();
         for (var assignment : desiredBalance.assignments().entrySet()) {
-            var nodeId = assignment.getValue().nodeIds().iterator().next();
-            var size = clusterInfo.getShardSize(assignment.getKey(), true);
-            resultDiskUsage.compute(nodeId, (k, v) -> v == null ? size : v + size);
+            for (String nodeId : assignment.getValue().nodeIds()) {
+                var size = Objects.requireNonNull(clusterInfo.getShardSize(assignment.getKey(), true));
+                resultDiskUsage.compute(nodeId, (k, v) -> v == null ? size : v + size);
+            }
         }
 
         assertThat(resultDiskUsage.values(), not(hasItems(greaterThan(1000L))));
     }
 
-    private static Map.Entry<String, Long> indexSize(ClusterState clusterState, String name, long size) {
-        return Map.entry(ClusterInfo.shardIdentifierFromRouting(findShardId(clusterState, name), true), size);
+    private static Map.Entry<String, Long> indexSize(ClusterState clusterState, String name, long size, boolean primary) {
+        return Map.entry(ClusterInfo.shardIdentifierFromRouting(findShardId(clusterState, name), primary), size);
     }
 
     private static ShardId findShardId(ClusterState clusterState, String name) {

@@ -82,11 +82,11 @@ including the following queries:
 * The <<search-terms-enum,terms enum API>> does not return terms if document
 level security is enabled.
 
-While document-level security prevents users from seeing documents that they do not have access to,
-it is possible to craft search requests in order to discover aggregate information about the entire
-index. A user whose access to an index is restricted via document-level security could still learn
-about fields names and terms that only exist in inaccessible documents and count how many inaccessible
-documents containing a given term. But no more than that.
+NOTE: While document-level security prevents users from viewing restricted documents,
+it's still possible to write search requests that return aggregate information about the
+entire index. A user whose access is restricted to specific documents in an index could
+still learn about field names and terms that only exist in inaccessible
+documents, and count how many inaccessible documents contain a given term. 
 
 [discrete]
 [[alias-limitations]]

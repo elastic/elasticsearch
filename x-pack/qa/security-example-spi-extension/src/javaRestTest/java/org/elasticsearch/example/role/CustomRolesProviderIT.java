@@ -58,13 +58,13 @@ public class CustomRolesProviderIT extends ESRestTestCase {
     public void setupTestUser(String role) throws IOException {
         final String endpoint = "/_security/user/" + TEST_USER;
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        final String body = """
+        final String body = formatted("""
             {
                 "username": "%s",
                 "password": "%s",
                 "roles": [ "%s" ]
             }
-            """.formatted(TEST_USER, TEST_PWD, role);
+            """, TEST_USER, TEST_PWD, role);
         request.setJsonEntity(body);
         request.addParameters(Map.of("refresh", "true"));
         request.setOptions(RequestOptions.DEFAULT);

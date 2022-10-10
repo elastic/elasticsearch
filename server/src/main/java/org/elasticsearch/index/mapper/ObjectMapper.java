@@ -97,11 +97,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             });
         }
 
-        Builder addMappers(Map<String, Mapper> mappers) {
-            mappers.forEach(this::add);
-            return this;
-        }
-
         /**
          * Adds a dynamically created {@link Mapper} to this builder.
          *

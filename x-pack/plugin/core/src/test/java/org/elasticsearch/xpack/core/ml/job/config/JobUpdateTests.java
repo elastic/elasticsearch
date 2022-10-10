@@ -13,7 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
+public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdate> {
 
     private boolean useInternalParser = randomBoolean();
 

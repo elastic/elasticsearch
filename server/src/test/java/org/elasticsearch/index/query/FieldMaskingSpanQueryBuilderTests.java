@@ -55,7 +55,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testFromJson() throws IOException {
-        String json = """
+        String json = formatted("""
             {
               "%s" : {
                 "query" : {
@@ -70,7 +70,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
                 "boost" : 42.0,
                 "_name" : "KPI"
               }
-            }""".formatted(NAME.getPreferredName());
+            }""", NAME.getPreferredName());
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(
             exception.getMessage(),
@@ -79,7 +79,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testJsonWithTopLevelBoost() throws IOException {
-        String json = """
+        String json = formatted("""
             {
               "%s" : {
                 "query" : {
@@ -93,7 +93,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
                 "boost" : 42.0,
                 "_name" : "KPI"
               }
-            }""".formatted(NAME.getPreferredName());
+            }""", NAME.getPreferredName());
         Query q = parseQuery(json).toQuery(createSearchExecutionContext());
         assertEquals(new BoostQuery(new FieldMaskingSpanQuery(new SpanTermQuery(new Term("value", "foo")), "mapped_geo_shape"), 42.0f), q);
     }

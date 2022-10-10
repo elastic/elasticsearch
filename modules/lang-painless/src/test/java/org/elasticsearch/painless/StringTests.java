@@ -11,7 +11,6 @@ package org.elasticsearch.painless;
 import org.apache.lucene.util.Constants;
 
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -75,14 +74,14 @@ public class StringTests extends ScriptTestCase {
         StringBuilder script = new StringBuilder("String s = \"cat\"; return s");
         StringBuilder result = new StringBuilder("cat");
         for (int i = 1; i < count; i++) {
-            final String s = String.format(Locale.ROOT, "%03d", i);
+            final String s = formatted("%03d", i);
             script.append(" + '").append(s).append("'.toString()");
             result.append(s);
         }
         final String s = script.toString();
         assertTrue(
             "every string part should be separately pushed to stack.",
-            Debugger.toString(s).contains(String.format(Locale.ROOT, "LDC \"%03d\"", count / 2))
+            Debugger.toString(s).contains(formatted("LDC \"%03d\"", count / 2))
         );
         assertEquals(result.toString(), exec(s));
     }

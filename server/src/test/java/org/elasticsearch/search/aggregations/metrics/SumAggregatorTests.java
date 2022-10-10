@@ -241,7 +241,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
                 final IndexSearcher searcher = newSearcher(multiReader, true, true);
 
-                final Sum internalSum = searchAndReduce(new AggTestConfig(searcher, builder, fieldType));
+                final Sum internalSum = searchAndReduce(searcher, new AggTestConfig(builder, fieldType));
                 assertEquals(sum, internalSum.value(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(internalSum));
             }
@@ -379,7 +379,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
         Consumer<Sum> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(aggregationBuilder, query, indexer, verify, fieldTypes);
+        testCase(indexer, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
     }
 
     @Override

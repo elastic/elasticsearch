@@ -552,7 +552,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testNonexistentPolicy() throws Exception {
         String indexPrefix = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
-        final StringEntity template = new StringEntity("""
+        final StringEntity template = new StringEntity(formatted("""
             {
               "index_patterns": "%s*",
               "settings": {
@@ -563,7 +563,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                   }
                 }
               }
-            }""".formatted(indexPrefix), ContentType.APPLICATION_JSON);
+            }""", indexPrefix), ContentType.APPLICATION_JSON);
         Request templateRequest = new Request("PUT", "_template/test");
         templateRequest.setEntity(template);
         templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
@@ -719,13 +719,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         // Add the policy again
         Request addPolicyRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        addPolicyRequest.setJsonEntity("""
+        addPolicyRequest.setJsonEntity(formatted("""
             {
               "settings": {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""".formatted(policy, alias));
+            }""", policy, alias));
         client().performRequest(addPolicyRequest);
         assertBusy(() -> assertTrue((boolean) explainIndex(client(), originalIndex).getOrDefault("managed", false)));
 
@@ -780,14 +780,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // update policy on index
         updatePolicy(client(), originalIndex, policy);
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity("""
+        createIndexTemplate.setJsonEntity(formatted("""
             {"index_patterns": ["%s-*"],
               "settings": {
                 "number_of_shards": 1,
                 "number_of_replicas": 142,
                 "index.write.wait_for_active_shards": "all"
               }
-            }""".formatted(index));
+            }""", index));
         createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
@@ -806,7 +806,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity("""
+        createIndexTemplate.setJsonEntity(formatted("""
             {
               "index_patterns": [ "%s-*" ],
               "settings": {
@@ -815,7 +815,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""".formatted(index, policy, alias));
+            }""", index, policy, alias));
         createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
@@ -915,7 +915,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 100L, null, null, null, null, null, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity("""
+        createIndexTemplate.setJsonEntity(formatted("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -924,7 +924,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""".formatted(index, policy, alias));
+            }""", index, policy, alias));
         createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 
@@ -1135,42 +1135,43 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
         final Request historySearchRequest = new Request("GET", "ilm-history*/_search?expand_wildcards=all");
         historySearchRequest.setJsonEntity(
-            """
-                {
-                  "query": {
-                    "bool": {
-                      "must": [
-                        {
-                          "term": {
-                            "policy": "%s"
-                          }
-                        },
-                        {
-                          "term": {
-                            "success": %s
-                          }
-                        },
-                        {
-                          "term": {
-                            "index": "%s"
-                          }
-                        },
-                        {
-                          "term": {
-                            "state.step": "%s"
-                          }
+            formatted(
+                """
+                    {
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "term": {
+                                "policy": "%s"
+                              }
+                            },
+                            {
+                              "term": {
+                                "success": %s
+                              }
+                            },
+                            {
+                              "term": {
+                                "index": "%s"
+                              }
+                            },
+                            {
+                              "term": {
+                                "state.step": "%s"
+                              }
+                            }
+                            %s
+                            %s
+                          ]
                         }
-                        %s
-                        %s
-                      ]
-                    }
-                  }
-                }""".formatted(
+                      }
+                    }""",
                 policyName,
                 success,
                 indexName,
                 stepName,
-                phase == null ? "" : ",{\"term\": {\"state.phase\": \"%s\"}}".formatted(phase),
+                phase == null ? "" : formatted(",{\"term\": {\"state.phase\": \"%s\"}}", phase),
                 action == null ? "" : ",{\"term\": {\"state.action\": \"" + action + "\"}}"
             )
         );
@@ -1187,7 +1188,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             // For a failure, print out whatever history we *do* have for the index
             if (hits == 0) {
                 final Request allResults = new Request("GET", "ilm-history*/_search");
-                allResults.setJsonEntity("""
+                allResults.setJsonEntity(formatted("""
                     {
                       "query": {
                         "bool": {
@@ -1205,7 +1206,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                           ]
                         }
                       }
-                    }""".formatted(policyName, indexName));
+                    }""", policyName, indexName));
                 final Response allResultsResp = client().performRequest(historySearchRequest);
                 Map<String, Object> allResultsMap;
                 try (InputStream is = allResultsResp.getEntity().getContent()) {

@@ -32,7 +32,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.containsString;
@@ -532,7 +531,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     private String randomIs8601Nanos(long maxMillis) {
         String date = DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.formatMillis(randomLongBetween(0, maxMillis));
         date = date.substring(0, date.length() - 1);  // Strip off trailing "Z"
-        return date + String.format(Locale.ROOT, "%06d", between(0, 999999)) + "Z";  // Add nanos and the "Z"
+        return date + formatted("%06d", between(0, 999999)) + "Z";  // Add nanos and the "Z"
     }
 
     private String randomDecimalNanos(long maxMillis) {

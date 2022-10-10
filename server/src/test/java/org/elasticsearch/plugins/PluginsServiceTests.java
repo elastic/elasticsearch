@@ -39,7 +39,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -146,8 +145,7 @@ public class PluginsServiceTests extends ESTestCase {
             "false"
         );
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-        final String expected = String.format(
-            Locale.ROOT,
+        final String expected = formatted(
             "found file [%s] from a failed attempt to remove the plugin [fake]; execute [elasticsearch-plugin remove fake]",
             removing
         );

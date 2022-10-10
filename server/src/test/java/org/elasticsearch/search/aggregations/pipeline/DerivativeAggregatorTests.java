@@ -660,7 +660,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-                searchAndReduce(new AggTestConfig(indexSearcher, aggBuilder).withQuery(query));
+                searchAndReduce(indexSearcher, new AggTestConfig(aggBuilder).withQuery(query));
             }
         }
     }
@@ -716,7 +716,8 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram = searchAndReduce(
-                    new AggTestConfig(indexSearcher, aggBuilder, fieldType, valueFieldType).withQuery(query)
+                    indexSearcher,
+                    new AggTestConfig(aggBuilder, fieldType, valueFieldType).withQuery(query)
                 );
                 verify.accept(histogram);
             }

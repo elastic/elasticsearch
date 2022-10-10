@@ -98,15 +98,15 @@ public class RolloverActionIT extends ESRestTestCase {
         );
 
         Request updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        updateSettingsRequest.setJsonEntity("""
+        updateSettingsRequest.setJsonEntity(formatted("""
             {
               "settings": {
                 "%s": true
               }
-            }""".formatted(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
+            }""", LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
         client().performRequest(updateSettingsRequest);
         Request updateAliasRequest = new Request("POST", "/_aliases");
-        updateAliasRequest.setJsonEntity("""
+        updateAliasRequest.setJsonEntity(formatted("""
             {
               "actions": [
                 {
@@ -117,7 +117,7 @@ public class RolloverActionIT extends ESRestTestCase {
                   }
                 }
               ]
-            }""".formatted(originalIndex, alias));
+            }""", originalIndex, alias));
         client().performRequest(updateAliasRequest);
 
         // create policy
@@ -347,7 +347,7 @@ public class RolloverActionIT extends ESRestTestCase {
         // Set up a policy with rollover
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 2L, null, null, null, null, null, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity("""
+        createIndexTemplate.setJsonEntity(formatted("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -356,7 +356,7 @@ public class RolloverActionIT extends ESRestTestCase {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""".formatted(index, policy, alias));
+            }""", index, policy, alias));
         createIndexTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createIndexTemplate);
 

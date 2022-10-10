@@ -27,22 +27,27 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject {
 
+    private final ProfileResult dfsShardResult;
     private final QueryProfileShardResult queryProfileShardResult;
 
     @ParserConstructor
-    public SearchProfileDfsPhaseResult(@Nullable QueryProfileShardResult queryProfileShardResult) {
+    public SearchProfileDfsPhaseResult(@Nullable ProfileResult dfsShardResult, @Nullable QueryProfileShardResult queryProfileShardResult) {
+        this.dfsShardResult = dfsShardResult;
         this.queryProfileShardResult = queryProfileShardResult;
     }
 
     public SearchProfileDfsPhaseResult(StreamInput in) throws IOException {
+        dfsShardResult = in.readOptionalWriteable(ProfileResult::new);
         queryProfileShardResult = in.readOptionalWriteable(QueryProfileShardResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(dfsShardResult);
         out.writeOptionalWriteable(queryProfileShardResult);
     }
 
+    private static final ParseField STATISTICS = new ParseField("statistics");
     private static final ParseField KNN = new ParseField("knn");
     private static final InstantiatingObjectParser<SearchProfileDfsPhaseResult, Void> PARSER;
 
@@ -52,6 +57,7 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
             true,
             SearchProfileDfsPhaseResult.class
         );
+        parser.declareObject(optionalConstructorArg(), (p, c) -> ProfileResult.fromXContent(p), STATISTICS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> QueryProfileShardResult.fromXContent(p), KNN);
         PARSER = parser.build();
     }
@@ -63,6 +69,10 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (dfsShardResult != null) {
+            builder.field(STATISTICS.getPreferredName());
+            dfsShardResult.toXContent(builder, params);
+        }
         if (queryProfileShardResult != null) {
             builder.field(KNN.getPreferredName());
             queryProfileShardResult.toXContent(builder, params);
@@ -76,11 +86,21 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchProfileDfsPhaseResult that = (SearchProfileDfsPhaseResult) o;
-        return Objects.equals(queryProfileShardResult, that.queryProfileShardResult);
+        return Objects.equals(dfsShardResult, that.dfsShardResult) && Objects.equals(queryProfileShardResult, that.queryProfileShardResult);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(queryProfileShardResult);
+        return Objects.hash(dfsShardResult, queryProfileShardResult);
+    }
+
+    @Override
+    public String toString() {
+        return "SearchProfileDfsPhaseResult{"
+            + "dfsShardResult="
+            + dfsShardResult
+            + ", queryProfileShardResult="
+            + queryProfileShardResult
+            + '}';
     }
 }

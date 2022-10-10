@@ -91,7 +91,9 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             Sets.newHashSet(
                 MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                 MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_OPEN_JOBS_PER_NODE
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearning.MAX_ML_NODE_SIZE
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -267,7 +269,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         assertThat(TrainedModelAssignmentMetadata.fromState(modified).modelAssignments(), is(anEmptyMap()));
     }
 
-    public void testCreateAssignment() throws Exception {
+    public void testCreateAssignment_GivenModelCannotByFullyAllocated_AndScalingIsPossible() throws Exception {
         Settings settings = Settings.EMPTY;
         ClusterSettings clusterSettings = new ClusterSettings(
             settings,
@@ -287,7 +289,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
             .build();
 
-        TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = createClusterService();
+        TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = createClusterService(5);
         ClusterState newState = trainedModelAssignmentClusterService.createModelAssignment(currentState, newParams("new-model", 150, 4, 1));
         TrainedModelAssignment createdAssignment = TrainedModelAssignmentMetadata.fromState(newState).getModelAssignment("new-model");
 
@@ -308,6 +310,38 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
     }
 
+    public void testCreateAssignment_GivenModelCannotByFullyAllocated_AndScalingIsNotPossible() {
+        Settings settings = Settings.EMPTY;
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Set.of(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING)
+        );
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
+            .add(buildNode("ml-node-without-room", true, 1000L, 2))
+            .add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 2))
+            .add(buildNode("ml-node-shutting-down", true, ByteSizeValue.ofGb(4).getBytes(), 2))
+            .add(buildOldNode("old-ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes(), 2))
+            .build();
+        nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+
+        ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAssignment"))
+            .nodes(discoveryNodes)
+            .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata("ml-node-shutting-down")))
+            .build();
+
+        TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = createClusterService(0);
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> trainedModelAssignmentClusterService.createModelAssignment(currentState, newParams("new-model", 150, 4, 1))
+        );
+
+        assertThat(
+            e.getMessage(),
+            equalTo("Could not start deployment because there are not enough resources to provide all requested allocations")
+        );
+    }
+
     public void testCreateAssignmentWhileResetModeIsTrue() throws InterruptedException {
         Settings settings = Settings.EMPTY;
         ClusterSettings clusterSettings = new ClusterSettings(
@@ -324,7 +358,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build()))
             .build();
         when(clusterService.state()).thenReturn(currentState);
-        TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = createClusterService();
+        TrainedModelAssignmentClusterService trainedModelAssignmentClusterService = createClusterService(0);
 
         CountDownLatch latch = new CountDownLatch(1);
         trainedModelAssignmentClusterService.createNewModelAssignment(
@@ -1417,9 +1451,9 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         );
     }
 
-    private TrainedModelAssignmentClusterService createClusterService() {
+    private TrainedModelAssignmentClusterService createClusterService(int maxLazyNodes) {
         return new TrainedModelAssignmentClusterService(
-            Settings.EMPTY,
+            Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxLazyNodes).build(),
             clusterService,
             threadPool,
             nodeLoadDetector,

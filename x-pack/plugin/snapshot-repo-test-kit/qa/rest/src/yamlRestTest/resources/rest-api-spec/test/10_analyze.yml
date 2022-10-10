@@ -24,7 +24,7 @@ setup:
         body:
           type: fs
           settings:
-            max_snapshot_bytes_per_sec: "1b"
+            max_snapshot_bytes_per_sec: "1mb"
             location: "test_repo_loc"
 
 ---
@@ -156,7 +156,7 @@ setup:
   - is_false: summary.read.total_elapsed
 
 ---
-"Timeout with large blobs":
+"Timeout with slow blobs":
   - skip:
       version: "- 7.13.99"
       reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
@@ -165,10 +165,10 @@ setup:
       catch: request
       snapshot.repository_analyze:
         repository: test_repo_slow
-        blob_count: 1
+        blob_count: 200
         concurrency: 1
-        max_blob_size: 2gb
-        max_total_data_size: 2gb
+        max_blob_size: 10mb
+        max_total_data_size: 2000mb
         detailed: false
         human: false
         timeout: 1s

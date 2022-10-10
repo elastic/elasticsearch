@@ -9,17 +9,17 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class TransformHealthTests extends AbstractSerializingTestCase<TransformHealth> {
+public class TransformHealthTests extends AbstractXContentSerializingTestCase<TransformHealth> {
 
     public static TransformHealth randomTransformHealth() {
         return new TransformHealth(
             randomFrom(HealthStatus.values()),
-            randomBoolean() ? null : randomList(1,10, TransformHealthIssueTests::randomTransformHealthIssue)
+            randomBoolean() ? null : randomList(1, 10, TransformHealthIssueTests::randomTransformHealthIssue)
         );
     }
 

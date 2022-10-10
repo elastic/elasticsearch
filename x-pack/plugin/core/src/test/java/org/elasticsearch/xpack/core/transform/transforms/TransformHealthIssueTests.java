@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class TransformHealthIssueTests extends AbstractSerializingTestCase<TransformHealthIssue> {
+public class TransformHealthIssueTests extends AbstractXContentSerializingTestCase<TransformHealthIssue> {
 
     public static TransformHealthIssue randomTransformHealthIssue() {
         return new TransformHealthIssue(randomAlphaOfLengthBetween(10, 200), randomBoolean() ? randomAlphaOfLengthBetween(10, 200) : null);

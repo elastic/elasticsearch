@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStatsTe
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.transforms.TransformContext;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.time.Instant;
@@ -136,10 +137,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
         );
 
         reason = "the task is failed";
-        expectedHealth = new TransformHealth(
-            HealthStatus.RED,
-            List.of(new TransformHealthIssue("Transform state is [failed]", reason))
-        );
+        expectedHealth = new TransformHealth(HealthStatus.RED, List.of(new TransformHealthIssue("Transform state is [failed]", reason)));
         failedState = new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0, reason, null, null, true);
         withIdStateAndStats(transformId, failedState, stats);
 
@@ -266,6 +264,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
         when(task.getTransformId()).thenReturn(transformId);
         when(task.getState()).thenReturn(state);
         when(task.getStats()).thenReturn(stats);
+        when(task.getContext()).thenReturn(new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class)));
     }
 
 }

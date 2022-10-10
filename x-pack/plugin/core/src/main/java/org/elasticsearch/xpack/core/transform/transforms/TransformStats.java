@@ -75,7 +75,7 @@ public class TransformStats implements Writeable, ToXContentObject {
         PARSER.declareField(optionalConstructorArg(), NodeAttributes.PARSER::apply, NODE_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareObject(constructorArg(), (p, c) -> TransformIndexerStats.fromXContent(p), TransformField.STATS_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> TransformCheckpointingInfo.fromXContent(p), CHECKPOINTING_INFO_FIELD);
-        PARSER.declareObject(optionalConstructorArg(),  (p, c) -> TransformHealth.fromXContent(p), HEALTH_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> TransformHealth.fromXContent(p), HEALTH_FIELD);
     }
 
     public static TransformStats fromXContent(XContentParser parser) throws IOException {
@@ -87,7 +87,15 @@ public class TransformStats implements Writeable, ToXContentObject {
     }
 
     public static TransformStats stoppedStats(String id, TransformIndexerStats indexerTransformStats) {
-        return new TransformStats(id, State.STOPPED, null, null, indexerTransformStats, TransformCheckpointingInfo.EMPTY, TransformHealth.OK);
+        return new TransformStats(
+            id,
+            State.STOPPED,
+            null,
+            null,
+            indexerTransformStats,
+            TransformCheckpointingInfo.EMPTY,
+            TransformHealth.OK
+        );
     }
 
     public TransformStats(

@@ -585,7 +585,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     // used for {@link TransformHealthChecker}
-    TransformContext getContext(){
+    public TransformContext getContext() {
         return context;
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -14,12 +15,15 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformHealth;
 import org.elasticsearch.xpack.core.transform.transforms.TransformHealthIssue;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- *
+ * Check the health of a transform.
  */
 public final class TransformHealthChecker {
+
+    private static int RED_STATUS_FAILURE_COUNT_BOUNDARY = 5;
 
     public static TransformHealth checkUnassignedTransform(String transformId, ClusterState clusterState) {
         final Assignment assignment = TransformNodes.getAssignment(transformId, clusterState);
@@ -30,13 +34,51 @@ public final class TransformHealthChecker {
     }
 
     public static TransformHealth checkTransform(TransformTask transformtask) {
+        // quick check
+        if (TransformTaskState.FAILED.equals(transformtask.getState().getTaskState()) == false
+            && transformtask.getContext().getFailureCount() == 0
+            && transformtask.getContext().getStatePersistenceFailureCount() == 0) {
+            return TransformHealth.OK;
+        }
+
+        final TransformContext transformContext = transformtask.getContext();
+        List<TransformHealthIssue> issues = new ArrayList<>();
+        HealthStatus maxStatus = HealthStatus.GREEN;
+
         if (TransformTaskState.FAILED.equals(transformtask.getState().getTaskState())) {
-            return new TransformHealth(
-                HealthStatus.RED,
-                List.of(new TransformHealthIssue("Transform state is [failed]", transformtask.getState().getReason()))
+            maxStatus = HealthStatus.RED;
+            issues.add(new TransformHealthIssue("Transform state is [failed]", transformtask.getState().getReason()));
+        }
+
+        if (transformContext.getFailureCount() != 0) {
+            final Throwable lastFailure = transformContext.getLastFailure();
+            final String lastFailureMessage = lastFailure instanceof ElasticsearchException elasticsearchException
+                ? elasticsearchException.getDetailedMessage()
+                : lastFailure.getMessage();
+
+            if (HealthStatus.RED.equals(maxStatus) == false) {
+                maxStatus = transformContext.getFailureCount() > RED_STATUS_FAILURE_COUNT_BOUNDARY ? HealthStatus.RED : HealthStatus.YELLOW;
+            }
+
+            issues.add(new TransformHealthIssue("Transform indexer failed multiple times", lastFailureMessage));
+        }
+
+        if (transformContext.getStatePersistenceFailureCount() != 0) {
+            if (HealthStatus.RED.equals(maxStatus) == false) {
+                maxStatus = transformContext.getStatePersistenceFailureCount() > RED_STATUS_FAILURE_COUNT_BOUNDARY
+                    ? HealthStatus.RED
+                    : HealthStatus.YELLOW;
+            }
+
+            issues.add(
+                new TransformHealthIssue(
+                    "Task encountered several failures updating internal state",
+                    transformContext.getLastStatePersistenceFailure().getMessage()
+                )
             );
         }
-        return new TransformHealth(HealthStatus.GREEN, null);
+
+        return new TransformHealth(maxStatus, issues);
     }
 
     private TransformHealthChecker() {}

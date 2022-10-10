@@ -47,9 +47,9 @@ public class TransformHealthIssue implements Writeable, ToXContentObject {
         return PARSER.parse(parser, null);
     }
 
-    public TransformHealthIssue(String issue, String details){
+    public TransformHealthIssue(String issue, String details) {
         this.issue = issue;
-        this.details =details;
+        this.details = details;
     }
 
     public TransformHealthIssue(StreamInput in) throws IOException {

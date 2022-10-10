@@ -101,7 +101,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         Tracer tracer,
         AllocationDeciders allocationDeciders
     ) {
-        relevanceSettingsService.set(new RelevanceSettingsService(client));
+        relevanceSettingsService.set(new RelevanceSettingsService(client, clusterService));
 
         return Collections.singletonList(relevanceSettingsService.get());
     }

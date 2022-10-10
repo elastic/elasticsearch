@@ -28,7 +28,7 @@ public class StepKeyTests extends AbstractXContentSerializingTestCase<StepKey> {
 
     @Override
     protected Writeable.Reader<StepKey> instanceReader() {
-        return StepKey::new;
+        return StepKey::readFrom;
     }
 
     @Override
@@ -38,9 +38,9 @@ public class StepKeyTests extends AbstractXContentSerializingTestCase<StepKey> {
 
     @Override
     public StepKey mutateInstance(StepKey instance) {
-        String phase = instance.getPhase();
-        String action = instance.getAction();
-        String step = instance.getName();
+        String phase = instance.phase();
+        String action = instance.action();
+        String step = instance.name();
 
         switch (between(0, 2)) {
             case 0 -> phase += randomAlphaOfLength(5);

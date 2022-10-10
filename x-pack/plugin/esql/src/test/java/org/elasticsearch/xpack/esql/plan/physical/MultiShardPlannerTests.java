@@ -24,7 +24,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.plan.physical.LocalExecutionPlanner.IndexReaderReference;
+import org.elasticsearch.xpack.esql.plan.physical.old.OldLocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.plan.physical.old.OldLocalExecutionPlanner.IndexReaderReference;
+import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
 import org.junit.After;
 import org.junit.Before;
 
@@ -35,7 +37,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.plan.physical.LocalExecutionPlanner.DEFAULT_TASK_CONCURRENCY;
+import static org.elasticsearch.xpack.esql.plan.physical.old.OldLocalExecutionPlanner.DEFAULT_TASK_CONCURRENCY;
 
 public class MultiShardPlannerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -94,10 +96,10 @@ public class MultiShardPlannerTests extends ESTestCase {
             assertEquals(((double) numDocs - 1) / 2, page.getBlock(0).getDouble(0), 0.1d);
         });
         logger.info("Plan: {}", Strings.toString(plan, true, true));
-        LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = new LocalExecutionPlanner(indexReaders).plan(plan);
+        OldLocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = new OldLocalExecutionPlanner(indexReaders).plan(plan);
         assertArrayEquals(
             expectedDriverCounts,
-            localExecutionPlan.getDriverFactories().stream().mapToInt(LocalExecutionPlanner.DriverFactory::driverInstances).toArray()
+            localExecutionPlan.getDriverFactories().stream().mapToInt(OldLocalExecutionPlanner.DriverFactory::driverInstances).toArray()
         );
         Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), localExecutionPlan.createDrivers());
     }

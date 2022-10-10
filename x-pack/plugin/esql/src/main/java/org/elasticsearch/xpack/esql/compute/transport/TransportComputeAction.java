@@ -28,8 +28,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.plan.physical.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.plan.physical.PlanNode;
+import org.elasticsearch.xpack.esql.plan.physical.old.OldLocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -90,11 +90,11 @@ public class TransportComputeAction extends TransportAction<ComputeRequest, Comp
         try {
             searchContexts.stream().forEach(SearchContext::preProcess);
 
-            LocalExecutionPlanner planner = new LocalExecutionPlanner(
+            OldLocalExecutionPlanner planner = new OldLocalExecutionPlanner(
                 searchContexts.stream()
                     .map(SearchContext::getSearchExecutionContext)
                     .map(
-                        sec -> new LocalExecutionPlanner.IndexReaderReference(
+                        sec -> new OldLocalExecutionPlanner.IndexReaderReference(
                             sec.getIndexReader(),
                             new ShardId(sec.index(), sec.getShardId())
                         )
@@ -103,7 +103,7 @@ public class TransportComputeAction extends TransportAction<ComputeRequest, Comp
             );
 
             final List<Page> results = Collections.synchronizedList(new ArrayList<>());
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
+            OldLocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
                 new PlanNode.OutputNode(request.plan(), (l, p) -> { results.add(p); })
             );
             List<Driver> drivers = localExecutionPlan.createDrivers();

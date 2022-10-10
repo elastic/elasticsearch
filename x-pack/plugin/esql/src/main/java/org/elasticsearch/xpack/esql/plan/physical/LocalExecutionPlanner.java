@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.FieldExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Output;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -50,7 +51,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,154 +83,6 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(PlanNode node) {
-        LocalExecutionPlanContext context = new LocalExecutionPlanContext();
-
-        PhysicalOperation physicalOperation = plan(node, context);
-
-        context.addDriverFactory(
-            new DriverFactory(() -> new Driver(physicalOperation.operators(), () -> {}), context.getDriverInstanceCount())
-        );
-
-        LocalExecutionPlan localExecutionPlan = new LocalExecutionPlan();
-        localExecutionPlan.driverFactories.addAll(context.driverFactories);
-        return localExecutionPlan;
-    }
-
-    public PhysicalOperation plan(PlanNode node, LocalExecutionPlanContext context) {
-        if (node instanceof PlanNode.AggregationNode aggregationNode) {
-            PhysicalOperation source = plan(aggregationNode.source, context);
-            Map<Object, Integer> layout = new HashMap<>();
-            Supplier<Operator> operatorFactory = null;
-            for (Map.Entry<String, PlanNode.AggregationNode.AggType> e : aggregationNode.aggs.entrySet()) {
-                if (e.getValue()instanceof PlanNode.AggregationNode.AvgAggType avgAggType) {
-                    BiFunction<AggregatorMode, Integer, AggregatorFunction> aggregatorFunc = avgAggType
-                        .type() == PlanNode.AggregationNode.AvgAggType.Type.LONG
-                            ? AggregatorFunction.longAvg
-                            : AggregatorFunction.doubleAvg;
-                    if (aggregationNode.mode == PlanNode.AggregationNode.Mode.PARTIAL) {
-                        operatorFactory = () -> new AggregationOperator(
-                            List.of(new Aggregator(aggregatorFunc, AggregatorMode.INITIAL, source.layout.get(avgAggType.field())))
-                        );
-                        layout.put(e.getKey(), 0);
-                    } else {
-                        operatorFactory = () -> new AggregationOperator(
-                            List.of(new Aggregator(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(e.getKey())))
-                        );
-                        layout.put(e.getKey(), 0);
-                    }
-                } else {
-                    throw new UnsupportedOperationException();
-                }
-            }
-            if (operatorFactory != null) {
-                return new PhysicalOperation(operatorFactory, layout, source);
-            }
-            throw new UnsupportedOperationException();
-        } else if (node instanceof PlanNode.LuceneSourceNode luceneSourceNode) {
-            Supplier<Operator> operatorFactory;
-            Set<String> indices = Sets.newHashSet(luceneSourceNode.indices);
-            if (luceneSourceNode.parallelism == PlanNode.LuceneSourceNode.Parallelism.SINGLE) {
-                context.setDriverInstanceCount(
-                    Math.toIntExact(indexReaders.stream().filter(iRR -> indices.contains(iRR.shardId().getIndexName())).count())
-                );
-                operatorFactory = IntStream.range(0, indexReaders.size())
-                    .mapToObj(i -> Tuple.tuple(i, indexReaders.get(i)))
-                    .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
-                    .map(tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), luceneSourceNode.query))
-                    .iterator()::next;
-            } else if (luceneSourceNode.parallelism == PlanNode.LuceneSourceNode.Parallelism.SEGMENT) {
-                context.setDriverInstanceCount(
-                    indexReaders.stream()
-                        .filter(iRR -> indices.contains(iRR.shardId().getIndexName()))
-                        .mapToInt(indexReader -> LuceneSourceOperator.numSegmentSlices(indexReader.indexReader()))
-                        .sum()
-                );
-                operatorFactory = IntStream.range(0, indexReaders.size())
-                    .mapToObj(i -> Tuple.tuple(i, indexReaders.get(i)))
-                    .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
-                    .flatMap(
-                        tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), luceneSourceNode.query).segmentSlice()
-                            .stream()
-                    )
-                    .iterator()::next;
-            } else if (luceneSourceNode.parallelism == PlanNode.LuceneSourceNode.Parallelism.DOC) {
-                context.setDriverInstanceCount(
-                    indexReaders.stream()
-                        .filter(iRR -> indices.contains(iRR.shardId().getIndexName()))
-                        .mapToInt(indexReader -> LuceneSourceOperator.numDocSlices(indexReader.indexReader(), DEFAULT_TASK_CONCURRENCY))
-                        .sum()
-                );
-                operatorFactory = IntStream.range(0, indexReaders.size())
-                    .mapToObj(i -> Tuple.tuple(i, indexReaders.get(i)))
-                    .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
-                    .flatMap(
-                        tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), luceneSourceNode.query).docSlice(
-                            DEFAULT_TASK_CONCURRENCY
-                        ).stream()
-                    )
-                    .iterator()::next;
-            } else {
-                throw new UnsupportedOperationException();
-            }
-            return new PhysicalOperation(operatorFactory, Map.of("_doc_id", 0, "_segment_id", 1, "_shard_id", 2));
-        } else if (node instanceof PlanNode.NumericDocValuesSourceNode numericDocValuesSourceNode) {
-            PhysicalOperation source = plan(numericDocValuesSourceNode.source, context);
-            Map<Object, Integer> layout = new HashMap<>();
-            layout.putAll(source.layout);
-            layout.put(numericDocValuesSourceNode.field, layout.size());
-            return new PhysicalOperation(
-                () -> new NumericDocValuesExtractor(
-                    indexReaders.stream().map(IndexReaderReference::indexReader).collect(Collectors.toList()),
-                    source.layout.get("_doc_id"),
-                    source.layout.get("_segment_id"),
-                    source.layout.get("_shard_id"),
-                    numericDocValuesSourceNode.field
-                ),
-                layout,
-                source
-            );
-        } else if (node instanceof PlanNode.OutputNode outputNode) {
-            PhysicalOperation source = plan(outputNode.source, context);
-            String[] outputColumns = new String[source.layout.size()];
-            for (Map.Entry<Object, Integer> entry : source.layout.entrySet()) {
-                outputColumns[entry.getValue()] = entry.getKey().toString();
-            }
-            return new PhysicalOperation(
-                () -> new OutputOperator(Arrays.asList(outputColumns), outputNode.pageConsumer),
-                source.layout,
-                source
-            );
-        } else if (node instanceof PlanNode.ExchangeNode exchangeNode) {
-            int driverInstances;
-            if (exchangeNode.type == PlanNode.ExchangeNode.Type.GATHER) {
-                driverInstances = 1;
-                context.setDriverInstanceCount(1);
-            } else {
-                driverInstances = DEFAULT_TASK_CONCURRENCY;
-                context.setDriverInstanceCount(driverInstances);
-            }
-            Exchange exchange = new Exchange(driverInstances, exchangeNode.partitioning.toExchange(), bufferMaxPages);
-
-            Map<Object, Integer> layout = null;
-            for (PlanNode sourceNode : exchangeNode.sources) {
-                LocalExecutionPlanContext subContext = context.createSubContext();
-                PhysicalOperation source = plan(sourceNode, subContext);
-                layout = source.layout;
-                PhysicalOperation physicalOperation = new PhysicalOperation(
-                    () -> new ExchangeSinkOperator(exchange.createSink()),
-                    source.layout,
-                    source
-                );
-                context.addDriverFactory(
-                    new DriverFactory(() -> new Driver(physicalOperation.operators(), () -> {}), subContext.getDriverInstanceCount())
-                );
-            }
-            return new PhysicalOperation(() -> new ExchangeSourceOperator(exchange.getNextSource()), layout);
-        }
-        throw new UnsupportedOperationException();
-    }
-
     public LocalExecutionPlan plan(LogicalPlan node) {
         LocalExecutionPlanContext context = new LocalExecutionPlanContext();
 

@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.esql.compute.transport.RestComputeAction;
 import org.elasticsearch.xpack.esql.compute.transport.TransportComputeAction;
 import org.elasticsearch.xpack.esql.compute.transport.TransportComputeAction2;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.plan.physical.PlanNode;
+import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 

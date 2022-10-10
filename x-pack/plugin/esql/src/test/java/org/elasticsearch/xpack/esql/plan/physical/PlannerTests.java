@@ -30,7 +30,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.compute.transport.ComputeRequest;
-import org.elasticsearch.xpack.esql.plan.physical.LocalExecutionPlanner.IndexReaderReference;
+import org.elasticsearch.xpack.esql.plan.physical.old.OldLocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.plan.physical.old.OldLocalExecutionPlanner.IndexReaderReference;
+import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
 import org.junit.After;
 import org.junit.Before;
 
@@ -114,12 +116,12 @@ public class PlannerTests extends ESTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = new LocalExecutionPlanner(
+        OldLocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = new OldLocalExecutionPlanner(
             List.of(new IndexReaderReference(indexReader, new ShardId("test", "test", 0)))
         ).plan(plan);
         assertArrayEquals(
             expectedDriverCounts,
-            localExecutionPlan.getDriverFactories().stream().mapToInt(LocalExecutionPlanner.DriverFactory::driverInstances).toArray()
+            localExecutionPlan.getDriverFactories().stream().mapToInt(OldLocalExecutionPlanner.DriverFactory::driverInstances).toArray()
         );
         Driver.runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), localExecutionPlan.createDrivers());
     }

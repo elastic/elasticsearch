@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
-import org.elasticsearch.xpack.esql.plan.physical.PlanNode;
+import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
 
 import java.io.IOException;
 

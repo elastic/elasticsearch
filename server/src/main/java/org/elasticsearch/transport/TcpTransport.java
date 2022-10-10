@@ -131,6 +131,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final Set<ProfileSettings> profileSettingsSet;
     protected final boolean rstOnClose;
     private final Version version;
+    private final Version minVersion;
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
@@ -164,6 +165,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.settings = settings;
         this.profileSettingsSet = getProfileSettings(settings);
         this.version = version;
+        this.minVersion = TransportSettings.MIN_VERSION.get(settings);
         this.threadPool = threadPool;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
@@ -186,6 +188,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         this.handshaker = new TransportHandshaker(
             version,
+            this.minVersion,
             threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(
                 node,

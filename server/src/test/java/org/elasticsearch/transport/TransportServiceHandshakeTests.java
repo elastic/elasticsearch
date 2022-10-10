@@ -39,7 +39,9 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class TransportServiceHandshakeTests extends ESTestCase {
 
@@ -202,6 +204,140 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             )
         );
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
+    }
+
+    public void testIncompatibleMinimumVersionA() {
+        Version versionA = Version.CURRENT; // EX: 8.6.0
+        Version versionB = Version.CURRENT.minimumCompatibilityVersion(); // EX: 7.17.0
+        // TS_A transport.min_version=8.6.0 should cause it to reject TS_B handshake response 7.17.0
+        Settings settingsA = Settings.builder().put("cluster.name", "test").put("transport.min_version", versionA).build();
+        Settings settingsB = Settings.builder().put("cluster.name", "test").build();
+        NetworkHandle handleA = startServices("TS_A", settingsA, versionA);
+        NetworkHandle handleB = startServices("TS_B", settingsB, versionB);
+        DiscoveryNode discoveryNodeB = new DiscoveryNode("", handleB.discoveryNode.getAddress(), emptyMap(), emptySet(), versionA);
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
+            try (
+                Transport.Connection connectionA = AbstractSimpleTransportTestCase.openConnection(
+                    handleA.transportService,
+                    discoveryNodeB,
+                    TestProfiles.LIGHT_PROFILE // 1 channel (i.e. socket) per connection (i.e. pool)
+                )
+            ) {
+                PlainActionFuture.get(fut -> handleA.transportService.handshake(connectionA, timeout, fut.map(x -> null)));
+            }
+        });
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "handshake with ["
+                    + discoveryNodeB
+                    + "] failed: remote node response version ["
+                    + handleB.discoveryNode.getVersion()
+                    + "] is not allowed with local node minimum accepted version ["
+                    + versionA
+                    + "]"
+            )
+        );
+        assertFalse(handleA.transportService.nodeConnected(discoveryNodeB));
+    }
+
+    public void testIncompatibleMinimumVersionB() {
+        Version versionA = Version.CURRENT.minimumCompatibilityVersion(); // EX: 7.17.0
+        Version versionB = Version.CURRENT; // EX: 8.6.0
+        // TS_B transport.min_version=8.6.0 should cause it to reject TS_A handshake request 7.17.0
+        Settings settingsA = Settings.builder().put("cluster.name", "test").build();
+        Settings settingsB = Settings.builder().put("cluster.name", "test").put("transport.min_version", versionB).build();
+        NetworkHandle handleA = startServices("TS_A", settingsA, versionA);
+        NetworkHandle handleB = startServices("TS_B", settingsB, versionB);
+        DiscoveryNode discoveryNodeB = new DiscoveryNode("", handleB.discoveryNode.getAddress(), emptyMap(), emptySet(), versionA);
+
+        ConnectTransportException connectTransportExceptionA = expectThrows(ConnectTransportException.class, () -> {
+            try (
+                Transport.Connection connectionA = AbstractSimpleTransportTestCase.openConnection(
+                    handleA.transportService,
+                    discoveryNodeB,
+                    TestProfiles.LIGHT_PROFILE // 1 channel (i.e. socket) per connection (i.e. pool)
+                )
+            ) {
+                PlainActionFuture.get(fut -> handleA.transportService.handshake(connectionA, timeout, fut.map(x -> null)));
+            }
+        });
+        assertThat(connectTransportExceptionA.getCause(), is(instanceOf(IllegalStateException.class)));
+        assertThat(connectTransportExceptionA.getCause().getCause(), is(instanceOf(RemoteTransportException.class)));
+        assertThat(connectTransportExceptionA.getCause().getCause().getCause(), is(instanceOf(IllegalStateException.class)));
+        IllegalStateException illegalStateExceptionA = (IllegalStateException) connectTransportExceptionA.getCause();
+        RemoteTransportException remoteTransportExceptionB = (RemoteTransportException) connectTransportExceptionA.getCause().getCause();
+        IllegalStateException illegalStateExceptionB = (IllegalStateException) connectTransportExceptionA.getCause().getCause().getCause();
+
+        assertThat(connectTransportExceptionA.getMessage(), endsWith(" general node connection failure"));
+        assertThat(illegalStateExceptionA.getMessage(), endsWith("handshake failed"));
+        assertThat(remoteTransportExceptionB.getMessage(), endsWith("[internal:tcp/handshake]"));
+        assertThat(
+            illegalStateExceptionB.getMessage(),
+            endsWith(
+                "remote node request version ["
+                    + versionA
+                    + "] is not allowed with local node minimum accepted version ["
+                    + handleB.discoveryNode.getVersion()
+                    + "]"
+            )
+        );
+        assertFalse(handleA.transportService.nodeConnected(discoveryNodeB));
+    }
+
+    public void testCompatibleMinimumVersionA() {
+        Version versionA = Version.CURRENT; // EX: 8.6.0
+        Version versionB = Version.CURRENT.minimumCompatibilityVersion(); // EX: 7.17.0
+        Settings settingsA = Settings.builder().put("cluster.name", "test").put("transport.min_version", versionB).build();
+        Settings settingsB = Settings.builder().put("cluster.name", "test").build();
+        // TS_B transport.min_version=7.17.0 should cause it to accept TS_A handshake request 8.6.0
+        NetworkHandle handleA = startServices("TS_A", settingsA, versionA);
+        NetworkHandle handleB = startServices("TS_B", settingsB, versionB);
+        DiscoveryNode discoveryNodeB = new DiscoveryNode("", handleB.discoveryNode.getAddress(), emptyMap(), emptySet(), versionA);
+        try (
+            Transport.Connection connectionA = AbstractSimpleTransportTestCase.openConnection(
+                handleA.transportService,
+                discoveryNodeB,
+                TestProfiles.LIGHT_PROFILE // 1 channel (i.e. socket) per connection (i.e. pool)
+            )
+        ) {
+            DiscoveryNode connectedNode = PlainActionFuture.get(
+                fut -> handleA.transportService.handshake(connectionA, timeout, fut.map(x -> null))
+            );
+            assertNotNull(connectedNode);
+            // the name and version should be updated
+            assertEquals(connectedNode.getName(), "TS_B");
+            assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
+            assertFalse(handleA.transportService.nodeConnected(discoveryNodeB));
+        }
+    }
+
+    public void testCompatibleMinimumVersionB() {
+        Version versionA = Version.CURRENT.minimumCompatibilityVersion(); // EX: 7.17.0
+        Version versionB = Version.CURRENT; // EX: 8.6.0
+        // TS_B transport.min_version=7.17.0 should cause it to accept TS_A handshake request 7.17.0
+        Settings settingsA = Settings.builder().put("cluster.name", "test").build();
+        Settings settingsB = Settings.builder().put("cluster.name", "test").put("transport.min_version", versionA).build();
+        NetworkHandle handleA = startServices("TS_A", settingsA, versionA);
+        NetworkHandle handleB = startServices("TS_B", settingsB, versionB);
+        DiscoveryNode discoveryNodeB = new DiscoveryNode("", handleB.discoveryNode.getAddress(), emptyMap(), emptySet(), versionA);
+
+        try (
+            Transport.Connection connectionA = AbstractSimpleTransportTestCase.openConnection(
+                handleA.transportService,
+                discoveryNodeB,
+                TestProfiles.LIGHT_PROFILE // 1 channel (i.e. socket) per connection (i.e. pool)
+            )
+        ) {
+            DiscoveryNode connectedNode = PlainActionFuture.get(
+                fut -> handleA.transportService.handshake(connectionA, timeout, fut.map(x -> null))
+            );
+            assertNotNull(connectedNode);
+            // the name and version should be updated
+            assertEquals(connectedNode.getName(), "TS_B");
+            assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
+            assertFalse(handleA.transportService.nodeConnected(discoveryNodeB));
+        }
     }
 
     public void testNodeConnectWithDifferentNodeId() {

@@ -235,11 +235,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     int unhealthyNodesCount = getUnhealthyNodeSize(masterNodes) + getUnhealthyNodeSize(otherNodes);
                     symptom += String.format(
                         Locale.ROOT,
-                        " %d node%s with roles: [%s] %s out of disk or running low on disk space.",
+                        " %d %s with roles: [%s] %s out of disk or running low on disk space.",
                         unhealthyNodesCount,
-                        unhealthyNodesCount == 1 ? "" : "s",
+                        regularNoun("node", unhealthyNodesCount),
                         roles,
-                        unhealthyNodesCount == 1 ? "is" : "are"
+                        are(unhealthyNodesCount)
                     );
                 }
             } else {

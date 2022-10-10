@@ -25,8 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -36,10 +36,10 @@ import java.util.function.Predicate;
 public class Retry {
     private final BackoffPolicy backoffPolicy;
     private final Scheduler scheduler;
-    private final BlockingQueue<BulkRequestExecutionIdAndBackoff> queue;
+    private final BlockingQueue<RetryQueuePayload> queue;
     private final Map<BulkRequest, Scheduler.Cancellable> bulkRequestCancellableMap = new HashMap<>();
     private final int queueCapacity;
-    private final AtomicInteger requestsInFlight = new AtomicInteger(0);
+    private final Semaphore requestsInFlightSemaphore;
     private final int maxNumberOfConcurrentRequests;
     private Scheduler.Cancellable flushCancellable;
 
@@ -52,6 +52,7 @@ public class Retry {
         this.scheduler = scheduler;
         this.queueCapacity = queueCapacity;
         this.maxNumberOfConcurrentRequests = Math.max(maxNumberOfConcurrentRequests, 1);
+        requestsInFlightSemaphore = new Semaphore(maxNumberOfConcurrentRequests);
         this.queue = new ArrayBlockingQueue<>(queueCapacity);
 
     }
@@ -60,7 +61,7 @@ public class Retry {
         flushCancellable = scheduler.scheduleWithFixedDelay(this::flush, TimeValue.timeValueMillis(100), ThreadPool.Names.GENERIC);
     }
 
-    public record BulkRequestExecutionIdAndBackoff(
+    public record RetryQueuePayload(
         BulkRequest request,
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
         ActionListener<BulkResponse> listener,
@@ -81,7 +82,7 @@ public class Retry {
         ActionListener<BulkResponse> listener
     ) {
         Iterator<TimeValue> backoff = backoffPolicy.iterator();
-        boolean accepted = queue.offer(new BulkRequestExecutionIdAndBackoff(bulkRequest, consumer, listener, backoff, false));
+        boolean accepted = queue.offer(new RetryQueuePayload(bulkRequest, consumer, listener, backoff, false));
         if (accepted == false) {
             onFailure(
                 bulkRequest,
@@ -104,8 +105,6 @@ public class Retry {
         boolean retry,
         Iterator<TimeValue> backoff
     ) {
-        requestsInFlight.decrementAndGet();
-        assert requestsInFlight.get() >= 0;
         if (retry) {
             retry(bulkRequest, consumer, listener, backoff);
         } else {
@@ -126,7 +125,7 @@ public class Retry {
         ActionListener<BulkResponse> listener,
         Iterator<TimeValue> backoff
     ) {
-        boolean accepted = queue.offer(new BulkRequestExecutionIdAndBackoff(bulkRequestForRetry, consumer, listener, backoff, true));
+        boolean accepted = queue.offer(new RetryQueuePayload(bulkRequestForRetry, consumer, listener, backoff, true));
         if (accepted == false) {
             onFailure(
                 bulkRequestForRetry,
@@ -160,21 +159,18 @@ public class Retry {
 
     void flush() {
         while (true) {
-            int newRequestsInFlight = requestsInFlight.incrementAndGet();
-            if (newRequestsInFlight > maxNumberOfConcurrentRequests) {
+            boolean canAddToQueue = requestsInFlightSemaphore.tryAcquire();
+            if (canAddToQueue == false) {
                 /*
                  * Too many requests are already in flight, so don't flush. This method will not automatically be called again unless
                  * one of the in-flight requests failed in a retryable way, but the assumption is that a client will be calling this
                  * periodically (via the withBackoff method)
                  */
-                requestsInFlight.decrementAndGet();
-                assert requestsInFlight.get() >= 0;
                 return;
             }
-            BulkRequestExecutionIdAndBackoff queueItem = queue.poll();
+            RetryQueuePayload queueItem = queue.poll();
             if (queueItem == null) {
-                requestsInFlight.decrementAndGet();
-                assert requestsInFlight.get() >= 0;
+                requestsInFlightSemaphore.release();
                 /*
                  * It is possible that something was added to the queue after the drain and before the permit was released, meaning
                  * that the other thread could not acquire the permit, leaving an item orphanied in the queue. So we check the queue
@@ -204,9 +200,14 @@ public class Retry {
     }
 
     boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
-        boolean isDone = queue.isEmpty() && requestsInFlight.get() == 0;
+        List<RetryQueuePayload> remainingRequests = new ArrayList<>();
+        queue.drainTo(remainingRequests);
+        for (RetryQueuePayload request : remainingRequests) {
+            request.listener.onFailure(new EsRejectedExecutionException("Closing the bulk request handler"));
+        }
+        boolean noRequestsInFlight = requestsInFlightSemaphore.tryAcquire(maxNumberOfConcurrentRequests, timeout, unit);
         flushCancellable.cancel();
-        return isDone; // TODO
+        return noRequestsInFlight && queue.isEmpty();
     }
 
     private final class RetryHandler extends ActionListener.Delegating<BulkResponse, BulkResponse> {
@@ -232,8 +233,7 @@ public class Retry {
 
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
-            requestsInFlight.decrementAndGet();
-            assert requestsInFlight.get() >= 0;
+            requestsInFlightSemaphore.release();
             if (bulkItemResponses.hasFailures() == false) {
                 // we're done here, include all responses
                 addResponses(bulkItemResponses, (r -> true));
@@ -251,6 +251,7 @@ public class Retry {
 
         @Override
         public void onFailure(Exception e) {
+            requestsInFlightSemaphore.release();
             boolean retry = ExceptionsHelper.status(e) == RETRY_STATUS && backoff.hasNext();
             Retry.this.onFailure(this.bulkRequest, consumer, delegate, e, retry, backoff);
         }

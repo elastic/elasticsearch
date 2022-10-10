@@ -44,6 +44,11 @@ public class RelevanceAnalyticsService implements ClusterStateListener {
         clusterService.addListener(this);
     }
 
+    public void logEvent(RelevanceSearchEvent relevanceSearchEvent) {
+        throw new UnsupportedOperationException("Not yet");
+    }
+
+    // ----------------- Methods to set up the datastream and associated templates
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -52,7 +57,12 @@ public class RelevanceAnalyticsService implements ClusterStateListener {
         }
 
         ensureTemplateExists(this.client);
+        ensureDataStreamExists(this.client);
         this.clusterService.removeListener(this);
+    }
+
+    private static void ensureDataStreamExists(Client client) {
+        throw new UnsupportedOperationException("Not yet");
     }
 
     private static void ensureTemplateExists(Client client) {
@@ -73,6 +83,7 @@ public class RelevanceAnalyticsService implements ClusterStateListener {
         try {
             ComponentTemplate template = new ComponentTemplate(
                 // TODO determine what the value of version should be
+                // TODO pass in values for settings, aliases
                 new Template(null, CompressedXContent.fromJSON(getTemplateBody().toString()), null),
                 1L,
                 null
@@ -128,6 +139,7 @@ public class RelevanceAnalyticsService implements ClusterStateListener {
      * }
      */
     // TODO it looks like we need to break this up into settings, mappings and aliases
+    // TODO determine if we want to go this route, or pull the file from src/main/resources
     private static XContentBuilder getTemplateBody() {
         try {
             return jsonBuilder().startObject()

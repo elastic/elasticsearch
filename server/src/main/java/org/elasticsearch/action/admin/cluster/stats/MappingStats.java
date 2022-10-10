@@ -217,7 +217,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             totalMappingSizeBytes = null;
         }
         fieldTypeStats = in.readImmutableList(FieldStats::new);
-        runtimeFieldStats = in.readList(RuntimeFieldStats::new);
+        runtimeFieldStats = in.readImmutableList(RuntimeFieldStats::new);
     }
 
     @Override

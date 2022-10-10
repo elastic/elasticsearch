@@ -1,5 +1,5 @@
 [[fix-data-node-out-of-disk]]
-== Fix data node out of disk
+== Fix data nodes out of disk
 
 Elasticsearch is using data nodes to distribute your data inside the cluster. If one or more of these nodes are running
 out of space, elasticsearch takes action to redistribute your data within the nodes so all nodes have enough available

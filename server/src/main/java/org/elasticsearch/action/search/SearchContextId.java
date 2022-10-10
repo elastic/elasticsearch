@@ -89,7 +89,7 @@ public final class SearchContextId {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
             final Map<ShardId, SearchContextIdForNode> shards = in.readMap(ShardId::new, SearchContextIdForNode::new);
-            final Map<String, AliasFilter> aliasFilters = in.readMap(StreamInput::readString, AliasFilter::new);
+            final Map<String, AliasFilter> aliasFilters = in.readMap(StreamInput::readString, AliasFilter::readFrom);
             if (in.available() > 0) {
                 throw new IllegalArgumentException("Not all bytes were read");
             }

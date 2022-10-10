@@ -126,8 +126,8 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
     }
 
     private String source(String id, String nameValue) {
-        return """
+        return formatted("""
             { "type1" : { "id" : "%s", "name" : "%s" } }
-            """.formatted(id, nameValue);
+            """, id, nameValue);
     }
 }

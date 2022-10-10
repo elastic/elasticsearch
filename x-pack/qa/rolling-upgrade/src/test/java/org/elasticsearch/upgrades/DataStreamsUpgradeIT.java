@@ -47,10 +47,10 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
             StringBuilder b = new StringBuilder();
             for (int i = 0; i < 1000; i++) {
-                b.append("""
+                b.append(formatted("""
                     {"create":{"_index":"logs-foobar"}}
                     {"@timestamp":"2020-12-12","test":"value%s"}
-                    """.formatted(i));
+                    """, i));
             }
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");

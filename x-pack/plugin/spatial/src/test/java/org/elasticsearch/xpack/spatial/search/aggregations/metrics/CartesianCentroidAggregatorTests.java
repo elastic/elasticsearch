@@ -46,7 +46,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new PointFieldMapper.PointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalCartesianCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
+                InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -64,11 +64,11 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new PointFieldMapper.PointFieldType("another_field");
-                InternalCartesianCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
+                InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
 
                 fieldType = new PointFieldMapper.PointFieldType("another_field");
-                result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
+                result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -88,7 +88,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new PointFieldMapper.PointFieldType("another_field");
-                InternalCartesianCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
+                InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertEquals(expectedCentroid, result.centroid());
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
@@ -127,7 +127,7 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
             CartesianPoint expectedCentroid = new CartesianPoint(0, 0);
             CartesianPoint[] multiValues = new CartesianPoint[numUniqueCartesianPoints];
             for (int i = 0; i < multiValues.length; i++) {
-                Point point = ShapeTestUtils.randomPoint(false);
+                Point point = ESTestCase.randomValueOtherThanMany(this::extremePoint, () -> ShapeTestUtils.randomPoint(false));
                 multiValues[i] = new CartesianPoint(point.getX(), point.getY());
             }
             final CartesianPoint[] multiVal = new CartesianPoint[2];
@@ -149,35 +149,40 @@ public class CartesianCentroidAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    // TODO Consider merging this code with the almost identical code in the CartesianShapeCentroidAggregatorTests
     private void assertCentroid(RandomIndexWriter w, CartesianPoint expectedCentroid) throws IOException {
         MappedFieldType fieldType = new PointFieldMapper.PointFieldType("field");
         CartesianCentroidAggregationBuilder aggBuilder = new CartesianCentroidAggregationBuilder("my_agg").field("field");
         try (IndexReader reader = w.getReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
-            InternalCartesianCentroid result = searchAndReduce(new AggTestConfig(searcher, aggBuilder, fieldType));
+            InternalCartesianCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
 
             assertEquals("my_agg", result.getName());
             SpatialPoint centroid = result.centroid();
             assertNotNull(centroid);
-            double xTolerance = tolerance(expectedCentroid.getX(), centroid.getX());
-            double yTolerance = tolerance(expectedCentroid.getY(), centroid.getY());
-            assertEquals(expectedCentroid.getX(), centroid.getX(), xTolerance);
-            assertEquals(expectedCentroid.getY(), centroid.getY(), yTolerance);
+            assertCentroid("x-value", result.count(), centroid.getX(), expectedCentroid.getX());
+            assertCentroid("y-value", result.count(), centroid.getY(), expectedCentroid.getY());
             assertTrue(AggregationInspectionHelper.hasValue(result));
         }
+    }
+
+    private void assertCentroid(String name, long count, double value, double expected) {
+        assertEquals("Centroid over " + count + " had incorrect " + name, expected, value, tolerance(value, expected, count));
     }
 
     /**
      * Due to cartesian ranging from very large numbers to very small, we need different ways of calculating accuracy for the extremes
      */
-    private double tolerance(double a, double b) {
+    private double tolerance(double a, double b, long count) {
         double coordinate = (Math.abs(a) + Math.abs(b)) / 2;
         if (coordinate < 1.0) {
-            // When dealing with small numbers, we use the same tolerance as in the geo case
+            // When dealing with small numbers, we use an absolute tolerance, similar to the geo case
             return 1e-6D;
         } else {
             // For large numbers we use a tolerance based on a faction of the expected value
-            return coordinate / 1e6D;
+            double tolerance = coordinate / 1e6D;
+            // For very large numbers the floating point error is worse for large counts
+            return tolerance > 1e25 ? tolerance * count : tolerance;
         }
     }
 

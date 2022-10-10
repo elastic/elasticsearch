@@ -214,7 +214,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             IndexMetadata indexMetadata = null;
             // start to look for default or final pipelines via settings found in the index meta data
             if (originalRequest != null) {
-                indexMetadata = metadata.indices().get(resolveIndexName(originalRequest.index(), epochMillis));
+                indexMetadata = metadata.indices()
+                    .get(IndexNameExpressionResolver.resolveDateMathExpression(originalRequest.index(), epochMillis));
             }
             // check the alias for the index request (this is how normal index requests are modeled)
             if (indexMetadata == null && indexRequest.index() != null) {
@@ -306,15 +307,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // return whether this index request has a pipeline
         return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
-    }
-
-    private static String resolveIndexName(final String unresolvedIndexName, final long epochMillis) {
-        List<String> resolvedNames = IndexNameExpressionResolver.DateMathExpressionResolver.resolve(
-            new IndexNameExpressionResolver.ResolverContext(epochMillis),
-            List.of(unresolvedIndexName)
-        );
-        assert resolvedNames.size() == 1;
-        return resolvedNames.get(0);
     }
 
     public ClusterService getClusterService() {

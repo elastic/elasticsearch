@@ -105,7 +105,7 @@ The response will look like this:
 [source,console-result]
 ----
 node                disk.percent disk.avail disk.total disk.used disk.indices shards
-instance-0000000000           91     24.8gb       35gb    28.1gb       26.9gb    111
+instance-0000000000           91     4.6gb       35gb    31.1gb       29.9gb    111
 ----
 // TEST[skip:illustration purposes only]
 

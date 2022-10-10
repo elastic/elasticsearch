@@ -1,8 +1,9 @@
-// tag::cloud[]
-In order to decrease the disk usage in your cluster without losing any data is to reduce the replicas of indices.:
-Reducing the replicas of an index can potentially reduce search performance and make the index less resilient to data
-loss. However, it can quickly give the cluster breathing room until a more permanent solution is in place.
+In order to decrease the disk usage in your cluster without losing any data is to reduce the replicas of indices.
 
+NOTE: Reducing the replicas of an index can potentially reduce search performance and make the index less resilient to
+data loss. However, it can quickly give the cluster breathing room until a more permanent solution is in place.
+
+// tag::cloud[]
 **Use {kib}**
 
 //tag::kibana-api-ex[]
@@ -26,10 +27,10 @@ least importance and higher number of replicas.
 
 . For each index you chose, click on its name, then on the panel that appears click `Edit settings` and reduce the
 value of the `index.number_of_replicas` to the desired value.
-
++
 [role="screenshot"]
 image::images/troubleshooting/disk/reduce_replicas.png[Reducing replicas,align="center"]
-
++
 . Continue this process until the cluster is healthy again.
 
 IMPORTANT: After removing these replicas you need to consider if you still have enough replicas to ensure your search
@@ -41,5 +42,110 @@ less necessary data, or (iii) increase your disk capacity.
 // end::cloud[]
 
 // tag::self-managed[]
-Reduce the number of replicas
+n order to increase the data node capacity in your cluster, you will need to calculate the amount of extra disk space
+you need.
+
+. First, we need to retrieve the relevant disk thresholds that will indicate how much space we need to release. This
+is the <<cluster-routing-watermark-high, high watermark>> or for the frozen tier the
+<<cluster-routing-flood-stage-frozen, flood stage watermark>>. We can retrieve them via the following commands:
++
+[source,console]
+----
+GET _cluster/settings?include_defaults&filter_path=*.cluster.routing.allocation.disk.watermark.high*
+GET _cluster/settings?include_defaults&filter_path=*.cluster.routing.allocation.disk.watermark.flood_stage*
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+{
+  "defaults": {
+    "cluster": {
+      "routing": {
+        "allocation": {
+          "disk": {
+            "watermark": {
+              "high": "90%",                                <1>
+              "high.max_headroom": "150GB"                  <2>
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Frozen tier
+{
+  "defaults": {
+    "cluster": {
+      "routing": {
+        "allocation": {
+          "disk": {
+            "watermark": {
+              "flood_stage.frozen.max_headroom": "20GB",    <3>
+              "flood_stage.frozen": "95%"                   <4>
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+// TEST[skip:illustration purposes only]
++
+The above means that in order to resolve the disk shortage we need to either drop our disk usage below the 90% or have
+more than 150GB available.
+
+. The next step is to find out our current disk usage, this way we can calculate how much space we need. For simplicity,
+our example has one node, but you can apply the same for every node over relevant threshold.
++
+[source,console]
+----
+GET _cat/allocation?v&s=disk.avail&h=node,disk.percent,disk.avail,disk.total,disk.used,disk.indices,shards
+----
++
+The response will look like this:
++
+[source,console-result]
+----
+node                disk.percent disk.avail disk.total disk.used disk.indices shards
+instance-0000000000           91     4.6gb       35gb    31.1gb       29.9gb    111
+----
+// TEST[skip:illustration purposes only]
+
+. The desirable situation is to drop all disk usages bellow the relevant threshold, in our example 90%. So calculate
+how much you need for this and allow for some padding, so it will not go over the threshold in the near future. To
+achieve this, need to release approximately 7GB.
+
+. List all the indices and choose which replicas to reduce.
++
+[source,console]
+----
+GET _cat/indices?v&s=rep:desc,pri.store.size:desc&h=health,index,pri,rep,store.size,pri.store.size
+----
++
+[source,console-result]
+----
+health index                                                      pri rep store.size pri.store.size
+green  my_index                                                     2   3      9.9gb          3.3gb
+green  my_other_index                                               2   3      1.8gb        470.3mb
+green  search-products                                              2   3    278.5kb         69.6kb
+green  logs-000001                                                  1   0      7.7gb          7.7gb
+----
+// TEST[skip:illustration purposes only]
++
+. In the list above we see that if we reduce the replicas to 1 of the indices `my_index` and  `my_other_index` we will
+save the required disk space. Even if `logs-000001` has the larger primary store size, we cannot use it since it has no
+replicas. You can reduce the replicas of one or more indices with the <<indices-update-settings, index update settings API>>:
++
+[source,console]
+----
+PUT my_index,my_other_index/_settings
+{
+  "index.number_of_replicas": 1
+}
+----
 // end::self-managed[]

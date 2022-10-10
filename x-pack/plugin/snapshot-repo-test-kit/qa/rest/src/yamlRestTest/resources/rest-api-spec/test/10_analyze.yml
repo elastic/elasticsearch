@@ -167,8 +167,8 @@ setup:
         repository: test_repo_slow
         blob_count: 1
         concurrency: 1
-        max_blob_size: 400mb
-        max_total_data_size: 400mb
+        max_blob_size: 2gb
+        max_total_data_size: 2gb
         detailed: false
         human: false
         timeout: 1s

@@ -2594,13 +2594,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
             @Override
             public void describeTo(Description description) {
                 description.appendText(
-                    ("IndicesPermission.Group with indices ["
+                    "IndicesPermission.Group with indices ["
                         + Strings.arrayToCommaDelimitedString(indices)
                         + "] privilege ["
                         + privilege
                         + "] allowRestrictedIndices ["
                         + allowRestrictedIndices
-                        + "]")
+                        + "]"
                 );
             }
         };

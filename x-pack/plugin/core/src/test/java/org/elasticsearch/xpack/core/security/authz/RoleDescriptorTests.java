@@ -559,6 +559,28 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f3")));
     }
 
+    public void testParseRemoteIndicesPrivilegesFailsWhenClustersFieldMissing() {
+        final String json = """
+            {
+              "remote_indices": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "all" ]
+                }
+              ]
+            }""";
+        final ElasticsearchParseException epe = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON)
+        );
+        assertThat(
+            epe,
+            TestMatchers.throwableWithMessage(
+                containsString("failed to parse remote indices privileges for role [test]. missing required [clusters] field")
+            )
+        );
+    }
+
     public void testGlobalPrivilegesOrdering() throws IOException {
         final String roleName = randomAlphaOfLengthBetween(3, 30);
         final String[] applicationNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);

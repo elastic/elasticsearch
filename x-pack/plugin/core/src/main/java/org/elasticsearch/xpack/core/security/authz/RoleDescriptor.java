@@ -551,16 +551,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return privileges.toArray(new IndicesPrivileges[privileges.size()]);
     }
 
-    private static IndicesPrivileges parseIndex(String roleName, XContentParser parser, boolean allow2xFormat) throws IOException {
+    private static IndicesPrivileges parseIndex(final String roleName, final XContentParser parser, final boolean allow2xFormat)
+        throws IOException {
         final var parsed = parseIndexWithOptionalRemoteClusters(roleName, parser, allow2xFormat, false);
         assert parsed.v2() == null : "indices privileges cannot have remote clusters";
         return parsed.v1();
     }
 
     private static RoleDescriptor.RemoteIndicesPrivileges[] parseRemoteIndices(
-        String roleName,
-        XContentParser parser,
-        boolean allow2xFormat
+        final String roleName,
+        final XContentParser parser,
+        final boolean allow2xFormat
     ) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(

@@ -231,8 +231,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     }
 
     private void initializeRemoteIndicesPrivilegesIfNull() {
-        if (this.remoteIndicesPrivileges == null) {
-            this.remoteIndicesPrivileges = new ArrayList<>();
+        if (remoteIndicesPrivileges == null) {
+            remoteIndicesPrivileges = new ArrayList<>();
         }
     }
 }

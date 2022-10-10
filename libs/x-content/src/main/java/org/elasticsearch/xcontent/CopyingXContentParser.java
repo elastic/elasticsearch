@@ -11,6 +11,10 @@ package org.elasticsearch.xcontent;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+/**
+ * Copies its values into a {@code byte[]} while reading them. Use
+ * with {@link XContentSubParser} to read the entire object.
+ */
 public class CopyingXContentParser extends FilterXContentParserWrapper {
     private final ByteArrayOutputStream out;
     private final XContentGenerator generator;

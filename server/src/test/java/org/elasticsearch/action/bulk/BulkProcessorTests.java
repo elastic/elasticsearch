@@ -289,7 +289,8 @@ public class BulkProcessorTests extends ESTestCase {
                     Concurrent Bulk Requests: %s
                     """;
                 fail(
-                    message.formatted(
+                    formatted(
+                        message,
                         expectedExecutions,
                         requestCount.get(),
                         successCount.get(),
@@ -419,7 +420,8 @@ public class BulkProcessorTests extends ESTestCase {
                 Concurrent Bulk Requests: %d
                 """;
             fail(
-                message.formatted(
+                formatted(
+                    message,
                     requestCount.get(),
                     successCount.get(),
                     failureCount.get(),

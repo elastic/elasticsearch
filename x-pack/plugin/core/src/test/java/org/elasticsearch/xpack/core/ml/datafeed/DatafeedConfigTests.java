@@ -43,7 +43,7 @@ import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggreg
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -81,7 +81,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedConfig> {
+public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<DatafeedConfig> {
 
     @Override
     protected DatafeedConfig createTestInstance() {

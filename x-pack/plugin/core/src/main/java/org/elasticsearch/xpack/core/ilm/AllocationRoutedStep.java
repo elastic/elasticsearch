@@ -49,13 +49,13 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         IndexMetadata idxMeta = clusterState.metadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return new Result(false, null);
         }
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
             logger.debug(
                 "[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName()
             );
             return new Result(false, waitingForActiveShardsAllocationInfo(idxMeta.getNumberOfReplicas()));
@@ -75,12 +75,12 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
             logger.debug(
                 "{} lifecycle action [{}] waiting for [{}] shards to be allocated to nodes matching the given filters",
                 index,
-                getKey().getAction(),
+                getKey().action(),
                 allocationPendingAllShards
             );
             return new Result(false, allShardsActiveAllocationInfo(idxMeta.getNumberOfReplicas(), allocationPendingAllShards));
         } else {
-            logger.debug("{} lifecycle action for [{}] complete", index, getKey().getAction());
+            logger.debug("{} lifecycle action for [{}] complete", index, getKey().action());
             return new Result(true, null);
         }
     }

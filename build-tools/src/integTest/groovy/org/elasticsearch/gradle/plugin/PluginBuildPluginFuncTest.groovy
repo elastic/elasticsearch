@@ -75,7 +75,7 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
             }
 
             dependencies {
-                consume project(path:':', configuration:'${PluginBuildPlugin.EXPLODED_BUNDLE_CONFIG}')
+                consume project(path:':', configuration:'${BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG}')
             }
 
             tasks.register("resolveModule", Copy) {

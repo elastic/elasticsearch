@@ -633,7 +633,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         public void trigger(String watchId, int times, TimeValue timeValue) throws Exception {
             assertBusy(() -> {
                 long triggeredCount = schedulers.stream().filter(scheduler -> scheduler.trigger(watchId, times, timeValue)).count();
-                String msg = String.format(Locale.ROOT, "watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
+                String msg = formatted("watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
                 if (triggeredCount > 1) {
                     logger.warn(msg);
                 }

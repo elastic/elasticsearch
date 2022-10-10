@@ -10,15 +10,18 @@ package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.profile.query.QueryProfileShardResultTests;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class SearchProfileDfsPhaseResultTests extends AbstractSerializingTestCase<SearchProfileDfsPhaseResult> {
+public class SearchProfileDfsPhaseResultTests extends AbstractXContentSerializingTestCase<SearchProfileDfsPhaseResult> {
 
     static SearchProfileDfsPhaseResult createTestItem() {
-        return new SearchProfileDfsPhaseResult(rarely() ? null : QueryProfileShardResultTests.createTestItem());
+        return new SearchProfileDfsPhaseResult(
+            randomBoolean() ? null : ProfileResultTests.createTestItem(1),
+            randomBoolean() ? null : QueryProfileShardResultTests.createTestItem()
+        );
     }
 
     @Override

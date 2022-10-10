@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -96,7 +97,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
 
     @Override
     protected String configRoles() {
-        return """
+        return String.format(Locale.ROOT, """
             %s%s:
               cluster: [ "manage_own_api_key" ]
               indices:
@@ -160,7 +161,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
                 privileges:
                 - "read"
                 query: {"template":{"id":"my-script"}}
-            """.formatted(super.configRoles(), DLS_FLS_USER, DLS_TEMPLATE_ROLE_QUERY_ROLE);
+            """, super.configRoles(), DLS_FLS_USER, DLS_TEMPLATE_ROLE_QUERY_ROLE);
     }
 
     @Override

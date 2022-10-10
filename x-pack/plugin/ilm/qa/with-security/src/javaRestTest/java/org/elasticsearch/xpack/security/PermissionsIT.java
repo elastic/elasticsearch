@@ -340,10 +340,10 @@ public class PermissionsIT extends ESRestTestCase {
 
     private void createIndexAsAdmin(String name, Settings settings, String mapping) throws IOException {
         Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {
              "settings": %s, "mappings" : {%s}
-            }""".formatted(Strings.toString(settings), mapping));
+            }""", Strings.toString(settings), mapping));
         assertOK(adminClient().performRequest(request));
     }
 
@@ -355,7 +355,7 @@ public class PermissionsIT extends ESRestTestCase {
 
     private void createIndexTemplate(String name, String pattern, String alias, String policy) throws IOException {
         Request request = new Request("PUT", "/_template/" + name);
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {
               "index_patterns": [
                 "%s"
@@ -366,7 +366,7 @@ public class PermissionsIT extends ESRestTestCase {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""".formatted(pattern, policy, alias));
+            }""", pattern, policy, alias));
         request.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         assertOK(adminClient().performRequest(request));
     }

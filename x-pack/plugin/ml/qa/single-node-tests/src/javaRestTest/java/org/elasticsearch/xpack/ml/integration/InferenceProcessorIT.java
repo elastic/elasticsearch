@@ -220,7 +220,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
 
         createdPipelines.add("regression-model-deprecated-pipeline");
         Request putPipeline = new Request("PUT", "_ingest/pipeline/regression-model-deprecated-pipeline");
-        putPipeline.setJsonEntity("""
+        putPipeline.setJsonEntity(formatted("""
             {
               "processors": [
                 {
@@ -231,7 +231,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
                   }
                 }
               ]
-            }""".formatted(MODEL_ID));
+            }""", MODEL_ID));
 
         RequestOptions ro = expectWarnings("Deprecated field [field_mappings] used, expected [field_map] instead");
         putPipeline.setOptions(ro);
@@ -283,7 +283,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
 
     private void putPipeline(String modelId, String pipelineName) throws IOException {
         Request putPipeline = new Request("PUT", "_ingest/pipeline/" + pipelineName);
-        putPipeline.setJsonEntity("""
+        putPipeline.setJsonEntity(formatted("""
             {
               "processors": [
                 {
@@ -297,7 +297,7 @@ public class InferenceProcessorIT extends InferenceTestCase {
                   }
                 }
               ]
-            }""".formatted(modelId));
+            }""", modelId));
 
         assertThat(client().performRequest(putPipeline).getStatusLine().getStatusCode(), equalTo(200));
     }

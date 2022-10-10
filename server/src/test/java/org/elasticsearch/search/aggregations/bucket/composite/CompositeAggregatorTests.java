@@ -728,7 +728,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 createDocument("keyword", "c")
             )
         );
-        testCase(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             Document document = new Document();
             int id = 0;
             for (Map<String, List<Object>> fields : dataset) {
@@ -746,7 +746,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, FIELD_TYPES);
+        }, new AggTestConfig(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), FIELD_TYPES));
     }
 
     /**
@@ -762,7 +762,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         NestedAggregationBuilder builder = new NestedAggregationBuilder("nestedAggName", nestedPath);
         builder.subAggregation(new CompositeAggregationBuilder("compositeAggName", Collections.singletonList(terms)));
         // Without after
-        testCase(builder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             // Sub-Docs
             List<Iterable<IndexableField>> documents = new ArrayList<>();
             documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price", 10L));
@@ -795,8 +795,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals("{keyword=Stationary}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
         },
-            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
-            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+            new AggTestConfig(
+                builder,
+                new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+                new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+            )
         );
     }
 
@@ -816,7 +819,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 createAfterKey("keyword", "Pens and Stuff")
             )
         );
-        testCase(builder, new MatchAllDocsQuery(), iw -> {
+        // Sub-Docs
+        // Root docs
+        testCase(iw -> {
             // Sub-Docs
             List<Iterable<IndexableField>> documents = new ArrayList<>();
             documents.add(createNestedDocument("1", nestedPath, leafNameField, "Pens and Stuff", "price", 10L));
@@ -845,8 +850,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals("{keyword=Stationary}", result.getBuckets().get(0).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(0).getDocCount());
         },
-            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
-            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+            new AggTestConfig(
+                builder,
+                new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+                new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+            )
         );
     }
 
@@ -3336,7 +3344,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
                 for (int i = 0; i < create.size(); i++) {
                     verify.get(i)
-                        .accept(searchAndReduce(new AggTestConfig(indexSearcher, create.get(i).get(), FIELD_TYPES).withQuery(query)));
+                        .accept(searchAndReduce(indexSearcher, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query)));
                 }
             }
         }

@@ -104,7 +104,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
     public LifecyclePolicy(StreamInput in) throws IOException {
         type = in.readNamedWriteable(LifecycleType.class);
         name = in.readString();
-        phases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, Phase::new));
+        phases = in.readImmutableMap(StreamInput::readString, Phase::new);
         this.metadata = in.readMap();
     }
 

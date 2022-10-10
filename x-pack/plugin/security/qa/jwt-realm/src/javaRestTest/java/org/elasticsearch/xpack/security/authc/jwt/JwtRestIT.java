@@ -126,12 +126,12 @@ public class JwtRestIT extends ESRestTestCase {
         final String dn = randomDn();
         final String name = randomName();
         final String mail = randomMail();
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "username": "%s" } }
             ] }
-            """.formatted(principal);
+            """, principal);
 
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
     }
@@ -142,12 +142,12 @@ public class JwtRestIT extends ESRestTestCase {
         final String name = randomName();
         final String mail = randomMail();
 
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "dn": "%s" } }
             ] }
-            """.formatted(dn);
+            """, dn);
 
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
     }
@@ -160,12 +160,12 @@ public class JwtRestIT extends ESRestTestCase {
         final List<String> groups = randomList(1, 12, () -> randomAlphaOfLengthBetween(4, 12));
         final String mappedGroup = randomFrom(groups);
 
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "groups": "%s" } }
             ] }
-            """.formatted(mappedGroup);
+            """, mappedGroup);
 
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, groups, rules);
     }
@@ -175,12 +175,12 @@ public class JwtRestIT extends ESRestTestCase {
         final String dn = randomDn();
         final String name = randomName();
         final String mail = randomMail();
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "metadata.jwt_claim_sub": "%s" } }
             ] }
-            """.formatted(principal);
+            """, principal);
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
     }
 

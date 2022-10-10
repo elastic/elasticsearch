@@ -5,38 +5,29 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical;
+package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
-public class FieldExtract extends UnaryPlan {
+public class FieldExtract extends UnaryExec {
 
     private final EsIndex index;
     private final List<Attribute> attrs;
     private final List<Attribute> esQueryAttrs;
 
-    public FieldExtract(Source source, LogicalPlan child, EsIndex index, List<Attribute> attrs, List<Attribute> esQueryAttrs) {
+    public FieldExtract(Source source, PhysicalPlan child, EsIndex index, List<Attribute> attrs, List<Attribute> esQueryAttrs) {
         super(source, child);
         this.index = index;
         this.attrs = attrs;
         this.esQueryAttrs = esQueryAttrs;
-    }
-
-    public FieldExtract(Source source, LogicalPlan child, EsIndex index, List<Attribute> esQueryAttrs) {
-        this(source, child, index, flatten(source, index.mapping()), esQueryAttrs);
     }
 
     @Override
@@ -44,35 +35,12 @@ public class FieldExtract extends UnaryPlan {
         return NodeInfo.create(this, FieldExtract::new, child(), index, attrs, esQueryAttrs);
     }
 
-    private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
-        return flatten(source, mapping, null);
-    }
-
-    private static List<Attribute> flatten(Source source, Map<String, EsField> mapping, FieldAttribute parent) {
-        List<Attribute> list = new ArrayList<>();
-
-        for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
-            String name = entry.getKey();
-            EsField t = entry.getValue();
-
-            if (t != null) {
-                FieldAttribute f = new FieldAttribute(source, parent, parent != null ? parent.name() + "." + name : name, t);
-                list.add(f);
-                // object or nested
-                if (t.getProperties().isEmpty() == false) {
-                    list.addAll(flatten(source, t.getProperties(), f));
-                }
-            }
-        }
-        return list;
-    }
-
     public EsIndex index() {
         return index;
     }
 
     @Override
-    public UnaryPlan replaceChild(LogicalPlan newChild) {
+    public UnaryExec replaceChild(PhysicalPlan newChild) {
         return new FieldExtract(source(), newChild, index, attrs, esQueryAttrs);
     }
 
@@ -89,11 +57,6 @@ public class FieldExtract extends UnaryPlan {
         List<Attribute> output = new ArrayList<>(child().output());
         output.addAll(attrs);
         return output;
-    }
-
-    @Override
-    public boolean expressionsResolved() {
-        return true;
     }
 
     @Override

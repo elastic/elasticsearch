@@ -19,21 +19,28 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xpack.esql.analyzer.Analyzer;
+import org.elasticsearch.xpack.esql.analyzer.Avg;
 import org.elasticsearch.xpack.esql.compute.transport.ComputeAction2;
 import org.elasticsearch.xpack.esql.compute.transport.ComputeRequest2;
-import org.elasticsearch.xpack.esql.optimizer.Optimizer;
+import org.elasticsearch.xpack.esql.plan.physical.Optimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.physical.Mapper;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.ql.analyzer.TableInfo;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.RemoteClusterResolver;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.junit.Assert;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -118,18 +125,22 @@ public class ComputeEngineIT extends ESIntegTestCase {
 
         PlainActionFuture<IndexResolution> fut = new PlainActionFuture<>();
         indexResolver.resolveAsMergedMapping(table.index(), false, Map.of(), fut);
-        Analyzer analyzer = new Analyzer(fut.actionGet());
+        FunctionRegistry functionRegistry = new FunctionRegistry(FunctionRegistry.def(Avg.class, Avg::new, "AVG"));
+        Configuration configuration = new Configuration(ZoneOffset.UTC, null, null, x -> Collections.emptySet());
+        Analyzer analyzer = new Analyzer(fut.actionGet(), functionRegistry, configuration);
         logicalPlan = analyzer.analyze(logicalPlan);
         logger.info("Plan after analysis:\n{}", logicalPlan);
+        Mapper mapper = new Mapper();
+        PhysicalPlan physicalPlan = mapper.map(logicalPlan);
         Optimizer optimizer = new Optimizer();
-        logicalPlan = optimizer.optimize(logicalPlan);
-        logger.info("Physical plan after optimize:\n{}", logicalPlan);
+        physicalPlan = optimizer.optimize(physicalPlan);
+        logger.info("Physical plan after optimize:\n{}", physicalPlan);
 
-        List<ColumnInfo> columns = logicalPlan.output()
+        List<ColumnInfo> columns = physicalPlan.output()
             .stream()
             .map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType()))
             .toList();
 
-        return Tuple.tuple(columns, client().execute(ComputeAction2.INSTANCE, new ComputeRequest2(logicalPlan)).actionGet().getPages());
+        return Tuple.tuple(columns, client().execute(ComputeAction2.INSTANCE, new ComputeRequest2(physicalPlan)).actionGet().getPages());
     }
 }

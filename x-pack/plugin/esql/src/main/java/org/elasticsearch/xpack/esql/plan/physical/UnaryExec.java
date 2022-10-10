@@ -4,7 +4,8 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.ql.plan.logical;
+
+package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -13,27 +14,23 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * A {@code UnaryPlan} is a {@code LogicalPlan} with exactly one child, for example, {@code WHERE x} in a
- * SQL statement is an {@code UnaryPlan}.
- */
-public abstract class UnaryPlan extends LogicalPlan {
+public abstract class UnaryExec extends PhysicalPlan {
 
-    private final LogicalPlan child;
+    private final PhysicalPlan child;
 
-    protected UnaryPlan(Source source, LogicalPlan child) {
+    protected UnaryExec(Source source, PhysicalPlan child) {
         super(source, Collections.singletonList(child));
         this.child = child;
     }
 
     @Override
-    public final UnaryPlan replaceChildren(List<LogicalPlan> newChildren) {
+    public final PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
         return replaceChild(newChildren.get(0));
     }
 
-    public abstract UnaryPlan replaceChild(LogicalPlan newChild);
+    public abstract UnaryExec replaceChild(PhysicalPlan newChild);
 
-    public LogicalPlan child() {
+    public PhysicalPlan child() {
         return child;
     }
 
@@ -56,8 +53,13 @@ public abstract class UnaryPlan extends LogicalPlan {
             return false;
         }
 
-        UnaryPlan other = (UnaryPlan) obj;
+        UnaryExec other = (UnaryExec) obj;
 
         return Objects.equals(child, other.child);
+    }
+
+    @Override
+    public boolean singleNode() {
+        return child().singleNode();
     }
 }

@@ -5,20 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical;
+package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
 
-public class TopN extends UnaryPlan {
+public class TopNExec extends UnaryExec {
 
     private final List<Order> order;
     private final Expression limit;
@@ -30,14 +27,14 @@ public class TopN extends UnaryPlan {
         FINAL, // maps intermediate inputs to final outputs
     }
 
-    public TopN(Source source, LogicalPlan child, List<Order> order, Expression limit) {
+    public TopNExec(Source source, PhysicalPlan child, List<Order> order, Expression limit) {
         super(source, child);
         this.order = order;
         this.limit = limit;
         this.mode = Mode.SINGLE;
     }
 
-    public TopN(Source source, LogicalPlan child, List<Order> order, Expression limit, Mode mode) {
+    public TopNExec(Source source, PhysicalPlan child, List<Order> order, Expression limit, Mode mode) {
         super(source, child);
         this.order = order;
         this.limit = limit;
@@ -45,13 +42,13 @@ public class TopN extends UnaryPlan {
     }
 
     @Override
-    protected NodeInfo<TopN> info() {
-        return NodeInfo.create(this, TopN::new, child(), order, limit);
+    protected NodeInfo<TopNExec> info() {
+        return NodeInfo.create(this, TopNExec::new, child(), order, limit);
     }
 
     @Override
-    public TopN replaceChild(LogicalPlan newChild) {
-        return new TopN(source(), newChild, order, limit);
+    public TopNExec replaceChild(PhysicalPlan newChild) {
+        return new TopNExec(source(), newChild, order, limit);
     }
 
     public List<Order> order() {
@@ -68,15 +65,10 @@ public class TopN extends UnaryPlan {
 
     @Override
     public boolean singleNode() {
-        if (mode != TopN.Mode.PARTIAL) {
+        if (mode != TopNExec.Mode.PARTIAL) {
             return true;
         }
         return child().singleNode();
-    }
-
-    @Override
-    public boolean expressionsResolved() {
-        return Resolvables.resolved(order);
     }
 
     @Override
@@ -94,7 +86,7 @@ public class TopN extends UnaryPlan {
             return false;
         }
 
-        TopN other = (TopN) obj;
+        TopNExec other = (TopNExec) obj;
         return Objects.equals(order, other.order)
             && Objects.equals(limit, other.limit)
             && Objects.equals(mode, other.mode)

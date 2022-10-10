@@ -33,11 +33,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.analyzer.Avg;
-import org.elasticsearch.xpack.esql.plan.logical.EsQuery;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.FieldExtract;
-import org.elasticsearch.xpack.esql.plan.logical.Output;
-import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -47,8 +42,6 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -83,7 +76,7 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(LogicalPlan node) {
+    public LocalExecutionPlan plan(PhysicalPlan node) {
         LocalExecutionPlanContext context = new LocalExecutionPlanContext();
 
         PhysicalOperation physicalOperation = plan(node, context);
@@ -97,8 +90,8 @@ public class LocalExecutionPlanner {
         return localExecutionPlan;
     }
 
-    public PhysicalOperation plan(LogicalPlan node, LocalExecutionPlanContext context) {
-        if (node instanceof Aggregate aggregate) {
+    public PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlanContext context) {
+        if (node instanceof AggregateExec aggregate) {
             PhysicalOperation source = plan(aggregate.child(), context);
             Map<Object, Integer> layout = new HashMap<>();
             Supplier<Operator> operatorFactory = null;
@@ -107,7 +100,7 @@ public class LocalExecutionPlanner {
                     BiFunction<AggregatorMode, Integer, AggregatorFunction> aggregatorFunc = avg.dataType().isRational()
                         ? AggregatorFunction.doubleAvg
                         : AggregatorFunction.longAvg;
-                    if (aggregate.getMode() == Aggregate.Mode.PARTIAL) {
+                    if (aggregate.getMode() == AggregateExec.Mode.PARTIAL) {
                         operatorFactory = () -> new AggregationOperator(
                             List.of(
                                 new Aggregator(
@@ -118,7 +111,7 @@ public class LocalExecutionPlanner {
                             )
                         );
                         layout.put(alias.id(), 0);
-                    } else if (aggregate.getMode() == Aggregate.Mode.FINAL) {
+                    } else if (aggregate.getMode() == AggregateExec.Mode.FINAL) {
                         operatorFactory = () -> new AggregationOperator(
                             List.of(new Aggregator(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(alias.id())))
                         );
@@ -134,7 +127,7 @@ public class LocalExecutionPlanner {
                 return new PhysicalOperation(operatorFactory, layout, source);
             }
             throw new UnsupportedOperationException();
-        } else if (node instanceof EsQuery esQuery) {
+        } else if (node instanceof EsQueryExec esQuery) {
             Supplier<Operator> operatorFactory;
             Set<String> indices = Sets.newHashSet(esQuery.index().name());
             PlanNode.LuceneSourceNode.Parallelism parallelism = PlanNode.LuceneSourceNode.Parallelism.SINGLE; // TODO: esQuery.parallelism
@@ -219,19 +212,19 @@ public class LocalExecutionPlanner {
                 source.layout,
                 source
             );
-        } else if (node instanceof org.elasticsearch.xpack.esql.plan.logical.Exchange exchange) {
+        } else if (node instanceof ExchangeExec exchangeExec) {
             int driverInstances;
-            if (exchange.getType() == org.elasticsearch.xpack.esql.plan.logical.Exchange.Type.GATHER) {
+            if (exchangeExec.getType() == ExchangeExec.Type.GATHER) {
                 driverInstances = 1;
                 context.setDriverInstanceCount(1);
             } else {
                 driverInstances = DEFAULT_TASK_CONCURRENCY;
                 context.setDriverInstanceCount(driverInstances);
             }
-            Exchange ex = new Exchange(driverInstances, exchange.getPartitioning().toExchange(), bufferMaxPages);
+            Exchange ex = new Exchange(driverInstances, exchangeExec.getPartitioning().toExchange(), bufferMaxPages);
 
             LocalExecutionPlanContext subContext = context.createSubContext();
-            PhysicalOperation source = plan(exchange.child(), subContext);
+            PhysicalOperation source = plan(exchangeExec.child(), subContext);
             Map<Object, Integer> layout = source.layout;
             PhysicalOperation physicalOperation = new PhysicalOperation(
                 () -> new ExchangeSinkOperator(ex.createSink()),
@@ -242,12 +235,12 @@ public class LocalExecutionPlanner {
                 new DriverFactory(() -> new Driver(physicalOperation.operators(), () -> {}), subContext.getDriverInstanceCount())
             );
             return new PhysicalOperation(() -> new ExchangeSourceOperator(ex.getNextSource()), layout);
-        } else if (node instanceof TopN topN) {
-            PhysicalOperation source = plan(topN.child(), context);
-            if (topN.order().size() != 1) {
+        } else if (node instanceof TopNExec topNExec) {
+            PhysicalOperation source = plan(topNExec.child(), context);
+            if (topNExec.order().size() != 1) {
                 throw new UnsupportedOperationException();
             }
-            Order order = topN.order().get(0);
+            Order order = topNExec.order().get(0);
             int sortByChannel;
             if (order.child()instanceof Attribute a) {
                 sortByChannel = source.layout.get(a.id());
@@ -255,7 +248,7 @@ public class LocalExecutionPlanner {
                 throw new UnsupportedOperationException();
             }
             int limit;
-            if (topN.getLimit()instanceof Literal literal) {
+            if (topNExec.getLimit()instanceof Literal literal) {
                 limit = Integer.parseInt(literal.value().toString());
             } else {
                 throw new UnsupportedOperationException();
@@ -266,7 +259,7 @@ public class LocalExecutionPlanner {
                 source.layout,
                 source
             );
-        } else if (node instanceof Eval eval) {
+        } else if (node instanceof EvalExec eval) {
             PhysicalOperation source = plan(eval.child(), context);
             if (eval.fields().size() != 1) {
                 throw new UnsupportedOperationException();

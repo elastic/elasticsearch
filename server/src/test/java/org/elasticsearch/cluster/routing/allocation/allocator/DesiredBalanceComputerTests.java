@@ -54,6 +54,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -365,14 +369,14 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         for (int shard = 0; shard < 2; shard++) {
             var primaryRoutingState = randomFrom(ShardRoutingState.values());
             var replicaRoutingState = switch (primaryRoutingState) {
-                case UNASSIGNED, INITIALIZING -> ShardRoutingState.UNASSIGNED;
+                case UNASSIGNED, INITIALIZING -> UNASSIGNED;
                 case STARTED -> randomFrom(ShardRoutingState.values());
-                case RELOCATING -> randomValueOtherThan(ShardRoutingState.RELOCATING, () -> randomFrom(ShardRoutingState.values()));
+                case RELOCATING -> randomValueOtherThan(RELOCATING, () -> randomFrom(ShardRoutingState.values()));
             };
             var nodes = new ArrayList<>(List.of("node-0", "node-1", "node-2"));
             Randomness.shuffle(nodes);
 
-            if (primaryRoutingState == ShardRoutingState.UNASSIGNED) {
+            if (primaryRoutingState == UNASSIGNED) {
                 continue;
             }
             for (var iterator = randomRoutingNodes.unassigned().iterator(); iterator.hasNext();) {
@@ -397,7 +401,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 }
             }
 
-            if (replicaRoutingState == ShardRoutingState.UNASSIGNED) {
+            if (replicaRoutingState == UNASSIGNED) {
                 continue;
             }
             for (var iterator = randomRoutingNodes.unassigned().iterator(); iterator.hasNext();) {
@@ -542,7 +546,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                         primaryNodeId,
                         null,
                         true,
-                        primaryNodeId == null ? ShardRoutingState.UNASSIGNED : ShardRoutingState.STARTED,
+                        primaryNodeId == null ? UNASSIGNED : STARTED,
                         AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
                     )
                 );
@@ -554,7 +558,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                             replicaNodeId,
                             null,
                             false,
-                            replicaNodeId == null ? ShardRoutingState.UNASSIGNED : ShardRoutingState.STARTED,
+                            replicaNodeId == null ? UNASSIGNED : STARTED,
                             AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1) + 1 + replica))
                         )
                     );
@@ -638,13 +642,16 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             var indexId = metadataBuilder.get(indexName).getIndex();
             var shardId = new ShardId(indexId, 0);
 
-            index0Shard = switch (randomIntBetween(0, 2)) {
+            var scenario = randomIntBetween(0, 3);
+            index0Shard = switch (scenario) {
                 // started on the desired node
-                case 0 -> newShardRouting(shardId, "node-0", null, true, ShardRoutingState.STARTED);
+                case 0 -> newShardRouting(shardId, "node-0", null, true, STARTED);
                 // initializing on the desired node
-                case 1 -> newShardRouting(shardId, "node-0", null, true, ShardRoutingState.INITIALIZING);
+                case 1 -> newShardRouting(shardId, "node-0", null, true, INITIALIZING);
                 // started on undesired node, assumed to be relocated to the desired node in the future
-                case 2 -> newShardRouting(shardId, "node-2", null, true, ShardRoutingState.STARTED);
+                case 2 -> newShardRouting(shardId, "node-2", null, true, STARTED);
+                // shard is already relocating to the desired node
+                case 3 -> newShardRouting(shardId, "node-2", "node-0", true, RELOCATING);
                 default -> throw new IllegalStateException();
             };
 
@@ -659,9 +666,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             var indexId = metadataBuilder.get(indexName).getIndex();
             var shardId = new ShardId(indexId, 0);
 
-            routingTableBuilder.add(
-                IndexRoutingTable.builder(indexId).addShard(newShardRouting(shardId, "node-1", null, true, ShardRoutingState.STARTED))
-            );
+            routingTableBuilder.add(IndexRoutingTable.builder(indexId).addShard(newShardRouting(shardId, "node-1", null, true, STARTED)));
         }
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)

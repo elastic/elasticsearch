@@ -136,7 +136,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
         public static final String INDICES_WITH_READONLY_BLOCK = "indices_with_readonly_block";
         public static final String NODES_WITH_ENOUGH_DISK_SPACE = "nodes_with_enough_disk_space";
-        public static final String NODES_OVER_FLOOD_WATERMARK = "nodes_over_flood_watermark";
+        public static final String NODES_OVER_FLOOD_STAGE_WATERMARK = "nodes_over_flood_stage_watermark";
         public static final String NODES_OVER_HIGH_WATERMARK = "nodes_over_high_watermark";
         public static final String NODES_WITH_UNKNOWN_DISK_STATUS = "nodes_with_unknown_disk_status";
 
@@ -414,7 +414,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 case GREEN -> NODES_WITH_ENOUGH_DISK_SPACE;
                 case UNKNOWN -> NODES_WITH_UNKNOWN_DISK_STATUS;
                 case YELLOW -> NODES_OVER_HIGH_WATERMARK;
-                case RED -> NODES_OVER_FLOOD_WATERMARK;
+                case RED -> NODES_OVER_FLOOD_STAGE_WATERMARK;
             };
         }
 

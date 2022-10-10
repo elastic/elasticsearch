@@ -58,7 +58,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.INDICES_WITH_READONLY_BLOCK;
-import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_OVER_FLOOD_WATERMARK;
+import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_OVER_FLOOD_STAGE_WATERMARK;
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_OVER_HIGH_WATERMARK;
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_WITH_ENOUGH_DISK_SPACE;
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_WITH_UNKNOWN_DISK_STATUS;
@@ -150,7 +150,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size()));
         assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
         assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(0));
-        assertThat(details.get(NODES_OVER_FLOOD_WATERMARK), equalTo(0));
+        assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(0));
         assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(0));
     }
 
@@ -302,7 +302,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size() - affectedNodes.size()));
         assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
         assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(0));
-        assertThat(details.get(NODES_OVER_FLOOD_WATERMARK), equalTo(affectedNodes.size()));
+        assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(affectedNodes.size()));
         assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(0));
     }
 
@@ -347,7 +347,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size()));
         assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
         assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(0));
-        assertThat(details.get(NODES_OVER_FLOOD_WATERMARK), equalTo(0));
+        assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(0));
         assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(1));
     }
 
@@ -394,7 +394,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size() - numberOfYellowNodes));
         assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
         assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(numberOfYellowNodes));
-        assertThat(details.get(NODES_OVER_FLOOD_WATERMARK), equalTo(0));
+        assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(0));
         assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(1));
     }
 
@@ -455,7 +455,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size() - numberOfRedNodes));
         assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
         assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(0));
-        assertThat(details.get(NODES_OVER_FLOOD_WATERMARK), equalTo(numberOfRedNodes));
+        assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(numberOfRedNodes));
         assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(blockedIndices.size()));
     }
 

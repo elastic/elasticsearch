@@ -328,7 +328,7 @@ because the cluster is running out of space.
 (int) The number of nodes that are running low on disk and it is likely that they will run out of space. Their disk usage
 has tripped the <<cluster-routing-watermark-high, high watermark threshold>>.
 
-`nodes_over_flood_watermark`::
+`nodes_over_flood_stage_watermark`::
 (int) The number of nodes that have run out of disk. Their disk usage has tripped the <<cluster-routing-flood-stage, flood stage
 watermark threshold>>.
 

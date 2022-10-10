@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -55,6 +54,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
@@ -537,7 +537,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 var shardId = new ShardId(indexId, shard);
                 var primaryNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
                 indexRoutingTableBuilder.addShard(
-                    TestShardRouting.newShardRouting(
+                    newShardRouting(
                         shardId,
                         primaryNodeId,
                         null,
@@ -549,7 +549,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 for (int replica = 0; replica < replicas; replica++) {
                     var replicaNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
                     indexRoutingTableBuilder.addShard(
-                        TestShardRouting.newShardRouting(
+                        newShardRouting(
                             shardId,
                             replicaNodeId,
                             null,
@@ -616,42 +616,42 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var discoveryNodesBuilder = DiscoveryNodes.builder()
             .add(createDiscoveryNode("node-0", DiscoveryNodeRole.roles()))
-            .add(createDiscoveryNode("node-1", DiscoveryNodeRole.roles()));
+            .add(createDiscoveryNode("node-1", DiscoveryNodeRole.roles()))
+            .add(createDiscoveryNode("node-2", DiscoveryNodeRole.roles()));
 
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder();
 
-        for (int i = 0; i < 10; i++) {
-            var indexName = "index-" + i;
-            var inSyncId = UUIDs.randomBase64UUID(random());
+        var commonIndexSettings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.version.created", Version.CURRENT)
+            .put("index.routing.allocation.exclude._name", "node-2")
+            .build();
 
-            metadataBuilder.put(
-                IndexMetadata.builder(indexName)
-                    .settings(
-                        Settings.builder()
-                            .put("index.number_of_shards", 1)
-                            .put("index.number_of_replicas", 0)
-                            .put("index.version.created", Version.CURRENT)
-                            .build()
-                    )
-                    .putInSyncAllocationIds(0, Set.of(inSyncId))
-            );
+        {
+            var indexName = "index-0";
+
+            metadataBuilder.put(IndexMetadata.builder(indexName).settings(commonIndexSettings));
 
             var indexId = metadataBuilder.get(indexName).getIndex();
             var shardId = new ShardId(indexId, 0);
 
             routingTableBuilder.add(
-                IndexRoutingTable.builder(indexId)
-                    .addShard(
-                        TestShardRouting.newShardRouting(
-                            shardId,
-                            i == 0 ? "node-0" : "node-1",
-                            null,
-                            true,
-                            ShardRoutingState.STARTED,
-                            AllocationId.newInitializing(inSyncId)
-                        )
-                    )
+                IndexRoutingTable.builder(indexId).addShard(newShardRouting(shardId, "node-0", null, true, ShardRoutingState.STARTED))
+            );
+        }
+
+        for (int i = 1; i < 10; i++) {
+            var indexName = "index-" + i;
+
+            metadataBuilder.put(IndexMetadata.builder(indexName).settings(commonIndexSettings));
+
+            var indexId = metadataBuilder.get(indexName).getIndex();
+            var shardId = new ShardId(indexId, 0);
+
+            routingTableBuilder.add(
+                IndexRoutingTable.builder(indexId).addShard(newShardRouting(shardId, "node-1", null, true, ShardRoutingState.STARTED))
             );
         }
 
@@ -695,8 +695,18 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "99%")
             .build();
 
+        var initial = new DesiredBalance(
+            1,
+            Map.of(
+                findShardId(clusterState, "index-0"),
+                new ShardAssignment(Set.of("node-0"), 1, 0, 0),
+                findShardId(clusterState, "index-1"),
+                new ShardAssignment(Set.of("node-1"), 1, 0, 0)
+            )
+        );
+
         var desiredBalance = new DesiredBalanceComputer(new BalancedShardsAllocator(settings)).compute(
-            DesiredBalance.INITIAL,
+            initial,
             new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState, clusterInfo, settings), Set.of()),
             queue(),
             input -> true
@@ -713,11 +723,11 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     }
 
     private static Map.Entry<String, Long> indexSize(ClusterState clusterState, String name, long size) {
-        return Map.entry(ClusterInfo.shardIdentifierFromRouting(clusterState.getRoutingTable().index(name).shard(0).shardId(), true), size);
+        return Map.entry(ClusterInfo.shardIdentifierFromRouting(findShardId(clusterState, name), true), size);
     }
 
-    static ClusterState createInitialClusterState() {
-        return createInitialClusterState(3);
+    private static ShardId findShardId(ClusterState clusterState, String name) {
+        return clusterState.getRoutingTable().index(name).shard(0).shardId();
     }
 
     static ClusterState createInitialClusterState(int dataNodesCount) {

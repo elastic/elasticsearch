@@ -42,7 +42,7 @@ import static org.elasticsearch.core.Strings.format;
 
 public abstract class TransportBroadcastAction<
     Request extends BroadcastRequest<Request>,
-    Response extends BroadcastResponse,
+    Response extends BaseBroadcastResponse,
     ShardRequest extends BroadcastShardRequest,
     ShardResponse extends BroadcastShardResponse> extends HandledTransportAction<Request, Response> {
 

@@ -281,31 +281,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        ExecutorSelector executorSelector
-    ) {
-        this(
-            clusterService,
-            indicesService,
-            threadPool,
-            scriptService,
-            bigArrays,
-            fetchPhase,
-            responseCollectorService,
-            circuitBreakerService,
-            executorSelector,
-            Tracer.NOOP
-        );
-    }
-
-    public SearchService(
-        ClusterService clusterService,
-        IndicesService indicesService,
-        ThreadPool threadPool,
-        ScriptService scriptService,
-        BigArrays bigArrays,
-        FetchPhase fetchPhase,
-        ResponseCollectorService responseCollectorService,
-        CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer
     ) {

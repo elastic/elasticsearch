@@ -121,7 +121,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             size
         );
 
-        testCase(builder, query, iw -> {
+        testCase(iw -> {
             iw.addDocument(
                 List.of(
                     new SortedSetDocValuesField(KEYWORD_FIELD1, new BytesRef("item-1")),
@@ -204,7 +204,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
             assertNotNull(results);
             assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
-        }, keywordType);
+        }, new AggTestConfig(builder, keywordType).withQuery(query));
     }
 
     public void testMixedSingleValues() throws IOException {
@@ -276,7 +276,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             size
         );
 
-        testCase(builder, query, iw -> {
+        testCase(iw -> {
             iw.addDocument(
                 List.of(
                     new SortedSetDocValuesField(KEYWORD_FIELD1, new BytesRef("host-1")),
@@ -380,7 +380,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
             assertNotNull(results);
             assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
-        }, keywordType1, keywordType2, keywordType3, intType, floatType, ipType);
+        }, new AggTestConfig(builder, keywordType1, keywordType2, keywordType3, intType, floatType, ipType).withQuery(query));
 
     }
 
@@ -474,7 +474,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             size
         );
 
-        testCase(builder, query, iw -> {
+        testCase(iw -> {
             iw.addDocument(
                 List.of(
                     new SortedSetDocValuesField(KEYWORD_FIELD1, new BytesRef("host-1")),
@@ -568,7 +568,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
         }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
             assertNotNull(results);
             assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
-        }, keywordType1, keywordType2, keywordType3, dateType, ipType);
+        }, new AggTestConfig(builder, keywordType1, keywordType2, keywordType3, dateType, ipType).withQuery(query));
 
     }
 

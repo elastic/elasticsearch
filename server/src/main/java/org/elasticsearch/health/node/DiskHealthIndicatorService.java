@@ -134,6 +134,12 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
      */
     static class DiskHealthAnalyzer {
 
+        public static final String INDICES_WITH_READONLY_BLOCK = "indices_with_readonly_block";
+        public static final String NODES_WITH_ENOUGH_DISK_SPACE = "nodes_with_enough_disk_space";
+        public static final String NODES_OVER_FLOOD_STAGE_WATERMARK = "nodes_over_flood_stage_watermark";
+        public static final String NODES_OVER_HIGH_WATERMARK = "nodes_over_high_watermark";
+        public static final String NODES_WITH_UNKNOWN_DISK_STATUS = "nodes_with_unknown_disk_status";
+
         private final ClusterState clusterState;
         private final Set<String> blockedIndices;
         private final List<DiscoveryNode> dataNodes = new ArrayList<>();
@@ -159,12 +165,12 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             for (String nodeId : diskHealthByNode.keySet()) {
                 DiscoveryNode node = clusterState.getNodes().get(nodeId);
                 HealthStatus healthStatus = diskHealthByNode.get(nodeId).healthStatus();
-                // TODO #90213 update this only after we check that this health status indicates a problem.
-                if (mostSevereStatusSoFar.value() < healthStatus.value()) {
-                    mostSevereStatusSoFar = healthStatus;
-                }
                 if (node == null || healthStatus.indicatesHealthProblem() == false) {
                     continue;
+                }
+
+                if (mostSevereStatusSoFar.value() < healthStatus.value()) {
+                    mostSevereStatusSoFar = healthStatus;
                 }
                 affectedRoles.addAll(node.getRoles());
                 if (node.canContainData()) {
@@ -395,12 +401,21 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             }
             return ((builder, params) -> {
                 builder.startObject();
-                builder.field("blocked_indices", blockedIndices.size());
+                builder.field(INDICES_WITH_READONLY_BLOCK, blockedIndices.size());
                 for (HealthStatus healthStatus : HealthStatus.values()) {
-                    builder.field(healthStatus.name().toLowerCase(Locale.ROOT) + "_nodes", healthNodesCount.get(healthStatus));
+                    builder.field(getDetailsDisplayKey(healthStatus), healthNodesCount.get(healthStatus));
                 }
                 return builder.endObject();
             });
+        }
+
+        private static String getDetailsDisplayKey(HealthStatus status) {
+            return switch (status) {
+                case GREEN -> NODES_WITH_ENOUGH_DISK_SPACE;
+                case UNKNOWN -> NODES_WITH_UNKNOWN_DISK_STATUS;
+                case YELLOW -> NODES_OVER_HIGH_WATERMARK;
+                case RED -> NODES_OVER_FLOOD_STAGE_WATERMARK;
+            };
         }
 
         private boolean hasUnhealthyDataNodes() {

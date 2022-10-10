@@ -4,6 +4,7 @@
 
 You can use the following APIs to perform model management operations:
 
+* <<clear-trained-model-deployment-cache>>
 * <<put-trained-models>>
 * <<put-trained-model-definition-part>>
 * <<put-trained-model-vocabulary>>

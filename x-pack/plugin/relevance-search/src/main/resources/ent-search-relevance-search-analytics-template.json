@@ -1,0 +1,39 @@
+{
+  "index_patterns": [".ent-search-relevance-search-analytics*"],
+  "version": ${xpack.stack.template.version},
+  "_meta": {
+    "description": "Template used by Enterprise Search to record relevance search analytics",
+    "managed": true
+  },
+  "data_stream": { },
+  "template": {
+    "mappings": {
+      "_source": {
+        "enabled": true
+      },
+      "properties": {
+        "query": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "relevance_settings_id": {
+          "type": "keyword"
+        },
+        "curations_id": {
+          "type": "keyword"
+        },
+        "@timestamp": {
+          "type": "date",
+          "format": "EEE MMM dd HH:mm:ss Z yyyy"
+        }
+      }
+    },
+    "aliases": {
+      ".ent-search-relevance-search-analytics": { }
+    }
+  }
+}

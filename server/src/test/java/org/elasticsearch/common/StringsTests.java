@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.Strings.*;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -30,7 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.elasticsearch.common.Strings.*;
 
 public class StringsTests extends ESTestCase {
 
@@ -55,11 +55,21 @@ public class StringsTests extends ESTestCase {
     }
 
     public void testHasLength() {
-        assertFalse(hasLength((String)null));
+        assertFalse(hasLength((String) null));
         assertFalse(hasLength(""));
         assertTrue(hasLength(" "));
         assertTrue(hasLength("Hello"));
+
         assertTrue(hasLength("\0"));
+    }
+
+    public void testIsEmpty() {
+        assertTrue(isEmpty(null));
+        assertTrue(isEmpty(""));
+        assertFalse(isEmpty(" "));
+        assertFalse(isEmpty("Hello"));
+
+        assertFalse(isEmpty("\0"));
     }
 
     public void testHasText() {
@@ -69,7 +79,10 @@ public class StringsTests extends ESTestCase {
         assertTrue(hasText("12345"));
         assertTrue(hasText(" 12345 "));
 
-        String asciiWhitespace = IntStream.rangeClosed(0, 32).filter(Character::isWhitespace).mapToObj(Character::toString).collect(Collectors.joining());
+        String asciiWhitespace = IntStream.rangeClosed(0, 32)
+            .filter(Character::isWhitespace)
+            .mapToObj(Character::toString)
+            .collect(Collectors.joining());
         assertFalse(hasText(asciiWhitespace));
         assertTrue(hasText("\ud855\udddd"));
     }
@@ -161,17 +174,17 @@ public class StringsTests extends ESTestCase {
     }
 
     public void testDeleteAny() {
-        assertNull(deleteAny((CharSequence)null, "abc"));
-        assertNull(deleteAny((String)null, "abc"));
+        assertNull(deleteAny((CharSequence) null, "abc"));
+        assertNull(deleteAny((String) null, "abc"));
         assertThat(deleteAny(new StringBuilder("foo"), null), hasToString("foo"));
         assertThat(deleteAny("foo", null), equalTo("foo"));
 
         assertThat(deleteAny("abc\ndef\t", "az\n"), equalTo("bcdef\t"));
 
         String testStr = randomUnicodeOfLength(10);
-        String delete = testStr.substring(testStr.length()-1) + testStr.substring(0, 1);
-        assertThat(deleteAny(testStr, delete), equalTo(testStr.substring(1, testStr.length()-1)));
-        assertThat(deleteAny(new StringBuilder(testStr), delete), hasToString(testStr.substring(1, testStr.length()-1)));
+        String delete = testStr.substring(testStr.length() - 1) + testStr.substring(0, 1);
+        assertThat(deleteAny(testStr, delete), equalTo(testStr.substring(1, testStr.length() - 1)));
+        assertThat(deleteAny(new StringBuilder(testStr), delete), hasToString(testStr.substring(1, testStr.length() - 1)));
 
         // this method doesn't really work with surrogates
     }
@@ -312,7 +325,7 @@ public class StringsTests extends ESTestCase {
         assertThat(toLowercaseAscii(testStr = randomAlphaOfLength(5)), equalTo(testStr.toLowerCase()));
 
         // all ascii characters
-        testStr = IntStream.rangeClosed(0, 255).mapToObj(i -> Character.toString((char)i)).collect(Collectors.joining());
+        testStr = IntStream.rangeClosed(0, 255).mapToObj(i -> Character.toString((char) i)).collect(Collectors.joining());
         assertThat(toLowercaseAscii(testStr), equalTo(lowercaseAsciiOnly(testStr)));
 
         // sling in some unicode too
@@ -322,10 +335,10 @@ public class StringsTests extends ESTestCase {
     private static String lowercaseAsciiOnly(String s) {
         // explicitly lowercase just ascii characters
         StringBuilder sb = new StringBuilder(s);
-        for (int i = 0; i<sb.length(); i++) {
+        for (int i = 0; i < sb.length(); i++) {
             char c = sb.charAt(i);
             if (c >= 'A' && c <= 'Z') {
-                sb.setCharAt(i, (char)(sb.charAt(i) + 32));
+                sb.setCharAt(i, (char) (sb.charAt(i) + 32));
             }
         }
         return sb.toString();

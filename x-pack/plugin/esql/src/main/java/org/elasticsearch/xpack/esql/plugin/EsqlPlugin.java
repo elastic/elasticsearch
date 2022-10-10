@@ -34,8 +34,10 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.compute.transport.ComputeAction;
+import org.elasticsearch.xpack.esql.compute.transport.ComputeAction2;
 import org.elasticsearch.xpack.esql.compute.transport.RestComputeAction;
 import org.elasticsearch.xpack.esql.compute.transport.TransportComputeAction;
+import org.elasticsearch.xpack.esql.compute.transport.TransportComputeAction2;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -89,7 +91,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionHandler<>(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
-            new ActionHandler<>(ComputeAction.INSTANCE, TransportComputeAction.class)
+            new ActionHandler<>(ComputeAction.INSTANCE, TransportComputeAction.class),
+            new ActionHandler<>(ComputeAction2.INSTANCE, TransportComputeAction2.class)
         );
     }
 

@@ -691,30 +691,6 @@ public final class IndicesPermission {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Group group = (Group) o;
-
-            if (allowRestrictedIndices != group.allowRestrictedIndices) return false;
-            if (false == privilege.equals(group.privilege)) return false;
-            if (false == Arrays.equals(indices, group.indices)) return false;
-            if (false == Objects.equals(fieldPermissions, group.fieldPermissions)) return false;
-            return Objects.equals(query, group.query);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = privilege.hashCode();
-            result = 31 * result + Arrays.hashCode(indices);
-            result = 31 * result + (fieldPermissions != null ? fieldPermissions.hashCode() : 0);
-            result = 31 * result + (query != null ? query.hashCode() : 0);
-            result = 31 * result + (allowRestrictedIndices ? 1 : 0);
-            return result;
-        }
-
-        @Override
         public String toString() {
             return "Group{"
                 + "privilege="

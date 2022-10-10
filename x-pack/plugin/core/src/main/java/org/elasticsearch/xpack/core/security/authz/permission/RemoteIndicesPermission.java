@@ -45,14 +45,6 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
             this.remoteIndicesGroups = new HashMap<>();
         }
 
-        public Builder addGroup(final Set<String> remoteClusterAliases, final String... indices) {
-            return addGroup(remoteClusterAliases, IndexPrivilege.READ, FieldPermissions.DEFAULT, null, false, indices);
-        }
-
-        public Builder addGroup(final Set<String> remoteClusterAliases, final boolean allowRestrictedIndices, final String... indices) {
-            return addGroup(remoteClusterAliases, IndexPrivilege.READ, FieldPermissions.DEFAULT, null, allowRestrictedIndices, indices);
-        }
-
         public Builder addGroup(
             final Set<String> remoteClusterAliases,
             final IndexPrivilege privilege,
@@ -82,21 +74,11 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
         }
     }
 
-    public static final class RemoteIndicesGroup {
-        private final Set<String> remoteClusterAliases;
-        private final StringMatcher remoteClusterAliasMatcher;
-        private final List<IndicesPermission.Group> indicesPermissionGroups;
-
-        public RemoteIndicesGroup(
-            Set<String> remoteClusterAliases,
-            StringMatcher remoteClusterAliasMatcher,
-            List<IndicesPermission.Group> indicesPermissionGroups
-        ) {
-            this.remoteClusterAliases = remoteClusterAliases;
-            this.remoteClusterAliasMatcher = remoteClusterAliasMatcher;
-            this.indicesPermissionGroups = indicesPermissionGroups;
-        }
-
+    public record RemoteIndicesGroup(
+        Set<String> remoteClusterAliases,
+        StringMatcher remoteClusterAliasMatcher,
+        List<IndicesPermission.Group> indicesPermissionGroups
+    ) {
         public RemoteIndicesGroup(Set<String> remoteClusterAliases, List<IndicesPermission.Group> indicesPermissionGroups) {
             this(remoteClusterAliases, StringMatcher.of(remoteClusterAliases), indicesPermissionGroups);
         }
@@ -104,35 +86,5 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
         public boolean checkRemoteClusterAlias(final String remoteClusterAlias) {
             return remoteClusterAliasMatcher.test(remoteClusterAlias);
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            RemoteIndicesGroup that = (RemoteIndicesGroup) o;
-
-            if (false == remoteClusterAliases.equals(that.remoteClusterAliases)) return false;
-            return indicesPermissionGroups.equals(that.indicesPermissionGroups);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = remoteClusterAliases.hashCode();
-            result = 31 * result + indicesPermissionGroups.hashCode();
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            return "RemoteIndicesGroup["
-                + "remoteClusterAliases="
-                + remoteClusterAliases
-                + ", "
-                + "indicesPermissionGroups="
-                + indicesPermissionGroups
-                + ']';
-        }
-
     }
 }

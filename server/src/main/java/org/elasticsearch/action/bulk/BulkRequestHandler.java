@@ -62,7 +62,7 @@ public final class BulkRequestHandler {
                     listener.afterBulk(executionId, bulkRequest, e);
                 }
             }, latch::countDown));
-            if (concurrentRequests == 0) {
+            if (concurrentRequests <= 1) { // TODO: lots of integration tests depend on this but do we really want it?
                 latch.await();
             }
         } catch (InterruptedException e) {
@@ -76,6 +76,6 @@ public final class BulkRequestHandler {
     }
 
     boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
-        return true;
+        return retry.awaitClose(timeout, unit);
     }
 }

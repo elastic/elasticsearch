@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -104,6 +105,7 @@ public class Retry {
         Iterator<TimeValue> backoff
     ) {
         requestsInFlight.decrementAndGet();
+        assert requestsInFlight.get() >= 0;
         if (retry) {
             retry(bulkRequest, consumer, listener, backoff);
         } else {
@@ -166,11 +168,13 @@ public class Retry {
                  * periodically (via the withBackoff method)
                  */
                 requestsInFlight.decrementAndGet();
+                assert requestsInFlight.get() >= 0;
                 return;
             }
             BulkRequestExecutionIdAndBackoff queueItem = queue.poll();
             if (queueItem == null) {
                 requestsInFlight.decrementAndGet();
+                assert requestsInFlight.get() >= 0;
                 /*
                  * It is possible that something was added to the queue after the drain and before the permit was released, meaning
                  * that the other thread could not acquire the permit, leaving an item orphanied in the queue. So we check the queue
@@ -199,6 +203,12 @@ public class Retry {
         }
     }
 
+    boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+        boolean isDone = queue.isEmpty() && requestsInFlight.get() == 0;
+        flushCancellable.cancel();
+        return isDone; // TODO
+    }
+
     private final class RetryHandler extends ActionListener.Delegating<BulkResponse, BulkResponse> {
         private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
         private final BulkRequest bulkRequest;
@@ -223,6 +233,7 @@ public class Retry {
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
             requestsInFlight.decrementAndGet();
+            assert requestsInFlight.get() >= 0;
             if (bulkItemResponses.hasFailures() == false) {
                 // we're done here, include all responses
                 addResponses(bulkItemResponses, (r -> true));

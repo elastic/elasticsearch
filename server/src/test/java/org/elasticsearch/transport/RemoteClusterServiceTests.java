@@ -379,54 +379,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     RemoteClusterConnection remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
                     assertEquals(pingSchedule, remoteClusterConnection.getConnectionManager().getConnectionProfile().getPingInterval());
-                }
-            }
-        }
-    }
-
-    public void testCustomPingSchedule() throws IOException {
-        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (
-            MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-            MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)
-        ) {
-            DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
-            DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
-            knownNodes.add(cluster1Transport.getLocalDiscoNode());
-            knownNodes.add(cluster2Transport.getLocalDiscoNode());
-            Collections.shuffle(knownNodes, random());
-            Settings.Builder settingsBuilder = Settings.builder();
-            if (randomBoolean()) {
-                settingsBuilder.put(TransportSettings.PING_SCHEDULE.getKey(), TimeValue.timeValueSeconds(randomIntBetween(1, 10)));
-            }
-            Settings transportSettings = settingsBuilder.build();
-
-            try (
-                MockTransportService transportService = MockTransportService.createNewService(
-                    transportSettings,
-                    Version.CURRENT,
-                    threadPool,
-                    null
-                )
-            ) {
-                transportService.start();
-                transportService.acceptIncomingRequests();
-                Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
-                TimeValue pingSchedule1 = // randomBoolean() ? TimeValue.MINUS_ONE :
-                    TimeValue.timeValueSeconds(randomIntBetween(1, 10));
-                builder.put("cluster.remote.cluster_1.transport.ping_schedule", pingSchedule1);
-                TimeValue pingSchedule2 = // randomBoolean() ? TimeValue.MINUS_ONE :
-                    TimeValue.timeValueSeconds(randomIntBetween(1, 10));
-                builder.put("cluster.remote.cluster_2.transport.ping_schedule", pingSchedule2);
-                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
-                    service.initializeRemoteClusters();
-                    assertTrue(service.isRemoteClusterRegistered("cluster_1"));
-                    RemoteClusterConnection remoteClusterConnection1 = service.getRemoteClusterConnection("cluster_1");
-                    assertEquals(pingSchedule1, remoteClusterConnection1.getConnectionManager().getConnectionProfile().getPingInterval());
-                    RemoteClusterConnection remoteClusterConnection2 = service.getRemoteClusterConnection("cluster_2");
-                    assertEquals(pingSchedule2, remoteClusterConnection2.getConnectionManager().getConnectionProfile().getPingInterval());
+                    // The ping interval is irrelevant since there are no connections that allow for PING
+                    assertEquals(
+                        0,
+                        remoteClusterConnection.getConnectionManager()
+                            .getConnectionProfile()
+                            .getNumConnectionsPerType(TransportRequestOptions.Type.PING)
+                    );
                 }
             }
         }
@@ -478,6 +437,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         assertEquals(enabledChange, connectionProfile.getCompressionEnabled());
                         assertEquals(Compression.Scheme.LZ4, connectionProfile.getCompressionScheme());
                     }
+                    assertWarnings(
+                        "[cluster.remote.cluster_1.transport.ping_schedule] "
+                            + "setting was deprecated in Elasticsearch and will be removed in a future release."
+                    );
                 }
             }
         }
@@ -862,6 +825,11 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 iae.getMessage()
             );
         }
+
+        assertWarnings(
+            "[cluster.remote.foo.transport.ping_schedule] "
+                + "setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testReconnectWhenStrategySettingsUpdated() throws Exception {

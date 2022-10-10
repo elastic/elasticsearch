@@ -34,17 +34,12 @@ mode are described separately.
 
 `cluster.remote.<cluster_alias>.transport.ping_schedule`::
 
-  Sets the time interval between regular application-level ping messages that
-  are sent to try and keep remote cluster connections alive. If set to `-1`,
-  application-level ping messages to this remote cluster are not sent. If
-  unset, application-level ping messages are sent according to the global
-  `transport.ping_schedule` setting, which defaults to `-1` meaning that pings
-  are not sent. It is preferable to correctly configure TCP keep-alives instead
-  of configuring a `ping_schedule`, because TCP keep-alives are handled by the
-  operating system and not by {es}. By default {es} enables TCP keep-alives on
-  remote cluster connections. Remote cluster connections are transport
-  connections so the `transport.tcp.*` <<transport-settings,advanced settings>>
-  regarding TCP keep-alives apply to them.
+deprecated:[8.6.0, Application level pings for remote clusters are deprecated and will be
+removed in future Elasticsearch versions.]
+
+  Application level pings for remote clusters are not supported.
+  By default {es} enables TCP keep-alives on remote cluster connections.
+  See <<transport-settings,advanced settings>> to configure TCP keep-alives.
 
 `cluster.remote.<cluster_alias>.transport.compress`::
 

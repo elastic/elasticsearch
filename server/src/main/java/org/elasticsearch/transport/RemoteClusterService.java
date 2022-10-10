@@ -89,7 +89,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             TransportSettings.PING_SCHEDULE,
             new RemoteConnectionEnabled<>(ns, key),
             Setting.Property.Dynamic,
-            Setting.Property.NodeScope
+            Setting.Property.NodeScope,
+            Setting.Property.Deprecated
         )
     );
 

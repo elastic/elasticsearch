@@ -460,9 +460,6 @@
     "probability" : {
       "type" : "double"
     },
-    "probability_explanations" : {
-      "type": "keyword"
-    },
     "processed_field_count" : {
       "type" : "long"
     },

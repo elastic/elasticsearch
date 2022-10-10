@@ -26,6 +26,7 @@ import java.util.Objects;
 public class IndexingStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {
+        private static final Version WRITE_LOAD_AVG_SUPPORTED_VERSION = Version.V_8_6_0;
 
         private long indexCount;
         private long indexTimeInMillis;
@@ -37,6 +38,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long noopUpdateCount;
         private long throttleTimeInMillis;
         private boolean isThrottled;
+        private double writeLoadAvg;
 
         Stats() {}
 
@@ -51,6 +53,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             noopUpdateCount = in.readVLong();
             isThrottled = in.readBoolean();
             throttleTimeInMillis = in.readLong();
+            if (in.getVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
+                writeLoadAvg = in.readDouble();
+            }
         }
 
         public Stats(
@@ -63,7 +68,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             long deleteCurrent,
             long noopUpdateCount,
             boolean isThrottled,
-            long throttleTimeInMillis
+            long throttleTimeInMillis,
+            double writeLoadAvg
         ) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
@@ -75,6 +81,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.noopUpdateCount = noopUpdateCount;
             this.isThrottled = isThrottled;
             this.throttleTimeInMillis = throttleTimeInMillis;
+            this.writeLoadAvg = writeLoadAvg;
         }
 
         public void add(Stats stats) {
@@ -92,6 +99,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (isThrottled != stats.isThrottled) {
                 isThrottled = true; // When combining if one is throttled set result to throttled.
             }
+            writeLoadAvg = ((writeLoadAvg + stats.writeLoadAvg) / 2);
         }
 
         /**
@@ -161,6 +169,10 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             return noopUpdateCount;
         }
 
+        public double getWriteLoadAverage() {
+            return writeLoadAvg;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(indexCount);
@@ -173,7 +185,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             out.writeVLong(noopUpdateCount);
             out.writeBoolean(isThrottled);
             out.writeLong(throttleTimeInMillis);
-
+            if (out.getVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
+                out.writeDouble(writeLoadAvg);
+            }
         }
 
         @Override
@@ -191,6 +205,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
             builder.field(Fields.IS_THROTTLED, isThrottled);
             builder.humanReadableField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, getThrottleTime());
+
+            builder.field(Fields.WRITE_LOAD_AVG, writeLoadAvg);
             return builder;
         }
 
@@ -208,7 +224,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 && deleteCurrent == that.deleteCurrent
                 && noopUpdateCount == that.noopUpdateCount
                 && isThrottled == that.isThrottled
-                && throttleTimeInMillis == that.throttleTimeInMillis;
+                && throttleTimeInMillis == that.throttleTimeInMillis
+                && writeLoadAvg == that.writeLoadAvg;
         }
 
         @Override
@@ -223,7 +240,8 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 deleteCurrent,
                 noopUpdateCount,
                 isThrottled,
-                throttleTimeInMillis
+                throttleTimeInMillis,
+                writeLoadAvg
             );
         }
     }
@@ -311,6 +329,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         static final String IS_THROTTLED = "is_throttled";
         static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
         static final String THROTTLED_TIME = "throttle_time";
+        static final String WRITE_LOAD_AVG = "write_load_avg";
     }
 
     @Override

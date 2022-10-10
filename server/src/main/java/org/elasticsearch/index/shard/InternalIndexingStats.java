@@ -111,11 +111,13 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric indexFailed = new CounterMetric();
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
+        private final long shardRelativeStartTimeInNanos = System.nanoTime();
 
         IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
+            final long totalIndexingTimeInNanos = indexMetric.sum();
             return new IndexingStats.Stats(
                 indexMetric.count(),
-                TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()),
+                TimeUnit.NANOSECONDS.toMillis(totalIndexingTimeInNanos),
                 indexCurrent.count(),
                 indexFailed.count(),
                 deleteMetric.count(),
@@ -123,8 +125,13 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 deleteCurrent.count(),
                 noopUpdates.count(),
                 isThrottled,
-                TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis)
+                TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
+                (double) totalIndexingTimeInNanos / timeSinceShardStartedInNanos()
             );
+        }
+
+        long timeSinceShardStartedInNanos() {
+            return System.nanoTime() - shardRelativeStartTimeInNanos;
         }
     }
 }

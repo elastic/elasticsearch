@@ -10,6 +10,10 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -54,6 +58,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -68,11 +73,13 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -168,6 +175,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -4550,6 +4558,125 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(thirdForceMergeUUID, not(equalTo(secondForceMergeUUID)));
         assertThat(thirdForceMergeUUID, equalTo(secondForceMergeRequest.forceMergeUUID()));
         closeShards(shard);
+    }
+
+    public void testShardExposesWriteLoadStats() throws Exception {
+        final TimeValue sleepTimePerToken = TimeValue.timeValueSeconds(1);
+
+        final IndexShard shard = newStartedShard(primary -> {
+            ShardRouting shardRouting = newShardRouting(
+                new ShardId("index", "_na_", 0),
+                randomAlphaOfLength(10),
+                true,
+                ShardRoutingState.INITIALIZING,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE
+            );
+            IndexMetadata indexMetadata = IndexMetadata.builder(shardRouting.getIndexName())
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build()
+                )
+                .primaryTerm(0, primaryTerm)
+                .putMapping("""
+                    {
+                        "_doc": {
+                            "properties": {
+                                "test": {
+                                    "type": "text"
+                                }
+                            }
+                        }
+                    }""")
+                .build();
+            EngineFactory engineFactory = config -> {
+                final EngineConfig engineConfigWithCustomAnalyzer = new EngineConfig(
+                    config.getShardId(),
+                    config.getThreadPool(),
+                    config.getIndexSettings(),
+                    config.getWarmer(),
+                    config.getStore(),
+                    config.getMergePolicy(),
+                    new SleepingAnalyzer(sleepTimePerToken),
+                    config.getSimilarity(),
+                    new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+                    config.getEventListener(),
+                    config.getQueryCache(),
+                    config.getQueryCachingPolicy(),
+                    config.getTranslogConfig(),
+                    config.getFlushMergesAfter(),
+                    config.getExternalRefreshListener(),
+                    config.getInternalRefreshListener(),
+                    config.getIndexSort(),
+                    config.getCircuitBreakerService(),
+                    config.getGlobalCheckpointSupplier(),
+                    config.retentionLeasesSupplier(),
+                    config.getPrimaryTermSupplier(),
+                    IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                    config.getLeafSorter()
+                );
+                return new InternalEngine(engineConfigWithCustomAnalyzer);
+            };
+            return newShard(shardRouting, indexMetadata, null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY);
+        }, true);
+
+        final IndexingStats indexingStatsBeforeIndexingDocs = shard.indexingStats();
+        assertThat(indexingStatsBeforeIndexingDocs.getTotal().getWriteLoadAverage(), is(equalTo(0.0)));
+
+        final int numberOfDocs = randomIntBetween(5, 10);
+        for (int i = 0; i < numberOfDocs; i++) {
+            shard.applyIndexOperationOnPrimary(
+                Versions.MATCH_ANY,
+                VersionType.INTERNAL,
+                new SourceToParse(Integer.toString(i), new BytesArray("{\"test\": \"test\"}"), XContentType.JSON),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                0,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false
+            );
+        }
+
+        final IndexingStats indexingStatsAfterIndexingDocs = shard.indexingStats();
+        assertThat(indexingStatsAfterIndexingDocs.getTotal().getWriteLoadAverage(), is(closeTo(1.0, 0.2)));
+
+        closeShards(shard);
+    }
+
+    static class SleepingAnalyzer extends Analyzer {
+        private final TimeValue sleepTimePerToken;
+
+        /**
+         * Creates a custom analyzer that sleeps the provided time per token
+         * that allows simulating slow indexing operations.
+         * @param sleepTimePerToken the amount of time to sleep per analyzed token
+         */
+        SleepingAnalyzer(TimeValue sleepTimePerToken) {
+            this.sleepTimePerToken = sleepTimePerToken;
+        }
+
+        @Override
+        protected TokenStreamComponents createComponents(String fieldName) {
+            Tokenizer tokenizer = new StandardTokenizer();
+            TokenFilter filter = new TokenFilter(tokenizer) {
+                @Override
+                public boolean incrementToken() throws IOException {
+                    boolean hasMoreTokens = input.incrementToken();
+
+                    if (hasMoreTokens) {
+                        try {
+                            Thread.sleep(sleepTimePerToken.millis());
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+
+                    return hasMoreTokens;
+                }
+            };
+            return new TokenStreamComponents(tokenizer, filter);
+        }
     }
 
     private static void blockingCallRelocated(

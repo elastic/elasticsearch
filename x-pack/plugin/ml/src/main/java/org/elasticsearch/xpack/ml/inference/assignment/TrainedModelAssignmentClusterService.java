@@ -482,7 +482,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignmentRebalancer rebalancer = new TrainedModelAssignmentRebalancer(
             TrainedModelAssignmentMetadata.fromState(currentState),
             nodeLoads,
-            nodeAvailabilityZoneMapper,
+            nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
             modelToAdd
         );
         TrainedModelAssignmentMetadata.Builder rebalanced = rebalancer.rebalance();

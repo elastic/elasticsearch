@@ -1057,6 +1057,41 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
 
         assertThat(role.remoteIndices(), equalTo(RemoteIndicesPermission.builder().addGroup(Set.of("*"), true, "index-1").build()));
+
+        role = buildRole(
+            roleDescriptorWithRemoteIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("none").build() }
+            )
+        );
+
+        assertThat(role.remoteIndices(), equalTo(RemoteIndicesPermission.builder().build()));
+
+        role = buildRole(
+            roleDescriptorWithRemoteIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("none").build(),
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build(), }
+            )
+        );
+
+        assertThat(
+            role.remoteIndices(),
+            equalTo(
+                RemoteIndicesPermission.builder()
+                    .addGroup(
+                        Set.of("remote-1"),
+                        IndexPrivilege.get(Set.of("read", "none")),
+                        FieldPermissions.DEFAULT,
+                        null,
+                        false,
+                        "index-1"
+                    )
+                    .build()
+            )
+        );
     }
 
     public void testBuildingRoleWithMultipleRemoteIndicesDefinitions() {
@@ -1135,39 +1170,21 @@ public class CompositeRolesStoreTests extends ESTestCase {
             role.remoteIndices(),
             equalTo(RemoteIndicesPermission.builder().addGroup(Set.of("remote-1"), "index-1").addGroup(Set.of("*"), "*").build())
         );
-    }
 
-    private RoleDescriptor roleDescriptorWithRemoteIndicesPrivileges(String name, RoleDescriptor.RemoteIndicesPrivileges[] rips) {
-        return new RoleDescriptor(name, null, null, null, null, null, null, null, rips);
-    }
-
-    private RemoteIndicesPermission remoteIndicesPermission() {
-        return RemoteIndicesPermission.builder().addGroup(Set.of("remote-1"), "index-1").build();
-    }
-
-    private IndicesPermission.Group group() {
-        return new IndicesPermission.Group(
-            IndexPrivilege.READ,
-            FieldPermissions.DEFAULT,
-            null,
-            false,
-            new RestrictedIndices(Automatons.EMPTY),
-            "index-1"
+        role = buildRole(
+            roleDescriptorWithRemoteIndicesPrivileges(
+                "r1",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("read").build(), }
+            ),
+            roleDescriptorWithRemoteIndicesPrivileges(
+                "r2",
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("remote-1").indices("index-1").privileges("none").build(), }
+            )
         );
-    }
 
-    private Role buildRole(RoleDescriptor... roleDescriptors) {
-        final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
-        final PlainActionFuture<Role> future = new PlainActionFuture<>();
-        final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
-        CompositeRolesStore.buildRoleFromDescriptors(
-            Sets.newHashSet(roleDescriptors),
-            cache,
-            privilegeStore,
-            TestRestrictedIndices.RESTRICTED_INDICES,
-            future
-        );
-        return future.actionGet();
+        assertThat(role.remoteIndices(), equalTo(RemoteIndicesPermission.builder().addGroup(Set.of("remote-1"), "index-1").build()));
     }
 
     public void testCustomRolesProviderFailures() throws Exception {
@@ -2473,5 +2490,23 @@ public class CompositeRolesStoreTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private static <T> Set<T> isASet() {
         return isA(Set.class);
+    }
+
+    private RoleDescriptor roleDescriptorWithRemoteIndicesPrivileges(String name, RoleDescriptor.RemoteIndicesPrivileges[] rips) {
+        return new RoleDescriptor(name, null, null, null, null, null, null, null, rips);
+    }
+
+    private Role buildRole(RoleDescriptor... roleDescriptors) {
+        final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            Sets.newHashSet(roleDescriptors),
+            cache,
+            privilegeStore,
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            future
+        );
+        return future.actionGet();
     }
 }

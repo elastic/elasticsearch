@@ -11,6 +11,7 @@ import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -50,6 +51,30 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
         RelevanceMatchQueryBuilder parsed = (RelevanceMatchQueryBuilder) parseQuery(json);
 
         assertEquals(json, "quick brown fox", parsed.getQuery());
+    }
+
+    public void testRelevanceSettingsNotEmpty() throws IOException {
+        String json = """
+            {
+              "relevance_match" : {
+                "query" : "quick brown fox",
+                "relevance_settings": ""
+              }
+            }""";
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[relevance_match] relevance_settings must have at least one character in length", ex.getMessage());
+    }
+
+    public void testCurationSettingsNotEmpty() throws IOException {
+        String json = """
+            {
+              "relevance_match" : {
+                "query" : "quick brown fox",
+                "curations": ""
+              }
+            }""";
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[relevance_match] curations must have at least one character in length", ex.getMessage());
     }
 
     public void testOptionalParsing() throws IOException {

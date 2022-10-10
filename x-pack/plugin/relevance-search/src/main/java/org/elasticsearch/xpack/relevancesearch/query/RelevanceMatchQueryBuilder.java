@@ -84,14 +84,14 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
             throw new ParsingException(parser.getTokenLocation(), "[relevance_match] requires a query, none specified");
         }
 
-        if (Strings.isEmpty(builder.relevanceSettingsId)) {
+        if ((builder.relevanceSettingsId != null) && builder.relevanceSettingsId.isEmpty()) {
             throw new ParsingException(
                 parser.getTokenLocation(),
                 "[relevance_match] " + RELEVANCE_SETTINGS_FIELD + " must have at least one character in length"
             );
         }
 
-        if (Strings.isEmpty(builder.curationsSettingsId)) {
+        if ((builder.curationsSettingsId != null) && Strings.isEmpty(builder.curationsSettingsId)) {
             throw new ParsingException(
                 parser.getTokenLocation(),
                 "[relevance_match] " + CURATIONS_SETTINGS_FIELD + " must have at least one character in length"

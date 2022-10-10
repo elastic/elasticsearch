@@ -39,11 +39,6 @@ public class CopyingXContentParser extends FilterXContentParserWrapper {
         return next;
     }
 
-    @Override
-    public void skipChildren() throws IOException {
-        super.skipChildren();
-    }
-
     public byte[] bytes() throws IOException {
         generator.close();
         return out.toByteArray();

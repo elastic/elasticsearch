@@ -997,6 +997,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(allowedRead.test(mockIndexAbstraction("ind-1-a")), equalTo(true));
         assertThat(allowedRead.test(mockIndexAbstraction("ind-2-a")), equalTo(true));
         assertThat(allowedRead.test(mockIndexAbstraction("foo")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("abc")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("xyz")), equalTo(false));
         assertThat(allowedRead.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
 
         final Predicate<IndexAbstraction> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);

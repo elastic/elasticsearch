@@ -195,8 +195,8 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
             assertNull(structure.getShouldTrimFields());
             // a timestamp field is detected but it's not set to be the primary one.
             assertEquals(
-                "\\[%{TIMESTAMP_ISO8601:extra_timestamp}\\]" +
-                    "\\[%{LOGLEVEL:loglevel} \\]\\[.*?    .*? .*? .*? .*? .*? .*? .*? .*? .*? .*?\\].*?",
+                "\\[%{TIMESTAMP_ISO8601:extra_timestamp}\\]"
+                    + "\\[%{LOGLEVEL:loglevel} \\]\\[.*?    .*? .*? .*? .*? .*? .*? .*? .*? .*? .*?\\].*?",
                 structure.getGrokPattern()
             );
             assertNull(structure.getTimestampField());

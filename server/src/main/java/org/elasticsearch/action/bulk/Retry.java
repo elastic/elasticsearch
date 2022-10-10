@@ -7,21 +7,25 @@
  */
 package org.elasticsearch.action.bulk;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -31,11 +35,36 @@ import java.util.function.Predicate;
 public class Retry {
     private final BackoffPolicy backoffPolicy;
     private final Scheduler scheduler;
+    private final BlockingQueue<BulkRequestExecutionIdAndBackoff> queue;
+    private final Map<BulkRequest, Scheduler.Cancellable> bulkRequestCancellableMap = new HashMap<>();
+    private final int queueCapacity;
+    private final AtomicInteger requestsInFlight = new AtomicInteger(0);
+    private final int maxNumberOfConcurrentRequests;
+    private Scheduler.Cancellable flushCancellable;
 
     public Retry(BackoffPolicy backoffPolicy, Scheduler scheduler) {
+        this(backoffPolicy, scheduler, 1000, 10);
+    }
+
+    public Retry(BackoffPolicy backoffPolicy, Scheduler scheduler, int queueCapacity, int maxNumberOfConcurrentRequests) {
         this.backoffPolicy = backoffPolicy;
         this.scheduler = scheduler;
+        this.queueCapacity = queueCapacity;
+        this.queue = new ArrayBlockingQueue<>(queueCapacity);
+        this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests > 0 ? maxNumberOfConcurrentRequests : 1;
     }
+
+    public void init() {
+        flushCancellable = scheduler.scheduleWithFixedDelay(this::flush, TimeValue.timeValueMillis(100), ThreadPool.Names.GENERIC);
+    }
+
+    public record BulkRequestExecutionIdAndBackoff(
+        BulkRequest request,
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
+        ActionListener<BulkResponse> listener,
+        Iterator<TimeValue> backoff,
+        boolean isRetry
+    ) {}
 
     /**
      * Invokes #accept(BulkRequest, ActionListener). Backs off on the provided exception and delegates results to the
@@ -49,8 +78,64 @@ public class Retry {
         BulkRequest bulkRequest,
         ActionListener<BulkResponse> listener
     ) {
-        RetryHandler r = new RetryHandler(backoffPolicy, consumer, listener, scheduler);
-        r.execute(bulkRequest);
+        Iterator<TimeValue> backoff = backoffPolicy.iterator();
+        boolean accepted = queue.offer(new BulkRequestExecutionIdAndBackoff(bulkRequest, consumer, listener, backoff, false));
+        if (accepted == false) {
+            onFailure(
+                bulkRequest,
+                consumer,
+                listener,
+                new EsRejectedExecutionException(
+                    "Could not retry bulk request, bulk request queue at capacity [" + queue.size() + "/" + queueCapacity + "]"
+                ),
+                false,
+                backoff
+            );
+        }
+    }
+
+    public void onFailure(
+        BulkRequest bulkRequest,
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
+        ActionListener<BulkResponse> listener,
+        Exception e,
+        boolean retry,
+        Iterator<TimeValue> backoff
+    ) {
+        requestsInFlight.decrementAndGet();
+        if (retry) {
+            retry(bulkRequest, consumer, listener, backoff);
+        } else {
+            try {
+                listener.onFailure(e);
+            } finally {
+                if (bulkRequestCancellableMap.get(bulkRequest) != null) {
+                    bulkRequestCancellableMap.get(bulkRequest).cancel();
+                    bulkRequestCancellableMap.remove(bulkRequest);
+                }
+            }
+        }
+    }
+
+    private void retry(
+        BulkRequest bulkRequestForRetry,
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
+        ActionListener<BulkResponse> listener,
+        Iterator<TimeValue> backoff
+    ) {
+        boolean accepted = queue.offer(new BulkRequestExecutionIdAndBackoff(bulkRequestForRetry, consumer, listener, backoff, true));
+        if (accepted == false) {
+            onFailure(
+                bulkRequestForRetry,
+                consumer,
+                listener,
+                new EsRejectedExecutionException(
+                    "Could not retry bulk request, bulk request queue at capacity [" + queue.size() + "/" + queueCapacity + "]"
+                ),
+                false,
+                backoff
+            );
+        }
     }
 
     /**
@@ -70,37 +155,73 @@ public class Retry {
         return future;
     }
 
-    static class RetryHandler extends ActionListener.Delegating<BulkResponse, BulkResponse> {
-        private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
-        private static final Logger logger = LogManager.getLogger(RetryHandler.class);
+    void flush() {
+        while (true) {
+            int newRequestsInFlight = requestsInFlight.incrementAndGet();
+            if (newRequestsInFlight > maxNumberOfConcurrentRequests) {
+                /*
+                 * Too many requests are already in flight, so don't flush. This method will not automatically be called again unless
+                 * one of the in-flight requests failed in a retryable way, but the assumption is that a client will be calling this
+                 * periodically (via the withBackoff method)
+                 */
+                requestsInFlight.decrementAndGet();
+                return;
+            }
+            BulkRequestExecutionIdAndBackoff queueItem = queue.poll();
+            if (queueItem == null) {
+                requestsInFlight.decrementAndGet();
+                /*
+                 * It is possible that something was added to the queue after the drain and before the permit was released, meaning
+                 * that the other thread could not acquire the permit, leaving an item orphanied in the queue. So we check the queue
+                 * again after releasing the permit, and if there is something there we run another loop to pick that thing up. If
+                 * another thread has picked it up in the meantime, we'll just exit out of the loop on the next try.
+                 */
+                if (queue.isEmpty()) {
+                    return;
+                } else {
+                    continue;
+                }
+            }
+            BulkRequest bulkRequest = queueItem.request;
+            BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = queueItem.consumer;
+            ActionListener<BulkResponse> listener = queueItem.listener;
+            Iterator<TimeValue> backoff = queueItem.backoff;
+            boolean isRetry = queueItem.isRetry;
+            bulkRequestCancellableMap.put(
+                bulkRequest,
+                scheduler.schedule(
+                    () -> consumer.accept(bulkRequest, new RetryHandler(bulkRequest, consumer, listener, backoff)),
+                    isRetry ? backoff.next() : TimeValue.ZERO,
+                    ThreadPool.Names.SAME
+                )
+            );
+        }
+    }
 
-        private final Scheduler scheduler;
+    private final class RetryHandler extends ActionListener.Delegating<BulkResponse, BulkResponse> {
+        private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
+        private final BulkRequest bulkRequest;
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
-        private final Iterator<TimeValue> backoff;
-        // Access only when holding a client-side lock, see also #addResponses()
         private final List<BulkItemResponse> responses = new ArrayList<>();
         private final long startTimestampNanos;
-        // needed to construct the next bulk request based on the response to the previous one
-        // volatile as we're called from a scheduled thread
-        private volatile BulkRequest currentBulkRequest;
-        private volatile Scheduler.Cancellable retryCancellable;
+        private final Iterator<TimeValue> backoff;
 
         RetryHandler(
-            BackoffPolicy backoffPolicy,
+            BulkRequest bulkRequest,
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
             ActionListener<BulkResponse> listener,
-            Scheduler scheduler
+            Iterator<TimeValue> backoff
         ) {
             super(listener);
-            this.backoff = backoffPolicy.iterator();
+            this.bulkRequest = bulkRequest;
             this.consumer = consumer;
-            this.scheduler = scheduler;
-            // in contrast to System.currentTimeMillis(), nanoTime() uses a monotonic clock under the hood
             this.startTimestampNanos = System.nanoTime();
+            this.backoff = backoff;
         }
 
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
+            requestsInFlight.decrementAndGet();
             if (bulkItemResponses.hasFailures() == false) {
                 // we're done here, include all responses
                 addResponses(bulkItemResponses, (r -> true));
@@ -108,7 +229,7 @@ public class Retry {
             } else {
                 if (canRetry(bulkItemResponses)) {
                     addResponses(bulkItemResponses, (r -> r.isFailed() == false));
-                    retry(createBulkRequestForRetry(bulkItemResponses));
+                    retry(createBulkRequestForRetry(bulkItemResponses), consumer, delegate, backoff);
                 } else {
                     addResponses(bulkItemResponses, (r -> true));
                     finishHim();
@@ -118,24 +239,8 @@ public class Retry {
 
         @Override
         public void onFailure(Exception e) {
-            if (ExceptionsHelper.status(e) == RETRY_STATUS && backoff.hasNext()) {
-                retry(currentBulkRequest);
-            } else {
-                try {
-                    super.onFailure(e);
-                } finally {
-                    if (retryCancellable != null) {
-                        retryCancellable.cancel();
-                    }
-                }
-            }
-        }
-
-        private void retry(BulkRequest bulkRequestForRetry) {
-            assert backoff.hasNext();
-            TimeValue next = backoff.next();
-            logger.trace("Retry of bulk request scheduled in {} ms.", next.millis());
-            retryCancellable = scheduler.schedule(() -> this.execute(bulkRequestForRetry), next, ThreadPool.Names.SAME);
+            boolean retry = ExceptionsHelper.status(e) == RETRY_STATUS && backoff.hasNext();
+            Retry.this.onFailure(this.bulkRequest, consumer, delegate, e, retry, backoff);
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {
@@ -143,7 +248,7 @@ public class Retry {
             int index = 0;
             for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
                 if (bulkItemResponse.isFailed()) {
-                    DocWriteRequest<?> originalBulkItemRequest = currentBulkRequest.requests().get(index);
+                    DocWriteRequest<?> originalBulkItemRequest = bulkRequest.requests().get(index);
                     if (originalBulkItemRequest instanceof IndexRequest item) {
                         item.reset();
                     }
@@ -173,8 +278,9 @@ public class Retry {
             try {
                 delegate.onResponse(getAccumulatedResponse());
             } finally {
-                if (retryCancellable != null) {
-                    retryCancellable.cancel();
+                if (bulkRequestCancellableMap.get(bulkRequest) != null) {
+                    bulkRequestCancellableMap.get(bulkRequest).cancel();
+                    bulkRequestCancellableMap.remove(bulkRequest);
                 }
             }
         }
@@ -200,11 +306,6 @@ public class Retry {
             long stopTimestamp = System.nanoTime();
             long totalLatencyMs = TimeValue.timeValueNanos(stopTimestamp - startTimestampNanos).millis();
             return new BulkResponse(itemResponses, totalLatencyMs);
-        }
-
-        public void execute(BulkRequest bulkRequest) {
-            this.currentBulkRequest = bulkRequest;
-            consumer.accept(bulkRequest, this);
         }
     }
 }

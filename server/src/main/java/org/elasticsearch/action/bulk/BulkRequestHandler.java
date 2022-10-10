@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
@@ -24,7 +23,6 @@ public final class BulkRequestHandler {
     private final Logger logger;
     private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
     private final BulkProcessor.Listener listener;
-    private final Semaphore semaphore;
     private final Retry retry;
     private final int concurrentRequests;
 
@@ -40,19 +38,20 @@ public final class BulkRequestHandler {
         this.consumer = consumer;
         this.listener = listener;
         this.concurrentRequests = concurrentRequests;
-        this.retry = new Retry(backoffPolicy, scheduler);
-        this.semaphore = new Semaphore(concurrentRequests > 0 ? concurrentRequests : 1);
+        this.retry = new Retry(backoffPolicy, scheduler, 100 * concurrentRequests, concurrentRequests);
+        retry.init();
     }
 
     public void execute(BulkRequest bulkRequest, long executionId) {
-        Runnable toRelease = () -> {};
-        boolean bulkRequestSetupSuccessful = false;
         try {
             listener.beforeBulk(executionId, bulkRequest);
-            semaphore.acquire();
-            toRelease = semaphore::release;
+            /*
+             * In the special case that concurrentRequests is 0, this method blocks until the bulk request has been completed. The Retry
+             * request makes sure that no more than 1 request is made at a time whether concurrentRequests is 0 or 1, but this latch
+             * makes sure that this method blocks when it is 0.
+             */
             CountDownLatch latch = new CountDownLatch(1);
-            retry.withBackoff(consumer, bulkRequest, ActionListener.runAfter(new ActionListener<BulkResponse>() {
+            retry.withBackoff(consumer, bulkRequest, ActionListener.runAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(BulkResponse response) {
                     listener.afterBulk(executionId, bulkRequest, response);
@@ -62,11 +61,7 @@ public final class BulkRequestHandler {
                 public void onFailure(Exception e) {
                     listener.afterBulk(executionId, bulkRequest, e);
                 }
-            }, () -> {
-                semaphore.release();
-                latch.countDown();
-            }));
-            bulkRequestSetupSuccessful = true;
+            }, latch::countDown));
             if (concurrentRequests == 0) {
                 latch.await();
             }
@@ -77,18 +72,10 @@ public final class BulkRequestHandler {
         } catch (Exception e) {
             logger.warn(() -> "Failed to execute bulk request " + executionId + ".", e);
             listener.afterBulk(executionId, bulkRequest, e);
-        } finally {
-            if (bulkRequestSetupSuccessful == false) {  // if we fail on client.bulk() release the semaphore
-                toRelease.run();
-            }
         }
     }
 
     boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
-        if (semaphore.tryAcquire(this.concurrentRequests, timeout, unit)) {
-            semaphore.release(this.concurrentRequests);
-            return true;
-        }
-        return false;
+        return true;
     }
 }

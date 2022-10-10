@@ -125,6 +125,11 @@ public abstract class Step {
         }
 
         @Override
+        public String toString() {
+            return "{\"phase\":\"" + phase + "\",\"action\":\"" + action + "\",\"name\":\"" + name + "\"}";
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(PHASE_FIELD.getPreferredName(), phase);

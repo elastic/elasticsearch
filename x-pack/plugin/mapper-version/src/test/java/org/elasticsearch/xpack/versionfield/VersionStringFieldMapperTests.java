@@ -180,7 +180,8 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse("version string fields don't support ignore_malformed", ignoreMalformed);
         return new VersionStringSyntheticSourceSupport();
     }
 

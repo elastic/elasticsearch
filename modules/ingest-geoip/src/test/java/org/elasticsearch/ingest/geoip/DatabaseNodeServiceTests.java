@@ -68,7 +68,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -405,7 +404,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         byte[] header = new byte[512];
         byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
         byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
-        byte[] sizeBytes = String.format(Locale.ROOT, "%1$012o", contentBytes.length).getBytes(StandardCharsets.UTF_8);
+        byte[] sizeBytes = formatted("%1$012o", contentBytes.length).getBytes(StandardCharsets.UTF_8);
         System.arraycopy(nameBytes, 0, header, 0, nameBytes.length);
         System.arraycopy(sizeBytes, 0, header, 124, 12);
         gzipOutputStream.write(header);

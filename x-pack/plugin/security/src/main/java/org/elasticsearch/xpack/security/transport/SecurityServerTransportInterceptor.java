@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authz.ParentIndexActionAuthorization;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -127,6 +128,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         securityContext.executeAfterRewritingAuthentication(original -> {
                             // We need to store the thread context here as we pollute the context with pre-authorization
                             // which we only want to keep for a single transport request.
+                            logger.info(
+                                connection.getNode().getName() + ": Pre-Authorization BEFORE1 "
+                                    + action
+                                    + ":"
+                                    + threadPool.getThreadContext().getHeader(ParentIndexActionAuthorization.THREAD_CONTEXT_KEY)
+                            );
                             try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
                                 maybePreAuthorizeChildAction(connection.getNode(), action, request);
                                 sendWithUser(
@@ -138,11 +145,24 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                     sender
                                 );
                             }
+                            logger.info(
+                                connection.getNode().getName() + ": Pre-Authorization AFTER1 "
+                                    + action
+                                    + ": "
+                                    + threadPool.getThreadContext().getHeader(ParentIndexActionAuthorization.THREAD_CONTEXT_KEY)
+                            );
                         }, minVersion);
                     } else {
                         // We need to store the thread context here as we pollute the context with pre-authorization
                         // which we only want to keep for a single transport request.
-                        try (ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext()) {
+                        logger.info(
+                            connection.getNode().getName() + ": Pre-Authorization BEFORE2 "
+                                + action
+                                + ":"
+                                + threadPool.getThreadContext().getHeader(ParentIndexActionAuthorization.THREAD_CONTEXT_KEY)
+                        );
+
+                    try (ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext()) {
                             maybePreAuthorizeChildAction(connection.getNode(), action, request);
                             sendWithUser(
                                 connection,
@@ -153,6 +173,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                 sender
                             );
                         }
+
+                    logger.info(
+                            connection.getNode().getName() + ": Pre-Authorization AFTER2 "
+                                + action
+                                + ": "
+                                + threadPool.getThreadContext().getHeader(ParentIndexActionAuthorization.THREAD_CONTEXT_KEY)
+                        );
                     }
             }
         };

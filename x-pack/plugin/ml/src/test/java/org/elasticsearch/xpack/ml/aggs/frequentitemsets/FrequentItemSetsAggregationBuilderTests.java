@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.hasSize;
 
-public class FrequentItemSetsAggregationBuilderTests extends AbstractSerializingTestCase<FrequentItemSetsAggregationBuilder> {
+public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSerializingTestCase<FrequentItemSetsAggregationBuilder> {
 
     public static FrequentItemSetsAggregationBuilder randomFrequentItemsSetsAggregationBuilder() {
         int numberOfFields = randomIntBetween(1, 20);

@@ -18,11 +18,15 @@ import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
@@ -367,28 +371,45 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     protected abstract Number randomNumber();
 
     protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
-        private final Function<Number, Number> round;
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
 
-        protected NumberSyntheticSourceSupport(Function<Number, Number> round) {
+        private final Function<Number, Number> round;
+        private final boolean ignoreMalformed;
+
+        protected NumberSyntheticSourceSupport(Function<Number, Number> round, boolean ignoreMalformed) {
             this.round = round;
+            this.ignoreMalformed = ignoreMalformed;
         }
 
         @Override
         public SyntheticSourceExample example(int maxVals) {
             if (randomBoolean()) {
-                Tuple<Object, Number> v = generateValue();
-                return new SyntheticSourceExample(v.v1(), round.apply(v.v2()), this::mapping);
+                Tuple<Object, Object> v = generateValue();
+                if (v.v2()instanceof Number n) {
+                    return new SyntheticSourceExample(v.v1(), round.apply(n), this::mapping);
+                }
+                // ignore_malformed value
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
             }
-            List<Tuple<Object, Number>> values = randomList(1, maxVals, this::generateValue);
+            List<Tuple<Object, Object>> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Tuple::v1).toList();
-            List<Number> outList = values.stream().map(t -> round.apply(t.v2())).sorted().toList();
+            List<Object> outList = values.stream()
+                .filter(v -> v.v2() instanceof Number)
+                .map(t -> round.apply((Number) t.v2()))
+                .sorted()
+                .collect(Collectors.toCollection(ArrayList::new));
+            values.stream().filter(v -> false == v.v2() instanceof Number).map(v -> v.v2()).forEach(outList::add);
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
 
-        private Tuple<Object, Number> generateValue() {
+        private Tuple<Object, Object> generateValue() {
+            if (ignoreMalformed && randomBoolean()) {
+                List<Supplier<Object>> choices = List.of(() -> "a" + randomAlphaOfLength(3), ESTestCase::randomBoolean);
+                Object v = randomFrom(choices).get();
+                return Tuple.tuple(v, v);
+            }
             if (nullValue != null && randomBoolean()) {
                 return Tuple.tuple(null, nullValue);
             }
@@ -409,6 +430,9 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             if (nullValue != null) {
                 b.field("null_value", nullValue);
             }
+            if (ignoreMalformed) {
+                b.field("ignore_malformed", true);
+            }
         }
 
         @Override
@@ -419,13 +443,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                     b -> {
                         minimalMapping(b);
                         b.field("doc_values", false);
-                    }
-                ),
-                new SyntheticSourceInvalidExample(
-                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
-                    b -> {
-                        minimalMapping(b);
-                        b.field("ignore_malformed", true);
                     }
                 )
             );

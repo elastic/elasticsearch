@@ -220,7 +220,7 @@ public class TransformIT extends TransformRestTestCase {
         putPipeline.setEntity(new StringEntity(Strings.toString(pipelineBuilder), ContentType.APPLICATION_JSON));
         assertOK(client().performRequest(putPipeline));
 
-        String update = """
+        String update = formatted("""
             {
                 "description": "updated config",
                 "dest": {
@@ -228,7 +228,7 @@ public class TransformIT extends TransformRestTestCase {
                    "pipeline": "%s"
                 }
             }
-            """.formatted(dest, pipelineId);
+            """, dest, pipelineId);
         updateConfig(id, update);
 
         // index some more docs
@@ -407,14 +407,14 @@ public class TransformIT extends TransformRestTestCase {
         // test randomly: with explicit settings and reset to default
         String reqsPerSec = randomBoolean() ? "1000" : "null";
         String maxPageSize = randomBoolean() ? "1000" : "null";
-        String update = """
+        String update = formatted("""
             {
                 "settings" : {
                     "docs_per_second": %s,
                     "max_page_search_size": %s
                 }
             }
-            """.formatted(reqsPerSec, maxPageSize);
+            """, reqsPerSec, maxPageSize);
 
         updateConfig(config.getId(), update);
 
@@ -482,16 +482,16 @@ public class TransformIT extends TransformRestTestCase {
     private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {
         StringBuilder bulkBuilder = new StringBuilder();
         for (int i = 0; i < 25; i++) {
-            bulkBuilder.append("""
+            bulkBuilder.append(formatted("""
                 {"create":{"_index":"%s"}}
-                """.formatted(index));
+                """, index));
 
             int stars = (i + 20) % 5;
             long business = (i + 100) % 50;
 
-            String source = """
+            String source = formatted("""
                 {"user_id":"user_%s","count":%s,"business_id":"business_%s","stars":%s,"timestamp":%s}
-                """.formatted(userId, i, business, stars, timestamp);
+                """, userId, i, business, stars, timestamp);
             bulkBuilder.append(source);
         }
         bulkBuilder.append("\r\n");

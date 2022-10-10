@@ -98,14 +98,14 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
                 persistentSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));
                 request = prepareClusterUpdateSettingsRequest(transientSetting, persistentSetting);
                 violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
-                assertThat(violation.message(), containsString(String.format(Locale.ROOT, "setting [%s]", transientSetting.getKey())));
+                assertThat(violation.message(), containsString(formatted("setting [%s]", transientSetting.getKey())));
             }
             case 2 -> {
                 transientSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));
                 persistentSetting = convertToConcreteSettingIfNecessary(randomFrom(IP_FILTER_SETTINGS));
                 request = prepareClusterUpdateSettingsRequest(transientSetting, persistentSetting);
                 violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
-                assertThat(violation.message(), containsString(String.format(Locale.ROOT, "setting [%s]", persistentSetting.getKey())));
+                assertThat(violation.message(), containsString(formatted("setting [%s]", persistentSetting.getKey())));
             }
             case 3 -> {
                 transientSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));

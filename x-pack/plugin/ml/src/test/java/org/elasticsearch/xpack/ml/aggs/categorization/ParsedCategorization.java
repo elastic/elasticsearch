@@ -57,6 +57,7 @@ class ParsedCategorization extends ParsedMultiBucketAggregation<ParsedCategoriza
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements MultiBucketsAggregation.Bucket {
 
         private InternalCategorizationAggregation.BucketKey key;
+        private String regex;
         private int maxMatchingLength;
 
         protected void setKeyAsString(String keyAsString) {
@@ -74,6 +75,10 @@ class ParsedCategorization extends ParsedMultiBucketAggregation<ParsedCategoriza
                     ? new BytesRef[] { new BytesRef(keyAsString) }
                     : Arrays.stream(split).map(BytesRef::new).toArray(BytesRef[]::new)
             );
+        }
+
+        private void setRegex(String regex) {
+            this.regex = regex;
         }
 
         private void setMaxMatchingLength(int maxMatchingLength) {
@@ -99,6 +104,7 @@ class ParsedCategorization extends ParsedMultiBucketAggregation<ParsedCategoriza
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             keyToXContent(builder);
+            builder.field(CategoryDefinition.REGEX.getPreferredName(), regex);
             builder.field(CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName(), maxMatchingLength);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
             getAggregations().toXContentInternal(builder, params);
@@ -142,6 +148,8 @@ class ParsedCategorization extends ParsedMultiBucketAggregation<ParsedCategoriza
                         keyConsumer.accept(parser, bucket);
                     } else if (CommonFields.DOC_COUNT.getPreferredName().equals(currentFieldName)) {
                         bucket.setDocCount(parser.longValue());
+                    } else if (CategoryDefinition.REGEX.getPreferredName().equals(currentFieldName)) {
+                        bucket.setRegex(parser.text());
                     } else if (CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName().equals(currentFieldName)) {
                         bucket.setMaxMatchingLength(parser.intValue());
                     }

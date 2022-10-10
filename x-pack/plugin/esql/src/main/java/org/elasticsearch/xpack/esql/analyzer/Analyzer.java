@@ -7,19 +7,27 @@
 
 package org.elasticsearch.xpack.esql.analyzer;
 
+import org.elasticsearch.xpack.esql.plan.logical.EsQuery;
+import org.elasticsearch.xpack.esql.plan.logical.FieldExtract;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.session.Configuration;
 
+import java.time.ZoneId;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +35,10 @@ import java.util.Map;
 public class Analyzer extends RuleExecutor<LogicalPlan> {
     private final IndexResolution indexResolution;
     private final Verifier verifier;
+
+    private final FunctionRegistry functionRegistry = new FunctionRegistry(FunctionRegistry.def(Avg.class, Avg::new, "AVG"));
+    public static final ZoneId UTC = ZoneId.of("Z");
+    public static final Configuration configuration = new Configuration(UTC, null, null, x -> Collections.emptySet());
 
     public Analyzer(IndexResolution indexResolution) {
         assert indexResolution != null;
@@ -48,7 +60,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch resolution = new Batch("Resolution", new ResolveTable(), new ResolveAttributes());
+        Batch resolution = new Batch("Resolution", new ResolveTable(), new ResolveAttributes(), new ResolveFunctions());
         return List.of(resolution);
     }
 
@@ -71,7 +83,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 );
             }
 
-            return new EsRelation(plan.source(), indexResolution.get(), plan.frozen());
+            EsQuery query = new EsQuery(plan.source(), indexResolution.get());
+            return new FieldExtract(plan.source(), query, indexResolution.get(), query.output());
         }
     }
 
@@ -93,6 +106,32 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 } else {
                     return ua;
                 }
+            });
+        }
+    }
+
+    private class ResolveFunctions extends AnalyzerRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            return plan.transformExpressionsUp(UnresolvedFunction.class, uf -> {
+                if (uf.analyzed()) {
+                    return uf;
+                }
+
+                String name = uf.name();
+
+                if (uf.childrenResolved() == false) {
+                    return uf;
+                }
+
+                String functionName = functionRegistry.resolveAlias(name);
+                if (functionRegistry.functionExists(functionName) == false) {
+                    return uf.missing(functionName, functionRegistry.listFunctions());
+                }
+                FunctionDefinition def = functionRegistry.resolveFunction(functionName);
+                Function f = uf.buildResolved(configuration, def);
+                return f;
             });
         }
     }

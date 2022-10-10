@@ -22,20 +22,36 @@ public class Aggregate extends UnaryPlan {
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
 
+    private final Mode mode;
+
+    public enum Mode {
+        SINGLE,
+        PARTIAL, // maps raw inputs to intermediate outputs
+        FINAL, // maps intermediate inputs to final outputs
+    }
+
     public Aggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
         super(source, child);
         this.groupings = groupings;
         this.aggregates = aggregates;
+        this.mode = Mode.SINGLE;
+    }
+
+    public Aggregate(Source source, LogicalPlan child, List<Expression> groupings, List<? extends NamedExpression> aggregates, Mode mode) {
+        super(source, child);
+        this.groupings = groupings;
+        this.aggregates = aggregates;
+        this.mode = mode;
     }
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, Aggregate::new, child(), groupings, aggregates);
+        return NodeInfo.create(this, Aggregate::new, child(), groupings, aggregates, mode);
     }
 
     @Override
     public Aggregate replaceChild(LogicalPlan newChild) {
-        return new Aggregate(source(), newChild, groupings, aggregates);
+        return new Aggregate(source(), newChild, groupings, aggregates, mode);
     }
 
     public List<Expression> groupings() {
@@ -44,6 +60,10 @@ public class Aggregate extends UnaryPlan {
 
     public List<? extends NamedExpression> aggregates() {
         return aggregates;
+    }
+
+    public Mode getMode() {
+        return mode;
     }
 
     @Override
@@ -57,8 +77,16 @@ public class Aggregate extends UnaryPlan {
     }
 
     @Override
+    public boolean singleNode() {
+        if (mode != Mode.PARTIAL) {
+            return true;
+        }
+        return child().singleNode();
+    }
+
+    @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child());
+        return Objects.hash(groupings, aggregates, mode, child());
     }
 
     @Override
@@ -74,6 +102,7 @@ public class Aggregate extends UnaryPlan {
         Aggregate other = (Aggregate) obj;
         return Objects.equals(groupings, other.groupings)
             && Objects.equals(aggregates, other.aggregates)
+            && Objects.equals(mode, other.mode)
             && Objects.equals(child(), other.child());
     }
 }

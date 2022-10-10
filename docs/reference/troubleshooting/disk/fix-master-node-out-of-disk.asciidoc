@@ -1,0 +1,8 @@
+[[fix-master-node-out-of-disk]]
+== Fix master node out of disk
+
+Elasticsearch is using master nodes to coordinate the cluster. If one or more of these nodes are running
+out of space, you need to ensure that they have enough disk space to function. If the health disk indicator
+reports that your master node is out of space you need to increase the disk capacity of your cluster.
+
+include::{es-repo-dir}/tab-widgets/troubleshooting/disk/increase-master-node-capacity-widget.asciidoc[]

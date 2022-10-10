@@ -3,18 +3,9 @@ In order to increase the data node capacity in your cluster:
 
 . Log in to the {ess-console}[{ecloud} console].
 +
-
-. On the **Elasticsearch Service** panel, click the name of your deployment.
+. On the **Elasticsearch Service** panel, click the gear under the `Manage deployment` column that corresponds to the
+name of your deployment.
 +
-
-NOTE: If the name of your deployment is disabled your {kib} instances might be
-unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
-If your deployment doesn't include {kib}, all you need to do is
-{cloud}/ec-access-kibana.html[enable it first].
-
-. Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
-and go to **Manage this deployment**.
-
 . If autoscaling is available but not enabled, please enable it. You can do this by clicking the button
 `Enable autoscaling` on a banner like the one below:
 +
@@ -37,9 +28,9 @@ or you can go to `Actions > Edit deployment` and check for the label `LIMIT REAC
 [role="screenshot"]
 image::images/troubleshooting/disk/reached_autoscaling_limits.png[Autoscaling limits reached,align="center"]
 +
-If you are in the banner click `Update autoscaling settings` to go to the `Edit` page. Otherwise, you are already in the
-`Edit` page, click `Edit settings` to increase the autoscaling limits. After you perform the change click `save` at the
-bottom of the page.
+If you are seeing the banner click `Update autoscaling settings` to go to the `Edit` page. Otherwise, you are already
+in the `Edit` page, click `Edit settings` to increase the autoscaling limits. After you perform the change click `save`
+at the bottom of the page.
 
 // end::cloud[]
 
@@ -98,7 +89,7 @@ The response will look like this:
 ----
 // TEST[skip:illustration purposes only]
 +
-The above means that in order to resolve the disk shortage we need at either drop our disk usage below the 90% or have
+The above means that in order to resolve the disk shortage we need to either drop our disk usage below the 90% or have
 more than 150GB available.
 
 . The next step is to find out our current disk usage, this way we can calculate how much space we need. For simplicity,
@@ -119,10 +110,9 @@ instance-0000000000           91     24.8gb       35gb    28.1gb       26.9gb   
 // TEST[skip:illustration purposes only]
 
 . The desirable situation is to drop all disk usages bellow the relevant threshold, in our example 90%. So calculate
-how much you need for this and allow for some padding, so it will not go over the threshold soon. To achieve this, we
-can do 2 things:
-- Add an extra data node to the cluster with the same disk size (this requires more that the used space it's occupied
-from more than one shard).
+how much you need for this and allow for some padding, so it will not go over the threshold in the near future. To
+achieve this, we can do 2 things:
+- Add an extra data node to the cluster (this requires that you have more than one shard in your cluster).
 - Extend the disk space of the current node by 20% to allow this node to drop to 70%.
 
 . In the case of adding another data node, the cluster will not recover immediately. It might take some time to

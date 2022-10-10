@@ -21,7 +21,7 @@
        aria-labelledby="cloud-decrease-disk-usage">
 ++++
 
-include::decrease-disk-usage.asciidoc[tag=cloud]
+include::decrease-data-node-disk-usage.asciidoc[tag=cloud]
 
 ++++
   </div>
@@ -32,7 +32,7 @@ include::decrease-disk-usage.asciidoc[tag=cloud]
        hidden="">
 ++++
 
-include::decrease-disk-usage.asciidoc[tag=self-managed]
+include::decrease-data-node-disk-usage.asciidoc[tag=self-managed]
 
 ++++
   </div>

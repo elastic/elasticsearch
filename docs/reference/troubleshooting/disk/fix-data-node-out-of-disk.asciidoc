@@ -14,4 +14,4 @@ include::{es-repo-dir}/tab-widgets/troubleshooting/disk/increase-data-node-capac
 
 [[decrease-disk-usage-data-node]]
 === Decrease disk usage of data nodes
-include::{es-repo-dir}/tab-widgets/troubleshooting/disk/decrease-disk-usage-widget.asciidoc[]
+include::{es-repo-dir}/tab-widgets/troubleshooting/disk/decrease-data-node-disk-usage-widget.asciidoc[]

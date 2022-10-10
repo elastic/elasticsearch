@@ -8,13 +8,14 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 
-// Sum Aggregator function.
+@Experimental
 final class SumAggregator implements AggregatorFunction {
 
     private final DoubleState state;

@@ -6,18 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.compute.aggregation;
+package org.elasticsearch.compute;
 
-import org.elasticsearch.compute.Experimental;
-
-@Experimental
-public interface AggregatorStateSerializer<T extends AggregatorState<T>> {
-
-    int size();
-
-    // returns the number of bytes written
-    int serialize(T state, byte[] ba, int offset);
-
-    void deserialize(T state, byte[] ba, int offset);
-
+/**
+ * Used to denote code that is experimental and that needs significant refactoring before production use
+ */
+public @interface Experimental {
 }

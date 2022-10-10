@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
@@ -18,6 +19,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Objects;
 
+@Experimental
 class LongAvgAggregator implements AggregatorFunction {
 
     private final AvgState state;

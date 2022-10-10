@@ -8,6 +8,8 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.compute.Experimental;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -20,6 +22,7 @@ import java.util.stream.Collectors;
 /**
  * Helper class to set up local exchanges. Avoids having to manually create sources, sinks and the respective operators.
  */
+@Experimental
 public class Exchange {
     private boolean allSourcesFinished;
 

@@ -8,11 +8,13 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 
+@Experimental
 public class CountRowsAggregator implements AggregatorFunction {
 
     private final LongState state;

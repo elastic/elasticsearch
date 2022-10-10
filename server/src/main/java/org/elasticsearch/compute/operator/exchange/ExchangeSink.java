@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 
@@ -18,6 +19,7 @@ import java.util.function.Consumer;
 /**
  * Sink for exchanging data. Thread-safe.
  */
+@Experimental
 public class ExchangeSink {
 
     private final AtomicBoolean finished = new AtomicBoolean();

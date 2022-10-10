@@ -8,8 +8,10 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.core.Releasable;
 
+@Experimental
 public interface AggregatorState<T extends AggregatorState<T>> extends Releasable {
 
     AggregatorStateSerializer<T> serializer();

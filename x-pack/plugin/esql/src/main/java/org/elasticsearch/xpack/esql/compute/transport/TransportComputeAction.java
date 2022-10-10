@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.core.Releasables;
@@ -40,6 +41,7 @@ import java.util.stream.Collectors;
 /**
  * For simplicity, we run this on a single local shard for now
  */
+@Experimental
 public class TransportComputeAction extends TransportAction<ComputeRequest, ComputeResponse> {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;

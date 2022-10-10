@@ -8,10 +8,12 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.AggregatorState;
 
 import java.util.Arrays;
 
+@Experimental
 public class AggregatorStateBlock<T extends AggregatorState<T>> extends Block {
     private final byte[] ba;
 

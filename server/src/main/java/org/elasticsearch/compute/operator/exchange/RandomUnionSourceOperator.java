@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 
@@ -18,6 +19,7 @@ import java.util.List;
  * Source operator implementation that interleaves the data from different exchange sources in
  * random fashion.
  */
+@Experimental
 public class RandomUnionSourceOperator implements Operator {
 
     private final List<ExchangeSource> sources;

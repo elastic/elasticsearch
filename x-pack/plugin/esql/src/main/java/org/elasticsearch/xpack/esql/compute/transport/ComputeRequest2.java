@@ -12,10 +12,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.esql.plan.logical.EsQuery;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
+@Experimental
 public class ComputeRequest2 extends ActionRequest implements IndicesRequest {
 
     private final LogicalPlan plan;

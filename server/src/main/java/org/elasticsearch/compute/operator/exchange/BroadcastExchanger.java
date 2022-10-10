@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -18,6 +19,7 @@ import java.util.function.Consumer;
 /**
  * Broadcasts pages to multiple exchange sources
  */
+@Experimental
 public class BroadcastExchanger implements Exchanger {
     private final List<Consumer<ExchangeSource.PageReference>> buffers;
     private final ExchangeMemoryManager memoryManager;

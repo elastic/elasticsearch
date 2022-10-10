@@ -9,12 +9,14 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 
 /**
  * Exchanger that just passes through the data to the {@link ExchangeSource},
  * but limits the number of in-flight pages.
  */
+@Experimental
 public class PassthroughExchanger implements Exchanger {
 
     private final ExchangeSource exchangeSource;

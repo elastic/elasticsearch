@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongArrayBlock;
@@ -20,6 +21,7 @@ import java.util.Objects;
 
 import static java.util.Objects.requireNonNull;
 
+@Experimental
 public class HashAggregationOperator implements Operator {
 
     // monotonically increasing state

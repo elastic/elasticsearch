@@ -8,10 +8,12 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
 
+@Experimental
 public class LongAvgOperator implements Operator {
     boolean finished;
     boolean returnedResult;

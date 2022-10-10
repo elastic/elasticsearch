@@ -8,6 +8,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.compute.Experimental;
+
 /**
  * A Block is a columnar data representation. It has a position (row) count, and various data
  * retrieval methods for accessing the underlying data that is stored at a given position.
@@ -77,6 +79,7 @@ public abstract class Block {
         return true;
     }
 
+    @Experimental
     // TODO: improve implementation not to waste as much space
     public Block getRow(int position) {
         Block curr = this;

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import java.util.HashMap;
 import java.util.Map;
 
+@Experimental
 public class LongAvgGroupingOperator implements Operator {
     boolean finished;
     boolean returnedResult;

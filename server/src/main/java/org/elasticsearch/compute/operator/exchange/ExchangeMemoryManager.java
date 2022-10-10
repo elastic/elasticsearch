@@ -9,6 +9,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.operator.Operator;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -16,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Allows bounding the number of in-flight pages in {@link PassthroughExchanger}
  */
+@Experimental
 public class ExchangeMemoryManager {
     private final int bufferMaxPages;
 

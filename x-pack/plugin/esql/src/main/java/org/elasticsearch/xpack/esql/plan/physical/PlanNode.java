@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.core.Tuple;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 /**
  * A plan is represented as a tree / digraph of nodes. There are different node types, each representing a different type of computation
  */
+@Experimental
 public abstract class PlanNode implements NamedXContentObject {
 
     public static final ParseField SOURCE_FIELD = new ParseField("source");

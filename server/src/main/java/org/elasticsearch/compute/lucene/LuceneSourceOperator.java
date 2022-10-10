@@ -19,6 +19,7 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.ConstantIntBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.Page;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 /**
  * Source operator that incrementally runs Lucene searches
  */
+@Experimental
 public class LuceneSourceOperator implements Operator {
 
     private static final int PAGE_SIZE = ByteSizeValue.ofKb(16).bytesAsInt();

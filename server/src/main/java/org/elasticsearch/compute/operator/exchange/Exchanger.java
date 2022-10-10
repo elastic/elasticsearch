@@ -9,12 +9,14 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 
 /**
  * Exchangers provide different means for handing off data to exchange sources, e.g. allow multiplexing.
  */
+@Experimental
 public interface Exchanger {
 
     void accept(Page page);

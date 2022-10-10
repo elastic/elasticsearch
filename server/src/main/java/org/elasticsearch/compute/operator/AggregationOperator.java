@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -25,6 +26,7 @@ import static java.util.Objects.requireNonNull;
  * The operator is blocking in the sense that it only produces output once all possible input has
  * been added, that is, when the {@link #finish} method has been called.
  */
+@Experimental
 public class AggregationOperator implements Operator {
 
     // monotonically increasing state

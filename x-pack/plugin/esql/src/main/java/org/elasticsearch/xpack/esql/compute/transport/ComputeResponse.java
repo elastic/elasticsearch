@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.compute.transport;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -17,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
+@Experimental
 public class ComputeResponse extends ActionResponse implements ToXContentObject {
     private final List<Page> pages;
     private final int pageCount;

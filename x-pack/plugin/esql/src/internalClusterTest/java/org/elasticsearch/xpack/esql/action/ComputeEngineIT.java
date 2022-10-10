@@ -11,6 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
@@ -40,6 +41,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
+@Experimental
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class ComputeEngineIT extends ESIntegTestCase {
 

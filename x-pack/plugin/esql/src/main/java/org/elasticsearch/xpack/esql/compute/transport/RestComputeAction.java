@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.compute.transport;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -21,6 +22,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@Experimental
 public class RestComputeAction extends BaseRestHandler {
     @Override
     public String getName() {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongArrayBlock;
 import org.elasticsearch.compute.data.Page;
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
  * and outputs a page at the end that contains that max value.
  * Only outputs page once all input pages are consumed.
  */
+@Experimental
 public class LongMaxOperator implements Operator {
     boolean finished;
     boolean returnedResult;

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PlanNode;
 
 import java.io.IOException;
 
+@Experimental
 public class ComputeRequest extends ActionRequest implements IndicesRequest, ToXContentObject {
 
     private final PlanNode plan;

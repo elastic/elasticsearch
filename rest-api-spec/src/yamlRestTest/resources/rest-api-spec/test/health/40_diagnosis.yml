@@ -1,8 +1,8 @@
 ---
 "Diagnosis":
   - skip:
-      version: "- 8.4.99"
-      reason: "diagnosis was redefined in 8.5.0"
+      version: "- 8.5.99"
+      reason: "diagnosis was redefined in 8.6.0"
 
   - do:
       indices.create:

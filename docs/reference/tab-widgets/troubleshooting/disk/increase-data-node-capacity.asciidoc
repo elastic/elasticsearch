@@ -36,11 +36,12 @@ at the bottom of the page.
 
 // tag::self-managed[]
 In order to increase the data node capacity in your cluster, you will need to calculate the amount of extra disk space
-you need.
+needed.
 
-. First, we need to retrieve the relevant disk thresholds that will indicate how much space we need to release. This
-is the <<cluster-routing-watermark-high, high watermark>> or for the frozen tier the
-<<cluster-routing-flood-stage-frozen, flood stage watermark>>. We can retrieve them via the following commands:
+. First, we need to retrieve the relevant disk thresholds that will indicate how much space should be released. The
+relevant thresholds are the <<cluster-routing-watermark-high, high watermark>> for all the tiers apart from the frozen
+and the <<cluster-routing-flood-stage-frozen, frozen flood stage watermark>> for the frozen tier. We can retrieve them
+via the following commands:
 +
 [source,console]
 ----
@@ -90,10 +91,10 @@ The response will look like this:
 // TEST[skip:illustration purposes only]
 +
 The above means that in order to resolve the disk shortage we need to either drop our disk usage below the 90% or have
-more than 150GB available.
+more than 150GB available, read more on how this threshold works <<cluster-routing-watermark-high, here>>.
 
-. The next step is to find out our current disk usage, this way we can calculate how much space we need. For simplicity,
-our example has one node, but you can apply the same for every node over relevant threshold.
+. The next step is to find out the current disk usage, this will indicate how much extra space is needed. For simplicity,
+our example has one node, but you can apply the same for every node over the relevant threshold.
 +
 [source,console]
 ----
@@ -109,11 +110,11 @@ instance-0000000000           91     4.6gb       35gb    31.1gb       29.9gb    
 ----
 // TEST[skip:illustration purposes only]
 
-. The desirable situation is to drop all disk usages bellow the relevant threshold, in our example 90%. So calculate
-how much you need for this and allow for some padding, so it will not go over the threshold in the near future. To
-achieve this, we can do 2 things:
+. The desirable situation is to drop the disk usage of all the nodes bellow the relevant threshold, in our example 90%.
+To achieve this, we can do 2 things:
 - Add an extra data node to the cluster (this requires that you have more than one shard in your cluster).
-- Extend the disk space of the current node by 20% to allow this node to drop to 70%.
+- Extend the disk space of the current node by approximately 20% to allow this node to drop to 70% which will give
+enough space in our use case to not run out of space soon.
 
 . In the case of adding another data node, the cluster will not recover immediately. It might take some time to
 relocate shards in order to relieve the node that is out of space. You can check the progress here:

@@ -1692,8 +1692,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static boolean isUnusableLocale() {
         return inFipsJvm()
             && (Locale.getDefault().toLanguageTag().equals("th-TH")
-            || Locale.getDefault().toLanguageTag().equals("ja-JP-u-ca-japanese-x-lvariant-JP")
-            || Locale.getDefault().toLanguageTag().equals("th-TH-u-nu-thai-x-lvariant-TH"));
+                || Locale.getDefault().toLanguageTag().equals("ja-JP-u-ca-japanese-x-lvariant-JP")
+                || Locale.getDefault().toLanguageTag().equals("th-TH-u-nu-thai-x-lvariant-TH"));
     }
 
     public static boolean inFipsJvm() {
@@ -1809,6 +1809,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         public String toString() {
             return String.format(Locale.ROOT, "%s: %s", level.name(), message);
         }
+    }
+
+    protected static String formatted(String string, Object... args) {
+        return String.format(Locale.ROOT, string, args);
     }
 
     /**

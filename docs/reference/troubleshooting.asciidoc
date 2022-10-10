@@ -35,6 +35,7 @@ fix problems that an {es} deployment might encounter.
 [[troubleshooting-capacity]]
 === Capacity
 * <<fix-data-node-out-of-disk, Data nodes out of disk space>>
+* <<fix-master-node-out-of-disk, Master nodes out of disk space>>
 
 [discrete]
 [[troubleshooting-snapshot]]
@@ -96,6 +97,8 @@ include::troubleshooting/data/increase-cluster-shard-limit.asciidoc[]
 include::troubleshooting/corruption-issues.asciidoc[]
 
 include::troubleshooting/disk/fix-data-node-out-of-disk.asciidoc[]
+
+include::troubleshooting/disk/fix-master-node-out-of-disk.asciidoc[]
 
 include::troubleshooting/data/start-ilm.asciidoc[]
 

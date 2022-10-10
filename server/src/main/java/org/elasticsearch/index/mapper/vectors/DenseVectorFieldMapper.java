@@ -274,7 +274,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             IndexFieldData.Builder fielddataBuilder(DenseVectorFieldType denseVectorFieldType, FieldDataContext fieldDataContext) {
                 return new VectorIndexFieldData.Builder(
-                    name(),
+                    denseVectorFieldType.name(),
                     CoreValuesSourceType.KEYWORD,
                     denseVectorFieldType.indexVersionCreated,
                     denseVectorFieldType.dims,

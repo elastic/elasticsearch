@@ -581,6 +581,29 @@ public class RoleDescriptorTests extends ESTestCase {
         );
     }
 
+    public void testParseIndicesPrivilegesFailsWhenClustersFieldPresent() {
+        final String json = """
+            {
+              "indices": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "all" ],
+                  "clusters": ["remote"]
+                }
+              ]
+            }""";
+        final ElasticsearchParseException epe = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON)
+        );
+        assertThat(
+            epe,
+            TestMatchers.throwableWithMessage(
+                containsString("failed to parse indices privileges for role [test]. unexpected field [clusters]")
+            )
+        );
+    }
+
     public void testGlobalPrivilegesOrdering() throws IOException {
         final String roleName = randomAlphaOfLengthBetween(3, 30);
         final String[] applicationNames = generateRandomStringArray(3, randomIntBetween(0, 3), false, true);

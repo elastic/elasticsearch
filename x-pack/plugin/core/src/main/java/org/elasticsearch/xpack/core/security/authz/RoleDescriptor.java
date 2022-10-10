@@ -553,7 +553,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     private static IndicesPrivileges parseIndex(final String roleName, final XContentParser parser, final boolean allow2xFormat)
         throws IOException {
-        final var parsed = parseIndexWithOptionalRemoteClusters(roleName, parser, allow2xFormat, false);
+        final Tuple<IndicesPrivileges, String[]> parsed = parseIndexWithOptionalRemoteClusters(roleName, parser, allow2xFormat, false);
         assert parsed.v2() == null : "indices privileges cannot have remote clusters";
         return parsed.v1();
     }
@@ -572,7 +572,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 parser.currentToken()
             );
         }
-        List<RoleDescriptor.RemoteIndicesPrivileges> privileges = new ArrayList<>();
+        final List<RoleDescriptor.RemoteIndicesPrivileges> privileges = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             privileges.add(parseRemoteIndex(roleName, parser, allow2xFormat));
         }
@@ -593,10 +593,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     private static Tuple<IndicesPrivileges, String[]> parseIndexWithOptionalRemoteClusters(
-        String roleName,
-        XContentParser parser,
-        boolean allow2xFormat,
-        boolean allowRemoteClusters
+        final String roleName,
+        final XContentParser parser,
+        final boolean allow2xFormat,
+        final boolean allowRemoteClusters
     ) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {

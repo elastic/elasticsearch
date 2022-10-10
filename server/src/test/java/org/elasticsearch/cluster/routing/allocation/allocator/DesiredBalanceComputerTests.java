@@ -634,8 +634,8 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .put("index.routing.allocation.exclude._name", "node-2")
             .build();
 
-        ShardRouting index0PrimaryShard = null;
-        ShardRouting index0ReplicaShard = null;
+        ShardRouting index0PrimaryShard;
+        ShardRouting index0ReplicaShard;
         {
             var indexName = "index-0";
 
@@ -644,17 +644,18 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             var indexId = metadataBuilder.get(indexName).getIndex();
             var shardId = new ShardId(indexId, 0);
 
-            var scenario = 2;// randomIntBetween(0, 3);
             index0PrimaryShard = newShardRouting(shardId, "node-1", null, true, STARTED);
-            index0ReplicaShard = switch (scenario) {
-                // started on the desired node
+            index0ReplicaShard = switch (randomIntBetween(0, 4)) {
+                // shard is started on the desired node
                 case 0 -> newShardRouting(shardId, "node-0", null, false, STARTED);
-                // initializing on the desired node
+                // shard is initializing on the desired node
                 case 1 -> newShardRouting(shardId, "node-0", null, false, INITIALIZING);
-                // started on undesired node, assumed to be relocated to the desired node in the future
+                // shard started on undesired node, assumed to be relocated to the desired node in the future
                 case 2 -> newShardRouting(shardId, "node-2", null, false, STARTED);
                 // shard is already relocating to the desired node
                 case 3 -> newShardRouting(shardId, "node-2", "node-0", false, RELOCATING);
+                // shard is unassigned
+                case 4 -> newShardRouting(shardId, null, null, false, UNASSIGNED);
                 default -> throw new IllegalStateException();
             };
 

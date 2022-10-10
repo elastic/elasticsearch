@@ -142,7 +142,8 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
 
     @Override
     public int hashCode() {
-        return map.hashCode();
+        // noop override to make checkstyle happy since we override equals
+        return super.hashCode();
     }
 
     private static final class ConversionIterator<KType, VType> implements Iterator<Map.Entry<KType, VType>> {

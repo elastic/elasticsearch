@@ -848,7 +848,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final List<String> dataStreams = in.readStringList();
             final SnapshotId source = in.readOptionalWriteable(SnapshotId::new);
             final Map<RepositoryShardId, ShardSnapshotStatus> clones = in.readImmutableMap(
-                RepositoryShardId::new,
+                RepositoryShardId::readFrom,
                 ShardSnapshotStatus::readFrom
             );
             final List<SnapshotFeatureInfo> featureStates = in.readImmutableList(SnapshotFeatureInfo::new);
@@ -1414,7 +1414,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
                 @Override
                 public RepositoryShardId readKey(StreamInput in) throws IOException {
-                    return new RepositoryShardId(in);
+                    return RepositoryShardId.readFrom(in);
                 }
             };
 
@@ -1610,7 +1610,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.mapDiff = DiffableUtils.readJdkMapDiff(
                 in,
                 DiffableUtils.getStringKeySerializer(),
-                i -> new ByRepo(i.readList(Entry::readFrom)),
+                i -> new ByRepo(i.readImmutableList(Entry::readFrom)),
                 i -> new ByRepo.ByRepoDiff(
                     DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), Entry::readFrom, EntryDiff::new),
                     DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), ByRepo.INT_DIFF_VALUE_SERIALIZER)

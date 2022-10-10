@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -2548,7 +2549,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         MockMTAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false, Property.EMPTY_ARRAY);
         }
 
         @Override
@@ -2560,39 +2561,50 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testMergeThreadLogging() throws IllegalAccessException, IOException {
-        MockMTAppender mockAppender = new MockMTAppender("testMergeThreadLogging");
+    public void testMergeThreadLogging() throws Exception {
+        final MockMTAppender mockAppender = new MockMTAppender("testMergeThreadLogging");
         mockAppender.start();
 
         Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
         Loggers.addAppender(rootLogger, mockAppender);
         Loggers.setLevel(rootLogger, Level.TRACE);
+        try {
+            LogMergePolicy lmp = newLogMergePolicy();
+            lmp.setMergeFactor(2);
 
-        LogMergePolicy lmp = newLogMergePolicy();
-        lmp.setMergeFactor(2);
-        try (Store store = createStore()) {
-            InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), lmp); // fmp
-            engine.index(indexForDoc(testParsedDocument("1", null, testDocument(), B_1, null)));
-            engine.index(indexForDoc(testParsedDocument("2", null, testDocument(), B_1, null)));
-            engine.index(indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null)));
-            engine.index(indexForDoc(testParsedDocument("4", null, testDocument(), B_1, null)));
-            engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-            engine.flushAndClose();
+            try (Store store = createStore()) {
+                InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), lmp);
+                engine.index(indexForDoc(testParsedDocument("1", null, testDocument(), B_1, null)));
+                engine.index(indexForDoc(testParsedDocument("2", null, testDocument(), B_1, null)));
+                engine.flush();
+                engine.index(indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null)));
+                engine.index(indexForDoc(testParsedDocument("4", null, testDocument(), B_1, null)));
+                engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
+                engine.flushAndClose();
 
-            long merges = engine.getMergeStats().getTotal();
-            if (merges > 0) {
+                assertBusy(() -> {
+                    assertThat(engine.getMergeStats().getTotal(), greaterThan(0L));
+                    assertThat(engine.getMergeStats().getCurrent(), equalTo(0L));
+                });
+            }
+
+            assertBusy(() -> {
                 List<String> threadMsgs = mockAppender.messages().stream().filter(line -> line.startsWith("merge thread")).toList();
-                assertThat("messages:" + threadMsgs + ", merges=" + merges, threadMsgs.size(), greaterThanOrEqualTo(2));
+                assertThat("messages:" + threadMsgs, threadMsgs.size(), greaterThanOrEqualTo(3));
                 assertThat(
                     threadMsgs,
-                    containsInRelativeOrder(matchesRegex("^merge thread .* start$"), matchesRegex("^merge thread .* merge segment.*$"))
+                    containsInRelativeOrder(
+                        matchesRegex("^merge thread .* start$"),
+                        matchesRegex("^merge thread .* merge segment.*$"),
+                        matchesRegex("^merge thread .* end$")
+                    )
                 );
-            }
+            });
         } finally {
+            Loggers.setLevel(rootLogger, savedLevel);
             Loggers.removeAppender(rootLogger, mockAppender);
             mockAppender.stop();
-            Loggers.setLevel(rootLogger, savedLevel);
         }
     }
 

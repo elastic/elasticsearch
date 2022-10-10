@@ -192,7 +192,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
     }
 
     private static String percent(float percent) {
-        return String.format(Locale.ROOT, "%1.1f%%", percent);
+        return formatted("%1.1f%%", percent);
     }
 
 }

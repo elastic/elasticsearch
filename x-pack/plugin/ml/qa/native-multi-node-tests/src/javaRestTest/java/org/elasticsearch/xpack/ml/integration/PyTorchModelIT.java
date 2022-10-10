@@ -364,8 +364,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         createTrainedModel(badModel);
         putVocabulary(List.of("once", "twice"), badModel);
         Request request = new Request("PUT", "_ml/trained_models/" + badModel + "/definition/0");
-        request.setJsonEntity("""
-            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(length, poorlyFormattedModelBase64));
+        request.setJsonEntity(formatted("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", length, poorlyFormattedModelBase64));
         client().performRequest(request);
         startDeployment(badModel, AllocationStatus.State.STARTING.toString());
         assertBusy(() -> {
@@ -505,8 +505,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         createTrainedModel(model);
         putVocabulary(List.of("once", "twice"), model);
         Request request = new Request("PUT", "_ml/trained_models/" + model + "/definition/0");
-        request.setJsonEntity("""
-            {"total_definition_length":%s2,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
+        request.setJsonEntity(formatted("""
+            {"total_definition_length":%s2,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
         Exception ex = expectThrows(Exception.class, () -> startDeployment(model));
         assertThat(
@@ -605,7 +605,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         );
 
         request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {
               "docs": [
                 {
@@ -621,7 +621,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                   }
                 }
               }
-            }""".formatted(input));
+            }""", input));
         client().performRequest(request);
     }
 
@@ -632,7 +632,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
 
-        client().performRequest(putPipeline("my_pipeline", """
+        client().performRequest(putPipeline("my_pipeline", formatted("""
             {
               "processors": [
                 {
@@ -641,7 +641,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                   }
                 }
               ]
-            }""".formatted(modelId)));
+            }""", modelId)));
         ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
         assertThat(
@@ -897,8 +897,8 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        String body = """
-            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL);
+        String body = formatted("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL);
         request.setJsonEntity(body);
         client().performRequest(request);
     }
@@ -911,9 +911,9 @@ public class PyTorchModelIT extends ESRestTestCase {
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             { "vocabulary": [%s] }
-            """.formatted(quotedWords));
+            """, quotedWords));
         client().performRequest(request);
     }
 
@@ -980,23 +980,23 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private Response infer(String input, String modelId, TimeValue timeout) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=" + timeout.toString());
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
         return client().performRequest(request);
     }
 
     private Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
         return client().performRequest(request);
     }
 
     private Response infer(String input, String modelId, String resultsField) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(formatted("""
             {
               "docs": [ { "input": "%s" } ],
               "inference_config": {
@@ -1004,7 +1004,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                   "results_field": "%s"
                 }
               }
-            }""".formatted(input, resultsField));
+            }""", input, resultsField));
         return client().performRequest(request);
     }
 
@@ -1032,7 +1032,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     private void assertNotificationsContain(String modelId, String... auditMessages) throws IOException {
         client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
         Request search = new Request("POST", ".ml-notifications-*/_search");
-        search.setJsonEntity("""
+        search.setJsonEntity(formatted("""
             {
                 "size": 100,
                 "query": {
@@ -1044,7 +1044,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                   }
                 }
             }
-            """.formatted(modelId));
+            """, modelId));
         String response = EntityUtils.toString(client().performRequest(search).getEntity());
         for (String msg : auditMessages) {
             assertThat(response, containsString(msg));

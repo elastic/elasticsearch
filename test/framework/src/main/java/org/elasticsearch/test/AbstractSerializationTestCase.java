@@ -5,7 +5,6 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
 package org.elasticsearch.test;
 
 import org.apache.lucene.util.BytesRef;
@@ -14,7 +13,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
@@ -27,18 +25,15 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeable> extends AbstractWireSerializingTestCase<T> {
+public abstract class AbstractSerializationTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
 
     /**
      * Generic test that creates new instance from the test instance and checks
      * both for equality and asserts equality on the two instances.
      */
     public final void testFromXContent() throws IOException {
-        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance).numberOfTestRuns(
-            NUMBER_OF_TEST_RUNS
-        )
+        createXContentTester().numberOfTestRuns(NUMBER_OF_TEST_RUNS)
             .supportsUnknownFields(supportsUnknownFields())
             .shuffleFieldsExceptions(getShuffleFieldsExceptions())
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
@@ -48,7 +43,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     }
 
     /**
-     * Calls {@link ToXContent#toXContent} on many threads and verifies that
+     * Calls xContent serialization on many threads and verifies that
      * they produce the same result. Async search sometimes does this to
      * aggregation responses and, in general, we think it's reasonable for
      * everything that can convert itself to json to be able to do so
@@ -71,7 +66,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
             getToXContentParams()
         );
         boolean humanReadable = randomBoolean();
-        BytesRef firstTimeBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+        BytesRef firstTimeBytes = toXContent(asXContent(testInstance), xContentType, params, humanReadable).toBytesRef();
 
         /*
          * 500 rounds seems to consistently reproduce the issue on Nik's
@@ -82,7 +77,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
         concurrentTest(() -> {
             try {
                 for (int r = 0; r < rounds; r++) {
-                    BytesRef thisRoundBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+                    BytesRef thisRoundBytes = toXContent(asXContent(testInstance), xContentType, params, humanReadable).toBytesRef();
                     if (firstTimeBytes.bytesEquals(thisRoundBytes)) {
                         continue;
                     }
@@ -91,7 +86,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
                         error.append("human readable ");
                     }
                     error.append(xContentType);
-                    error.append("\nCanonical is:\n").append(Strings.toString(testInstance, true, true));
+                    error.append("\nCanonical is:\n").append(Strings.toString(asXContent(testInstance), true, true));
                     boolean showBytes = xContentType.xContent() == CborXContent.cborXContent;
                     error.append("\nWanted : ").append(showBytes ? firstTimeBytes : firstTimeBytes.utf8ToString());
                     error.append("\nBut got: ").append(showBytes ? thisRoundBytes : thisRoundBytes.utf8ToString());
@@ -103,19 +98,16 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
         });
     }
 
-    /**
-     * Parses to a new instance using the provided {@link XContentParser}
-     */
-    protected abstract T doParseInstance(XContentParser parser) throws IOException;
+    protected abstract ToXContent asXContent(T instance);
 
     /**
      * Creates a random instance to use in the xcontent tests.
      * Override this method if the random instance that you build
      * should be aware of the {@link XContentType} used in the test.
      */
-    protected T createXContextTestInstance(XContentType xContentType) {
-        return createTestInstance();
-    }
+    protected abstract T createXContextTestInstance(XContentType xContentType);
+
+    protected abstract AbstractXContentTestCase.XContentTester<T> createXContentTester();
 
     /**
      * Indicates whether the parser supports unknown fields or not. In case it does, such behaviour will be tested by

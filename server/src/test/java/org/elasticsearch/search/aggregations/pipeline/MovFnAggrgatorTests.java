@@ -138,7 +138,8 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
 
                 InternalDateHistogram histogram;
                 histogram = searchAndReduce(
-                    new AggTestConfig(indexSearcher, aggBuilder, fieldType, valueFieldType).withMaxBuckets(1000).withQuery(query)
+                    indexSearcher,
+                    new AggTestConfig(aggBuilder, fieldType, valueFieldType).withMaxBuckets(1000).withQuery(query)
                 );
                 verify.accept(histogram);
             }

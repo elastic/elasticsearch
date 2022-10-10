@@ -94,7 +94,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -506,7 +505,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         @Override
         public Engine.Index createIndexOp(int docIdent) {
-            SourceToParse source = new SourceToParse(null, new BytesArray(String.format(Locale.ROOT, """
+            SourceToParse source = new SourceToParse(null, new BytesArray(formatted("""
                 {
                     "@timestamp": %s,
                     "dim": "dim"

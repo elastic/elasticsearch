@@ -38,4 +38,8 @@ public final class LongArrayBlock extends Block {
     public String toString() {
         return "LongArrayBlock{positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + '}';
     }
+
+    public long[] getRawLongArray() {
+        return values;
+    }
 }

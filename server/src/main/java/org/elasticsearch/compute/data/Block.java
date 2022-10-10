@@ -76,4 +76,30 @@ public abstract class Block {
             : "illegal position, " + position + ", position count:" + getPositionCount();
         return true;
     }
+
+    // TODO: improve implementation not to waste as much space
+    public Block getRow(int position) {
+        Block curr = this;
+        return new Block(1) {
+            @Override
+            public int getInt(int ignored) {
+                return curr.getInt(position);
+            }
+
+            @Override
+            public long getLong(int ignored) {
+                return curr.getLong(position);
+            }
+
+            @Override
+            public double getDouble(int ignored) {
+                return curr.getDouble(position);
+            }
+
+            @Override
+            public String toString() {
+                return "only-position " + position + ": " + curr;
+            }
+        };
+    }
 }

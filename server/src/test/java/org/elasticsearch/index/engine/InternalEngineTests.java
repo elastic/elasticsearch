@@ -2368,7 +2368,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testConcurrentGetAndSetOnPrimary() throws IOException, InterruptedException {
         MapperService mapperService = createMapperService();
         MappingLookup mappingLookup = mapperService.mappingLookup();
@@ -2407,14 +2406,14 @@ public class InternalEngineTests extends EngineTestCase {
                         get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
                         List<String> values = new ArrayList<>();
                         if (visitor.source().length() > 0) {
-                            values.addAll(
-                                new ArrayList<>(
-                                    (List<String>) XContentMapValues.extractValue(
-                                        "values",
-                                        XContentHelper.convertToMap(visitor.source(), true, XContentType.JSON).v2()
-                                    )
+                            @SuppressWarnings("unchecked")
+                            final List<String> extractedValues = new ArrayList<>(
+                                (List<String>) XContentMapValues.extractValue(
+                                    "values",
+                                    XContentHelper.convertToMap(visitor.source(), true, XContentType.JSON).v2()
                                 )
                             );
+                            values.addAll(extractedValues);
                         }
 
                         String removed = op % 3 == 0 && values.size() > 0 ? values.remove(0) : null;

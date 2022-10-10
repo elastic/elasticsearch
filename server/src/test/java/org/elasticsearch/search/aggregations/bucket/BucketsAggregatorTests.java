@@ -38,7 +38,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase {
     @Override
     protected AggregationContext createAggregationContext(IndexSearcher indexSearcher, Query query, MappedFieldType... fieldTypes) throws IOException {
         AggregationContext context = super.createAggregationContext(indexSearcher, query, fieldTypes);
-        // Generally, we should avoid doing this, but 
+        // Generally, we should avoid doing this, but
         toRelease.add(context);
         return context;
     }

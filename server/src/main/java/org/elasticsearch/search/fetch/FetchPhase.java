@@ -102,7 +102,9 @@ public class FetchPhase {
 
         SourceLoader sourceLoader = context.newSourceLoader();
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        StoredFieldLoader storedFieldLoader = profiler.storedFields(createStoredFieldLoader(context, sourceLoader, storedToRequestedFields));
+        StoredFieldLoader storedFieldLoader = profiler.storedFields(
+            createStoredFieldLoader(context, sourceLoader, storedToRequestedFields)
+        );
 
         FetchContext fetchContext = new FetchContext(context);
 

@@ -309,8 +309,9 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             nodeStats.add(
                 AssignmentStats.NodeStats.forStartedState(
                     clusterService.localNode(),
-                    presentValue.timingStats().getCount(),
-                    presentValue.timingStats().getAverage(),
+                    presentValue.inferenceCount(),
+                    presentValue.averageInferenceTime(),
+                    presentValue.averageInferenceTimeNoCacheHits(),
                     presentValue.pendingCount(),
                     presentValue.errorCount(),
                     presentValue.cacheHitCount(),

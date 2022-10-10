@@ -41,7 +41,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -511,7 +510,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         assertThat(terms.getBuckets().size(), equalTo(5));
 
         for (int i = 0; i < 5; i++) {
-            String key = String.format(Locale.ROOT, "%04d", i);
+            String key = formatted("%04d", i);
             LongTerms.Bucket bucket = terms.getBucketByKey(key);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsString(), equalTo(key));

@@ -107,7 +107,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return """
+        return formatted("""
             %s
             role_manage:
               cluster: [ manage ]
@@ -120,19 +120,19 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
             role_all:
               cluster: [ all ]
-            """.formatted(super.configRoles());
+            """, super.configRoles());
     }
 
     @Override
     protected String configUsersRoles() {
-        return """
+        return formatted("""
             %s
             role_manage:user_manage
             role_manage_security:user_manage_security
             role_delegate_pki:user_delegate_pki
             role_all:user_all
             kibana_system:my_kibana_system
-            """.formatted(super.configUsersRoles());
+            """, super.configUsersRoles());
     }
 
     @Override

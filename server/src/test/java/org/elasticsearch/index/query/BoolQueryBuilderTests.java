@@ -148,7 +148,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             expectedQuery.filter(filter);
         }
         contentString = contentString.substring(0, contentString.length() - 1);
-        contentString += "    }    \n" + "}";
+        contentString += "    }    \n}";
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
     }

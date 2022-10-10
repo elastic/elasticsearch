@@ -1421,7 +1421,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField TYPE = new ParseField("type");
     }
 
-    private boolean shouldIncludedRemoteIndicesPrivilegesField(final Version version) {
+    public static boolean shouldIncludedRemoteIndicesPrivilegesField(final Version version) {
         return version.onOrAfter(Version.V_8_6_0) && TcpTransport.isUntrustedRemoteClusterEnabled();
     }
 }

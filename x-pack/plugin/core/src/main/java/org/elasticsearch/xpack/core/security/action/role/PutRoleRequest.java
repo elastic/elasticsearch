@@ -60,7 +60,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (RoleDescriptor.shouldIncludedRemoteIndicesPrivilegesField(in.getVersion())) {
             remoteIndicesPrivileges = in.readOptionalList(RoleDescriptor.RemoteIndicesPrivileges::new);
         } else {
             remoteIndicesPrivileges = null;
@@ -211,7 +211,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeGenericMap(metadata);
-        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (RoleDescriptor.shouldIncludedRemoteIndicesPrivilegesField(out.getVersion())) {
             out.writeOptionalCollection(remoteIndicesPrivileges);
         }
     }

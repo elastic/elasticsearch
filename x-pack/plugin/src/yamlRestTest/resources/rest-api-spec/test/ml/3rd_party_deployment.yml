@@ -135,6 +135,36 @@ setup:
         model_id: test_model
   - match: { stopped: true }
 ---
+"Test update deployment":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        wait_for: started
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.number_of_allocations: 1 }
+
+  - do:
+      ml.update_trained_model_deployment:
+        model_id: test_model
+        body: >
+          {
+            "number_of_allocations": 2
+          }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.number_of_allocations: 2 }
+
+  - do:
+      ml.get_trained_models_stats:
+        model_id: "test_model"
+  - match: { count: 1 }
+  - match: { trained_model_stats.0.deployment_stats.allocation_status.target_allocation_count: 2 }
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model
+  - match: { stopped: true }
+---
 "Test clear deployment cache":
   - skip:
       features: allowed_warnings

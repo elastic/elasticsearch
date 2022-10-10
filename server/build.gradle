@@ -137,9 +137,6 @@ if (BuildParams.isSnapshotBuild() == false) {
 }
 
 tasks.named("thirdPartyAudit").configure {
-    // See: https://github.com/elastic/elasticsearch/issues/90445
-    onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_19 }
-
     ignoreMissingClasses(
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',

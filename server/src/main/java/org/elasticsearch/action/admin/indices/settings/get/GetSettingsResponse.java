@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -29,7 +28,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetSettingsResponse extends ActionResponse implements ToXContentObject, ChunkedToXContent {
+public class GetSettingsResponse extends ActionResponse implements ChunkedToXContent {
 
     private final Map<String, Settings> indexToSettings;
     private final Map<String, Settings> indexToDefaultSettings;

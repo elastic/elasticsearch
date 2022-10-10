@@ -46,7 +46,7 @@ public class HotThreadsTests extends ESTestCase {
             try {
                 new HotThreads().type(HotThreads.ReportType.of(type));
             } catch (IllegalArgumentException e) {
-                fail(String.format(Locale.ROOT, "IllegalArgumentException called when creating HotThreads for supported type [%s]", type));
+                fail(formatted("IllegalArgumentException called when creating HotThreads for supported type [%s]", type));
             }
         }
     }
@@ -234,7 +234,7 @@ public class HotThreadsTests extends ESTestCase {
 
         StackTraceElement[] stack = makeThreadStackHelper(
             List.of(
-                new String[] { "org.elasticsearch.monitor.test", String.format(Locale.ROOT, "method_%d", (threadId) % 2) },
+                new String[] { "org.elasticsearch.monitor.test", formatted("method_%d", (threadId) % 2) },
                 new String[] { "org.elasticsearch.monitor.testOther", "methodFinal" }
             )
         ).toArray(new StackTraceElement[0]);

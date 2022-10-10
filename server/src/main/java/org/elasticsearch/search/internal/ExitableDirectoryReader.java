@@ -458,13 +458,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public float[] vectorValue() throws IOException {
-            this.queryCancellation.checkCancelled();
             return in.vectorValue();
         }
 
         @Override
         public BytesRef binaryValue() throws IOException {
-            this.queryCancellation.checkCancelled();
             return in.binaryValue();
         }
     }

@@ -178,7 +178,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 int index = 0;
                 while (index < vector.length) {
-                    bytes[index] = (byte)vector[index++];
+                    bytes[index] = (byte) vector[index++];
                 }
 
                 return new KnnVectorField(name, new BytesRef(bytes), function);
@@ -224,7 +224,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         errorBuilder = new StringBuilder(
                             this
                                 + " element_type vectors only support whole numbers between"
-                                + "[" + Byte.MIN_VALUE + "," + Byte.MAX_VALUE + "] but found ["
+                                + "["
+                                + Byte.MIN_VALUE
+                                + ","
+                                + Byte.MAX_VALUE
+                                + "] but found ["
                                 + value
                                 + "] at index ["
                                 + index
@@ -600,8 +604,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         // encode array of floats as array of integers and store into buf
         // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
-        byte[] bytes = indexCreatedVersion.onOrAfter(Version.V_7_5_0) ? new byte[dims * elementType.elementBytes + MAGNITUDE_BYTES] :
-            new byte[dims * elementType.elementBytes];
+        byte[] bytes = indexCreatedVersion.onOrAfter(Version.V_7_5_0)
+            ? new byte[dims * elementType.elementBytes + MAGNITUDE_BYTES]
+            : new byte[dims * elementType.elementBytes];
 
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
         double dotProduct = 0f;

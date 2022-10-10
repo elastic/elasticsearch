@@ -56,20 +56,20 @@ public class RelevanceMatchQueryRewriter {
         return applyCurations(combinedFieldsBuilder, relevanceMatchQueryBuilder).toQuery(context);
     }
 
-    private static QueryBuilder applyHiddenDocs(QueryBuilder queryBuilder, CurationSettings curationSettings) {
-        if (curationSettings.hiddenDocs().isEmpty() == false) {
+    private static QueryBuilder applyExcludedDocs(QueryBuilder queryBuilder, CurationSettings curationSettings) {
+        if (curationSettings.excludedDocs().isEmpty() == false) {
             BoolQueryBuilder booleanQueryBuilder = new BoolQueryBuilder();
             booleanQueryBuilder.should(queryBuilder);
 
-            BoolQueryBuilder hiddenDocsBuilder = new BoolQueryBuilder();
-            for (CurationSettings.DocumentReference hiddenDoc : curationSettings.hiddenDocs()) {
+            BoolQueryBuilder excludedDocsBuilder = new BoolQueryBuilder();
+            for (CurationSettings.DocumentReference excludedDoc : curationSettings.excludedDocs()) {
                 BoolQueryBuilder mustQueryBuilder = new BoolQueryBuilder();
-                mustQueryBuilder.must(new TermsQueryBuilder("_index", hiddenDoc.index()));
-                mustQueryBuilder.must(new TermsQueryBuilder("_id", hiddenDoc.id()));
+                mustQueryBuilder.must(new TermsQueryBuilder("_index", excludedDoc.index()));
+                mustQueryBuilder.must(new TermsQueryBuilder("_id", excludedDoc.id()));
 
-                hiddenDocsBuilder.mustNot(mustQueryBuilder);
+                excludedDocsBuilder.mustNot(mustQueryBuilder);
             }
-            booleanQueryBuilder.filter(hiddenDocsBuilder);
+            booleanQueryBuilder.filter(excludedDocsBuilder);
 
             queryBuilder = booleanQueryBuilder;
         }
@@ -117,7 +117,7 @@ public class RelevanceMatchQueryRewriter {
                 final boolean conditionMatch = curationSettings.conditions().stream().anyMatch(c -> c.match(relevanceMatchQueryBuilder));
                 if (conditionMatch) {
                     queryBuilder = applyPinnedDocs(queryBuilder, curationSettings);
-                    queryBuilder = applyHiddenDocs(queryBuilder, curationSettings);
+                    queryBuilder = applyExcludedDocs(queryBuilder, curationSettings);
                 }
 
             } catch (CurationsService.CurationsSettingsNotFoundException e) {

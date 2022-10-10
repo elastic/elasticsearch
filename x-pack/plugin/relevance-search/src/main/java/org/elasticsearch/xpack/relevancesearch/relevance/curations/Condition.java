@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.relevancesearch.relevance.curations;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 
 import java.util.Locale;
@@ -19,14 +20,14 @@ public abstract class Condition {
     private final String value;
 
     protected Condition(String value) {
-        if (value == null) {
+        if (Strings.isEmpty(value)) {
             throw new IllegalArgumentException("Value must be specified");
         }
         this.value = value;
     }
 
     public static Condition buildCondition(String context, String value) {
-        if (context == null) {
+        if (Strings.isEmpty(context)) {
             throw new IllegalArgumentException("Context must be specified");
         }
         return switch (context) {
@@ -56,10 +57,6 @@ public abstract class Condition {
         }
 
         private static String normalizeValue(String value) {
-            if (value == null) {
-                return value;
-            }
-
             return value.toLowerCase(Locale.ROOT).trim();
         }
     }

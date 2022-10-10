@@ -21,7 +21,7 @@ public class CurationsService {
     public static final String CURATIONS_SETTINGS_PREFIX = "curations-";
     private static final String CONDITIONS_FIELD = "conditions";
     private static final String PINNED_DOCS_FIELD = "pinned_document_ids";
-    private static final String EXCLUDED_DOCS_IDS = "excluded_document_ids";
+    private static final String EXCLUDED_DOCS_FIELD = "excluded_document_ids";
     private static final String CONTEXT_ATTR = "context";
     private static final String VALUE_ATTR = "value";
     private static final String ID_ATTR = "_id";
@@ -43,10 +43,10 @@ public class CurationsService {
             throw new CurationsSettingsNotFoundException("Curation settings " + curationId + " not found");
         }
 
-        return parseRCurationSettings(settingsContent);
+        return parseCurationSettings(settingsContent);
     }
 
-    private CurationSettings parseRCurationSettings(Map<String, Object> source) throws IllegalArgumentException {
+    private CurationSettings parseCurationSettings(Map<String, Object> source) throws IllegalArgumentException {
         // TODO Probably worth to take a look into document mappers in case they can be used for parsing
         // see org/elasticsearch/index/mapper/DocumentParser.java
 
@@ -59,14 +59,14 @@ public class CurationsService {
         List<CurationSettings.DocumentReference> pinnedDocs = sourcePinnedDocs.stream().map(this::parseDocumentReference).toList();
 
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> sourceHiddenDocs = (List<Map<String, Object>>) source.get(EXCLUDED_DOCS_IDS);
-        List<CurationSettings.DocumentReference> hiddenDocs = sourceHiddenDocs.stream().map(this::parseDocumentReference).toList();
+        final List<Map<String, Object>> sourceExcludedDocs = (List<Map<String, Object>>) source.get(EXCLUDED_DOCS_FIELD);
+        List<CurationSettings.DocumentReference> excludedDocs = sourceExcludedDocs.stream().map(this::parseDocumentReference).toList();
 
-        return new CurationSettings(pinnedDocs, hiddenDocs, conditions);
+        return new CurationSettings(pinnedDocs, excludedDocs, conditions);
     }
 
-    private CurationSettings.DocumentReference parseDocumentReference(Map<String, Object> sourcePinnedDoc) {
-        return new CurationSettings.DocumentReference((String) sourcePinnedDoc.get(ID_ATTR), (String) sourcePinnedDoc.get(INDEX_ATTR));
+    private CurationSettings.DocumentReference parseDocumentReference(Map<String, Object> sourceDoc) {
+        return new CurationSettings.DocumentReference((String) sourceDoc.get(ID_ATTR), (String) sourceDoc.get(INDEX_ATTR));
     }
 
     private Condition parseCondition(Map<String, Object> sourceCondition) throws IllegalArgumentException {

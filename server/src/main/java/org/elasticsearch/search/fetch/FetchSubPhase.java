@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public interface FetchSubPhase {
          * In most cases, the hit document's source is loaded eagerly at the start of the
          * {@link FetchPhase}. This lookup will contain the preloaded source.
          */
-        public SourceLookup sourceLookup() {
+        public Source source() {
             return sourceLookup;
         }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
@@ -324,7 +325,7 @@ public class FetchPhase {
      * Resets the provided {@link HitContext} with information on the current
      * document. This includes the following:
      *   - Adding an initial {@link SearchHit} instance.
-     *   - Loading the document source and setting it on {@link HitContext#sourceLookup()}. This
+     *   - Loading the document source and setting it on {@link HitContext#source()}. This
      *     allows fetch subphases that use the hit context to access the preloaded source.
      */
     private static HitContext prepareNonNestedHitContext(
@@ -370,7 +371,7 @@ public class FetchPhase {
                 // Store the loaded source on the hit context so that fetch subphases can access it.
                 // Also make it available to scripts by storing it on the shared SearchLookup instance.
                 SourceLookup.BytesSourceProvider sourceBytes = new SourceLookup.BytesSourceProvider(source);
-                hitContext.sourceLookup().setSourceProvider(sourceBytes);
+                hitContext.setSourceLookup(new SourceLookup(sourceBytes));
 
                 SourceLookup scriptSourceLookup = context.getSearchExecutionContext().lookup().source();
                 scriptSourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
@@ -385,7 +386,7 @@ public class FetchPhase {
      * nested document. This includes the following:
      *   - Adding an initial {@link SearchHit} instance.
      *   - Loading the document source, filtering it based on the nested document ID, then
-     *     setting it on {@link HitContext#sourceLookup()}. This allows fetch subphases that
+     *     setting it on {@link HitContext#source()}. This allows fetch subphases that
      *     use the hit context to access the preloaded source.
      */
     @SuppressWarnings("unchecked")
@@ -411,7 +412,7 @@ public class FetchPhase {
             rootId = innerHitsContext.getRootId();
 
             if (needSource) {
-                SourceLookup rootLookup = innerHitsContext.getRootLookup();
+                Source rootLookup = innerHitsContext.getRootLookup();
                 rootSourceAsMap = rootLookup.source();
                 rootSourceContentType = rootLookup.sourceContentType();
             }
@@ -472,7 +473,7 @@ public class FetchPhase {
                 }
             }
 
-            hitContext.sourceLookup().setSourceProvider(new SourceLookup.MapSourceProvider(nestedSourceAsMap, rootSourceContentType));
+            hitContext.setSourceLookup(new SourceLookup(new SourceLookup.MapSourceProvider(nestedSourceAsMap, rootSourceContentType)));
         }
         return hitContext;
     }

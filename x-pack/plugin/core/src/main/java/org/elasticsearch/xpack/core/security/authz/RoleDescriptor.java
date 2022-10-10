@@ -167,7 +167,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
-        if (shouldIncludedRemoteIndicesPrivilegesField(in.getVersion())) {
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
             this.remoteIndicesPrivileges = in.readOptionalArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
         } else {
             this.remoteIndicesPrivileges = null;
@@ -337,7 +337,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         out.writeGenericMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
-        if (shouldIncludedRemoteIndicesPrivilegesField(out.getVersion())) {
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
             out.writeOptionalArray(remoteIndicesPrivileges);
         }
     }
@@ -412,13 +412,18 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                                 currentFieldName
                             );
                         }
-                    } else if (Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
-                        remoteIndicesPrivileges = parseRemoteIndices(name, parser, allow2xFormat);
-                    } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        // don't need it
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
-                    }
+                    } else if (TcpTransport.isUntrustedRemoteClusterEnabled()
+                        && Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
+                            remoteIndicesPrivileges = parseRemoteIndices(name, parser, allow2xFormat);
+                        } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            // don't need it
+                        } else {
+                            throw new ElasticsearchParseException(
+                                "failed to parse role [{}]. unexpected field [{}]",
+                                name,
+                                currentFieldName
+                            );
+                        }
         }
         return new RoleDescriptor(
             name,
@@ -1419,9 +1424,5 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField METADATA = new ParseField("metadata");
         ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");
         ParseField TYPE = new ParseField("type");
-    }
-
-    public static boolean shouldIncludedRemoteIndicesPrivilegesField(final Version version) {
-        return version.onOrAfter(Version.V_8_6_0) && TcpTransport.isUntrustedRemoteClusterEnabled();
     }
 }

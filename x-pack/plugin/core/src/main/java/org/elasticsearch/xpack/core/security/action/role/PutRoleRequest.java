@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -60,7 +61,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
-        if (RoleDescriptor.shouldIncludedRemoteIndicesPrivilegesField(in.getVersion())) {
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
             remoteIndicesPrivileges = in.readOptionalList(RoleDescriptor.RemoteIndicesPrivileges::new);
         } else {
             remoteIndicesPrivileges = null;
@@ -101,13 +102,13 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     }
 
     public void addRemoteIndex(
-        String[] remoteClusters,
-        String[] indices,
-        String[] privileges,
-        String[] grantedFields,
-        String[] deniedFields,
-        @Nullable BytesReference query,
-        boolean allowRestrictedIndices
+        final String[] remoteClusters,
+        final String[] indices,
+        final String[] privileges,
+        final String[] grantedFields,
+        final String[] deniedFields,
+        final @Nullable BytesReference query,
+        final boolean allowRestrictedIndices
     ) {
         initializeRemoteIndicesPrivilegesIfNull();
         this.remoteIndicesPrivileges.add(
@@ -211,7 +212,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeGenericMap(metadata);
-        if (RoleDescriptor.shouldIncludedRemoteIndicesPrivilegesField(out.getVersion())) {
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
             out.writeOptionalCollection(remoteIndicesPrivileges);
         }
     }

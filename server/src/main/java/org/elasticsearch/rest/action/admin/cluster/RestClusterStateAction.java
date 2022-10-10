@@ -30,18 +30,18 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestClusterStateAction extends BaseRestHandler {
 
+    public static final Map<String, String> TO_XCONTENT_PARAMS = Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
     private final SettingsFilter settingsFilter;
 
     private final ThreadPool threadPool;
@@ -116,10 +116,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             ) {
                 @Override
                 protected ToXContent.Params getParams() {
-                    return new ToXContent.DelegatingMapParams(
-                        singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API),
-                        request
-                    );
+                    return new ToXContent.DelegatingMapParams(TO_XCONTENT_PARAMS, request);
                 }
             }.map(response -> new RestClusterStateResponse(clusterStateRequest, response, threadPool::relativeTimeInMillis))
         );
@@ -130,8 +127,9 @@ public class RestClusterStateAction extends BaseRestHandler {
     static {
         final Set<String> responseParams = new HashSet<>();
         responseParams.add("metric");
+        responseParams.add(Metadata.MAPPINGS_BY_HASH_PARAM);
         responseParams.addAll(Settings.FORMAT_PARAMS);
-        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+        RESPONSE_PARAMS = Set.copyOf(responseParams);
     }
 
     @Override

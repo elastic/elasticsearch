@@ -1,0 +1,5 @@
+pr: 83846
+summary: Render Mappings more Compact in GET /_cluster/state
+area: Cluster Coordination
+type: enhancement
+issues: []

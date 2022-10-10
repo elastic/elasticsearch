@@ -1212,33 +1212,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
     }
 
-    @SafeVarargs
-    @SuppressWarnings("varargs")
-    private void assertHasRemoteGroupsForClusters(final RemoteIndicesPermission permission, final Set<String>... remoteClustersAliases) {
-        assertThat(
-            permission.remoteIndicesGroups().stream().map(RemoteIndicesPermission.RemoteIndicesGroup::remoteClusterAliases).toList(),
-            containsInAnyOrder(remoteClustersAliases)
-        );
-    }
-
-    @SafeVarargs
-    @SuppressWarnings("varargs")
-    private void assertHasIndexGroupsForClusters(
-        final RemoteIndicesPermission permission,
-        final Set<String> remoteClustersAliases,
-        final Matcher<IndicesPermission.Group>... matchers
-    ) {
-        assertThat(
-            permission.remoteIndicesGroups()
-                .stream()
-                .filter(it -> it.remoteClusterAliases().equals(remoteClustersAliases))
-                .findFirst()
-                .get()
-                .indicesPermissionGroups(),
-            containsInAnyOrder(matchers)
-        );
-    }
-
     public void testCustomRolesProviderFailures() throws Exception {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
@@ -2572,6 +2545,33 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     private static Matcher<IndicesPermission.Group> indexGroup(final String... indices) {
         return indexGroup(IndexPrivilege.READ, false, indices);
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    private void assertHasRemoteGroupsForClusters(final RemoteIndicesPermission permission, final Set<String>... remoteClustersAliases) {
+        assertThat(
+            permission.remoteIndicesGroups().stream().map(RemoteIndicesPermission.RemoteIndicesGroup::remoteClusterAliases).toList(),
+            containsInAnyOrder(remoteClustersAliases)
+        );
+    }
+
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    private void assertHasIndexGroupsForClusters(
+        final RemoteIndicesPermission permission,
+        final Set<String> remoteClustersAliases,
+        final Matcher<IndicesPermission.Group>... matchers
+    ) {
+        assertThat(
+            permission.remoteIndicesGroups()
+                .stream()
+                .filter(it -> it.remoteClusterAliases().equals(remoteClustersAliases))
+                .findFirst()
+                .get()
+                .indicesPermissionGroups(),
+            containsInAnyOrder(matchers)
+        );
     }
 
     private static Matcher<IndicesPermission.Group> indexGroup(

@@ -60,6 +60,8 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
                         fieldPermissions,
                         query,
                         allowRestrictedIndices,
+                        // Deliberately passing EMPTY here since *which* indices are restricted is determined not on the querying cluster
+                        // but rather on the fulfilling cluster
                         new RestrictedIndices(Automatons.EMPTY),
                         indices
                     )

@@ -27,8 +27,12 @@ public class Exchange extends UnaryPlan {
         SINGLE_DISTRIBUTION, // single exchange source, no partitioning
         FIXED_ARBITRARY_DISTRIBUTION, // multiple exchange sources, random partitioning
         FIXED_BROADCAST_DISTRIBUTION, // multiple exchange sources, broadcasting
-        FIXED_PASSTHROUGH_DISTRIBUTION, // n:n forwarding
+        FIXED_PASSTHROUGH_DISTRIBUTION; // n:n forwarding
         // FIXED_HASH_DISTRIBUTION, TODO: implement hash partitioning
+
+        public org.elasticsearch.compute.operator.exchange.Exchange.Partitioning toExchange() {
+            return org.elasticsearch.compute.operator.exchange.Exchange.Partitioning.valueOf(this.toString());
+        }
     }
 
     private final Type type;

@@ -59,8 +59,8 @@ The response will look like this:
         "allocation": {
           "disk": {
             "watermark": {
-              "high": "90%",                                <1>
-              "high.max_headroom": "150GB"                  <2>
+              "high": "90%",
+              "high.max_headroom": "150GB"
             }
           }
         }
@@ -77,8 +77,8 @@ The response will look like this:
         "allocation": {
           "disk": {
             "watermark": {
-              "flood_stage.frozen.max_headroom": "20GB",    <3>
-              "flood_stage.frozen": "95%"                   <4>
+              "flood_stage.frozen.max_headroom": "20GB",
+              "flood_stage.frozen": "95%"
             }
           }
         }

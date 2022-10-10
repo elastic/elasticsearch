@@ -66,8 +66,8 @@ The response will look like this:
         "allocation": {
           "disk": {
             "watermark": {
-              "high": "90%",                                <1>
-              "high.max_headroom": "150GB"                  <2>
+              "high": "90%",
+              "high.max_headroom": "150GB"
             }
           }
         }
@@ -84,8 +84,8 @@ The response will look like this:
         "allocation": {
           "disk": {
             "watermark": {
-              "flood_stage.frozen.max_headroom": "20GB",    <3>
-              "flood_stage.frozen": "95%"                   <4>
+              "flood_stage.frozen.max_headroom": "20GB",
+              "flood_stage.frozen": "95%"
             }
           }
         }
@@ -122,10 +122,17 @@ achieve this, need to release approximately 7GB.
 
 . List all the indices and choose which replicas to reduce.
 +
+NOTE: The following command orders the indices with descending number of replicas and primary store size. We do this to
+help you choose which replicas to reduce under the assumption that the more replicas you have the more you will lose if
+you remove a copy and the bigger the replica the more space you will release. This does not take into consideration any
+functional requirements so please see it as a mere suggestion.
++
 [source,console]
 ----
 GET _cat/indices?v&s=rep:desc,pri.store.size:desc&h=health,index,pri,rep,store.size,pri.store.size
 ----
++
+The response will look like:
 +
 [source,console-result]
 ----

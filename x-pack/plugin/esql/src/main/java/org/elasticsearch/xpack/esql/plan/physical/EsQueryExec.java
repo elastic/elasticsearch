@@ -5,12 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical;
+package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -21,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class EsQuery extends LeafPlan {
+public class EsQueryExec extends LeafExec {
 
     private static final EsField DOC_ID_FIELD = new EsField("_doc_id", DataTypes.INTEGER, Map.of(), false);
     private static final EsField SEGMENT_ID_FIELD = new EsField("_segment_id", DataTypes.INTEGER, Map.of(), false);
@@ -30,7 +29,7 @@ public class EsQuery extends LeafPlan {
     private final EsIndex index;
     private final List<Attribute> attrs;
 
-    public EsQuery(Source source, EsIndex index) {
+    public EsQueryExec(Source source, EsIndex index) {
         super(source);
         this.index = index;
         this.attrs = List.of(
@@ -41,8 +40,8 @@ public class EsQuery extends LeafPlan {
     }
 
     @Override
-    protected NodeInfo<EsQuery> info() {
-        return NodeInfo.create(this, EsQuery::new, index);
+    protected NodeInfo<EsQueryExec> info() {
+        return NodeInfo.create(this, EsQueryExec::new, index);
     }
 
     public EsIndex index() {
@@ -52,11 +51,6 @@ public class EsQuery extends LeafPlan {
     @Override
     public List<Attribute> output() {
         return attrs;
-    }
-
-    @Override
-    public boolean expressionsResolved() {
-        return true;
     }
 
     @Override
@@ -74,7 +68,7 @@ public class EsQuery extends LeafPlan {
             return false;
         }
 
-        EsQuery other = (EsQuery) obj;
+        EsQueryExec other = (EsQueryExec) obj;
         return Objects.equals(index, other.index);
     }
 

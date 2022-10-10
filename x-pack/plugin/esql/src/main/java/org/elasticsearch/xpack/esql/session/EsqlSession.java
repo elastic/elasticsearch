@@ -13,11 +13,13 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.ql.analyzer.TableInfo;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.MappingException;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.session.Configuration;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -27,9 +29,13 @@ import static org.elasticsearch.action.ActionListener.wrap;
 public class EsqlSession {
 
     private final IndexResolver indexResolver;
+    private final FunctionRegistry functionRegistry;
+    private final Configuration configuration;
 
-    public EsqlSession(IndexResolver indexResolver) {
+    public EsqlSession(IndexResolver indexResolver, FunctionRegistry functionRegistry, Configuration configuration) {
         this.indexResolver = indexResolver;
+        this.functionRegistry = functionRegistry;
+        this.configuration = configuration;
     }
 
     public void execute(String query, ActionListener<Result> listener) {
@@ -55,7 +61,7 @@ public class EsqlSession {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(r);
+            Analyzer analyzer = new Analyzer(r, functionRegistry, configuration);
             return analyzer.analyze(parsed);
         }, listener);
     }

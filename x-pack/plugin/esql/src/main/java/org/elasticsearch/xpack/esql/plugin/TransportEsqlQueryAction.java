@@ -19,7 +19,11 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.session.Configuration;
 
+import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.List;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
@@ -34,7 +38,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        new EsqlSession(planExecutor.indexResolver()).execute(request.query(), listener.map(r -> {
+        FunctionRegistry functionRegistry = new FunctionRegistry();
+        Configuration configuration = new Configuration(request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
+            null, null, x -> Collections.emptySet());
+        new EsqlSession(planExecutor.indexResolver(), functionRegistry, configuration).execute(request.query(), listener.map(r -> {
             List<ColumnInfo> columns = r.columns().stream().map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType())).toList();
             return new EsqlQueryResponse(columns, r.values());
         }));

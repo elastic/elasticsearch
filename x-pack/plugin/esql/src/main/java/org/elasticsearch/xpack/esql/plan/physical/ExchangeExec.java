@@ -5,17 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical;
+package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Objects;
 
 // TODO not have it unary
-public class Exchange extends UnaryPlan {
+public class ExchangeExec extends UnaryExec {
 
     public enum Type {
         GATHER, // gathering results from various sources (1:n)
@@ -30,23 +29,18 @@ public class Exchange extends UnaryPlan {
         FIXED_PASSTHROUGH_DISTRIBUTION; // n:n forwarding
         // FIXED_HASH_DISTRIBUTION, TODO: implement hash partitioning
 
-        public org.elasticsearch.compute.operator.exchange.Exchange.Partitioning toExchange() {
-            return org.elasticsearch.compute.operator.exchange.Exchange.Partitioning.valueOf(this.toString());
+        public Exchange.Partitioning toExchange() {
+            return Exchange.Partitioning.valueOf(this.toString());
         }
     }
 
     private final Type type;
     private final Partitioning partitioning;
 
-    public Exchange(Source source, LogicalPlan child, Type type, Partitioning partitioning) {
+    public ExchangeExec(Source source, PhysicalPlan child, Type type, Partitioning partitioning) {
         super(source, child);
         this.type = type;
         this.partitioning = partitioning;
-    }
-
-    @Override
-    public boolean expressionsResolved() {
-        return true;
     }
 
     public Type getType() {
@@ -66,13 +60,13 @@ public class Exchange extends UnaryPlan {
     }
 
     @Override
-    public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Exchange(source(), newChild, type, partitioning);
+    public UnaryExec replaceChild(PhysicalPlan newChild) {
+        return new ExchangeExec(source(), newChild, type, partitioning);
     }
 
     @Override
-    protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Exchange::new, child(), type, partitioning);
+    protected NodeInfo<? extends PhysicalPlan> info() {
+        return NodeInfo.create(this, ExchangeExec::new, child(), type, partitioning);
     }
 
     @Override
@@ -90,7 +84,7 @@ public class Exchange extends UnaryPlan {
             return false;
         }
 
-        Exchange other = (Exchange) obj;
+        ExchangeExec other = (ExchangeExec) obj;
         return Objects.equals(type, other.type)
             && Objects.equals(partitioning, other.partitioning)
             && Objects.equals(child(), other.child());

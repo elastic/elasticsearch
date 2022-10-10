@@ -101,6 +101,8 @@ include::troubleshooting/disk/fix-data-node-out-of-disk.asciidoc[]
 
 include::troubleshooting/disk/fix-master-node-out-of-disk.asciidoc[]
 
+include::troubleshooting/disk/fix-other-node-out-of-disk.asciidoc[]
+
 include::troubleshooting/data/start-ilm.asciidoc[]
 
 include::troubleshooting/data/start-slm.asciidoc[]

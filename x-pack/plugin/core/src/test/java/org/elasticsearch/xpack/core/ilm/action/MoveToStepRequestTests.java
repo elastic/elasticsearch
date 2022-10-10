@@ -64,7 +64,7 @@ public class MoveToStepRequestTests extends AbstractXContentSerializingTestCase<
     private static Request.PartialStepKey randomStepSpecification() {
         if (randomBoolean()) {
             StepKey key = stepKeyTests.createTestInstance();
-            return new Request.PartialStepKey(key.getPhase(), key.getAction(), key.getName());
+            return new Request.PartialStepKey(key.phase(), key.action(), key.name());
         } else {
             String phase = randomAlphaOfLength(10);
             String action = randomBoolean() ? null : randomAlphaOfLength(6);

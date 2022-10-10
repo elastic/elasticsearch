@@ -64,6 +64,10 @@ public class ILMHistoryStore implements Closeable {
     private final ThreadPool threadPool;
 
     public ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool) {
+        this(client, clusterService, threadPool, TimeValue.timeValueSeconds(5));
+    }
+
+    ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool, TimeValue flushInterval) {
         this.setIlmHistoryEnabled(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.getSettings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING, this::setIlmHistoryEnabled);
 
@@ -133,7 +137,7 @@ public class ILMHistoryStore implements Closeable {
         }, "ilm-history-store")
             .setBulkActions(-1)
             .setBulkSize(ByteSizeValue.ofBytes(ILM_HISTORY_BULK_SIZE))
-            .setFlushInterval(TimeValue.timeValueSeconds(5))
+            .setFlushInterval(flushInterval)
             .setConcurrentRequests(1)
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
             .build();

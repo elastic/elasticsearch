@@ -29,16 +29,20 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.stubbing.Answer;
 
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -49,7 +53,10 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryStore.ILM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ILMHistoryStoreTests extends ESTestCase {
 
@@ -81,7 +88,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 .metadata(Metadata.builder(state.metadata()).indexTemplates(registry.getComposableTemplateConfigs()))
                 .build()
         );
-        historyStore = new ILMHistoryStore(client, clusterService, threadPool);
+        historyStore = new ILMHistoryStore(client, clusterService, threadPool, TimeValue.timeValueMillis(200));
     }
 
     @After
@@ -205,6 +212,75 @@ public class ILMHistoryStoreTests extends ESTestCase {
         }
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.action.bulk:trace",
+        reason = "Logging information about locks useful for tracking down deadlock"
+    )
+    public void testDeadlock() throws Exception {
+        String policyId = randomAlphaOfLength(5);
+        final long timestamp = randomNonNegativeLong();
+        {
+            ILMHistoryItem record = ILMHistoryItem.success(
+                "index",
+                policyId,
+                timestamp,
+                10L,
+                LifecycleExecutionState.builder().setPhase("phase").build()
+            );
+
+            AtomicInteger calledTimes = new AtomicInteger(0);
+            client.setVerifier((action, request, listener) -> {
+                calledTimes.incrementAndGet();
+                assertThat(action, instanceOf(BulkAction.class));
+                assertThat(request, instanceOf(BulkRequest.class));
+                BulkRequest bulkRequest = (BulkRequest) request;
+                bulkRequest.requests().forEach(dwr -> assertEquals(ILM_HISTORY_DATA_STREAM, dwr.index()));
+                assertNotNull(listener);
+
+                // The content of this BulkResponse doesn't matter, so just make it have the same number of responses
+                int responses = bulkRequest.numberOfActions();
+                BulkItemResponse.Failure failure = mock(BulkItemResponse.Failure.class);
+                when(failure.getStatus()).thenAnswer((Answer<RestStatus>) invocation -> {
+                    Thread.sleep(500);
+                    return RestStatus.TOO_MANY_REQUESTS;
+                });
+                return new BulkResponse(
+                    IntStream.range(0, responses)
+                        .mapToObj(i -> BulkItemResponse.failure(i, DocWriteRequest.OpType.INDEX, failure))
+                        .toArray(BulkItemResponse[]::new),
+                    1000L
+                );
+            });
+
+            historyStore.putAsync(record);
+            assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+        }
+
+        {
+            final String cause = randomAlphaOfLength(9);
+            Exception failureException = new RuntimeException(cause);
+            ILMHistoryItem record = ILMHistoryItem.failure(
+                "index",
+                policyId,
+                timestamp,
+                10L,
+                LifecycleExecutionState.builder().setPhase("phase").build(),
+                failureException
+            );
+
+            AtomicInteger calledTimes = new AtomicInteger(0);
+            client.setVerifier((action, request, listener) -> {
+                calledTimes.incrementAndGet();
+                BulkRequest bulkRequest = (BulkRequest) request;
+                bulkRequest.requests().forEach(dwr -> { throw new AssertionError("An Error here is required for deadlock"); });
+                return null;
+            });
+
+            historyStore.putAsync(record);
+            assertBusy(() -> assertThat(calledTimes.get(), greaterThanOrEqualTo(1)));
+        }
+    }
+
     /**
      * A client that delegates to a verifying function for action/request/listener
      */
@@ -227,9 +303,12 @@ public class ILMHistoryStoreTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             try {
+                Thread.sleep(500);
                 listener.onResponse((Response) verifier.apply(action, request, listener));
             } catch (Exception e) {
                 listener.onFailure(e);
+            } catch (AssertionError e) {
+
             }
         }
 

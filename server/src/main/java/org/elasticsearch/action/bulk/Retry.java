@@ -50,8 +50,9 @@ public class Retry {
         this.backoffPolicy = backoffPolicy;
         this.scheduler = scheduler;
         this.queueCapacity = queueCapacity;
+        this.maxNumberOfConcurrentRequests = Math.max(maxNumberOfConcurrentRequests, 1);
         this.queue = new ArrayBlockingQueue<>(queueCapacity);
-        this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests > 0 ? maxNumberOfConcurrentRequests : 1;
+
     }
 
     public void init() {

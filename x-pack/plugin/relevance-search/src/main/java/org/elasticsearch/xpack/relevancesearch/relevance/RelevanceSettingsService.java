@@ -99,7 +99,7 @@ public class RelevanceSettingsService {
         }
     }
 
-    private static void ensureInternalIndex(Client client) {
+    public static void ensureInternalIndex(Client client) {
         CreateIndexRequest request = new CreateIndexRequest(ENT_SEARCH_INDEX).mapping(getInternalIndexMapping())
             .settings(getInternalIndexSettings());
         ActionFuture<CreateIndexResponse> response = client.execute(CreateIndexAction.INSTANCE, request);

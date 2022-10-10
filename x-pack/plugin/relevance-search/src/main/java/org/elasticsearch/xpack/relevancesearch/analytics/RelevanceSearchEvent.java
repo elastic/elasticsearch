@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.relevancesearch.analytics;
 
 import java.util.Date;
 
+/**
+ * Describes the relevance search event information logged to the relevance datastream
+ * TODO - convert POJO to json
+ */
 public class RelevanceSearchEvent {
 
     public final Date timestamp;

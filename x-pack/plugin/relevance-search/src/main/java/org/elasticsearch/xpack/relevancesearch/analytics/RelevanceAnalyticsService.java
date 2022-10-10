@@ -31,6 +31,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 public class RelevanceAnalyticsService implements ClusterStateListener {
 
     private static final String TEMPLATE_NAME = "ent-search-relevance-search-analytics";
+    private static final String INDEX_PREFIX = "ent-search-relevance-search-analytics-";
 
     private final Client client;
 
@@ -45,6 +46,11 @@ public class RelevanceAnalyticsService implements ClusterStateListener {
     }
 
     public void logEvent(RelevanceSearchEvent relevanceSearchEvent) {
+        // TODO: Identify the name of the index that we want to update,
+        // and index the relevance event into that index.
+        // If the index doesn't exist, it should be created.
+        // I think it's OK at this point to assume that the template exists for this index pattern.
+        // There has to be some internal DataStream library code that makes this easier.
         throw new UnsupportedOperationException("Not yet");
     }
 
@@ -57,12 +63,7 @@ public class RelevanceAnalyticsService implements ClusterStateListener {
         }
 
         ensureTemplateExists(this.client);
-        ensureDataStreamExists(this.client);
         this.clusterService.removeListener(this);
-    }
-
-    private static void ensureDataStreamExists(Client client) {
-        throw new UnsupportedOperationException("Not yet");
     }
 
     private static void ensureTemplateExists(Client client) {

@@ -201,10 +201,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder();
-        newState.setFailedStep(stepKey.getName());
+        newState.setFailedStep(stepKey.name());
         newState.setIsAutoRetryableError(false);
-        newState.setPhase(stepKey.getPhase());
-        newState.setAction(stepKey.getAction());
+        newState.setPhase(stepKey.phase());
+        newState.setAction(stepKey.action());
         newState.setStep(ErrorStep.NAME);
         newState.setPhaseDefinition(phaseJson);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
@@ -232,7 +232,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         NoOpClient client = new NoOpClient(threadPool);
         List<Step> waitForRolloverStepList = action.toSteps(client, phaseName, null)
             .stream()
-            .filter(s -> s.getKey().getName().equals(WaitForRolloverReadyStep.NAME))
+            .filter(s -> s.getKey().name().equals(WaitForRolloverReadyStep.NAME))
             .collect(toList());
         assertThat(waitForRolloverStepList.size(), is(1));
         Step waitForRolloverStep = waitForRolloverStepList.get(0);
@@ -243,10 +243,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder();
-        newState.setFailedStep(stepKey.getName());
+        newState.setFailedStep(stepKey.name());
         newState.setIsAutoRetryableError(true);
-        newState.setPhase(stepKey.getPhase());
-        newState.setAction(stepKey.getAction());
+        newState.setPhase(stepKey.phase());
+        newState.setAction(stepKey.action());
         newState.setStep(ErrorStep.NAME);
         newState.setPhaseDefinition(phaseJson);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
@@ -806,9 +806,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             .build();
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhaseDefinition(phaseJson);
-        lifecycleState.setPhase(step.getKey().getPhase());
-        lifecycleState.setAction(step.getKey().getAction());
-        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setPhase(step.getKey().phase());
+        lifecycleState.setAction(step.getKey().action());
+        lifecycleState.setStep(step.getKey().name());
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
             .settings(indexSettings)
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
@@ -904,23 +904,23 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     private static LifecyclePolicy createPolicy(String policyName, StepKey safeStep, StepKey unsafeStep) {
         Map<String, Phase> phases = new HashMap<>();
         if (safeStep != null) {
-            assert MockAction.NAME.equals(safeStep.getAction()) : "The safe action needs to be MockAction.NAME";
-            assert unsafeStep == null || safeStep.getPhase().equals(unsafeStep.getPhase()) == false
+            assert MockAction.NAME.equals(safeStep.action()) : "The safe action needs to be MockAction.NAME";
+            assert unsafeStep == null || safeStep.phase().equals(unsafeStep.phase()) == false
                 : "safe and unsafe actions must be in different phases";
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<Step> steps = Collections.singletonList(new MockStep(safeStep, null));
             MockAction safeAction = new MockAction(steps, true);
             actions.put(safeAction.getWriteableName(), safeAction);
-            Phase phase = new Phase(safeStep.getPhase(), TimeValue.timeValueMillis(0), actions);
+            Phase phase = new Phase(safeStep.phase(), TimeValue.timeValueMillis(0), actions);
             phases.put(phase.getName(), phase);
         }
         if (unsafeStep != null) {
-            assert MockAction.NAME.equals(unsafeStep.getAction()) : "The unsafe action needs to be MockAction.NAME";
+            assert MockAction.NAME.equals(unsafeStep.action()) : "The unsafe action needs to be MockAction.NAME";
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<Step> steps = Collections.singletonList(new MockStep(unsafeStep, null));
             MockAction unsafeAction = new MockAction(steps, false);
             actions.put(unsafeAction.getWriteableName(), unsafeAction);
-            Phase phase = new Phase(unsafeStep.getPhase(), TimeValue.timeValueMillis(0), actions);
+            Phase phase = new Phase(unsafeStep.phase(), TimeValue.timeValueMillis(0), actions);
             phases.put(phase.getName(), phase);
         }
         return newTestLifecyclePolicy(policyName, phases);
@@ -942,15 +942,15 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
         LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(nextStep.getPhase(), newLifecycleState.phase());
-        assertEquals(nextStep.getAction(), newLifecycleState.action());
-        assertEquals(nextStep.getName(), newLifecycleState.step());
-        if (currentStep.getPhase().equals(nextStep.getPhase())) {
+        assertEquals(nextStep.phase(), newLifecycleState.phase());
+        assertEquals(nextStep.action(), newLifecycleState.action());
+        assertEquals(nextStep.name(), newLifecycleState.step());
+        if (currentStep.phase().equals(nextStep.phase())) {
             assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
         } else {
             assertEquals(now, newLifecycleState.phaseTime().longValue());
         }
-        if (currentStep.getAction().equals(nextStep.getAction())) {
+        if (currentStep.action().equals(nextStep.action())) {
             assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
         } else {
             assertEquals(now, newLifecycleState.actionTime().longValue());

@@ -206,7 +206,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
                 // transition happens, so even if we would continue in the while
                 // loop, if we are about to go into a new phase, return so that
                 // other processing can occur
-                if (currentStep.getKey().getPhase().equals(currentStep.getNextStepKey().getPhase()) == false) {
+                if (currentStep.getKey().phase().equals(currentStep.getNextStepKey().phase()) == false) {
                     return state;
                 }
                 currentStep = policyStepsRegistry.getStep(indexMetadata, currentStep.getNextStepKey());

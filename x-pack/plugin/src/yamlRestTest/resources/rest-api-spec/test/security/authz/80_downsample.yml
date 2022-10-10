@@ -134,7 +134,7 @@ setup:
           {
             "indices": [
               {
-                "names": ["source", "target"],
+                "names": ["source"],
                 "privileges": ["all"],
                 "field_security": {
                   "grant": ["@timestamp", "k8s.pod.network.*"]

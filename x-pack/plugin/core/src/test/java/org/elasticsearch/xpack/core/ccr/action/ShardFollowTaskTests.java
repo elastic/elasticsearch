@@ -11,13 +11,13 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class ShardFollowTaskTests extends AbstractSerializingTestCase<ShardFollowTask> {
+public class ShardFollowTaskTests extends AbstractXContentSerializingTestCase<ShardFollowTask> {
 
     @Override
     protected ShardFollowTask doParseInstance(XContentParser parser) throws IOException {

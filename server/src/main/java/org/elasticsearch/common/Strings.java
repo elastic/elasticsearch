@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -786,6 +787,16 @@ public class Strings {
     }
 
     /**
+     * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
+     * @deprecated don't add usages of this method, it will be removed eventually
+     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
+     */
+    @Deprecated
+    public static String toString(ChunkedToXContent chunkedToXContent) {
+        return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent));
+    }
+
+    /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed.
      * Allows to configure the params.
@@ -811,6 +822,17 @@ public class Strings {
      */
     public static String toString(ToXContent toXContent, boolean pretty, boolean human) {
         return toString(toXContent, ToXContent.EMPTY_PARAMS, pretty, human);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
+     * Allows to control whether the outputted json needs to be pretty printed and human readable.
+     * @deprecated don't add usages of this method, it will be removed eventually
+     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
+     */
+    @Deprecated
+    public static String toString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
+        return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent), pretty, human);
     }
 
     /**

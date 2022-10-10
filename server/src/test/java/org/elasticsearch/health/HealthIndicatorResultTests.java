@@ -41,8 +41,9 @@ public class HealthIndicatorResultTests extends ESTestCase {
         String impact2Description = randomAlphaOfLength(30);
         ImpactArea secondImpactArea = randomFrom(ImpactArea.values());
         impacts.add(new HealthIndicatorImpact(name, impact2Id, impact2Severity, impact2Description, List.of(secondImpactArea)));
-        List<Diagnosis> actions = new ArrayList<>();
-        Diagnosis action1 = new Diagnosis(
+        List<Diagnosis> diagnosisList = new ArrayList<>();
+        Diagnosis.Resource resource1 = new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of(randomAlphaOfLength(10)));
+        Diagnosis diagnosis1 = new Diagnosis(
             new Diagnosis.Definition(
                 name,
                 randomAlphaOfLength(30),
@@ -50,13 +51,11 @@ public class HealthIndicatorResultTests extends ESTestCase {
                 randomAlphaOfLength(50),
                 randomAlphaOfLength(30)
             ),
-            new ArrayList<>()
+            List.of(resource1)
         );
-        for (int i = 0; i < randomInt(10); i++) {
-            action1.affectedResources().add(randomAlphaOfLength(10));
-        }
-        actions.add(action1);
-        Diagnosis action2 = new Diagnosis(
+        diagnosisList.add(diagnosis1);
+        Diagnosis.Resource resource2 = new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of(randomAlphaOfLength(10)));
+        Diagnosis diagnosis2 = new Diagnosis(
             new Diagnosis.Definition(
                 name,
                 randomAlphaOfLength(30),
@@ -64,13 +63,10 @@ public class HealthIndicatorResultTests extends ESTestCase {
                 randomAlphaOfLength(50),
                 randomAlphaOfLength(30)
             ),
-            new ArrayList<>()
+            List.of(resource2)
         );
-        for (int i = 0; i < randomInt(10); i++) {
-            action2.affectedResources().add(randomAlphaOfLength(10));
-        }
-        actions.add(action2);
-        HealthIndicatorResult result = new HealthIndicatorResult(name, status, symptom, details, impacts, actions);
+        diagnosisList.add(diagnosis2);
+        HealthIndicatorResult result = new HealthIndicatorResult(name, status, symptom, details, impacts, diagnosisList);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
@@ -94,23 +90,38 @@ public class HealthIndicatorResultTests extends ESTestCase {
         List<Map<String, Object>> expectedDiagnosis = new ArrayList<>();
         {
             Map<String, Object> expectedDiagnosis1 = new HashMap<>();
-            expectedDiagnosis1.put("id", HEALTH_API_ID_PREFIX + name + ":diagnosis:" + action1.definition().id());
-            expectedDiagnosis1.put("cause", action1.definition().cause());
-            expectedDiagnosis1.put("action", action1.definition().action());
-            expectedDiagnosis1.put("help_url", action1.definition().helpURL());
-            if (action1.affectedResources().isEmpty() == false) {
-                expectedDiagnosis1.put("affected_resources", action1.affectedResources());
+            expectedDiagnosis1.put("id", HEALTH_API_ID_PREFIX + name + ":diagnosis:" + diagnosis1.definition().id());
+            expectedDiagnosis1.put("cause", diagnosis1.definition().cause());
+            expectedDiagnosis1.put("action", diagnosis1.definition().action());
+            expectedDiagnosis1.put("help_url", diagnosis1.definition().helpURL());
+
+            if (diagnosis1.affectedResources() != null) {
+                XContentBuilder diagnosisXContent = XContentFactory.jsonBuilder().prettyPrint();
+                diagnosis1.toXContent(diagnosisXContent, ToXContent.EMPTY_PARAMS);
+                expectedDiagnosis1.put(
+                    "affected_resources",
+                    XContentHelper.convertToMap(BytesReference.bytes(diagnosisXContent), false, builder.contentType())
+                        .v2()
+                        .get("affected_resources")
+                );
             }
             expectedDiagnosis.add(expectedDiagnosis1);
         }
         {
             Map<String, Object> expectedDiagnosis2 = new HashMap<>();
-            expectedDiagnosis2.put("id", HEALTH_API_ID_PREFIX + name + ":diagnosis:" + action2.definition().id());
-            expectedDiagnosis2.put("cause", action2.definition().cause());
-            expectedDiagnosis2.put("action", action2.definition().action());
-            expectedDiagnosis2.put("help_url", action2.definition().helpURL());
-            if (action2.affectedResources().isEmpty() == false) {
-                expectedDiagnosis2.put("affected_resources", action2.affectedResources());
+            expectedDiagnosis2.put("id", HEALTH_API_ID_PREFIX + name + ":diagnosis:" + diagnosis2.definition().id());
+            expectedDiagnosis2.put("cause", diagnosis2.definition().cause());
+            expectedDiagnosis2.put("action", diagnosis2.definition().action());
+            expectedDiagnosis2.put("help_url", diagnosis2.definition().helpURL());
+            if (diagnosis2.affectedResources() != null) {
+                XContentBuilder diagnosisXContent = XContentFactory.jsonBuilder().prettyPrint();
+                diagnosis2.toXContent(diagnosisXContent, ToXContent.EMPTY_PARAMS);
+                expectedDiagnosis2.put(
+                    "affected_resources",
+                    XContentHelper.convertToMap(BytesReference.bytes(diagnosisXContent), false, builder.contentType())
+                        .v2()
+                        .get("affected_resources")
+                );
             }
             expectedDiagnosis.add(expectedDiagnosis2);
         }

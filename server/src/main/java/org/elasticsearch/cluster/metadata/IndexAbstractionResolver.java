@@ -43,16 +43,8 @@ public class IndexAbstractionResolver {
         Metadata metadata,
         boolean includeDataStreams
     ) {
-        final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
         Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
-        return resolveIndexAbstractions(
-            indices,
-            indicesOptions,
-            metadata,
-            availableIndexAbstractions,
-            replaceWildcards,
-            includeDataStreams
-        );
+        return resolveIndexAbstractions(indices, indicesOptions, metadata, availableIndexAbstractions, includeDataStreams);
     }
 
     public List<String> resolveIndexAbstractions(
@@ -60,7 +52,6 @@ public class IndexAbstractionResolver {
         IndicesOptions indicesOptions,
         Metadata metadata,
         Collection<String> availableIndexAbstractions,
-        boolean replaceWildcards,
         boolean includeDataStreams
     ) {
         List<String> finalIndices = new ArrayList<>();
@@ -79,7 +70,7 @@ public class IndexAbstractionResolver {
             final String dateMathName = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
             if (dateMathName != indexAbstraction) {
                 assert dateMathName.equals(indexAbstraction) == false;
-                if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
+                if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(dateMathName)) {
                     // continue
                     indexAbstraction = dateMathName;
                 } else if (availableIndexAbstractions.contains(dateMathName)
@@ -104,7 +95,7 @@ public class IndexAbstractionResolver {
                     }
             }
 
-            if (replaceWildcards && Regex.isSimpleMatchPattern(indexAbstraction)) {
+            if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : availableIndexAbstractions) {

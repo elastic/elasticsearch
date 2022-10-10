@@ -53,8 +53,8 @@ discovery.type: single-node
 
 To communicate with your cluster, you must configure a password for
 the `elastic` and `kibana_system` built-in users. Unless you enable anonymous
-access (not recommended), all requests that don’t include a username and
-password are rejected.
+access (not recommended), all requests that don’t include credentials are
+rejected.
 
 NOTE: You only need to set passwords for the `elastic` and `kibana_system` users
 when enabling minimal or basic security.

@@ -176,3 +176,4 @@ setup:
   - match: { status: 500 }
   - match: { error.type: repository_verification_exception }
   - match: { error.reason: "/.*test_repo_slow..analysis.failed.*/" }
+  - match: { error.root_cause.0.reason: "/.*timed.out.*/" }

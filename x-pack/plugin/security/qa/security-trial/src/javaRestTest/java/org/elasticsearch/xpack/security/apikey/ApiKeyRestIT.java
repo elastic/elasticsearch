@@ -584,7 +584,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     {
                       "names": ["index-a", "*"],
                       "privileges": ["read"],
-                      "remote_clusters": ["remote-a", "*"]
+                      "clusters": ["remote-a", "*"]
                     }
                   ]
                 }
@@ -606,7 +606,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                            {
                               "names":["index-a","*"],
                               "privileges":["read"],
-                              "remote_clusters":["remote-a", "*"]
+                              "clusters":["remote-a", "*"]
                            }
                         ]
                      }
@@ -624,7 +624,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     {
                       "names": ["index-a", "*"],
                       "privileges": ["read"],
-                      "remote_clusters": ["remote-a", "*"]
+                      "clusters": ["remote-a", "*"]
                     }
                   ]
                 }

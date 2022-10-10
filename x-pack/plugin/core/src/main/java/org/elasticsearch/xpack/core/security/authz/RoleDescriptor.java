@@ -1415,7 +1415,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField RESOURCES = new ParseField("resources");
         ParseField QUERY = new ParseField("query");
         ParseField PRIVILEGES = new ParseField("privileges");
-        ParseField REMOTE_CLUSTERS = new ParseField("remote_clusters");
+        ParseField REMOTE_CLUSTERS = new ParseField("clusters");
         ParseField APPLICATION = new ParseField("application");
         ParseField FIELD_PERMISSIONS = new ParseField("field_security");
         ParseField FIELD_PERMISSIONS_2X = new ParseField("fields");

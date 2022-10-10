@@ -52,7 +52,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                 {
                   "names": ["index-a", "*"],
                   "privileges": ["read"],
-                  "remote_clusters": ["remote-a", "*"]
+                  "clusters": ["remote-a", "*"]
                 }
               ]
             }""");
@@ -103,7 +103,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                 {
                   "names": ["index-a", "*"],
                   "privileges": ["read"],
-                  "remote_clusters": ["remote-a", "*"]
+                  "clusters": ["remote-a", "*"]
                 }
               ]
             }""");

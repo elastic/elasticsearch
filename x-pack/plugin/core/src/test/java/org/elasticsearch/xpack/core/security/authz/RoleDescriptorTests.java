@@ -72,7 +72,7 @@ public class RoleDescriptorTests extends ESTestCase {
         XContentBuilder b = jsonBuilder();
         privs.toXContent(b, ToXContent.EMPTY_PARAMS);
         assertEquals(
-            "{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true,\"remote_clusters\":[\"remote\"]}",
+            "{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true,\"clusters\":[\"remote\"]}",
             Strings.toString(b)
         );
     }
@@ -197,7 +197,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 {
                   "names": "idx1",
                   "privileges": [ "p1", "p2" ],
-                  "remote_clusters": ["r1"]
+                  "clusters": ["r1"]
                 },
                 {
                   "names": "idx2",
@@ -206,7 +206,7 @@ public class RoleDescriptorTests extends ESTestCase {
                   "field_security": {
                     "grant": [ "f1", "f2" ]
                   },
-                  "remote_clusters": ["r1", "*-*"]
+                  "clusters": ["r1", "*-*"]
                 },
                 {
                   "names": "idx2",
@@ -218,7 +218,7 @@ public class RoleDescriptorTests extends ESTestCase {
                   "query": {
                     "match_all": {}
                   },
-                  "remote_clusters": ["*"]
+                  "clusters": ["*"]
                 }
               ]
             }""";

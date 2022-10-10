@@ -586,7 +586,7 @@ public class SecuritySystemIndices {
                 builder.field("type", "boolean");
                 builder.endObject();
 
-                builder.startObject("remote_clusters");
+                builder.startObject("clusters");
                 builder.field("type", "keyword");
                 builder.endObject();
             }

@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -322,7 +323,7 @@ public class StringsTests extends ESTestCase {
     public void testToLowercaseAscii() {
         String testStr;
         assertThat(toLowercaseAscii(""), equalTo(""));
-        assertThat(toLowercaseAscii(testStr = randomAlphaOfLength(5)), equalTo(testStr.toLowerCase()));
+        assertThat(toLowercaseAscii(testStr = randomAlphaOfLength(5)), equalTo(testStr.toLowerCase(Locale.ROOT)));
 
         // all ascii characters
         testStr = IntStream.rangeClosed(0, 255).mapToObj(i -> Character.toString((char) i)).collect(Collectors.joining());

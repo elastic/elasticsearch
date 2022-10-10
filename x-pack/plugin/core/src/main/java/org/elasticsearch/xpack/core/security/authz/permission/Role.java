@@ -315,8 +315,8 @@ public interface Role {
         }
 
         static List<IndicesPermissionGroupDefinition> convertFromIndicesPrivileges(
-            final RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
-            final @Nullable FieldPermissionsCache fieldPermissionsCache
+            RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
+            @Nullable FieldPermissionsCache fieldPermissionsCache
         ) {
             List<IndicesPermissionGroupDefinition> list = new ArrayList<>(indicesPrivileges.length);
             for (RoleDescriptor.IndicesPrivileges privilege : indicesPrivileges) {

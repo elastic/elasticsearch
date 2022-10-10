@@ -15,7 +15,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;

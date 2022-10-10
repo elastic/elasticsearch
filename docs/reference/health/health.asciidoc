@@ -318,7 +318,7 @@ details have contents and a structure that is unique to each indicator.
 ===== disk
 
 `indices_with_readonly_block`::
-(int) The number of indices the system enforced a enforced a read-only index block (`index.blocks.read_only_allow_delete`) on
+(int) The number of indices the system enforced a read-only index block (`index.blocks.read_only_allow_delete`) on
 because the cluster is running out of space.
 
 `nodes_with_enough_disk_space`::

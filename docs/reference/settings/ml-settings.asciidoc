@@ -220,5 +220,5 @@ defaults to the largest size that could be assigned in the current cluster.
 [[model-inference-circuit-breaker]]
 ==== {ml-cap} circuit breaker settings
 
-The detailed documentation of Model Inference (ML) Circuit breaker settings can be accessed [here](https://www.elastic.co/guide/en/elasticsearch/reference/current/circuit-breaker.html#model-inference-circuit-breaker).
+The relevant circuit breaker settings can be found in the <<circuit-breakers-page-model-inference, Circuit Breakers page>>.
 

@@ -848,7 +848,8 @@ GET /cluster_one:my-data-stream,cluster_two:my-data-stream/_eql/search
 [discrete]
 [[eql-circuit-breaker]]
 === EQL circuit breaker settings
-The detailed documentation of EQL Circuit breaker settings can be accessed [here](https://www.elastic.co/guide/en/elasticsearch/reference/current/circuit-breaker.html#eql-circuit-breaker).
+
+The relevant circuit breaker settings can be found in the <<circuit-breakers-page-eql, Circuit Breakers page>>.
 
 include::syntax.asciidoc[]
 include::functions.asciidoc[]

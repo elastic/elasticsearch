@@ -66,20 +66,22 @@ public class TransformHealthCheckerTests extends ESTestCase {
         TransformHealth health = TransformHealthChecker.checkTransform(task);
         assertThat(health.getStatus(), equalTo(HealthStatus.YELLOW));
 
-        assertThat(health.getIssues().get(0).getFirstOccurrence(), greaterThanOrEqualTo(now));
-
-        assertThat(health.getIssues().get(0).getFirstOccurrence(), lessThan(Instant.MAX));
+        Instant firstOccurrence = health.getIssues().get(0).getFirstOccurrence();
+        assertThat(firstOccurrence, greaterThanOrEqualTo(now));
+        assertThat(firstOccurrence, lessThan(Instant.MAX));
 
         for (int i = 1; i < TransformHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY; ++i) {
             context.incrementAndGetFailureCount(new ElasticsearchException("internal error"));
             assertThat(TransformHealthChecker.checkTransform(task).getStatus(), equalTo(HealthStatus.YELLOW));
             assertEquals(1, TransformHealthChecker.checkTransform(task).getIssues().size());
+            assertThat(health.getIssues().get(0).getFirstOccurrence(), equalTo(firstOccurrence));
         }
 
         // turn RED
         context.incrementAndGetFailureCount(new ElasticsearchException("internal error"));
         assertThat(TransformHealthChecker.checkTransform(task).getStatus(), equalTo(HealthStatus.RED));
         assertEquals(1, TransformHealthChecker.checkTransform(task).getIssues().size());
+        assertThat(health.getIssues().get(0).getFirstOccurrence(), equalTo(firstOccurrence));
 
         // add a persistence error
         context.incrementAndGetStatePersistenceFailureCount(new ElasticsearchException("failed to persist"));

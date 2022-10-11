@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -35,6 +34,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
@@ -493,9 +493,6 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.meta = new HashMap<>();
         }
 
-        /**
-         * Collect the field capabilities for an index.
-         */
         void add(
             String index,
             boolean isMetadataField,
@@ -505,35 +502,41 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             TimeSeriesParams.MetricType metricType,
             Map<String, String> meta
         ) {
-            assert indiceList.isEmpty() || indiceList.get(indiceList.size() - 1).name.compareTo(index) < 0
-                : "indices aren't sorted; previous [" + indiceList.get(indiceList.size() - 1).name + "], current [" + index + "]";
-            if (search) {
+            add(new IndexCaps(index, search, agg, isDimension, metricType), isMetadataField, meta);
+        }
+
+        /**
+         * Collect the field capabilities for an index.
+         */
+        void add(IndexCaps indexCaps, boolean isMetadataField, Map<String, String> meta) {
+            assert indiceList.isEmpty() || indiceList.get(indiceList.size() - 1).name.compareTo(indexCaps.name) < 0
+                : "indices aren't sorted; previous [" + indiceList.get(indiceList.size() - 1).name + "], current [" + indexCaps.name + "]";
+            if (indexCaps.isSearchable()) {
                 searchableIndices++;
             }
-            if (agg) {
+            if (indexCaps.isAggregatable) {
                 aggregatableIndices++;
             }
-            if (isDimension) {
+            if (indexCaps.isDimension) {
                 dimensionIndices++;
             }
             this.isMetadataField |= isMetadataField;
             // If we have discrepancy in metric types or in some indices this field is not marked as a metric field - we will
             // treat is a non-metric field and report this discrepancy in metricConflictsIndices
             if (indiceList.isEmpty()) {
-                this.metricType = metricType;
-            } else if (this.metricType != metricType) {
+                this.metricType = indexCaps.metricType;
+            } else if (this.metricType != indexCaps.metricType) {
                 hasConflictMetricType = true;
-                this.metricType = null;
+                indexCaps = new IndexCaps(indexCaps.name, indexCaps.isSearchable, indexCaps.isAggregatable, indexCaps.isDimension, null);
             }
-            IndexCaps indexCaps = new IndexCaps(index, search, agg, isDimension, metricType);
             indiceList.add(indexCaps);
             for (Map.Entry<String, String> entry : meta.entrySet()) {
                 this.meta.computeIfAbsent(entry.getKey(), key -> new HashSet<>()).add(entry.getValue());
             }
         }
 
-        void getIndices(Collection<String> indices) {
-            indiceList.forEach(cap -> indices.add(cap.name));
+        Stream<String> getIndices() {
+            return indiceList.stream().map(c -> c.name);
         }
 
         FieldCapabilities build(boolean withIndices) {
@@ -626,7 +629,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
     }
 
-    private record IndexCaps(
+    record IndexCaps(
         String name,
         boolean isSearchable,
         boolean isAggregatable,

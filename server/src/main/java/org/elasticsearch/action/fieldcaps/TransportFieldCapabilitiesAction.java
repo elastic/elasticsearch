@@ -35,13 +35,14 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -229,39 +230,48 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         FieldCapabilitiesRequest request,
         List<FieldCapabilitiesFailure> failures
     ) {
-        final List<FieldCapabilitiesIndexResponse> indexResponses = indexResponsesMap.values()
-            .stream()
-            .sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName))
-            .toList();
-        final String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
-        final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
-        for (FieldCapabilitiesIndexResponse response : indexResponses) {
+        Map<String, FieldCapabilitiesIndexResponse> responses = new TreeMap<>(indexResponsesMap);
+        Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
+        for (FieldCapabilitiesIndexResponse response : responses.values()) {
             innerMerge(responseMapBuilder, request, response);
         }
-        final Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
+        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
+        // these may be referenced a lot - keep a canonical object around
+        Map<String, FieldCapabilities.IndexCaps> unmappedIndexCaps = new HashMap<>();
+
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
             final Map<String, FieldCapabilities.Builder> typeMapBuilder = entry.getValue();
             if (request.includeUnmapped()) {
-                addUnmappedFields(indices, entry.getKey(), typeMapBuilder);
+                addUnmappedFields(responses.keySet(), entry.getKey(), typeMapBuilder, unmappedIndexCaps);
             }
             boolean multiTypes = typeMapBuilder.size() > 1;
-            final Map<String, FieldCapabilities> typeMap = new HashMap<>();
-            for (Map.Entry<String, FieldCapabilities.Builder> fieldEntry : typeMapBuilder.entrySet()) {
-                typeMap.put(fieldEntry.getKey(), fieldEntry.getValue().build(multiTypes));
-            }
-            responseMap.put(entry.getKey(), Collections.unmodifiableMap(typeMap));
+            responseMap.put(
+                entry.getKey(),
+                Collections.unmodifiableMap(
+                    typeMapBuilder.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build(multiTypes)))
+                )
+            );
         }
-        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
+        return new FieldCapabilitiesResponse(responses.keySet().toArray(String[]::new), Collections.unmodifiableMap(responseMap), failures);
     }
 
-    private static void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {
-        final Set<String> mappedIndices = new HashSet<>();
-        typeMap.values().forEach(t -> t.getIndices(mappedIndices));
-        if (mappedIndices.size() != indices.length) {
+    private static void addUnmappedFields(
+        Collection<String> indices,
+        String field,
+        Map<String, FieldCapabilities.Builder> typeMap,
+        Map<String, FieldCapabilities.IndexCaps> indexCapCache
+    ) {
+        Set<String> mappedIndices = typeMap.values().stream().flatMap(FieldCapabilities.Builder::getIndices).collect(Collectors.toSet());
+
+        if (mappedIndices.size() != indices.size()) {
             final FieldCapabilities.Builder unmapped = new FieldCapabilities.Builder(field, "unmapped");
             for (String index : indices) {
                 if (mappedIndices.contains(index) == false) {
-                    unmapped.add(index, false, false, false, false, null, Collections.emptyMap());
+                    FieldCapabilities.IndexCaps caps = indexCapCache.computeIfAbsent(
+                        index,
+                        i -> new FieldCapabilities.IndexCaps(index, false, false, false, null)
+                    );
+                    unmapped.add(caps, false, Collections.emptyMap());
                 }
             }
             typeMap.put("unmapped", unmapped);

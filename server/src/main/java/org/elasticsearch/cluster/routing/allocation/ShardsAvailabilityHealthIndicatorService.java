@@ -124,7 +124,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
         return createIndicator(
             status.getStatus(),
-            status.getSummary(),
+            status.getSymptom(),
             status.getDetails(explain),
             status.getImpacts(),
             status.getDiagnosis(explain)
@@ -789,7 +789,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        public String getSummary() {
+        public String getSymptom() {
             var builder = new StringBuilder("This cluster has ");
             if (primaries.unassigned > 0
                 || primaries.unassigned_new > 0
@@ -798,11 +798,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || replicas.unassigned_restarting > 0) {
                 builder.append(
                     Stream.of(
-                        createMessage(primaries.unassigned, "unavailable primary", "unavailable primaries"),
-                        createMessage(primaries.unassigned_new, "creating primary", "creating primaries"),
-                        createMessage(primaries.unassigned_restarting, "restarting primary", "restarting primaries"),
-                        createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
-                        createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
+                        createMessage(primaries.unassigned, "unavailable primary shard", "unavailable primary shards"),
+                        createMessage(primaries.unassigned_new, "creating primary shard", "creating primary shards"),
+                        createMessage(primaries.unassigned_restarting, "restarting primary shard", "restarting primary shards"),
+                        createMessage(replicas.unassigned, "unavailable replica shard", "unavailable replica shards"),
+                        createMessage(replicas.unassigned_restarting, "restarting replica shard", "restarting replica shards")
                     ).flatMap(Function.identity()).collect(joining(", "))
                 ).append(".");
             } else {

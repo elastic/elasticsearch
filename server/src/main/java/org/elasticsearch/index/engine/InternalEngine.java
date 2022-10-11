@@ -1024,7 +1024,7 @@ public class InternalEngine extends Engine {
                     assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                     localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
                 }
-                indexResult.setTook(System.nanoTime() - index.startTime());
+                indexResult.setTook(getRelativeTimeInNanos() - index.startTime());
                 indexResult.freeze();
                 return indexResult;
             } finally {
@@ -1256,6 +1256,10 @@ public class InternalEngine extends Engine {
         } else {
             indexWriter.addDocument(docs.get(0));
         }
+    }
+
+    public long getRelativeTimeInNanos() {
+        return System.nanoTime();
     }
 
     protected static final class IndexingStrategy {

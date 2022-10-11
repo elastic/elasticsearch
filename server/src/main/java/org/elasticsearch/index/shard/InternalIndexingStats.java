@@ -27,8 +27,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
      * is returned for them. If they are set, then only types provided will be returned, or
      * {@code _all} for all types.
      */
-    IndexingStats stats(boolean isThrottled, long currentThrottleInMillis) {
-        IndexingStats.Stats total = totalStats.stats(isThrottled, currentThrottleInMillis);
+    IndexingStats stats(boolean isThrottled, long currentThrottleInMillis, long timeSinceShardStartedInNanos) {
+        IndexingStats.Stats total = totalStats.stats(isThrottled, currentThrottleInMillis, timeSinceShardStartedInNanos);
         return new IndexingStats(total);
     }
 
@@ -111,9 +111,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric indexFailed = new CounterMetric();
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
-        private final long shardRelativeStartTimeInNanos = System.nanoTime();
 
-        IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis) {
+        IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis, long timeSinceShardStartedInNanos) {
             final long totalIndexingTimeInNanos = indexMetric.sum();
             return new IndexingStats.Stats(
                 indexMetric.count(),
@@ -126,12 +125,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 noopUpdates.count(),
                 isThrottled,
                 TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
-                (double) totalIndexingTimeInNanos / timeSinceShardStartedInNanos()
+                timeSinceShardStartedInNanos > 0 ? (double) totalIndexingTimeInNanos / timeSinceShardStartedInNanos : 0
             );
-        }
-
-        long timeSinceShardStartedInNanos() {
-            return System.nanoTime() - shardRelativeStartTimeInNanos;
         }
     }
 }

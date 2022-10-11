@@ -99,7 +99,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (isThrottled != stats.isThrottled) {
                 isThrottled = true; // When combining if one is throttled set result to throttled.
             }
-            writeLoadAvg = ((writeLoadAvg + stats.writeLoadAvg) / 2);
+            writeLoadAvg += stats.writeLoadAvg;
         }
 
         /**

@@ -286,6 +286,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final boolean isDataStreamIndex; // if a shard is a part of data stream
+
+    private final LongSupplier relativeTimeSupplier;
     private volatile long startedRelativeTimeInNanos;
 
     public IndexShard(
@@ -308,7 +310,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
-        final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier
+        final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
+        final LongSupplier relativeTimeSupplier
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -386,6 +389,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
         this.isDataStreamIndex = mapperService == null ? false : mapperService.mappingLookup().isDataStreamTimestampFieldEnabled();
+        this.relativeTimeSupplier = relativeTimeSupplier;
     }
 
     public ThreadPool getThreadPool() {
@@ -4096,7 +4100,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public long getRelativeTimeInNanos() {
-        return System.nanoTime();
+        return relativeTimeSupplier.getAsLong();
     }
 
     @Override

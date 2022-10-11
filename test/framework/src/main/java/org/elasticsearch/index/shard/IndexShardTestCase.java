@@ -502,13 +502,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 breakerService,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER
-            ) {
-                @Override
-                public long getRelativeTimeInNanos() {
-                    return relativeTimeSupplier.getAsLong();
-                }
-            };
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+                relativeTimeSupplier
+            );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
         } finally {

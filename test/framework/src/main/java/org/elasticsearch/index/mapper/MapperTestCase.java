@@ -241,7 +241,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.field("field");
             value.accept(b);
         });
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapperService.documentMapper().parse(source));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            "didn't throw while parsing " + source.source().utf8ToString(),
+            () -> mapperService.documentMapper().parse(source)
+        );
         assertThat(
             "incorrect exception while parsing " + source.source().utf8ToString(),
             e.getCause().getMessage(),
@@ -272,15 +276,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }));
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertThat(fields, equalTo(new IndexableField[0]));
-            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), equalTo(ignoredFields()));
+            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), equalTo(new String[] { "field" }));
         }
-    }
-
-    /**
-     * The field names that are saved in {@code _ignored} when ignoring a malformed value.
-     */
-    protected String[] ignoredFields() {
-        return new String[] { "field" };
     }
 
     protected void assertExistsQuery(MapperService mapperService) throws IOException {

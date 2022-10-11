@@ -1670,7 +1670,7 @@ public class NumberFieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         Number value;
         try {
-            value = value(context.parser(), type, nullValue, coerce());
+            value = value(context.parser());
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
@@ -1693,23 +1693,21 @@ public class NumberFieldMapper extends FieldMapper {
      * @throws IllegalArgumentException if there was an error parsing the value from the json
      * @throws IOException if there was any other IO error
      */
-    private static Number value(XContentParser parser, NumberType numberType, Number nullValue, boolean coerce)
-        throws IllegalArgumentException, IOException {
-
+    public Number value(XContentParser parser) throws IllegalArgumentException, IOException {
         final Token currentToken = parser.currentToken();
         if (currentToken == Token.VALUE_NULL) {
             return nullValue;
         }
-        if (coerce && currentToken == Token.VALUE_STRING && parser.textLength() == 0) {
+        if (coerce() && currentToken == Token.VALUE_STRING && parser.textLength() == 0) {
             return nullValue;
         }
         if (currentToken == Token.START_OBJECT) {
             throw new IllegalArgumentException("Cannot parse object as number");
         }
-        return numberType.parse(parser, coerce);
+        return type.parse(parser, coerce());
     }
 
-    private void indexValue(DocumentParserContext context, Number numericValue) {
+    public void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
             context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
         }

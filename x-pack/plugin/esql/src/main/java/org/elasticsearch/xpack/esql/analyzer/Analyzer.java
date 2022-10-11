@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analyzer;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.ql.common.Failure;
@@ -81,7 +82,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 );
             }
 
-            return new EsRelation(plan.source(), indexResolution.get(), false);
+            return new EsRelation(plan.source(), indexResolution.get(), plan.frozen());
         }
     }
 
@@ -107,6 +108,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    @Experimental
     private class ResolveFunctions extends AnalyzerRule<LogicalPlan> {
 
         @Override

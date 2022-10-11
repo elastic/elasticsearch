@@ -269,7 +269,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 if (mappedIndices.contains(index) == false) {
                     FieldCapabilities.IndexCaps caps = indexCapCache.computeIfAbsent(
                         index,
-                        i -> new FieldCapabilities.IndexCaps(index, false, false, false, null)
+                        i -> new FieldCapabilities.IndexCaps(i, false, false, false, null)
                     );
                     unmapped.add(caps, false, Collections.emptyMap());
                 }

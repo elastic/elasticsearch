@@ -511,7 +511,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         void add(IndexCaps indexCaps, boolean isMetadataField, Map<String, String> meta) {
             assert indiceList.isEmpty() || indiceList.get(indiceList.size() - 1).name.compareTo(indexCaps.name) < 0
                 : "indices aren't sorted; previous [" + indiceList.get(indiceList.size() - 1).name + "], current [" + indexCaps.name + "]";
-            if (indexCaps.isSearchable()) {
+            if (indexCaps.isSearchable) {
                 searchableIndices++;
             }
             if (indexCaps.isAggregatable) {
@@ -527,7 +527,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 this.metricType = indexCaps.metricType;
             } else if (this.metricType != indexCaps.metricType) {
                 hasConflictMetricType = true;
-                indexCaps = new IndexCaps(indexCaps.name, indexCaps.isSearchable, indexCaps.isAggregatable, indexCaps.isDimension, null);
+                this.metricType = null;
             }
             indiceList.add(indexCaps);
             for (Map.Entry<String, String> entry : meta.entrySet()) {

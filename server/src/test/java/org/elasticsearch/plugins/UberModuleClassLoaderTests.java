@@ -615,7 +615,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 String getFoo();
             }
             """;
-        // - q.jar.two.JarTwoProvider
         String providerInNonModularJar = """
             package q.jar.two;
             import q.jar.one.NumberService;
@@ -627,7 +626,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 @Override public String getNumber() { return "2"; }
             }
             """;
-        // - q.jar.two.JarTwoOptionalProvider
         String providerOfOptionalInNonModularJar = """
             package q.jar.two;
             import p.optional.AnimalService;
@@ -637,8 +635,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             }
 
             """;
-        // - META-INF/services
-        // - LetterService, AnimalService, NumberService
 
         Map<String, CharSequence> nonModularJarSources = new HashMap<>();
         nonModularJarSources.put("q.jar.two.FooBarService", serviceFromNonModularJar);
@@ -675,7 +671,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 String getNumber();
             }
             """;
-        // - q.jar.one.JarOneProvider
         String providerInModularJar = """
             package q.jar.one;
             import p.required.LetterService;
@@ -685,7 +680,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 @Override public String getNumber() { return "1"; }
             }
             """;
-        // - q.jar.one.JarOneOptionalProvider
         String providerOfOptionalInModularJar = """
             package q.jar.one;
             import p.optional.AnimalService;
@@ -694,7 +688,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 @Override public String getAnimal() { return "dog"; }
             }
             """;
-        // - module info
         String moduleInfo = """
             module q.jar.one {
                 exports q.jar.one;
@@ -760,7 +753,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
                 String getLetter();
             }
             """;
-        // - module info
         String requiredParentModuleInfo = """
             module p.parent { exports p.required; }
             """;

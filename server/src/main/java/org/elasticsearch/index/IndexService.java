@@ -196,7 +196,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 similarityService,
                 mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
-                () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
+                () -> newSearchExecutionContext(0, 0, null, null, System::currentTimeMillis, null, emptyMap()),
                 idFieldMapper,
                 scriptService
             );
@@ -616,6 +616,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public SearchExecutionContext newSearchExecutionContext(
         int shardId,
         int shardRequestIndex,
+        String searchEngineName,
         IndexSearcher searcher,
         LongSupplier nowInMillis,
         String clusterAlias,
@@ -630,6 +631,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return new SearchExecutionContext(
             shardId,
             shardRequestIndex,
+            searchEngineName,
             indexSettings,
             indexCache.bitsetFilterCache(),
             indexFieldData::getForField,
@@ -648,6 +650,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             valuesSourceRegistry,
             runtimeMappings
         );
+    }
+
+    public SearchExecutionContext newSearchExecutionContext(
+        int shardId,
+        int shardRequestIndex,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Map<String, Object> runtimeMappings
+    ) {
+        return newSearchExecutionContext(shardId, shardRequestIndex, null, searcher, nowInMillis, clusterAlias, runtimeMappings);
     }
 
     /**

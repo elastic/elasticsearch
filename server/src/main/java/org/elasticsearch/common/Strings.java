@@ -942,14 +942,6 @@ public class Strings {
         return s == null || s.isBlank();
     }
 
-    /**
-     * @deprecated Use RequireNonNullElse instead
-     */
-    @Deprecated
-    public static String coalesceToEmpty(@Nullable String s) {
-        return Objects.requireNonNullElse(s, "");
-    }
-
     public static String padStart(String s, int minimumLength, char c) {
         Objects.requireNonNull(s, "s");
         if (s.length() >= minimumLength) {

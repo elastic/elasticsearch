@@ -183,6 +183,26 @@ public final class AuthorizationUtils {
             return;
         }
 
+        final IndicesAccessControl indicesAccessControl = parentContext.getIndicesAccessControl();
+        if (indicesAccessControl == null) {
+            // This can happen if the parent request was authorized by index name only - e.g. bulk request
+            // A missing IAC is not an error, but it means we can't safely tie authz of the child action to the parent authz
+            return;
+        }
+
+        // Just a sanity check. If we ended up here, the authz should have been granted.
+        if (indicesAccessControl.isGranted() == false) {
+            return;
+        }
+
+        final IndicesRequest indicesRequest;
+        if (request instanceof IndicesRequest) {
+            indicesRequest = (IndicesRequest) request;
+        } else {
+            // We can only pre-authorize indices request.
+            return;
+        }
+
         final Role role = RBACEngine.maybeGetRBACEngineRole(parentContext.getAuthorizationInfo());
         if (role == null) {
             // If role is null, it means a custom authorization engine is in use, hence we cannot do the optimization here.
@@ -197,24 +217,10 @@ public final class AuthorizationUtils {
         }
 
         if (childAction.startsWith(parentContext.getAction()) == false) {
-            // Parent action is not a true parent
+            // Parent action is not a true parent.
             // We want to treat shard level actions (those that append '[s]' and/or '[p]' & '[r]')
             // or similar (e.g. search phases) as children, but not every action that is triggered
-            // within another action should be authorized this way
-            return;
-        }
-
-        final IndicesRequest indicesRequest;
-        if (request instanceof IndicesRequest) {
-            indicesRequest = (IndicesRequest) request;
-        } else {
-            // We can only pre-authorize indices request.
-            return;
-        }
-
-        final String[] indices = indicesRequest.indices();
-        if (indices == null || indices.length == 0 || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
-            // No indices to check
+            // within another action should be authorized this way.
             return;
         }
 
@@ -225,6 +231,17 @@ public final class AuthorizationUtils {
 
         if (clusterState.nodes().nodeExists(destinationNode) == false) {
             // We can only pre-authorize actions targeting node which belongs to the same cluster.
+            return;
+        }
+
+        final String[] indices = indicesRequest.indices();
+        if (indices == null || indices.length == 0 || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
+            // No indices to check
+            return;
+        }
+
+        // Checks if the parent context has already successfully authorized access to the child's indices.
+        if (Arrays.stream(indices).allMatch(indicesAccessControl::hasIndexPermissions) == false) {
             return;
         }
 

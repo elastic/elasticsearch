@@ -7,13 +7,8 @@
 
 package org.elasticsearch.xpack.relevancesearch.relevance;
 
-import org.elasticsearch.action.get.GetRequestBuilder;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.FunctionalBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ProximityBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ScriptScoreBoost;
@@ -23,59 +18,48 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
 
-public class RelevanceSettingsServiceTests extends ESTestCase {
-    private Client clientWithSource(String source) {
-        Client client = mock(Client.class);
-        when(client.settings()).thenReturn(Settings.EMPTY);
-        GetResult result = new GetResult(".enterprise-search", "1", 0, 1, 1, true, new BytesArray(source), emptyMap(), emptyMap());
-        GetResponse response = new GetResponse(result);
-        GetRequestBuilder builder = mock(GetRequestBuilder.class);
-        when(builder.get()).thenReturn(response);
-        when(client.prepareGet(anyString(), anyString())).thenReturn(builder);
-        return client;
+    private RelevanceSettingsService service;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        service = getInstanceFromNode(RelevanceSettingsService.class);
+        createIndex(RelevanceSettingsService.ENT_SEARCH_INDEX);
     }
 
-    public void testParseFields() throws RelevanceSettingsService.RelevanceSettingsInvalidException,
-        RelevanceSettingsService.RelevanceSettingsNotFoundException {
-        String source = """
-            {
-              "query_configuration": {
-                "fields": ["title^3","description^2"]
-              }
-            }""";
-        Client client = this.clientWithSource(source);
-        final RelevanceSettingsService service = new RelevanceSettingsService(client);
-        RelevanceSettings actual = service.getRelevanceSettings("settings-id-here");
+    public void testParseFields() throws Exception {
+        String settingsId = "1";
+        indexDocument(
+            RelevanceSettingsService.ENT_SEARCH_INDEX,
+            RelevanceSettingsService.RELEVANCE_SETTINGS_PREFIX + settingsId,
+            Map.of("query_configuration", Map.of("fields", List.of("title^3", "description^2")))
+        );
+        RelevanceSettings settings = service.getRelevanceSettings(settingsId);
         Map<String, Float> expected = Map.of("title", 3f, "description", 2f);
-        assertEquals(expected, actual.getQueryConfiguration().getFieldsAndBoosts());
+        assertEquals(expected, settings.getQueryConfiguration().getFieldsAndBoosts());
     }
 
-    public void testParseValueBoost() throws RelevanceSettingsService.RelevanceSettingsInvalidException,
-        RelevanceSettingsService.RelevanceSettingsNotFoundException {
-        String source = """
-            {
-              "query_configuration": {
-                "fields": ["title","description"],
-                "boosts": {
-                  "world_heritage_site": [
-                    {
-                      "type": "value",
-                      "value": "true",
-                      "operation": "multiply",
-                      "factor": 10
-                    }
-                  ]
-                }
-              }
-            }""";
-        Client client = this.clientWithSource(source);
-        final RelevanceSettingsService service = new RelevanceSettingsService(client);
-        RelevanceSettings settings = service.getRelevanceSettings("settings-id-here");
+    public void testParseValueBoost() throws Exception {
+        String settingsId = "1";
+        indexDocument(
+            RelevanceSettingsService.ENT_SEARCH_INDEX,
+            RelevanceSettingsService.RELEVANCE_SETTINGS_PREFIX + settingsId,
+            Map.of(
+                "query_configuration",
+                Map.of(
+                    "fields",
+                    List.of("title", "description"),
+                    "boosts",
+                    Map.of(
+                        "world_heritage_site",
+                        List.of(Map.of("type", "value", "operation", "multiply", "factor", "10", "value", "true"))
+                    )
+                )
+            )
+        );
+        RelevanceSettings settings = service.getRelevanceSettings(settingsId);
         Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
         Map<String, List<ScriptScoreBoost>> expected = Collections.singletonMap(
@@ -85,27 +69,22 @@ public class RelevanceSettingsServiceTests extends ESTestCase {
         assertEquals(expected, actual);
     }
 
-    public void testParseFunctionalBoost() throws RelevanceSettingsService.RelevanceSettingsInvalidException,
-        RelevanceSettingsService.RelevanceSettingsNotFoundException {
-        String source = """
-            {
-              "query_configuration": {
-                "fields": ["title","description", "visitors"],
-                "boosts": {
-                  "visitors": [
-                    {
-                      "type": "functional",
-                      "function": "linear",
-                      "operation": "add",
-                      "factor": 5
-                    }
-                  ]
-                }
-              }
-            }""";
-        Client client = this.clientWithSource(source);
-        final RelevanceSettingsService service = new RelevanceSettingsService(client);
-        RelevanceSettings settings = service.getRelevanceSettings("settings-id-here");
+    public void testParseFunctionalBoost() throws Exception {
+        String settingsId = "1";
+        indexDocument(
+            RelevanceSettingsService.ENT_SEARCH_INDEX,
+            RelevanceSettingsService.RELEVANCE_SETTINGS_PREFIX + settingsId,
+            Map.of(
+                "query_configuration",
+                Map.of(
+                    "fields",
+                    List.of("title", "description"),
+                    "boosts",
+                    Map.of("visitors", List.of(Map.of("type", "functional", "operation", "add", "factor", 5, "function", "linear")))
+                )
+            )
+        );
+        RelevanceSettings settings = service.getRelevanceSettings(settingsId);
         Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
         Map<String, List<ScriptScoreBoost>> expected = Collections.singletonMap(
@@ -115,27 +94,22 @@ public class RelevanceSettingsServiceTests extends ESTestCase {
         assertEquals(expected, actual);
     }
 
-    public void testParseProximityBoost() throws RelevanceSettingsService.RelevanceSettingsInvalidException,
-        RelevanceSettingsService.RelevanceSettingsNotFoundException {
-        String source = """
-            {
-              "query_configuration": {
-                "fields": ["title","description", "location"],
-                "boosts": {
-                  "location": [
-                    {
-                      "type": "proximity",
-                      "center": "25.32, -80.93",
-                      "function": "gaussian",
-                      "factor": 5
-                    }
-                  ]
-                }
-              }
-            }""";
-        Client client = this.clientWithSource(source);
-        final RelevanceSettingsService service = new RelevanceSettingsService(client);
-        RelevanceSettings settings = service.getRelevanceSettings("settings-id-here");
+    public void testParseProximityBoost() throws Exception {
+        String settingsId = "1";
+        indexDocument(
+            RelevanceSettingsService.ENT_SEARCH_INDEX,
+            RelevanceSettingsService.RELEVANCE_SETTINGS_PREFIX + settingsId,
+            Map.of(
+                "query_configuration",
+                Map.of(
+                    "fields",
+                    List.of("title", "description"),
+                    "boosts",
+                    Map.of("location", List.of(Map.of("type", "proximity", "center", "25.32, -80.93", "factor", 5, "function", "gaussian")))
+                )
+            )
+        );
+        RelevanceSettings settings = service.getRelevanceSettings(settingsId);
         Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
         Map<String, List<ScriptScoreBoost>> expected = Collections.singletonMap(
@@ -143,5 +117,14 @@ public class RelevanceSettingsServiceTests extends ESTestCase {
             Collections.singletonList(new ProximityBoost("25.32, -80.93", "gaussian", 5f))
         );
         assertEquals(expected, actual);
+    }
+
+    private void indexDocument(String index, String id, Map<String, Object> document) {
+        client().prepareIndex(index)
+            .setId(id)
+            .setSource(document)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute()
+            .actionGet();
     }
 }

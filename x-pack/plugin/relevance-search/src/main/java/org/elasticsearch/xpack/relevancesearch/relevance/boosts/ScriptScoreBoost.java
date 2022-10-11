@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 
+import java.text.MessageFormat;
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,6 +43,10 @@ public abstract class ScriptScoreBoost {
             return "0";
         }
         return "1";
+    }
+
+    protected String safeValue(String field) {
+        return MessageFormat.format("(doc[''{0}''].size() > 0) ? doc[''{0}''].value : {1}", field, constantFactor());
     }
 
     public static ScriptScoreBoost parse(Map<String, Object> props) {

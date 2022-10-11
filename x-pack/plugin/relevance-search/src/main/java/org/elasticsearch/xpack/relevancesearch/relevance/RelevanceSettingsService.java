@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -47,6 +48,7 @@ public class RelevanceSettingsService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(RelevanceSettingsService.class);
 
+    @Inject
     public RelevanceSettingsService(final Client client, final ClusterService clusterService) {
         this.client = client;
         this.clusterService = clusterService;

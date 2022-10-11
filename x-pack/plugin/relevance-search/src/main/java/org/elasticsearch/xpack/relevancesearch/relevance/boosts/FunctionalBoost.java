@@ -59,10 +59,6 @@ public class FunctionalBoost extends ScriptScoreBoost {
         }
     }
 
-    private String safeValue(String field) {
-        return MessageFormat.format("(doc[''{0}''].size() > 0) ? doc[''{0}''].value : {1}", field, constantFactor());
-    }
-
     private String safeLogValue(String field) {
         return MessageFormat.format("(doc[''{0}''].size() > 0) ? (doc[''{0}''].value + 1) : {1}", field, constantFactor());
     }

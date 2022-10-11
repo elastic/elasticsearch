@@ -10,13 +10,16 @@ package org.elasticsearch.aggregations;
 
 import org.elasticsearch.aggregations.bucket.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.InternalAdjacencyMatrix;
+import org.elasticsearch.aggregations.pipeline.MovFnPipelineAggregationBuilder;
+import org.elasticsearch.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.script.ScriptContext;
 
 import java.util.List;
 
-public class AggregationsPlugin extends Plugin implements SearchPlugin {
-
+public class AggregationsPlugin extends Plugin implements SearchPlugin, ScriptPlugin {
     @Override
     public List<AggregationSpec> getAggregations() {
         return List.of(
@@ -26,5 +29,21 @@ public class AggregationsPlugin extends Plugin implements SearchPlugin {
                 AdjacencyMatrixAggregationBuilder::parse
             ).addResultReader(InternalAdjacencyMatrix::new)
         );
+    }
+
+    @Override
+    public List<PipelineAggregationSpec> getPipelineAggregations() {
+        return List.of(
+            new PipelineAggregationSpec(
+                MovFnPipelineAggregationBuilder.NAME,
+                MovFnPipelineAggregationBuilder::new,
+                MovFnPipelineAggregationBuilder.PARSER
+            )
+        );
+    }
+
+    @Override
+    public List<ScriptContext<?>> getContexts() {
+        return List.of(MovingFunctionScript.CONTEXT);
     }
 }

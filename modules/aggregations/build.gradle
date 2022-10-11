@@ -12,10 +12,19 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   description 'Adds "built in" aggregations to Elasticsearch.'
   classname 'org.elasticsearch.aggregations.AggregationsPlugin'
+  extendedPlugins = ['lang-painless']
 }
 
 restResources {
   restApi {
     include '_common', 'indices', 'cluster', 'index', 'search', 'nodes', 'bulk'
   }
+}
+
+testClusters.configureEach {
+  module ':modules:lang-painless'
+}
+
+dependencies {
+  compileOnly(project(':modules:lang-painless:spi'))
 }

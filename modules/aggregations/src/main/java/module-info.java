@@ -8,10 +8,15 @@
 
 module org.elasticsearch.aggs {
     requires org.elasticsearch.base;
+    requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.core;
 
     exports org.elasticsearch.aggregations.bucket;
+    exports org.elasticsearch.aggregations.pipeline;
 
+    opens org.elasticsearch.aggregations to org.elasticsearch.painless.spi; // whitelist resource access
+
+    provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.aggregations.AggregationsPainlessExtension;
 }

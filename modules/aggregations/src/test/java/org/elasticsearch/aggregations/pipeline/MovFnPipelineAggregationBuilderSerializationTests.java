@@ -6,15 +6,19 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.elasticsearch.aggregations.pipeline;
 
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
+import org.elasticsearch.search.aggregations.PipelineAggregationHelperTests;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -22,6 +26,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MovFnPipelineAggregationBuilderSerializationTests extends BasePipelineAggregationTestCase<MovFnPipelineAggregationBuilder> {
+    @Override
+    protected List<SearchPlugin> plugins() {
+        return List.of(new AggregationsPlugin());
+    }
+
     @Override
     protected MovFnPipelineAggregationBuilder createTestAggregatorFactory() {
         MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder(

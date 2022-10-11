@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.aggregations.PipelineAggregationHelperTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;

@@ -12,8 +12,10 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
 import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationSettings;
 import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
@@ -39,6 +41,8 @@ public class RelevanceMatchQueryRewriter {
 
     private final QueryFieldsResolver queryFieldsResolver;
 
+    private QueryConfiguration queryConfiguration;
+
     public RelevanceMatchQueryRewriter(
         RelevanceSettingsService relevanceSettingsService,
         CurationsService curationsService,
@@ -47,13 +51,20 @@ public class RelevanceMatchQueryRewriter {
         this.relevanceSettingsService = relevanceSettingsService;
         this.curationsService = curationsService;
         this.queryFieldsResolver = queryFieldsResolver;
+        this.queryConfiguration = null;
     }
 
     public Query rewriteQuery(RelevanceMatchQueryBuilder relevanceMatchQueryBuilder, SearchExecutionContext context) throws IOException {
-        Map<String, Float> fieldsAndBoosts = retrieveFieldsAndBoosts(relevanceMatchQueryBuilder.getRelevanceSettingsId(), context);
-        final QueryBuilder combinedFieldsBuilder = new CombinedFieldsQueryBuilder(relevanceMatchQueryBuilder.getQuery(), fieldsAndBoosts);
+        this.setQueryConfiguration(relevanceMatchQueryBuilder.getRelevanceSettingsId());
 
-        return applyCurations(combinedFieldsBuilder, relevanceMatchQueryBuilder).toQuery(context);
+        Map<String, Float> fieldsAndBoosts = retrieveFieldsAndBoosts(context);
+        String scriptSource = retrieveScriptSource();
+
+        QueryBuilder queryBuilder = new CombinedFieldsQueryBuilder(relevanceMatchQueryBuilder.getQuery(), fieldsAndBoosts);
+        if (scriptSource != null) {
+            queryBuilder = QueryBuilders.scriptScoreQuery(queryBuilder, new Script(scriptSource));
+        }
+        return applyCurations(queryBuilder, relevanceMatchQueryBuilder).toQuery(context);
     }
 
     private static QueryBuilder applyExcludedDocs(QueryBuilder queryBuilder, CurationSettings curationSettings) {
@@ -87,18 +98,32 @@ public class RelevanceMatchQueryRewriter {
         return queryBuilder;
     }
 
-    private Map<String, Float> retrieveFieldsAndBoosts(String relevanceSettingsId, SearchExecutionContext context) {
+    private void setQueryConfiguration(String relevanceSettingsId) {
+        if (relevanceSettingsId == null) {
+            // we'll work with defaults
+            return;
+        }
+        try {
+            RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
+            queryConfiguration = relevanceSettings.getQueryConfiguration();
+        } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
+            throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
+        } catch (RelevanceSettingsService.RelevanceSettingsInvalidException e) {
+            throw new IllegalArgumentException("[relevance_match] invalid relevance search settings for: " + relevanceSettingsId);
+        }
+    }
+
+    private String retrieveScriptSource() {
+        if (queryConfiguration != null) {
+            return queryConfiguration.getScriptSource();
+        }
+        return null;
+    }
+
+    private Map<String, Float> retrieveFieldsAndBoosts(SearchExecutionContext context) {
         Map<String, Float> fieldsAndBoosts;
-        if (relevanceSettingsId != null) {
-            try {
-                RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
-                QueryConfiguration queryConfiguration = relevanceSettings.getQueryConfiguration();
-                fieldsAndBoosts = queryConfiguration.getFieldsAndBoosts();
-            } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
-                throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
-            } catch (RelevanceSettingsService.RelevanceSettingsInvalidException e) {
-                throw new IllegalArgumentException("[relevance_match] invalid relevance search settings for: " + relevanceSettingsId);
-            }
+        if (queryConfiguration != null) {
+            fieldsAndBoosts = queryConfiguration.getFieldsAndBoosts();
         } else {
             Collection<String> fields = queryFieldsResolver.getQueryFields(context);
             if (fields.isEmpty()) {

@@ -23,11 +23,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.containsString;
 
 public class FetchPhaseDocsIteratorTest extends ESTestCase {
 
@@ -126,7 +126,6 @@ public class FetchPhaseDocsIteratorTest extends ESTestCase {
         Exception e = expectThrows(FetchPhaseExecutionException.class, () -> it.iterate(null, reader, docs));
         assertThat(e.getMessage(), containsString("Error running fetch phase for doc [" + badDoc + "]"));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-
 
         reader.close();
         directory.close();

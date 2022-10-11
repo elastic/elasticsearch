@@ -331,13 +331,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
              */
             forceSyntheticSource = false;
         }
-        originalIndices = OriginalIndices.readOriginalIndices(in);
 
         if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
             searchEngineName = in.readOptionalString();
         } else {
             searchEngineName = null;
         }
+
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     @Override

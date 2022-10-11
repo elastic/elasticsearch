@@ -126,26 +126,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             randomArray(3, ConfigurableClusterPrivilege[]::new, () -> new ManageApplicationPrivileges(randomStringSet(3)))
         );
         final Set<GetUserPrivilegesResponse.Indices> index = Sets.newHashSet(
-            randomArray(
-                5,
-                GetUserPrivilegesResponse.Indices[]::new,
-                () -> new GetUserPrivilegesResponse.Indices(
-                    randomStringSet(6),
-                    randomStringSet(8),
-                    Sets.newHashSet(
-                        randomArray(
-                            3,
-                            FieldGrantExcludeGroup[]::new,
-                            () -> new FieldGrantExcludeGroup(
-                                generateRandomStringArray(3, 5, false, false),
-                                generateRandomStringArray(3, 5, false, false)
-                            )
-                        )
-                    ),
-                    randomStringSet(3).stream().map(BytesArray::new).collect(Collectors.toSet()),
-                    randomBoolean()
-                )
-            )
+            randomArray(5, GetUserPrivilegesResponse.Indices[]::new, this::randomIndices)
         );
         final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(
             randomArray(
@@ -160,6 +141,25 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         );
         final Set<String> runAs = randomStringSet(3);
         return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs);
+    }
+
+    private GetUserPrivilegesResponse.Indices randomIndices() {
+        return new GetUserPrivilegesResponse.Indices(
+            randomStringSet(6),
+            randomStringSet(8),
+            Sets.newHashSet(
+                randomArray(
+                    3,
+                    FieldGrantExcludeGroup[]::new,
+                    () -> new FieldGrantExcludeGroup(
+                        generateRandomStringArray(3, 5, false, false),
+                        generateRandomStringArray(3, 5, false, false)
+                    )
+                )
+            ),
+            randomStringSet(3).stream().map(BytesArray::new).collect(Collectors.toSet()),
+            randomBoolean()
+        );
     }
 
     private List<GetUserPrivilegesResponse.Indices> sorted(Collection<GetUserPrivilegesResponse.Indices> indices) {

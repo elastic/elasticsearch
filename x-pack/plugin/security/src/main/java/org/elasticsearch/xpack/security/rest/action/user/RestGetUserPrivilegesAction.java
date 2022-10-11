@@ -91,6 +91,7 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
             builder.field(RoleDescriptor.Fields.INDICES.getPreferredName(), response.getIndexPrivileges());
             builder.field(RoleDescriptor.Fields.APPLICATIONS.getPreferredName(), response.getApplicationPrivileges());
             builder.field(RoleDescriptor.Fields.RUN_AS.getPreferredName(), response.getRunAs());
+            // TODO possibly assert instead
             if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
                 builder.field(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName(), response.getRemoteIndexPrivileges());
             }

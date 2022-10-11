@@ -234,9 +234,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 logger.error(() -> format("failed to read roles file [%s]. skipping all roles...", path.toAbsolutePath()), ioe);
                 return emptyMap();
             }
-        } else
-
-        {
+        } else {
             logger.debug("roles file does not exist");
             return emptyMap();
         }

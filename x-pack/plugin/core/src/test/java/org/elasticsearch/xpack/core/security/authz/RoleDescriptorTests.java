@@ -699,11 +699,13 @@ public class RoleDescriptorTests extends ESTestCase {
                 new ConfigurableClusterPrivilege[0],
                 new String[0],
                 new HashMap<>(),
-                new HashMap<>()
+                new HashMap<>(),
+                randomBoolean() ? null : new RoleDescriptor.RemoteIndicesPrivileges[0]
             ).isEmpty()
         );
 
         final List<Boolean> booleans = Arrays.asList(
+            randomBoolean(),
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
@@ -731,7 +733,11 @@ public class RoleDescriptorTests extends ESTestCase {
                         : new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(Collections.singleton("bar")) },
             booleans.get(4) ? new String[0] : new String[] { "foo" },
             booleans.get(5) ? new HashMap<>() : Collections.singletonMap("foo", "bar"),
-            Collections.singletonMap("foo", "bar")
+            Collections.singletonMap("foo", "bar"),
+            booleans.get(6)
+                ? null
+                : new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() }
         );
 
         if (booleans.stream().anyMatch(e -> e.equals(false))) {

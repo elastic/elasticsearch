@@ -60,10 +60,10 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class DesiredBalanceComputerTests extends ESTestCase {
 
@@ -627,35 +627,42 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder();
 
-        var commonIndexSettings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .put("index.routing.allocation.exclude._name", "node-2")
-            .build();
-
         ShardRouting index0PrimaryShard;
         ShardRouting index0ReplicaShard;
         {
             var indexName = "index-0";
 
-            metadataBuilder.put(IndexMetadata.builder(indexName).settings(commonIndexSettings));
+            metadataBuilder.put(
+                IndexMetadata.builder(indexName)
+                    .settings(
+                        Settings.builder()
+                            .put("index.number_of_shards", 1)
+                            .put("index.number_of_replicas", 1)
+                            .put("index.version.created", Version.CURRENT)
+                            .put("index.routing.allocation.exclude._name", "node-2")
+                            .build()
+                    )
+            );
 
             var indexId = metadataBuilder.get(indexName).getIndex();
             var shardId = new ShardId(indexId, 0);
 
             index0PrimaryShard = newShardRouting(shardId, "node-1", null, true, STARTED);
-            index0ReplicaShard = switch (randomIntBetween(0, 4)) {
+            index0ReplicaShard = switch (randomIntBetween(0, 6)) {
                 // shard is started on the desired node
                 case 0 -> newShardRouting(shardId, "node-0", null, false, STARTED);
                 // shard is initializing on the desired node
                 case 1 -> newShardRouting(shardId, "node-0", null, false, INITIALIZING);
+                // shard is initializing on the undesired node
+                case 2 -> newShardRouting(shardId, "node-2", null, false, INITIALIZING);
                 // shard started on undesired node, assumed to be relocated to the desired node in the future
-                case 2 -> newShardRouting(shardId, "node-2", null, false, STARTED);
+                case 3 -> newShardRouting(shardId, "node-2", null, false, STARTED);
                 // shard is already relocating to the desired node
-                case 3 -> newShardRouting(shardId, "node-2", "node-0", false, RELOCATING);
+                case 4 -> newShardRouting(shardId, "node-2", "node-0", false, RELOCATING);
+                // shard is relocating to the undesired node
+                case 5 -> newShardRouting(shardId, "node-0", "node-2", false, RELOCATING);
                 // shard is unassigned
-                case 4 -> newShardRouting(shardId, null, null, false, UNASSIGNED);
+                case 6 -> newShardRouting(shardId, null, null, false, UNASSIGNED);
                 default -> throw new IllegalStateException();
             };
 
@@ -665,7 +672,17 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         for (int i = 1; i < 10; i++) {
             var indexName = "index-" + i;
 
-            metadataBuilder.put(IndexMetadata.builder(indexName).settings(commonIndexSettings));
+            metadataBuilder.put(
+                IndexMetadata.builder(indexName)
+                    .settings(
+                        Settings.builder()
+                            .put("index.number_of_shards", 1)
+                            .put("index.number_of_replicas", 0)
+                            .put("index.version.created", Version.CURRENT)
+                            .put("index.routing.allocation.exclude._name", "node-2")
+                            .build()
+                    )
+            );
 
             var indexId = metadataBuilder.get(indexName).getIndex();
             var shardId = new ShardId(indexId, 0);
@@ -681,13 +698,15 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             .routingTable(routingTableBuilder)
             .build();
 
-        var node0RemainingBytes = index0ReplicaShard.started() && index0ReplicaShard.currentNodeId().equals("node-0") ? 100 : 600;
+        var node0RemainingBytes = (index0ReplicaShard.started() || index0ReplicaShard.relocating())
+            && Objects.equals(index0ReplicaShard.currentNodeId(), "node-0") ? 100 : 600;
         var node0Usage = new DiskUsage("node-0", "node-0", "/data", 1000, node0RemainingBytes);
         var node1Usage = new DiskUsage("node-1", "node-1", "/data", 1000, 100);
+        var node2Usage = new DiskUsage("node-2", "node-2", "/data", 1000, 1000);
 
         var clusterInfo = new ClusterInfo(
-            Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage),
-            Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage),
+            Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage, node2Usage.getNodeId(), node2Usage),
+            Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage, node2Usage.getNodeId(), node2Usage),
             Map.ofEntries(
                 // node-0 & node-1
                 indexSize(clusterState, "index-0", 500, true),
@@ -743,7 +762,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             }
         }
 
-        assertThat(resultDiskUsage.values(), not(hasItems(greaterThan(1000L))));
+        assertThat(resultDiskUsage, allOf(aMapWithSize(2), hasEntry("node-0", 950L), hasEntry("node-1", 850L)));
     }
 
     private static Map.Entry<String, Long> indexSize(ClusterState clusterState, String name, long size, boolean primary) {

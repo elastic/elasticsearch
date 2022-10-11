@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -64,7 +63,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
     SnapshotStatus(StreamInput in) throws IOException {
         snapshot = new Snapshot(in);
         state = State.fromValue(in.readByte());
-        shards = Collections.unmodifiableList(in.readList(SnapshotIndexShardStatus::new));
+        shards = in.readImmutableList(SnapshotIndexShardStatus::new);
         includeGlobalState = in.readOptionalBoolean();
         final long startTime = in.readLong();
         final long time = in.readLong();

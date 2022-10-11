@@ -317,17 +317,20 @@ details have contents and a structure that is unique to each indicator.
 [[health-api-response-details-disk]]
 ===== disk
 
-`blocked_indices`::
-(int) The number of indices that are blocked by the system because the cluster is running out of space.
+`indices_with_readonly_block`::
+(int) The number of indices the system enforced a read-only index block (`index.blocks.read_only_allow_delete`) on
+because the cluster is running out of space.
 
-`green_nodes`::
+`nodes_with_enough_disk_space`::
 (int) The number of nodes that have enough available disk space to function.
 
-`yellow_nodes`::
-(int) The number of nodes that are running low on disk and it is likely that they will run out of space.
+`nodes_over_high_watermark`::
+(int) The number of nodes that are running low on disk and it is likely that they will run out of space. Their disk usage
+has tripped the <<cluster-routing-watermark-high, high watermark threshold>>.
 
-`red_nodes`::
-(int) The number of nodes that have run out of disk.
+`nodes_over_flood_stage_watermark`::
+(int) The number of nodes that have run out of disk. Their disk usage has tripped the <<cluster-routing-flood-stage, flood stage
+watermark threshold>>.
 
 `unknown_nodes`::
 (int) The number of nodes for which it was not possible to determine their disk health.

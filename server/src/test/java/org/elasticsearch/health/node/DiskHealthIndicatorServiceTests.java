@@ -57,6 +57,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.INDICES_WITH_READONLY_BLOCK;
+import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_OVER_FLOOD_STAGE_WATERMARK;
+import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_OVER_HIGH_WATERMARK;
+import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_WITH_ENOUGH_DISK_SPACE;
+import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_WITH_UNKNOWN_DISK_STATUS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -142,11 +147,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.impacts().size(), equalTo(0));
         assertThat(result.diagnosisList().size(), equalTo(0));
         Map<String, Object> details = xContentToMap(result.details());
-        assertThat(details.get("green_nodes"), equalTo(discoveryNodes.size()));
-        assertThat(details.get("unknown_nodes"), equalTo(0));
-        assertThat(details.get("yellow_nodes"), equalTo(0));
-        assertThat(details.get("red_nodes"), equalTo(0));
-        assertThat(details.get("blocked_indices"), equalTo(0));
+        assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size()));
+        assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
+        assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(0));
+        assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(0));
+        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(0));
     }
 
     /*
@@ -220,11 +225,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 assertThat(affectedResources.get(0).getNodes(), equalTo(affectedNodes));
             }
             Map<String, Object> details = xContentToMap(result.details());
-            assertThat(details.get("green_nodes"), equalTo(0));
-            assertThat(details.get("unknown_nodes"), equalTo(0));
-            assertThat(details.get("yellow_nodes"), equalTo(allNodes.size()));
-            assertThat(details.get("red_nodes"), equalTo(0));
-            assertThat(details.get("blocked_indices"), equalTo(0));
+            assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(0));
+            assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
+            assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(allNodes.size()));
+            assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(0));
+            assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(0));
         }
     }
 
@@ -294,11 +299,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         );
 
         Map<String, Object> details = xContentToMap(result.details());
-        assertThat(details.get("green_nodes"), equalTo(discoveryNodes.size() - affectedNodes.size()));
-        assertThat(details.get("unknown_nodes"), equalTo(0));
-        assertThat(details.get("yellow_nodes"), equalTo(0));
-        assertThat(details.get("red_nodes"), equalTo(affectedNodes.size()));
-        assertThat(details.get("blocked_indices"), equalTo(0));
+        assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size() - affectedNodes.size()));
+        assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
+        assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(0));
+        assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(affectedNodes.size()));
+        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(0));
     }
 
     /*
@@ -339,11 +344,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(affectedResources.get(0).getValues(), iterableWithSize(1));
 
         Map<String, Object> details = xContentToMap(result.details());
-        assertThat(details.get("green_nodes"), equalTo(discoveryNodes.size()));
-        assertThat(details.get("unknown_nodes"), equalTo(0));
-        assertThat(details.get("yellow_nodes"), equalTo(0));
-        assertThat(details.get("red_nodes"), equalTo(0));
-        assertThat(details.get("blocked_indices"), equalTo(1));
+        assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size()));
+        assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
+        assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(0));
+        assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(0));
+        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(1));
     }
 
     /*
@@ -386,11 +391,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(affectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
         assertThat(affectedResources.get(1).getValues(), iterableWithSize(1));
         Map<String, Object> details = xContentToMap(result.details());
-        assertThat(details.get("green_nodes"), equalTo(discoveryNodes.size() - numberOfYellowNodes));
-        assertThat(details.get("unknown_nodes"), equalTo(0));
-        assertThat(details.get("yellow_nodes"), equalTo(numberOfYellowNodes));
-        assertThat(details.get("red_nodes"), equalTo(0));
-        assertThat(details.get("blocked_indices"), equalTo(1));
+        assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size() - numberOfYellowNodes));
+        assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
+        assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(numberOfYellowNodes));
+        assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(0));
+        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(1));
     }
 
     /*
@@ -447,11 +452,11 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             )
         );
         Map<String, Object> details = xContentToMap(result.details());
-        assertThat(details.get("green_nodes"), equalTo(discoveryNodes.size() - numberOfRedNodes));
-        assertThat(details.get("unknown_nodes"), equalTo(0));
-        assertThat(details.get("yellow_nodes"), equalTo(0));
-        assertThat(details.get("red_nodes"), equalTo(numberOfRedNodes));
-        assertThat(details.get("blocked_indices"), equalTo(blockedIndices.size()));
+        assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size() - numberOfRedNodes));
+        assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));
+        assertThat(details.get(NODES_OVER_HIGH_WATERMARK), equalTo(0));
+        assertThat(details.get(NODES_OVER_FLOOD_STAGE_WATERMARK), equalTo(numberOfRedNodes));
+        assertThat(details.get(INDICES_WITH_READONLY_BLOCK), equalTo(blockedIndices.size()));
     }
 
     public void testMissingHealthInfo() {

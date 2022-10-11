@@ -167,12 +167,40 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
     }
 
     public void testGetDoubleLE() {
-        // first bytes array = 1.2, second bytes array = 1.4, third bytes array = 1.6
-        BytesReference[] refs = new BytesReference[] {
-            new BytesArray(new byte[] { 0x33, 0x33, 0x33, 0x33, 0x33, 0x33, -0xD, 0x3F }),
-            new BytesArray(new byte[] { 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, -0xA, 0x3F }),
-            new BytesArray(new byte[] { -0x66, -0x67, -0x67, -0x67, -0x67, -0x67, -0x7, 0x3F }) };
-        BytesReference comp = CompositeBytesReference.of(refs);
+        // first double = 1.2, second double = 1.4, third double = 1.6
+        byte[] data = new byte[] {
+            0x33,
+            0x33,
+            0x33,
+            0x33,
+            0x33,
+            0x33,
+            -0xD,
+            0x3F,
+            0x66,
+            0x66,
+            0x66,
+            0x66,
+            0x66,
+            0x66,
+            -0xA,
+            0x3F,
+            -0x66,
+            -0x67,
+            -0x67,
+            -0x67,
+            -0x67,
+            -0x67,
+            -0x7,
+            0x3F };
+
+        List<BytesReference> refs = new ArrayList<>();
+        int bytesPerChunk = randomFrom(4, 16);
+        for (int offset = 0; offset < data.length; offset += bytesPerChunk) {
+            int length = Math.min(bytesPerChunk, data.length - offset);
+            refs.add(new BytesArray(data, offset, length));
+        }
+        BytesReference comp = CompositeBytesReference.of(refs.toArray(BytesReference[]::new));
         assertThat(comp.getDoubleLE(0), equalTo(1.2));
         assertThat(comp.getDoubleLE(8), equalTo(1.4));
         assertThat(comp.getDoubleLE(16), equalTo(1.6));

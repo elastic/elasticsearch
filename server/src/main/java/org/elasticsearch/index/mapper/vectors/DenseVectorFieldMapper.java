@@ -68,14 +68,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<ElementType> elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT32, (n, c, o) -> {
-            ElementType elementType = namesToElementType.get((String) o);
-            if (elementType == null) {
-                throw new MapperParsingException("invalid element_type [" + o + "]; available types are " + namesToElementType.keySet());
-            }
-            return elementType;
-        }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString);
-
+        private final Parameter<ElementType> elementType;
         private final Parameter<Integer> dims = new Parameter<>(
             "dims",
             false,
@@ -100,7 +93,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
         });
-
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, false);
         private final Parameter<VectorSimilarity> similarity = Parameter.enumParam(
             "similarity",
@@ -131,6 +123,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.similarity.requiresParameter(indexed);
             this.indexOptions.requiresParameter(indexed);
             this.indexOptions.setSerializerCheck((id, ic, v) -> v != null);
+
+            this.elementType = new Parameter<>("element_type", false, () -> ElementType.FLOAT32, (n, c, o) -> {
+                ElementType elementType = namesToElementType.get((String) o);
+                if (elementType == null) {
+                    throw new MapperParsingException(
+                        "invalid element_type [" + o + "]; available types are " + namesToElementType.keySet()
+                    );
+                }
+                return elementType;
+            }, m -> toType(m).elementType, XContentBuilder::field, Objects::toString).addValidator(e -> {
+                if (e == ElementType.INT8 && indexed.getValue() == false) {
+                    throw new IllegalArgumentException("index must be [true] when element_type is [" + e + "]");
+                }
+            });
         }
 
         @Override
@@ -191,20 +197,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         + name()
                         + "] of type ["
                         + denseVectorFieldType.typeName()
-                        + "] "
-                        + "with element_type ["
-                        + this
-                        + "]"
-                );
-            }
-
-            @Override
-            void checkNonIndexedAllowed(DenseVectorFieldMapper denseVectorFieldMapper) {
-                throw new IllegalArgumentException(
-                    "Non-indexed vector data is not supported on field ["
-                        + name()
-                        + "] of type ["
-                        + denseVectorFieldMapper.typeName()
                         + "] "
                         + "with element_type ["
                         + this
@@ -283,11 +275,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            void checkNonIndexedAllowed(DenseVectorFieldMapper denseVectorFieldMapper) {
-                // nothing to check
-            }
-
-            @Override
             void checkVectorBounds(float[] vector) {
                 // nothing to check
             }
@@ -321,8 +308,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         abstract KnnVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function);
 
         abstract IndexFieldData.Builder fielddataBuilder(DenseVectorFieldType denseVectorFieldType, FieldDataContext fieldDataContext);
-
-        abstract void checkNonIndexedAllowed(DenseVectorFieldMapper denseVectorFieldMapper);
 
         abstract void checkVectorBounds(float[] vector);
 
@@ -600,7 +585,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     private Field parseBinaryDocValuesVector(DocumentParserContext context) throws IOException {
-        elementType.checkNonIndexedAllowed(this);
+        // ensure byte vectors are always indexed
+        // (should be caught during mapping creation)
+        assert elementType != ElementType.INT8;
 
         // encode array of floats as array of integers and store into buf
         // this code is here and not int the VectorEncoderDecoder so not to create extra arrays

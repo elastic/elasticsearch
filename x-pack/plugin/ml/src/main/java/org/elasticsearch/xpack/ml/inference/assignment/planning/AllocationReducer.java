@@ -55,8 +55,8 @@ public class AllocationReducer {
         int totalRemainingAllocations = allocationsByZone.values().stream().mapToInt(Integer::intValue).sum();
 
         if (totalRemainingAllocations <= numberOfAllocations) {
-            logger.warn("request to reduce allocations to equal or less the existing number of allocations");
-            throw new IllegalArgumentException("request to reduce allocations to equal or less the existing number of allocations");
+            String msg = "request to reduce allocations is greater than or equal to the existing target number of allocations";
+            throw new IllegalArgumentException(msg);
         }
 
         while (totalRemainingAllocations > numberOfAllocations) {

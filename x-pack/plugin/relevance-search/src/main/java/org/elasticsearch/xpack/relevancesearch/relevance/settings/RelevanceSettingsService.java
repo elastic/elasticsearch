@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -175,6 +175,30 @@ public class RelevanceSettingsService implements ClusterStateListener {
                 .startObject("properties")
                 .startObject("fields")
                 .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("conditions")
+                .startObject("properties")
+                .startObject("fields")
+                .field("context", "keyword")
+                .field("value", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("pinned_document_ids")
+                .startObject("properties")
+                .startObject("fields")
+                .field("_id", "keyword")
+                .field("_index", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("excluded_document_ids")
+                .startObject("properties")
+                .startObject("fields")
+                .field("_id", "keyword")
+                .field("_index", "keyword")
                 .endObject()
                 .endObject()
                 .endObject()

@@ -44,7 +44,6 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
         relevanceMatchQueryBuilder.setQueryRewriter(getInstanceFromNode(RelevanceMatchQueryRewriter.class));
 
         createIndex(DOCUMENTS_INDEX);
-        createIndex(RelevanceSettingsService.ENT_SEARCH_INDEX);
     }
 
     public void testTextFieldsWithoutSettings() {

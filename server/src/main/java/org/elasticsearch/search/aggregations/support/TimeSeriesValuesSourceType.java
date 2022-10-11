@@ -14,7 +14,11 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.util.Locale;
 
+/**
+ * Holds {@link ValuesSourceType} implementations for time series fields
+ */
 public enum TimeSeriesValuesSourceType implements ValuesSourceType {
+
     COUNTER {
         @Override
         public ValuesSource getEmpty() {

@@ -46,10 +46,6 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
-        public Builder(String name, NumericType numericType, ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory) {
-            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory);
-        }
-
         public Builder(
             String name,
             NumericType numericType,

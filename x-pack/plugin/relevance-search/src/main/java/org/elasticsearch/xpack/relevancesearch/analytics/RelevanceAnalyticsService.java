@@ -8,8 +8,13 @@
 package org.elasticsearch.xpack.relevancesearch.analytics;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -31,7 +36,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 public class RelevanceAnalyticsService implements ClusterStateListener {
 
     private static final String TEMPLATE_NAME = "ent-search-relevance-search-analytics";
-    private static final String INDEX_PREFIX = "ent-search-relevance-search-analytics-";
+    private static final String INDEX_PREFIX = ".ds-ent-search-relevance-search-analytics-";
 
     private final Client client;
 
@@ -46,15 +51,13 @@ public class RelevanceAnalyticsService implements ClusterStateListener {
     }
 
     public void logEvent(RelevanceSearchEvent relevanceSearchEvent) {
-        // TODO: Identify the name of the index that we want to update,
-        // and index the relevance event into that index.
-        // If the index doesn't exist, it should be created.
-        // I think it's OK at this point to assume that the template exists for this index pattern.
-        // There has to be some internal DataStream library code that makes this easier.
-        throw new UnsupportedOperationException("Not yet");
+        IndexRequest indexRequest = new IndexRequest(TEMPLATE_NAME);
+        indexRequest.source(relevanceSearchEvent);
+        client.execute(IndexAction.INSTANCE, indexRequest);
     }
 
     // ----------------- Methods to set up the datastream and associated templates
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -63,6 +66,7 @@ public class RelevanceAnalyticsService implements ClusterStateListener {
         }
 
         ensureTemplateExists(this.client);
+        ensureDataStreamExists(this.client);
         this.clusterService.removeListener(this);
     }
 
@@ -98,47 +102,21 @@ public class RelevanceAnalyticsService implements ClusterStateListener {
 
     }
 
-    /**
-     * {
-     *   "index_patterns": [".ent-search-relevance-search-analytics*"],
-     *   "version": <version>,
-     *   "_meta": {
-     *     "description": "Template used by Enterprise Search to record relevance search analytics",
-     *     "managed": true
-     *   },
-     *   "data_stream": { },
-     *   "template": {
-     *     "mappings": {
-     *       "_source": {
-     *         "enabled": true
-     *       },
-     *       "properties": {
-     *         "query": {
-     *           "type": "text",
-     *           "fields": {
-     *             "keyword": {
-     *               "type": "keyword"
-     *             }
-     *           }
-     *         },
-     *         "relevance_settings_id": {
-     *           "type": "keyword"
-     *         },
-     *         "curations_id": {
-     *           "type": "keyword"
-     *         },
-     *         "@timestamp": {
-     *           "type": "date",
-     *           "format": "EEE MMM dd HH:mm:ss Z yyyy"
-     *         }
-     *       }
-     *     },
-     *     "aliases": {
-     *       ".ent-search-relevance-search-analytics": { }
-     *     }
-     *   }
-     * }
-     */
+    public void ensureDataStreamExists(Client client) {
+        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(TEMPLATE_NAME);
+        client.execute(CreateDataStreamAction.INSTANCE, request, new ActionListener<AcknowledgedResponse>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                logger.info("Created " + TEMPLATE_NAME + " data stream.");
+            }
+
+            @Override
+            public void onFailure(Exception f) {
+                logger.error("Failed to create " + TEMPLATE_NAME + " data stream " + f.toString());
+            }
+        });
+    }
+
     // TODO it looks like we need to break this up into settings, mappings and aliases
     // TODO determine if we want to go this route, or pull the file from src/main/resources
     private static XContentBuilder getTemplateBody() {

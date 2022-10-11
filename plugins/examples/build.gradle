@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.VersionProperties
 
 buildscript {
   repositories {
+    mavenLocal() // TODO  why stable plugin is not in snapshot??
     maven {
       url = 'https://snapshots.elastic.co/maven/'
     }

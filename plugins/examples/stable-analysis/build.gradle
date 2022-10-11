@@ -1,0 +1,26 @@
+//TODO guide - mention buildscript (in parent)
+
+//TODO guide - mention about new plugin
+apply plugin: 'elasticsearch.stable-esplugin'
+//TODO guide - mention about testing
+apply plugin: 'elasticsearch.yaml-rest-test'
+
+//TODO guide - mention classname not needed, descriptor, named_components
+esplugin {
+  name 'stable-analysis-plugin'
+  description 'An example analysis plugin using stable plugin api'
+}
+
+
+dependencies {
+  //TODO we should try configure this in jarhell
+  jarHell "org.elasticsearch:elasticsearch-core:${elasticsearchVersion}"
+
+  //TODO guide - mention about api dependencies
+  compileOnly "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+  compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+
+}
+testClusters.configureEach {
+  numberOfNodes = 1
+}

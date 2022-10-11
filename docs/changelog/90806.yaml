@@ -1,0 +1,5 @@
+pr: 90806
+summary: Keep a canonical `IndexCaps` object when iterating over index fields
+area: Mapping
+type: enhancement
+issues: []

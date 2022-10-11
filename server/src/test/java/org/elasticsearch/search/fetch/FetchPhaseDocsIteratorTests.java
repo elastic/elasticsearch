@@ -90,7 +90,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
     public void testExceptions() throws IOException {
 
-        int docCount = random().nextInt(300) + 100;
+        int docCount = randomIntBetween(300, 400);
         Directory directory = newDirectory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), directory);
         for (int i = 0; i < docCount; i++) {

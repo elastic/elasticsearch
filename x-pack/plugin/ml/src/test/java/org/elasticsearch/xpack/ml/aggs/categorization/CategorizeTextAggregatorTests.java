@@ -64,10 +64,17 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(result.getBuckets(), hasSize(2));
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
             assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
+            assertThat(result.getBuckets().get(0).getSerializableCategory().maxMatchingStringLen(), equalTo(15));
+            assertThat(result.getBuckets().get(0).getSerializableCategory().getRegex(), equalTo(".*?Node.+?started.*?"));
             assertThat(result.getBuckets().get(1).getDocCount(), equalTo(2L));
             assertThat(
                 result.getBuckets().get(1).getKeyAsString(),
                 equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
+            );
+            assertThat(result.getBuckets().get(1).getSerializableCategory().maxMatchingStringLen(), equalTo(84));
+            assertThat(
+                result.getBuckets().get(1).getSerializableCategory().getRegex(),
+                equalTo(".*?Failed.+?to.+?shutdown.+?error.+?org\\.aaaa\\.bbbb\\.Cccc.+?line.+?caused.+?by.+?foo.+?exception.*?")
             );
         },
             new AggTestConfig(
@@ -88,6 +95,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(result.getBuckets(), hasSize(2));
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
             assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
+            assertThat(result.getBuckets().get(0).getSerializableCategory().maxMatchingStringLen(), equalTo(15));
+            assertThat(result.getBuckets().get(0).getSerializableCategory().getRegex(), equalTo(".*?Node.+?started.*?"));
             assertThat(((Max) result.getBuckets().get(0).getAggregations().get("max")).value(), equalTo(5.0));
             assertThat(((Min) result.getBuckets().get(0).getAggregations().get("min")).value(), equalTo(0.0));
             assertThat(((Avg) result.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(2.5));
@@ -96,6 +105,11 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(
                 result.getBuckets().get(1).getKeyAsString(),
                 equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
+            );
+            assertThat(result.getBuckets().get(1).getSerializableCategory().maxMatchingStringLen(), equalTo(84));
+            assertThat(
+                result.getBuckets().get(1).getSerializableCategory().getRegex(),
+                equalTo(".*?Failed.+?to.+?shutdown.+?error.+?org\\.aaaa\\.bbbb\\.Cccc.+?line.+?caused.+?by.+?foo.+?exception.*?")
             );
             assertThat(((Max) result.getBuckets().get(1).getAggregations().get("max")).value(), equalTo(4.0));
             assertThat(((Min) result.getBuckets().get(1).getAggregations().get("min")).value(), equalTo(0.0));
@@ -115,6 +129,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(result.getBuckets(), hasSize(2));
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
             assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
+            assertThat(result.getBuckets().get(0).getSerializableCategory().maxMatchingStringLen(), equalTo(15));
+            assertThat(result.getBuckets().get(0).getSerializableCategory().getRegex(), equalTo(".*?Node.+?started.*?"));
             Histogram histo = result.getBuckets().get(0).getAggregations().get("histo");
             assertThat(histo.getBuckets(), hasSize(3));
             for (Histogram.Bucket bucket : histo.getBuckets()) {
@@ -134,6 +150,11 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(
                 result.getBuckets().get(1).getKeyAsString(),
                 equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
+            );
+            assertThat(result.getBuckets().get(1).getSerializableCategory().maxMatchingStringLen(), equalTo(84));
+            assertThat(
+                result.getBuckets().get(1).getSerializableCategory().getRegex(),
+                equalTo(".*?Failed.+?to.+?shutdown.+?error.+?org\\.aaaa\\.bbbb\\.Cccc.+?line.+?caused.+?by.+?foo.+?exception.*?")
             );
             histo = result.getBuckets().get(1).getAggregations().get("histo");
             assertThat(histo.getBuckets(), hasSize(3));
@@ -167,6 +188,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(categorizationAggregation.getBuckets(), hasSize(2));
             assertThat(categorizationAggregation.getBuckets().get(0).getDocCount(), equalTo(2L));
             assertThat(categorizationAggregation.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
+            assertThat(categorizationAggregation.getBuckets().get(0).getSerializableCategory().maxMatchingStringLen(), equalTo(15));
+            assertThat(categorizationAggregation.getBuckets().get(0).getSerializableCategory().getRegex(), equalTo(".*?Node.+?started.*?"));
             assertThat(((Max) categorizationAggregation.getBuckets().get(0).getAggregations().get("max")).value(), equalTo(1.0));
             assertThat(((Min) categorizationAggregation.getBuckets().get(0).getAggregations().get("min")).value(), equalTo(0.0));
             assertThat(((Avg) categorizationAggregation.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(0.5));
@@ -175,6 +198,11 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(
                 categorizationAggregation.getBuckets().get(1).getKeyAsString(),
                 equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
+            );
+            assertThat(categorizationAggregation.getBuckets().get(1).getSerializableCategory().maxMatchingStringLen(), equalTo(84));
+            assertThat(
+                categorizationAggregation.getBuckets().get(1).getSerializableCategory().getRegex(),
+                equalTo(".*?Failed.+?to.+?shutdown.+?error.+?org\\.aaaa\\.bbbb\\.Cccc.+?line.+?caused.+?by.+?foo.+?exception.*?")
             );
             assertThat(((Max) categorizationAggregation.getBuckets().get(1).getAggregations().get("max")).value(), equalTo(0.0));
             assertThat(((Min) categorizationAggregation.getBuckets().get(1).getAggregations().get("min")).value(), equalTo(0.0));
@@ -186,6 +214,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(categorizationAggregation.getBuckets(), hasSize(1));
             assertThat(categorizationAggregation.getBuckets().get(0).getDocCount(), equalTo(2L));
             assertThat(categorizationAggregation.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
+            assertThat(categorizationAggregation.getBuckets().get(0).getSerializableCategory().maxMatchingStringLen(), equalTo(15));
+            assertThat(categorizationAggregation.getBuckets().get(0).getSerializableCategory().getRegex(), equalTo(".*?Node.+?started.*?"));
             assertThat(((Max) categorizationAggregation.getBuckets().get(0).getAggregations().get("max")).value(), equalTo(3.0));
             assertThat(((Min) categorizationAggregation.getBuckets().get(0).getAggregations().get("min")).value(), equalTo(2.0));
             assertThat(((Avg) categorizationAggregation.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(2.5));
@@ -196,6 +226,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(categorizationAggregation.getBuckets(), hasSize(2));
             assertThat(categorizationAggregation.getBuckets().get(0).getDocCount(), equalTo(2L));
             assertThat(categorizationAggregation.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
+            assertThat(categorizationAggregation.getBuckets().get(0).getSerializableCategory().maxMatchingStringLen(), equalTo(15));
+            assertThat(categorizationAggregation.getBuckets().get(0).getSerializableCategory().getRegex(), equalTo(".*?Node.+?started.*?"));
             assertThat(((Max) categorizationAggregation.getBuckets().get(0).getAggregations().get("max")).value(), equalTo(5.0));
             assertThat(((Min) categorizationAggregation.getBuckets().get(0).getAggregations().get("min")).value(), equalTo(4.0));
             assertThat(((Avg) categorizationAggregation.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(4.5));
@@ -204,6 +236,11 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(
                 categorizationAggregation.getBuckets().get(1).getKeyAsString(),
                 equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
+            );
+            assertThat(categorizationAggregation.getBuckets().get(1).getSerializableCategory().maxMatchingStringLen(), equalTo(84));
+            assertThat(
+                categorizationAggregation.getBuckets().get(1).getSerializableCategory().getRegex(),
+                equalTo(".*?Failed.+?to.+?shutdown.+?error.+?org\\.aaaa\\.bbbb\\.Cccc.+?line.+?caused.+?by.+?foo.+?exception.*?")
             );
             assertThat(((Max) categorizationAggregation.getBuckets().get(1).getAggregations().get("max")).value(), equalTo(4.0));
             assertThat(((Min) categorizationAggregation.getBuckets().get(1).getAggregations().get("min")).value(), equalTo(4.0));
@@ -223,6 +260,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(result.getBuckets(), hasSize(2));
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(30000L));
             assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
+            assertThat(result.getBuckets().get(0).getSerializableCategory().maxMatchingStringLen(), equalTo(15));
+            assertThat(result.getBuckets().get(0).getSerializableCategory().getRegex(), equalTo(".*?Node.+?started.*?"));
             Histogram histo = result.getBuckets().get(0).getAggregations().get("histo");
             assertThat(histo.getBuckets(), hasSize(3));
             for (Histogram.Bucket bucket : histo.getBuckets()) {
@@ -242,6 +281,11 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(
                 result.getBuckets().get(1).getKeyAsString(),
                 equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
+            );
+            assertThat(result.getBuckets().get(1).getSerializableCategory().maxMatchingStringLen(), equalTo(84));
+            assertThat(
+                result.getBuckets().get(1).getSerializableCategory().getRegex(),
+                equalTo(".*?Failed.+?to.+?shutdown.+?error.+?org\\.aaaa\\.bbbb\\.Cccc.+?line.+?caused.+?by.+?foo.+?exception.*?")
             );
             histo = result.getBuckets().get(1).getAggregations().get("histo");
             assertThat(histo.getBuckets(), hasSize(3));

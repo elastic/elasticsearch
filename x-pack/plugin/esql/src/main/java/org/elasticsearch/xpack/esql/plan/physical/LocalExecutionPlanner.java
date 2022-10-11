@@ -25,6 +25,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
+import org.elasticsearch.compute.operator.RowOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
@@ -279,6 +280,19 @@ public class LocalExecutionPlanner {
                 layout,
                 source
             );
+        } else if (node instanceof RowExec row) {
+            List<Object> obj = row.fields().stream().map(f -> {
+                if (f instanceof Alias) {
+                    return ((Alias) f).child().fold();
+                } else {
+                    return f.fold();
+                }
+            }).toList();
+            Map<Object, Integer> layout = new HashMap<>();
+            for (int i = 0; i < row.output().size(); i++) {
+                layout.put(row.output().get(i).id(), i);
+            }
+            return new PhysicalOperation(() -> new RowOperator(obj), layout);
         }
         throw new UnsupportedOperationException(node.nodeName());
     }

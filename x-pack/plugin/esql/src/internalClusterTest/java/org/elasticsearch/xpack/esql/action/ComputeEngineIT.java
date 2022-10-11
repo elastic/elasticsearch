@@ -8,41 +8,25 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.Experimental;
-import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.xpack.esql.analyzer.Avg;
-import org.elasticsearch.xpack.esql.compute.transport.ComputeAction2;
-import org.elasticsearch.xpack.esql.compute.transport.ComputeRequest2;
-import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.plan.physical.Mapper;
-import org.elasticsearch.xpack.esql.plan.physical.Optimizer;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.session.Configuration;
 import org.junit.Assert;
 
-import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
 @Experimental
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+@TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public class ComputeEngineIT extends ESIntegTestCase {
 
     @Override
@@ -67,60 +51,37 @@ public class ComputeEngineIT extends ESIntegTestCase {
         }
         ensureYellow("test");
 
-        Tuple<List<ColumnInfo>, List<Page>> results = run("from test | stats avg(count)");
+        EsqlQueryResponse results = run("from test | stats avg(count)");
         logger.info(results);
-        Assert.assertEquals(1, results.v1().size());
-        Assert.assertEquals(1, results.v2().size());
-        assertEquals("avg(count)", results.v1().get(0).name());
-        assertEquals("double", results.v1().get(0).type());
-        assertEquals(1, results.v2().get(0).getBlockCount());
-        assertEquals(43, results.v2().get(0).getBlock(0).getDouble(0), 1d);
+        Assert.assertEquals(1, results.columns().size());
+        Assert.assertEquals(1, results.values().size());
+        assertEquals("avg(count)", results.columns().get(0).name());
+        assertEquals("double", results.columns().get(0).type());
+        assertEquals(1, results.values().get(0).size());
+        assertEquals(43, (double) results.values().get(0).get(0), 1d);
 
         results = run("from test");
         logger.info(results);
-        Assert.assertEquals(20, results.v2().stream().mapToInt(Page::getPositionCount).sum());
+        Assert.assertEquals(20, results.values().size());
 
         results = run("from test | sort count | limit 1");
         logger.info(results);
-        Assert.assertEquals(1, results.v2().stream().mapToInt(Page::getPositionCount).sum());
-        assertEquals(42, results.v2().get(0).getBlock(results.v1().indexOf(new ColumnInfo("count", "long"))).getLong(0));
+        Assert.assertEquals(1, results.values().size());
+        assertEquals(42, (long) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("count", "long"))));
 
         results = run("from test | eval x = count + 7 | sort x | limit 1");
         logger.info(results);
-        Assert.assertEquals(1, results.v2().stream().mapToInt(Page::getPositionCount).sum());
-        assertEquals(49, results.v2().get(0).getBlock(results.v1().indexOf(new ColumnInfo("x", "long"))).getLong(0));
+        Assert.assertEquals(1, results.values().size());
+        assertEquals(49, (long) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "long"))));
 
         results = run("from test | stats avg_count = avg(count) | eval x = avg_count + 7");
         logger.info(results);
-        Assert.assertEquals(1, results.v2().size());
-        assertEquals(2, results.v2().get(0).getBlockCount());
-        assertEquals(50, results.v2().get(0).getBlock(results.v1().indexOf(new ColumnInfo("x", "double"))).getDouble(0), 1d);
+        Assert.assertEquals(1, results.values().size());
+        assertEquals(2, results.values().get(0).size());
+        assertEquals(50, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "double"))), 1d);
     }
 
-    private Tuple<List<ColumnInfo>, List<Page>> run(String esqlCommands) {
-        EsqlParser parser = new EsqlParser();
-        logger.info("Commands to parse:\n{}", esqlCommands);
-        LogicalPlan logicalPlan = parser.createStatement(esqlCommands);
-        logger.info("Plan after parsing:\n{}", logicalPlan);
-        IndexResolver indexResolver = internalCluster().getInstances(PlanExecutor.class).iterator().next().indexResolver();
-        FunctionRegistry functionRegistry = new FunctionRegistry(FunctionRegistry.def(Avg.class, Avg::new, "AVG"));
-        Configuration configuration = new Configuration(ZoneOffset.UTC, null, null, x -> Collections.emptySet());
-        EsqlSession esqlSession = new EsqlSession(indexResolver, functionRegistry, configuration);
-        PlainActionFuture<LogicalPlan> fut = new PlainActionFuture<>();
-        esqlSession.analyzedPlan(logicalPlan, fut);
-        logicalPlan = fut.actionGet();
-        logger.info("Plan after analysis:\n{}", logicalPlan);
-        Mapper mapper = new Mapper();
-        PhysicalPlan physicalPlan = mapper.map(logicalPlan);
-        Optimizer optimizer = new Optimizer();
-        physicalPlan = optimizer.optimize(physicalPlan);
-        logger.info("Physical plan after optimize:\n{}", physicalPlan);
-
-        List<ColumnInfo> columns = physicalPlan.output()
-            .stream()
-            .map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType()))
-            .toList();
-
-        return Tuple.tuple(columns, client().execute(ComputeAction2.INSTANCE, new ComputeRequest2(physicalPlan)).actionGet().getPages());
+    private EsqlQueryResponse run(String esqlCommands) {
+        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).get();
     }
 }

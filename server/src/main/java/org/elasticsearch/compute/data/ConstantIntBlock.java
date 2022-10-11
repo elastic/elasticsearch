@@ -27,6 +27,11 @@ public final class ConstantIntBlock extends Block {
     }
 
     @Override
+    public Object getObject(int position) {
+        return getInt(position);
+    }
+
+    @Override
     public String toString() {
         return "ConstantIntBlock{positions=" + getPositionCount() + ", value=" + value + '}';
     }

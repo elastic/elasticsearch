@@ -127,7 +127,9 @@ There are a few things to note when querying downsampled indices:
 * When you run queries in {kib} and through Elastic solutions, a normal
 response is returned without notification that some of the queried indices are
 downsampled.
-* For <<search-aggregations-bucket-datehistogram-aggregation,date histogram aggregations>>, only `fixed_intervals` (and not calendar-aware intervals) are supported.
+* For 
+<<search-aggregations-bucket-datehistogram-aggregation,date histogram aggregations>>, 
+only `fixed_intervals` (and not calendar-aware intervals) are supported.
 * Only Coordinated Universal Time (UTC) date-times are supported.
 
 [discrete]

@@ -6,7 +6,10 @@
 
 preview::[]
 
-This is a simplified example that allows you to see quickly how <<downsampling,downsampling>> works to reduce the storage size of a time series index. The example uses typical Kubernetes cluster monitoring data. To test out downsampling, follow these steps:
+This is a simplified example that allows you to see quickly how
+<<downsampling,downsampling>> works to reduce the storage size of a time series
+index. The example uses typical Kubernetes cluster monitoring data. To test out
+downsampling, follow these steps:
 
 . Check the <<downsampling-manual-prereqs,prerequisites>>.
 . <<downsampling-manual-create-index>>.
@@ -21,19 +24,30 @@ This is a simplified example that allows you to see quickly how <<downsampling,d
 Refer to <<tsds-prereqs,time series data stream prerequisites>>.
 
 For the example you need a sample data file. Download the file from link:
-https://static-www.elastic.co/v3/assets/bltefdd0b53724fa2ce/bltf2fe7a300c3c59f7/631b4bc5cc56115de2f58e8c/sample-k8s-metrics.json[here] and save it in the local directory where you're running {es}.
+https://static-www.elastic.co/v3/assets/bltefdd0b53724fa2ce/bltf2fe7a300c3c59f7/631b4bc5cc56115de2f58e8c/sample-k8s-metrics.json[here]
+and save it in the local directory where you're running {es}.
 
 [discrete]
 [[downsampling-manual-create-index]]
 ==== Create a time series index
 
-This creates an index for a basic data stream. The available parameters for an index are described in detail in <<set-up-a-data-stream,Set up a time series data stream>>.
+This creates an index for a basic data stream. The available parameters for an
+index are described in detail in <<set-up-a-data-stream,Set up a time series
+data stream>>.
 
-The time series boundaries are set so that sampling data for the index begins at `2022-06-10T00:00:00Z` and ends at `2022-06-30T23:59:59Z`.
+The time series boundaries are set so that sampling data for the index begins at
+`2022-06-10T00:00:00Z` and ends at `2022-06-30T23:59:59Z`.
 
-For simplicity, in the time series mapping all `time_series_metric` parameters are set to type `gauge`, but <<time-series-metric,other values>> such as `counter` and `histogram` may also be used. The `time_series_metric` values determine the kind of statistical representations that are used during downsampling.
+For simplicity, in the time series mapping all `time_series_metric` parameters
+are set to type `gauge`, but <<time-series-metric,other values>> such as
+`counter` and `histogram` may also be used. The `time_series_metric` values
+determine the kind of statistical representations that are used during
+downsampling.
 
-The index template includes a set of static <<time-series-dimension,time series dimensions>>: `host`, `namespace`, `node`, and `pod`. The time series dimensions are not changed by the downsampling process.
+The index template includes a set of static 
+<<time-series-dimension,time series dimensions>>: `host`, `namespace`, 
+`node`, and `pod`. The time series dimensions are not changed by the
+downsampling process.
 
 [source,console]
 ----
@@ -192,7 +206,8 @@ PUT /sample-01
 [[downsampling-manual-ingest-data]]
 ==== Ingest time series data
 
-In a terminal window with {es} running, run the following curl command to load the documents from the downloaded sample data file:
+In a terminal window with {es} running, run the following curl command to load
+the documents from the downloaded sample data file:
 
 //[source,console]
 //----
@@ -203,7 +218,8 @@ curl -s -H "Content-Type: application/json" \
 ```
 //----
 
-Approximately 18,000 documents are added. Check the search results for the newly ingested data:
+Approximately 18,000 documents are added. Check the search results for the newly
+ingested data:
 
 [source,console]
 ----
@@ -211,7 +227,9 @@ GET /sample-01*/_search
 ----
 // TEST[continued]
 
-The query should return the first 10,000 hits. In each document you can see the time series dimensions (`host`, `node`, `pod` and `container`) as well as the various CPU and memory time series metrics.
+The query should return the first 10,000 hits. In each document you can see the
+time series dimensions (`host`, `node`, `pod` and `container`) as well as the
+various CPU and memory time series metrics.
 
 ```
   "hits": {
@@ -278,7 +296,8 @@ The query should return the first 10,000 hits. In each document you can see the 
 ...
 ```
 
-Next, run a terms aggregation on the set of time series dimensions (`_tsid`) to create a date histogram on a fixed interval of one day.
+Next, run a terms aggregation on the set of time series dimensions (`_tsid`) to
+create a date histogram on a fixed interval of one day.
 
 [source,console]
 ----
@@ -341,7 +360,8 @@ PUT /sample-01/_block/write
 ----
 // TEST[continued]
 
-And now, you can use the <<indices-downsample-data-stream,downsample API>> to downsample the index, setting the time series interval to one hour:
+And now, you can use the <<indices-downsample-data-stream,downsample API>> to
+downsample the index, setting the time series interval to one hour:
 
 [source,console]
 ----
@@ -373,7 +393,9 @@ GET /sample-01*/_search
 ----
 // TEST[continued]
 
-In the query results, notice that the numer of hits has been reduced to only 288 documents. As well, for each time series metric statistical representations have been calculated: `min`, `max`, `sum`, and `value_count`.
+In the query results, notice that the numer of hits has been reduced to only 288
+documents. As well, for each time series metric statistical representations have
+been calculated: `min`, `max`, `sum`, and `value_count`.
 
 ```
   "hits": {
@@ -435,6 +457,11 @@ In the query results, notice that the numer of hits has been reduced to only 288
 ...
 ```
 
-This example demonstrates how downsampling can dramatically reduce the number of records stored for time series data, within whatever time boundaries you choose. It's also possible to perform downsampling on already downsampled data, to further reduce storage and associated costs, as the time series data ages and the data resolution becomes less critical.
+This example demonstrates how downsampling can dramatically reduce the number of
+records stored for time series data, within whatever time boundaries you choose.
+It's also possible to perform downsampling on already downsampled data, to
+further reduce storage and associated costs, as the time series data ages and
+the data resolution becomes less critical.
 
-Downsampling is very easily integrated within an ILM policy. To learn more, try the <<downsampling-ilm,Run downsampling with ILM>> example.
+Downsampling is very easily integrated within an ILM policy. To learn more, try
+the <<downsampling-ilm,Run downsampling with ILM>> example.

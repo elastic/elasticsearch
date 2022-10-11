@@ -119,8 +119,8 @@ NOTE: Smaller, more granular intervals take up proportionally more space.
 [[downsample-api-process]]
 ==== The downsampling process
 
-The downsampling operation traverses the source TSDS index and performs the following
-steps:
+The downsampling operation traverses the source TSDS index and performs the
+following steps:
 
 . Creates a new document for each value of the `_tsid` field and each
 `@timestamp` value, rounded to the `fixed_interval` defined in the downsample

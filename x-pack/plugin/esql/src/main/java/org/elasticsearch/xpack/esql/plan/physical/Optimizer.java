@@ -61,7 +61,7 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
             new EmptyFieldExtractRemoval()
         );
         Batch splitNodes = new Batch("Split nodes", new SplitAggregate(), new SplitTopN());
-        Batch addExchange = new Batch("Add exchange", new AddExchangeBelowAggregate());
+        Batch addExchange = new Batch("Add exchange", new AddExchangeOnSingleNodeSplit());
         Batch createTopN = new Batch("Create topN", new CreateTopN());
         // TODO: add rule to prune _doc_id, _segment_id, _shard_id at the top
         // Batch addProject = new Batch("Add project", new AddProjectWhenInternalFieldNoLongerNeeded());
@@ -184,7 +184,7 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private static class AddExchangeBelowAggregate extends OptimizerRule<UnaryExec> {
+    private static class AddExchangeOnSingleNodeSplit extends OptimizerRule<UnaryExec> {
 
         @Override
         protected PhysicalPlan rule(UnaryExec parent) {

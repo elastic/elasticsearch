@@ -45,12 +45,12 @@ public class TopNExec extends UnaryExec {
 
     @Override
     protected NodeInfo<TopNExec> info() {
-        return NodeInfo.create(this, TopNExec::new, child(), order, limit);
+        return NodeInfo.create(this, TopNExec::new, child(), order, limit, mode);
     }
 
     @Override
     public TopNExec replaceChild(PhysicalPlan newChild) {
-        return new TopNExec(source(), newChild, order, limit);
+        return new TopNExec(source(), newChild, order, limit, mode);
     }
 
     public List<Order> order() {

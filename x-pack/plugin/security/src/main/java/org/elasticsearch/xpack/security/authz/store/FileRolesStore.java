@@ -210,6 +210,13 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                                 "role [{}] is reserved. the relevant role definition in the mapping file will be ignored",
                                 descriptor.getName()
                             );
+                        } else if (descriptor.getRemoteIndicesPrivileges() != null) {
+                            // TODO follow up PR to support remote indices privileges in file-based roles
+                            assert false : "role [" + descriptor.getName() + "] has remote indices privileges. this is not supported";
+                            logger.warn(
+                                "role [{}] has remote indices privileges. the relevant role definition in the mapping file will be ignored",
+                                descriptor.getName()
+                            );
                         } else if (descriptor.isUsingDocumentOrFieldLevelSecurity() && isDlsLicensed == false) {
                             logger.warn(
                                 "role [{}] uses document and/or field level security, which is not enabled by the current license"
@@ -227,13 +234,17 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 logger.error(() -> format("failed to read roles file [%s]. skipping all roles...", path.toAbsolutePath()), ioe);
                 return emptyMap();
             }
-        } else {
+        } else
+
+        {
             logger.debug("roles file does not exist");
             return emptyMap();
         }
 
         logger.info("parsed [{}] roles from file [{}]", roles.size(), path.toAbsolutePath());
-        return unmodifiableMap(roles);
+        return
+
+        unmodifiableMap(roles);
     }
 
     public static Map<String, RoleDescriptor> parseRoleDescriptors(

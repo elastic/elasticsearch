@@ -9,14 +9,16 @@ apply plugin: 'elasticsearch.yaml-rest-test'
 esplugin {
   name 'stable-analysis-plugin'
   description 'An example analysis plugin using stable plugin api'
+  // TODO fix plugin.descriptor hasnative controller
 }
-
+//TODO write module-info
 
 dependencies {
   //TODO we should try configure this in jarhell
   jarHell "org.elasticsearch:elasticsearch-core:${elasticsearchVersion}"
 
-  //TODO guide - mention about api dependencies
+  //TODO guide - mention about api dependencies, mention about compileOnly,
+  //TODO transitive dependency off and plugin-api dependency?
   compileOnly "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
   compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
 

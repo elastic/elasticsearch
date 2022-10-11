@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-//TODO javadoc
+//TODO javadoc, a default impl perhaps?
 public class ExampleStableAnalysisClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public ExampleStableAnalysisClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

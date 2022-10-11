@@ -27,7 +27,7 @@ public class NlpInferenceInputTests extends ESTestCase {
         doc.put(fieldName, "value");
         doc.put("some other field", "some_other_value");
 
-        String input = new NlpInferenceInput(doc).extractInput(new TrainedModelInput(Collections.singletonList(fieldName)));
+        String input = NlpInferenceInput.fromDoc(doc).extractInput(new TrainedModelInput(Collections.singletonList(fieldName)));
 
         assertThat(input, equalTo("value"));
     }
@@ -39,7 +39,7 @@ public class NlpInferenceInputTests extends ESTestCase {
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> new NlpInferenceInput(doc).extractInput(new TrainedModelInput(Collections.singletonList(fieldName)))
+            () -> NlpInferenceInput.fromDoc(doc).extractInput(new TrainedModelInput(Collections.singletonList(fieldName)))
         );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
@@ -54,7 +54,7 @@ public class NlpInferenceInputTests extends ESTestCase {
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> new NlpInferenceInput(doc).extractInput(new TrainedModelInput(Collections.singletonList(fieldName)))
+            () -> NlpInferenceInput.fromDoc(doc).extractInput(new TrainedModelInput(Collections.singletonList(fieldName)))
         );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
@@ -62,7 +62,7 @@ public class NlpInferenceInputTests extends ESTestCase {
     }
 
     public void testExtractInput_GivenSimpleText() {
-        var input = new NlpInferenceInput("foobar");
+        var input = NlpInferenceInput.fromText("foobar");
         assertTrue(input.isTextInput());
         assertEquals("foobar", input.extractInput(new TrainedModelInput(List.of())));
     }

@@ -38,7 +38,9 @@ import java.util.Objects;
 
 public class SemanticSearchAction extends ActionType<SemanticSearchAction.Response> {
 
-    public static final String NAME = "cluster:monitor/xpack/ml/semantic_search"; // TODO what should this be called?
+    // TODO what should this be called? If this becomes an indices action
+    // change the transport code to run _infer as ML_ORIGIN
+    public static final String NAME = "cluster:monitor/xpack/ml/semantic_search";
 
     public static final SemanticSearchAction INSTANCE = new SemanticSearchAction(NAME);
 
@@ -385,33 +387,32 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
 
         private final TimeValue searchTook;
         private final TimeValue inferenceTook;
-        private final SearchResponse response;
+        private final SearchResponse searchResponse;
 
-        public Response(TimeValue searchTook, TimeValue inferenceTook, SearchResponse response) {
+        public Response(TimeValue searchTook, TimeValue inferenceTook, SearchResponse searchResponse) {
             this.searchTook = searchTook;
             this.inferenceTook = inferenceTook;
-            this.response = response;
+            this.searchResponse = searchResponse;
         }
 
         public Response(StreamInput in) throws IOException {
             searchTook = in.readTimeValue();
             inferenceTook = in.readTimeValue();
-            response = new SearchResponse(in);
+            searchResponse = new SearchResponse(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeTimeValue(searchTook);
             out.writeTimeValue(inferenceTook);
-            response.writeTo(out);
+            searchResponse.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("search_took", searchTook.millis());
             builder.field("inference_took", inferenceTook.millis());
-            builder.field("search_response", response);
+            searchResponse.innerToXContent(builder, params);
             builder.endObject();
             return builder;
         }
@@ -423,12 +424,12 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             Response response1 = (Response) o;
             return Objects.equals(searchTook, response1.searchTook)
                 && Objects.equals(inferenceTook, response1.inferenceTook)
-                && Objects.equals(response, response1.response);
+                && Objects.equals(searchResponse, response1.searchResponse);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(searchTook, inferenceTook, response);
+            return Objects.hash(searchTook, inferenceTook, searchResponse);
         }
     }
 

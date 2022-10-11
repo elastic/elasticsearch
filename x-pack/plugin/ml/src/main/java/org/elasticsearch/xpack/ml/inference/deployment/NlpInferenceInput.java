@@ -18,15 +18,23 @@ import java.util.Map;
  */
 public class NlpInferenceInput {
 
+    public static NlpInferenceInput fromText(String inputText) {
+        return new NlpInferenceInput(inputText);
+    }
+
+    public static NlpInferenceInput fromDoc(Map<String, Object> doc) {
+        return new NlpInferenceInput(doc);
+    }
+
     private final String inputText;
     private final Map<String, Object> doc;
 
-    public NlpInferenceInput(String inputText) {
+    private NlpInferenceInput(String inputText) {
         this.inputText = ExceptionsHelper.requireNonNull(inputText, "input_text");
         doc = null;
     }
 
-    public NlpInferenceInput(Map<String, Object> doc) {
+    private NlpInferenceInput(Map<String, Object> doc) {
         this.doc = ExceptionsHelper.requireNonNull(doc, "doc");
         this.inputText = null;
     }

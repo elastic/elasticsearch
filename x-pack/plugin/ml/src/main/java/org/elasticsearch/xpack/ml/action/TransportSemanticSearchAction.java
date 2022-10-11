@@ -47,17 +47,8 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
 
         var parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
 
-        if (request.getKnnSearchBuilder() == null) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "missing required [" + SemanticSearchAction.Request.KNN.getPreferredName() + "] section in search body"
-                )
-            );
-            return;
-        }
-
         parentTaskAssigningClient.execute(
-            InferTrainedModelDeploymentAction.INSTANCE,
+            InferTrainedModelDeploymentAction.INSTANCE,  // TODO run as ML_ORIGIN after renaming action
             toInferenceRequest(request),
             ActionListener.wrap(inferenceResults -> {
                 if (inferenceResults.getResults()instanceof TextEmbeddingResults textEmbeddingResults) {

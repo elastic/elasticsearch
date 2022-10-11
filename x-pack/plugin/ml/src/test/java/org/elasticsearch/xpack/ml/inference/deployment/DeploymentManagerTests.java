@@ -97,7 +97,7 @@ public class DeploymentManagerTests extends ESTestCase {
         deploymentManager.infer(
             task,
             mock(InferenceConfig.class),
-            new NlpInferenceInput("foo"),
+            NlpInferenceInput.fromText("foo"),
             false,
             TimeValue.timeValueMinutes(1),
             null,

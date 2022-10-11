@@ -94,10 +94,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 (Required, string) The name of the vector field to search against. Must be a
 <<index-vectors-knn-search, `dense_vector` field with indexing enabled>>.
 
-`query_vector`::
-(Required, array of floats) Query vector. Must have the same number of
-dimensions as the vector field you are searching against.
-
 `k`::
 (Required, integer) Number of nearest neighbors to return as top hits. This
 value must be less than `num_candidates`.

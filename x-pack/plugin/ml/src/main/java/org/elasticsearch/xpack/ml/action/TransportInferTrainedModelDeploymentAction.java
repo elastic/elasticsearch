@@ -151,9 +151,9 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
 
         NlpInferenceInput input;
         if (request.getTextInput() != null) {
-            input = new NlpInferenceInput(request.getTextInput());
+            input = NlpInferenceInput.fromText(request.getTextInput());
         } else {
-            input = new NlpInferenceInput(request.getDocs().get(0));
+            input = NlpInferenceInput.fromDoc(request.getDocs().get(0));
         }
 
         task.infer(

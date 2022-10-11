@@ -65,12 +65,12 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
     protected SemanticSearchAction.Request createTestInstance() {
         return new SemanticSearchAction.Request(
             generateRandomStringArray(1, 5, false),
-            randomAlphaOfLength(5),
+            randomBoolean() ? null : randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             randomKnnSearchBuilder(),
             TextEmbeddingConfigUpdateTests.randomUpdate(),
-            TimeValue.timeValueSeconds(randomIntBetween(1, 10)),
+            randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(1, 10)),
             randomBoolean() ? null : List.of(new TermsQueryBuilder("foo", "bar", "cat")),
             randomBoolean() ? null : FetchSourceContext.of(randomBoolean()),
             randomBoolean() ? null : List.of(new FieldAndFormat("foo", null)),

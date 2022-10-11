@@ -172,7 +172,7 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
             assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
             @SuppressWarnings("unchecked")
             Set<String> keys = ((Map<String, Object>) structure.getMappings().get("properties")).keySet();
-            assertTrue(keys.size() == 2);
+            assertEquals(2, keys.size());
             assertTrue(keys.contains("message"));
             assertTrue(keys.contains("loglevel"));
             assertFalse(keys.contains("@timestamp"));

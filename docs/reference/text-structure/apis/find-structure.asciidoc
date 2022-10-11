@@ -221,7 +221,7 @@ format from a built-in set.
 
 If the special value `null` is specified the structure finder will not look
 for a primary timestamp in the text. When the format is semi-structured text
-this will result in the structure finder treating the text as single-line log
+this will result in the structure finder treating the text as single-line
 messages.
 
 The following table provides the appropriate `timeformat` values for some example timestamps:

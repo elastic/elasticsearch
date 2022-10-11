@@ -207,7 +207,8 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                     .subAggregation(AggregationBuilders.max("max").field(NUMERIC_FIELD_NAME))
             )
             .subAggregation(new ChangePointAggregationBuilder("changes", "time>max"));
-        testCase(w -> writeTestDocs(w, bucketValues), (InternalFilter result) -> {
+        testCase(w -> writeTestDocs(w, bucketValues), r -> {
+            InternalFilter result = (InternalFilter) r;
             InternalChangePointAggregation agg = result.getAggregations().get("changes");
             changeTypeAssertions.accept(agg.getChangeType());
         }, new AggTestConfig(dummy, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME)));

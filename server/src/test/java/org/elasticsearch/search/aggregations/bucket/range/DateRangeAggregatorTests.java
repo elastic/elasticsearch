@@ -283,7 +283,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             testCase(iw -> {
                 iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
                 iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
-            }, (InternalDateRange range) -> {
+            }, agg -> {
+                InternalDateRange range = (InternalDateRange) agg;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();
                 assertEquals(1, ranges.size());
                 assertEquals(0, ranges.get(0).getDocCount());
@@ -384,7 +385,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             for (List<Instant> values : DATE_FIELD_VALUES) {
                 iw.addDocument(List.of(new SortedNumericDocValuesField(DATE_FIELD_NAME, values.get(0).toEpochMilli())));
             }
-        }, (InternalDateRange range) -> {
+        }, agg -> {
+            InternalDateRange range = (InternalDateRange) agg;
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertThat(ranges, hasSize(3));
 
@@ -433,7 +435,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                     values.stream().map(value -> new SortedNumericDocValuesField(DATE_FIELD_NAME, value.toEpochMilli())).toList()
                 );
             }
-        }, (InternalDateRange range) -> {
+        }, agg -> {
+            InternalDateRange range = (InternalDateRange) agg;
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertThat(ranges, hasSize(3));
 

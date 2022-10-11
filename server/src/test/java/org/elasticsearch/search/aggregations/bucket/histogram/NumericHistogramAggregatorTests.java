@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -425,7 +426,8 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             }
             iw.addDocuments(docs);
         };
-        Consumer<InternalHistogram> verify = outer -> {
+        Consumer<InternalAggregation> verify = agg -> {
+            InternalHistogram outer = (InternalHistogram) agg;
             assertThat(outer.getBuckets(), hasSize(20));
             for (int outerIdx = 0; outerIdx < 20; outerIdx++) {
                 InternalHistogram.Bucket outerBucket = outer.getBuckets().get(outerIdx);

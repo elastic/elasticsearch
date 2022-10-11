@@ -81,7 +81,8 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             indexStrings(iw, "b");
             indexStrings(iw, "b");
             indexStrings(iw, "c");
-        }, (StringTerms result) -> {
+        }, agg -> {
+            StringTerms result = (StringTerms) agg;
             assertTrue(AggregationInspectionHelper.hasValue(result));
 
             assertEquals(3, result.getBuckets().size());
@@ -106,7 +107,8 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             indexStrings(iw, "a");
             indexStrings(iw, "d");
             indexStrings(iw, "c");
-        }, (InternalComposite result) -> {
+        }, agg -> {
+            InternalComposite result = (InternalComposite) agg;
             assertTrue(AggregationInspectionHelper.hasValue(result));
 
             assertEquals(3, result.getBuckets().size());
@@ -132,7 +134,8 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             indexStrings(iw, "a");
             indexStrings(iw, "d");
             indexStrings(iw, "c");
-        }, (InternalComposite result) -> {
+        }, agg -> {
+            InternalComposite result = (InternalComposite) agg;
             assertEquals(2, result.getBuckets().size());
             assertEquals("{terms_key=d}", result.afterKey().toString());
             assertEquals("{terms_key=c}", result.getBuckets().get(0).getKeyAsString());

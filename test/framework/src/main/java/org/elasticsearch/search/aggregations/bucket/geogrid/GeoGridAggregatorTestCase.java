@@ -311,6 +311,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         testCase(query, precision, geoBoundingBox, verify, buildIndex, createBuilder("_name").field(field));
     }
 
+    @SuppressWarnings("unchecked")
     private void testCase(
         Query query,
         int precision,
@@ -325,7 +326,11 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             assertThat(aggregationBuilder.geoBoundingBox(), equalTo(geoBoundingBox));
         }
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType(aggregationBuilder.field());
-        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldType).withQuery(query));
+        testCase(
+            buildIndex,
+            agg -> verify.accept((InternalGeoGrid<T>) agg),
+            new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
+        );
     }
 
     @Override

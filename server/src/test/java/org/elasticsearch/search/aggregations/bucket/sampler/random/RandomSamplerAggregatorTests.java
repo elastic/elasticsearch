@@ -55,7 +55,8 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         long[] counts = new long[5];
         AtomicInteger integer = new AtomicInteger();
         do {
-            testCase(RandomSamplerAggregatorTests::writeTestDocs, (InternalRandomSampler result) -> {
+            testCase(RandomSamplerAggregatorTests::writeTestDocs, r -> {
+                InternalRandomSampler result = (InternalRandomSampler) r;
                 counts[integer.get()] = result.getDocCount();
                 if (result.getDocCount() > 0) {
                     Avg agg = result.getAggregations().get("avg");
@@ -81,8 +82,9 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         // in case the test index has many segments.
         // subaggs should be scaled along with upper level aggs
         // sampled doc count is NOT scaled, and thus should be lower
-        testCase(RandomSamplerAggregatorTests::writeTestDocs, (InternalRandomSampler result) -> {
-            long sampledDocCount = result.getDocCount();
+        testCase(RandomSamplerAggregatorTests::writeTestDocs, r -> {
+                InternalRandomSampler result = (InternalRandomSampler) r;
+                long sampledDocCount = result.getDocCount();
             Filter agg = result.getAggregations().get("filter_outer");
             long outerFilterDocCount = agg.getDocCount();
             Filter innerAgg = agg.getAggregations().get("filter_inner");
@@ -114,7 +116,8 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
     }
 
     public void testAggregationSamplingOptimizedMinAndMax() throws IOException {
-        testCase(RandomSamplerAggregatorTests::writeTestDocsWithTrueMinMax, (InternalRandomSampler result) -> {
+        testCase(RandomSamplerAggregatorTests::writeTestDocsWithTrueMinMax, r -> {
+                InternalRandomSampler result = (InternalRandomSampler) r;
             Min min = result.getAggregations().get("min");
             Max max = result.getAggregations().get("max");
             assertThat(min.value(), equalTo((double) TRUE_MIN));

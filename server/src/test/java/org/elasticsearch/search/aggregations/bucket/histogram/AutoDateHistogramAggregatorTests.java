@@ -418,7 +418,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
         final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
-        testCase(iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
+        testCase(iw -> {}, agg -> {
+            InternalAutoDateHistogram histogram = (InternalAutoDateHistogram) agg;
             assertEquals(0, histogram.getBuckets().size());
             assertFalse(AggregationInspectionHelper.hasValue(histogram));
         }, new AggTestConfig(aggregation, fieldType).withQuery(DEFAULT_QUERY));
@@ -447,7 +448,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
         final DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType("date_field");
 
-        testCase(iw -> {}, (Consumer<InternalAutoDateHistogram>) histogram -> {
+        testCase(iw -> {}, agg -> {
+            InternalAutoDateHistogram histogram = (InternalAutoDateHistogram) agg;
             assertEquals(0, histogram.getBuckets().size());
             assertFalse(AggregationInspectionHelper.hasValue(histogram));
         }, new AggTestConfig(aggregation, fieldType).withQuery(DEFAULT_QUERY));
@@ -938,7 +940,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
 
         AutoDateHistogramAggregationBuilder b = new AutoDateHistogramAggregationBuilder("a").field(DATE_FIELD)
             .subAggregation(new RangeAggregationBuilder("r").field(NUMERIC_FIELD).addRange(0, 2).addRange(3, 4));
-        testCase(iw -> indexSampleData(dates, iw), (InternalAutoDateHistogram h) -> {
+        testCase(iw -> indexSampleData(dates, iw), agg -> {
+            InternalAutoDateHistogram h = (InternalAutoDateHistogram) agg;
             InternalAutoDateHistogram.Bucket bucket = h.getBuckets().get(0);
             InternalRange<?, ?> range = bucket.getAggregations().get("r");
             assertMap(
@@ -976,7 +979,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                     .addRange("192.168.0.0", "192.168.0.2")
                     .addRange("192.168.0.3", "192.168.0.4")
             );
-        testCase(iw -> indexSampleData(dates, iw), (InternalAutoDateHistogram h) -> {
+        testCase(iw -> indexSampleData(dates, iw), agg -> {
+            InternalAutoDateHistogram h = (InternalAutoDateHistogram) agg;
             InternalAutoDateHistogram.Bucket bucket = h.getBuckets().get(0);
             InternalBinaryRange range = bucket.getAggregations().get("r");
             assertMap(

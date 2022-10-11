@@ -173,7 +173,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 doc("2010-04-27T03:43:34", new SortedNumericDocValuesField("val", 4), new SortedNumericDocValuesField("val", 5))
             );
-        }, (Consumer<InternalMultiBucketAggregation<?, ?>>) dh -> {
+        }, agg -> {
+            InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(1.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
@@ -341,7 +342,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 2)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
-        }, (Consumer<InternalDateHistogram>) tdh -> {
+        }, agg -> {
+            InternalDateHistogram tdh = (InternalDateHistogram) agg;
             assertThat(tdh.getBuckets(), hasSize(2));
             InternalDateHistogram dh1 = (InternalDateHistogram) tdh.getBuckets().get(0).getAggregations().asList().get(0);
             assertThat(dh1.getBuckets(), hasSize(1));
@@ -401,7 +403,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField("term", new BytesRef("b"))
                 )
             );
-        }, (Consumer<InternalDateHistogram>) dh -> {
+        }, agg -> {
+            InternalDateHistogram dh = (InternalDateHistogram) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             StringTerms st1 = (StringTerms) dh.getBuckets().get(0).getAggregations().asList().get(0);
             assertThat(st1.getBuckets(), hasSize(1));
@@ -466,7 +469,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField("term", new BytesRef("b"))
                 )
             );
-        }, (Consumer<InternalComposite>) composite -> {
+        }, agg -> {
+            InternalComposite composite = (InternalComposite) agg;
             assertThat(composite.getBuckets(), hasSize(3));
             // Monthly rate of term a in the first month
             assertThat(
@@ -544,10 +548,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField("term", new BytesRef("b"))
                 )
             );
-        },
-            (Consumer<InternalDateHistogram>) dh -> { fail("Shouldn't be here"); },
-            new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType, keywordType)
-        ));
+        }, dh -> fail("Shouldn't be here"), new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType, keywordType)));
         if (millisecondBasedRate) {
             assertEquals(
                 "Cannot use non month-based rate unit ["
@@ -608,7 +609,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 doc("2020-11-11T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
             );
-        }, (Consumer<InternalDateHistogram>) dh -> {
+        }, agg -> {
+            InternalDateHistogram dh = (InternalDateHistogram) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             if (useSum) {
                 StringTerms st1 = (StringTerms) dh.getBuckets().get(0).getAggregations().asList().get(0);
@@ -681,7 +683,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 2), new StringField("term", "a", Field.Store.NO)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3), new StringField("term", "a", Field.Store.NO)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4), new StringField("term", "b", Field.Store.NO)));
-        }, (Consumer<InternalMultiBucketAggregation<?, ?>>) dh -> {
+        }, agg -> {
+            InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
@@ -712,7 +715,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 2)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
-        }, (Consumer<InternalMultiBucketAggregation<?, ?>>) dh -> {
+        }, agg -> {
+            InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValueAsString(), equalTo("03.0/M"));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).getValueAsString(), equalTo("07.0/M"));
@@ -735,7 +739,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(doc("2010-03-01T00:00:00", histogramFieldDocValues("val", new double[] { 1, 2 })));
             iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3, 4 })));
-        }, (Consumer<InternalMultiBucketAggregation<?, ?>>) dh -> {
+        }, agg -> {
+            InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValue(), closeTo(3.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).getValue(), closeTo(7.0, 0.000001));
@@ -756,7 +761,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(doc("2010-03-01T00:00:00", histogramFieldDocValues("val", new double[] { 1, 2 })));
             iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3, 4 })));
-        }, (Consumer<InternalMultiBucketAggregation<?, ?>>) dh -> {
+        }, agg -> {
+            InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(1));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValue(), closeTo(10.0 / 12, 0.000001));
         }, new AggTestConfig(dateHistogramAggregationBuilder, dateType, histType));
@@ -777,7 +783,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(doc("2010-03-01T00:00:00", histogramFieldDocValues("val", new double[] { 1, 2 })));
             iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3, 4, 5 })));
-        }, (Consumer<InternalMultiBucketAggregation<?, ?>>) dh -> {
+        }, agg -> {
+            InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValue(), closeTo(2.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).getValue(), closeTo(3.0, 0.000001));
@@ -799,7 +806,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(doc("2010-03-01T00:00:00", histogramFieldDocValues("val", new double[] { 1, 2 })));
             iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3, 4, 5 })));
-        }, (Consumer<InternalMultiBucketAggregation<?, ?>>) dh -> {
+        }, agg -> {
+            InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(1));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValue(), closeTo(5.0 / 12, 0.000001));
         }, new AggTestConfig(dateHistogramAggregationBuilder, dateType, histType));
@@ -830,7 +838,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 4 }), new StringField("term", "b", Field.Store.NO))
             );
-        }, (Consumer<InternalMultiBucketAggregation<?, ?>>) dh -> {
+        }, agg -> {
+            InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
@@ -917,7 +926,11 @@ public class RateAggregatorTests extends AggregatorTestCase {
             dateHistogramAggregationBuilder.fixedInterval(new DateHistogramInterval(interval));
         }
         dateHistogramAggregationBuilder.subAggregation(rateAggregationBuilder);
-        testCase(buildIndex, verify, new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType).withQuery(query));
+        testCase(
+            buildIndex,
+            agg -> verify.accept((InternalDateHistogram) agg),
+            new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType).withQuery(query)
+        );
     }
 
     @Override

@@ -272,7 +272,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(asList(new NumericDocValuesField("a", 102), new NumericDocValuesField("b", 89)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 93)));
-        }, (Consumer<InternalTTest>) tTest -> {
+        }, agg -> {
+            InternalTTest tTest = (InternalTTest) agg;
             if (missA && missB) {
                 assertEquals(Double.NaN, tTest.getValue(), 0);
             } else {
@@ -412,7 +413,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 98), new NumericDocValuesField("part", 21))
             );
-        }, (Consumer<InternalHistogram>) histo -> {
+        }, agg -> {
+            InternalHistogram histo = (InternalHistogram) agg;
             assertEquals(3, histo.getBuckets().size());
             assertNotNull(histo.getBuckets().get(0).getAggregations().asMap().get("t_test"));
             InternalTTest tTest = (InternalTTest) histo.getBuckets().get(0).getAggregations().asMap().get("t_test");
@@ -450,7 +452,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 102), new NumericDocValuesField("b", 89)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 93)));
             iw.addDocument(asList(new NumericDocValuesField("a", 111), new NumericDocValuesField("b", 72)));
-        }, (Consumer<InternalTTest>) tTest -> {
+        }, agg -> {
+            InternalTTest tTest = (InternalTTest) agg;
             assertEquals(
                 tTestType == TTestType.PAIRED ? 0.1939778614 : tTestType == TTestType.HOMOSCEDASTIC ? 0.05878871029 : 0.07529006595,
                 tTest.getValue(),
@@ -476,7 +479,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 102), new NumericDocValuesField("b", 89)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 93)));
             iw.addDocument(asList(new NumericDocValuesField("a", 111), new NumericDocValuesField("b", 72)));
-        }, (Consumer<InternalGlobal>) global -> {
+        }, agg -> {
+            InternalGlobal global = (InternalGlobal) agg;
             assertEquals(3, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
             assertNotNull(global.getAggregations().asMap().get("t_test"));
@@ -505,9 +509,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("field", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("field", 3)));
         },
-            (Consumer<InternalTTest>) tTest -> {
-                assertEquals(tTestType == TTestType.PAIRED ? 0 : 0.5733922538, tTest.getValue(), 0.000001);
-            },
+            tTest -> assertEquals(tTestType == TTestType.PAIRED ? 0 : 0.5733922538, ((InternalTTest) tTest).getValue(), 0.000001),
             new AggTestConfig(aggregationBuilder, fieldType)
         );
     }
@@ -530,7 +532,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 101), new NumericDocValuesField("b", 102)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 98)));
         },
-            (Consumer<InternalTTest>) ttest -> { assertEquals(0.09571844217 * tails, ttest.getValue(), 0.00001); },
+            ttest -> assertEquals(0.09571844217 * tails, ((InternalTTest) ttest).getValue(), 0.00001),
             new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)
         );
     }
@@ -553,7 +555,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 101), new NumericDocValuesField("b", 102)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 98)));
         },
-            (Consumer<InternalTTest>) ttest -> { assertEquals(0.03928288693 * tails, ttest.getValue(), 0.00001); },
+            ttest -> assertEquals(0.03928288693 * tails, ((InternalTTest) ttest).getValue(), 0.00001),
             new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)
         );
     }
@@ -579,7 +581,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 101), new NumericDocValuesField("b", 102)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 98)));
         },
-            (Consumer<InternalTTest>) ttest -> { assertEquals(0.04538666214 * tails, ttest.getValue(), 0.00001); },
+            ttest -> assertEquals(0.04538666214 * tails, ((InternalTTest) ttest).getValue(), 0.00001),
             new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)
         );
     }
@@ -630,7 +632,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             );
             assertEquals("Paired t-test doesn't support filters", ex.getMessage());
         } else {
-            testCase(buildIndex, (Consumer<InternalTTest>) ttest -> {
+            testCase(buildIndex, agg -> {
+                InternalTTest ttest = (InternalTTest) agg;
                 if (tTestType == TTestType.HOMOSCEDASTIC) {
                     assertEquals(0.03928288693 * tails, ttest.getValue(), 0.00001);
                 } else {
@@ -668,7 +671,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("field", 5), new IntPoint("term", 2), new NumericDocValuesField("term", 2)));
             iw.addDocument(asList(new NumericDocValuesField("field", 6), new IntPoint("term", 2), new NumericDocValuesField("term", 2)));
         },
-            (Consumer<InternalTTest>) tTest -> { assertEquals(0.02131164113, tTest.getValue(), 0.000001); },
+            tTest -> assertEquals(0.02131164113, ((InternalTTest) tTest).getValue(), 0.000001),
             new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)
         );
     }
@@ -688,7 +691,11 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         if (type != TTestType.HETEROSCEDASTIC || randomBoolean()) {
             aggregationBuilder.testType(type);
         }
-        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldType1, fieldType2).withQuery(query));
+        testCase(
+            buildIndex,
+            agg -> verify.accept((InternalTTest) agg),
+            new AggTestConfig(aggregationBuilder, fieldType1, fieldType2).withQuery(query)
+        );
     }
 
     @Override

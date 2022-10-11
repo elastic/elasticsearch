@@ -111,7 +111,11 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<InternalValueCount> verify)
         throws IOException {
-        testCase(indexer, verify, new AggTestConfig(count("_name").field(FIELD_NAME), defaultFieldType()).withQuery(query));
+        testCase(
+            indexer,
+            agg -> verify.accept((InternalValueCount) agg),
+            new AggTestConfig(count("_name").field(FIELD_NAME), defaultFieldType()).withQuery(query)
+        );
     }
 
     @Override

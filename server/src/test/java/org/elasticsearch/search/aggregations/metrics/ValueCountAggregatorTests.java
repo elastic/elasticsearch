@@ -382,7 +382,11 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         Consumer<InternalValueCount> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
+        testCase(
+            buildIndex,
+            agg -> verify.accept((InternalValueCount) agg),
+            new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query)
+        );
     }
 
     private static MappedFieldType createMappedFieldType(String name, ValueType valueType) {

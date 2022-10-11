@@ -610,10 +610,18 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         Consumer<InternalCardinality> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
+        testCase(
+            buildIndex,
+            agg -> verify.accept((InternalCardinality) agg),
+            new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query)
+        );
         for (CardinalityAggregatorFactory.ExecutionMode mode : CardinalityAggregatorFactory.ExecutionMode.values()) {
             aggregationBuilder.executionHint(mode.toString().toLowerCase(Locale.ROOT));
-            testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
+            testCase(
+                buildIndex,
+                agg -> verify.accept((InternalCardinality) agg),
+                new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query)
+            );
         }
     }
 }

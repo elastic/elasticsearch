@@ -454,7 +454,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
      * in order to mak sure the implementation does not leak.
      */
-    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSearcher searcher, AggTestConfig aggTestConfig)
+    protected <A extends InternalAggregation> A searchAndReduce(IndexSearcher searcher, AggTestConfig aggTestConfig)
         throws IOException {
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
@@ -544,7 +544,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     fieldTypes
                 );
                 try {
-                    C a = createAggregator(builder, context);
+                    Aggregator a = createAggregator(builder, context);
                     a.preCollection();
                     if (context.isInSortOrderExecutionRequired()) {
                         new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
@@ -648,7 +648,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     protected <V extends InternalAggregation> void testCase(
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<V> verify,
+        Consumer<InternalAggregation> verify,
         AggTestConfig aggTestConfig
     ) throws IOException {
         boolean timeSeries = aggTestConfig.requireSortedIndex();
@@ -668,7 +668,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-                V agg = searchAndReduce(indexSearcher, aggTestConfig);
+                InternalAggregation agg = searchAndReduce(indexSearcher, aggTestConfig);
                 verify.accept(agg);
 
                 if (aggTestConfig.builders().size() == 1) {

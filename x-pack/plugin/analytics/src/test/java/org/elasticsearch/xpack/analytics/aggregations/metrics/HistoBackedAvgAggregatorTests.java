@@ -111,7 +111,11 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<InternalAvg> verify)
         throws IOException {
-        testCase(indexer, verify, new AggTestConfig(avg("_name").field(FIELD_NAME), defaultFieldType()).withQuery(query));
+        testCase(
+            indexer,
+            agg -> verify.accept((InternalAvg) agg),
+            new AggTestConfig(avg("_name").field(FIELD_NAME), defaultFieldType()).withQuery(query)
+        );
     }
 
     @Override

@@ -268,7 +268,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             iw.addDocument(doc(fieldType, "", "c", "a"));
             iw.addDocument(doc(fieldType, "b", "d"));
             iw.addDocument(doc(fieldType, ""));
-        }, (InternalTerms<?, ?> result) -> {
+        }, agg -> {
+            InternalTerms<?, ?> result = (InternalTerms<?, ?>) agg;
             assertEquals(5, result.getBuckets().size());
             assertEquals("", result.getBuckets().get(0).getKeyAsString());
             assertEquals(2L, result.getBuckets().get(0).getDocCount());
@@ -299,7 +300,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 iw.addDocuments(
                     Arrays.asList(doc(fieldType, "a", "b"), doc(fieldType, "", "c", "d"), doc(fieldType, "b", "d"), doc(fieldType, "b"))
                 );
-            }, (InternalTerms<?, ?> result) -> {
+            }, agg -> {
+                InternalTerms<?, ?> result = (InternalTerms<?, ?>) agg;
                 assertEquals(2, result.getBuckets().size());
                 assertEquals("b", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(3L, result.getBuckets().get(0).getDocCount());
@@ -334,12 +336,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 }
             }
             iw.addDocuments(docs);
-        }, (StringTerms result) -> {
-            assertThat(
-                result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
-                equalTo(List.of("b007", "b107", "b207", "b307", "b407", "b507", "b607", "b707", "b000", "b001"))
-            );
-        }, new AggTestConfig(aggregationBuilder, fieldType));
+        }, result -> assertThat(
+            ((StringTerms) result).getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
+            equalTo(List.of("b007", "b107", "b207", "b307", "b407", "b507", "b607", "b707", "b000", "b001"))
+        ), new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testManyTermsOrderBySubAgg() throws Exception {
@@ -367,7 +367,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 docs.add(doc);
             }
             iw.addDocuments(docs);
-        }, (StringTerms result) -> {
+        }, agg -> {
+            StringTerms result = (StringTerms) agg;
             List<String> expected = LongStream.range(
                 TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 210,
                 TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200
@@ -448,118 +449,124 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .field("mv_field")
             .size(12)
             .order(BucketOrder.key(true));
-        testCase(buildIndex, (StringTerms result8) -> {
-            assertEquals(10, result8.getBuckets().size());
-            assertEquals("val000", result8.getBuckets().get(0).getKeyAsString());
-            assertEquals(1L, result8.getBuckets().get(0).getDocCount());
-            assertEquals("val001", result8.getBuckets().get(1).getKeyAsString());
-            assertEquals(1L, result8.getBuckets().get(1).getDocCount());
-            assertEquals("val002", result8.getBuckets().get(2).getKeyAsString());
-            assertEquals(1L, result8.getBuckets().get(2).getDocCount());
-            assertEquals("val003", result8.getBuckets().get(3).getKeyAsString());
-            assertEquals(1L, result8.getBuckets().get(3).getDocCount());
-            assertEquals("val004", result8.getBuckets().get(4).getKeyAsString());
-            assertEquals(1L, result8.getBuckets().get(4).getDocCount());
-            assertEquals("val005", result8.getBuckets().get(5).getKeyAsString());
-            assertEquals(1L, result8.getBuckets().get(5).getDocCount());
-            assertEquals("val006", result8.getBuckets().get(6).getKeyAsString());
-            assertEquals(1L, result8.getBuckets().get(6).getDocCount());
-            assertEquals("val007", result8.getBuckets().get(7).getKeyAsString());
-            assertEquals(1L, result8.getBuckets().get(7).getDocCount());
-            assertEquals("val008", result8.getBuckets().get(8).getKeyAsString());
-            assertEquals(1L, result8.getBuckets().get(8).getDocCount());
-            assertEquals("val009", result8.getBuckets().get(9).getKeyAsString());
-            assertEquals(1L, result8.getBuckets().get(9).getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(result8));
+        testCase(buildIndex, agg -> {
+            StringTerms result = (StringTerms) agg;
+            assertEquals(10, result.getBuckets().size());
+            assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            assertEquals("val001", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            assertEquals("val002", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            assertEquals("val003", result.getBuckets().get(3).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(3).getDocCount());
+            assertEquals("val004", result.getBuckets().get(4).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(4).getDocCount());
+            assertEquals("val005", result.getBuckets().get(5).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(5).getDocCount());
+            assertEquals("val006", result.getBuckets().get(6).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(6).getDocCount());
+            assertEquals("val007", result.getBuckets().get(7).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(7).getDocCount());
+            assertEquals("val008", result.getBuckets().get(8).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(8).getDocCount());
+            assertEquals("val009", result.getBuckets().get(9).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(9).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(result));
         }, new AggTestConfig(builder, ft1, ft2));
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
             .includeExclude(new IncludeExclude("val00.+", null, null, null))
             .field("sv_field")
             .order(BucketOrder.key(true));
-        testCase(buildIndex, (StringTerms result7) -> {
-            assertEquals(5, result7.getBuckets().size());
-            assertEquals("val001", result7.getBuckets().get(0).getKeyAsString());
-            assertEquals(1L, result7.getBuckets().get(0).getDocCount());
-            assertEquals("val003", result7.getBuckets().get(1).getKeyAsString());
-            assertEquals(1L, result7.getBuckets().get(1).getDocCount());
-            assertEquals("val005", result7.getBuckets().get(2).getKeyAsString());
-            assertEquals(1L, result7.getBuckets().get(2).getDocCount());
-            assertEquals("val007", result7.getBuckets().get(3).getKeyAsString());
-            assertEquals(1L, result7.getBuckets().get(3).getDocCount());
-            assertEquals("val009", result7.getBuckets().get(4).getKeyAsString());
-            assertEquals(1L, result7.getBuckets().get(4).getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(result7));
+        testCase(buildIndex, agg -> {
+            StringTerms result = (StringTerms) agg;
+            assertEquals(5, result.getBuckets().size());
+            assertEquals("val001", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            assertEquals("val003", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            assertEquals("val005", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            assertEquals("val007", result.getBuckets().get(3).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(3).getDocCount());
+            assertEquals("val009", result.getBuckets().get(4).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(4).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(result));
         }, new AggTestConfig(builder, ft1, ft2));
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
             .includeExclude(new IncludeExclude("val00.+", null, null, null))
             .field("sv_field")
             .order(BucketOrder.key(true));
-        testCase(buildIndex, (StringTerms result6) -> {
-            assertEquals(5, result6.getBuckets().size());
-            assertEquals("val001", result6.getBuckets().get(0).getKeyAsString());
-            assertEquals(1L, result6.getBuckets().get(0).getDocCount());
-            assertEquals("val003", result6.getBuckets().get(1).getKeyAsString());
-            assertEquals(1L, result6.getBuckets().get(1).getDocCount());
-            assertEquals("val005", result6.getBuckets().get(2).getKeyAsString());
-            assertEquals(1L, result6.getBuckets().get(2).getDocCount());
-            assertEquals("val007", result6.getBuckets().get(3).getKeyAsString());
-            assertEquals(1L, result6.getBuckets().get(3).getDocCount());
-            assertEquals("val009", result6.getBuckets().get(4).getKeyAsString());
-            assertEquals(1L, result6.getBuckets().get(4).getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(result6));
+        testCase(buildIndex, agg -> {
+            StringTerms result = (StringTerms) agg;
+            assertEquals(5, result.getBuckets().size());
+            assertEquals("val001", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            assertEquals("val003", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            assertEquals("val005", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            assertEquals("val007", result.getBuckets().get(3).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(3).getDocCount());
+            assertEquals("val009", result.getBuckets().get(4).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(4).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(result));
         }, new AggTestConfig(builder, ft1, ft2));
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
             .includeExclude(new IncludeExclude("val00.+", "(val000|val001)", null, null))
             .field("mv_field")
             .order(BucketOrder.key(true));
-        testCase(buildIndex, (StringTerms result5) -> {
-            assertEquals(8, result5.getBuckets().size());
-            assertEquals("val002", result5.getBuckets().get(0).getKeyAsString());
-            assertEquals(1L, result5.getBuckets().get(0).getDocCount());
-            assertEquals("val003", result5.getBuckets().get(1).getKeyAsString());
-            assertEquals(1L, result5.getBuckets().get(1).getDocCount());
-            assertEquals("val004", result5.getBuckets().get(2).getKeyAsString());
-            assertEquals(1L, result5.getBuckets().get(2).getDocCount());
-            assertEquals("val005", result5.getBuckets().get(3).getKeyAsString());
-            assertEquals(1L, result5.getBuckets().get(3).getDocCount());
-            assertEquals("val006", result5.getBuckets().get(4).getKeyAsString());
-            assertEquals(1L, result5.getBuckets().get(4).getDocCount());
-            assertEquals("val007", result5.getBuckets().get(5).getKeyAsString());
-            assertEquals(1L, result5.getBuckets().get(5).getDocCount());
-            assertEquals("val008", result5.getBuckets().get(6).getKeyAsString());
-            assertEquals(1L, result5.getBuckets().get(6).getDocCount());
-            assertEquals("val009", result5.getBuckets().get(7).getKeyAsString());
-            assertEquals(1L, result5.getBuckets().get(7).getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(result5));
+        testCase(buildIndex, agg -> {
+            StringTerms result = (StringTerms) agg;
+            assertEquals(8, result.getBuckets().size());
+            assertEquals("val002", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            assertEquals("val003", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            assertEquals("val004", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            assertEquals("val005", result.getBuckets().get(3).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(3).getDocCount());
+            assertEquals("val006", result.getBuckets().get(4).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(4).getDocCount());
+            assertEquals("val007", result.getBuckets().get(5).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(5).getDocCount());
+            assertEquals("val008", result.getBuckets().get(6).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(6).getDocCount());
+            assertEquals("val009", result.getBuckets().get(7).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(7).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(result));
         }, new AggTestConfig(builder, ft1, ft2));
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
             .includeExclude(new IncludeExclude(null, "val00.+", null, null))
             .field("mv_field")
             .order(BucketOrder.key(true));
-        testCase(buildIndex, (StringTerms result4) -> {
-            assertEquals(2, result4.getBuckets().size());
-            assertEquals("val010", result4.getBuckets().get(0).getKeyAsString());
-            assertEquals(1L, result4.getBuckets().get(0).getDocCount());
-            assertEquals("val011", result4.getBuckets().get(1).getKeyAsString());
-            assertEquals(1L, result4.getBuckets().get(1).getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(result4));
+        testCase(buildIndex, agg -> {
+            StringTerms result = (StringTerms) agg;
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("val010", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            assertEquals("val011", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(result));
         }, new AggTestConfig(builder, ft1, ft2));
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
             .includeExclude(new IncludeExclude(null, null, new TreeSet<>(Set.of(new BytesRef("val000"), new BytesRef("val010"))), null))
             .field("mv_field")
             .order(BucketOrder.key(true));
-        testCase(buildIndex, (StringTerms result3) -> {
-            assertEquals(2, result3.getBuckets().size());
-            assertEquals("val000", result3.getBuckets().get(0).getKeyAsString());
-            assertEquals(1L, result3.getBuckets().get(0).getDocCount());
-            assertEquals("val010", result3.getBuckets().get(1).getKeyAsString());
-            assertEquals(1L, result3.getBuckets().get(1).getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(result3));
+        testCase(buildIndex, agg -> {
+            StringTerms result = (StringTerms) agg;
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            assertEquals("val010", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(result));
         }, new AggTestConfig(builder, ft1, ft2));
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
@@ -586,13 +593,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             )
             .field("mv_field")
             .order(BucketOrder.key(true));
-        testCase(buildIndex, (StringTerms result2) -> {
-            assertEquals(2, result2.getBuckets().size());
-            assertEquals("val000", result2.getBuckets().get(0).getKeyAsString());
-            assertEquals(1L, result2.getBuckets().get(0).getDocCount());
-            assertEquals("val010", result2.getBuckets().get(1).getKeyAsString());
-            assertEquals(1L, result2.getBuckets().get(1).getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(result2));
+        testCase(buildIndex, agg -> {
+            StringTerms result = (StringTerms) agg;
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            assertEquals("val010", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(result));
         }, new AggTestConfig(builder, ft1, ft2));
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
@@ -617,13 +625,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             )
             .field("mv_field")
             .order(BucketOrder.key(true));
-        testCase(buildIndex, (StringTerms result1) -> {
-            assertEquals(2, result1.getBuckets().size());
-            assertEquals("val000", result1.getBuckets().get(0).getKeyAsString());
-            assertEquals(1L, result1.getBuckets().get(0).getDocCount());
-            assertEquals("val009", result1.getBuckets().get(1).getKeyAsString());
-            assertEquals(1L, result1.getBuckets().get(1).getDocCount());
-            assertTrue(AggregationInspectionHelper.hasValue(result1));
+        testCase(buildIndex, agg -> {
+            StringTerms result = (StringTerms) agg;
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("val000", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            assertEquals("val009", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+            assertTrue(AggregationInspectionHelper.hasValue(result));
         }, new AggTestConfig(builder, ft1, ft2));
 
         builder = new TermsAggregationBuilder("_name").executionHint(executionHint)
@@ -637,7 +646,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             )
             .field("mv_field")
             .order(BucketOrder.key(true));
-        testCase(buildIndex, (StringTerms result) -> {
+        testCase(buildIndex, agg -> {
+            StringTerms result = (StringTerms) agg;
             assertEquals(2, result.getBuckets().size());
             assertEquals("val001", result.getBuckets().get(0).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(0).getDocCount());
@@ -1227,7 +1237,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 document.add(new InetAddressPoint("field", point));
             }
             iw.addDocument(document);
-        }, (StringTerms result) -> {
+        }, agg -> {
+            StringTerms result = (StringTerms) agg;
             assertEquals("_name", result.getName());
             assertEquals(1, result.getBuckets().size());
             assertEquals("192.168.100.42", result.getBuckets().get(0).getKey());
@@ -1660,7 +1671,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
         },
-            (Consumer<InternalTerms<?, ?>>) terms -> { assertTrue(AggregationInspectionHelper.hasValue(terms)); },
+            terms -> assertTrue(AggregationInspectionHelper.hasValue((InternalTerms<?, ?>) terms)),
             new AggTestConfig(aggregationBuilder, fieldType)
         );
     }
@@ -1821,7 +1832,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
         },
-            (Consumer<InternalTerms<?, ?>>) terms -> assertTrue(AggregationInspectionHelper.hasValue(terms)),
+            terms -> assertTrue(AggregationInspectionHelper.hasValue((InternalTerms<?, ?>) terms)),
             new AggTestConfig(aggregationBuilder, fieldType)
         );
     }
@@ -1837,7 +1848,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             for (int i = 1; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
-        }, (Consumer<InternalTerms<?, ?>>) terms -> fail("Should have thrown"), new AggTestConfig(aggregationBuilder, fieldType)));
+        },  terms -> fail("Should have thrown"), new AggTestConfig(aggregationBuilder, fieldType)));
 
         assertThat(ex.getMessage(), equalTo("Cannot parse the value [42] using the pattern [$###.00]"));
     }
@@ -1943,7 +1954,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 )
             );
         };
-        testCase(buildIndex, (InternalDateHistogram dh) -> {
+        testCase(buildIndex, agg -> {
+            InternalDateHistogram dh = (InternalDateHistogram) agg;
             assertThat(
                 dh.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList()),
                 equalTo(List.of("2020-01-01T00:00:00.000Z", "2021-01-01T00:00:00.000Z"))

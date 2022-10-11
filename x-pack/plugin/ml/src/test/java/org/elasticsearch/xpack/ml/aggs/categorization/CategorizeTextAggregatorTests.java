@@ -60,7 +60,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
     private static final String NUMERIC_FIELD_NAME = "value";
 
     public void testCategorizationWithoutSubAggs() throws Exception {
-        testCase(CategorizeTextAggregatorTests::writeTestDocs, (InternalCategorizationAggregation result) -> {
+        testCase(CategorizeTextAggregatorTests::writeTestDocs, agg -> {
+            InternalCategorizationAggregation result = (InternalCategorizationAggregation) agg;
             assertThat(result.getBuckets(), hasSize(2));
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
             assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
@@ -91,7 +92,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
         )
             .subAggregation(new AvgAggregationBuilder("avg").field(NUMERIC_FIELD_NAME))
             .subAggregation(new MinAggregationBuilder("min").field(NUMERIC_FIELD_NAME));
-        testCase(CategorizeTextAggregatorTests::writeTestDocs, (InternalCategorizationAggregation result) -> {
+        testCase(CategorizeTextAggregatorTests::writeTestDocs, agg -> {
+            InternalCategorizationAggregation result = (InternalCategorizationAggregation) agg;
             assertThat(result.getBuckets(), hasSize(2));
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
             assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
@@ -125,7 +127,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                 .subAggregation(new AvgAggregationBuilder("avg").field(NUMERIC_FIELD_NAME))
                 .subAggregation(new MinAggregationBuilder("min").field(NUMERIC_FIELD_NAME))
         );
-        testCase(CategorizeTextAggregatorTests::writeTestDocs, (InternalCategorizationAggregation result) -> {
+        testCase(CategorizeTextAggregatorTests::writeTestDocs, agg -> {
+            InternalCategorizationAggregation result = (InternalCategorizationAggregation) agg;
             assertThat(result.getBuckets(), hasSize(2));
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
             assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
@@ -179,7 +182,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
         // First histo bucket
         // Second histo bucket
         // Third histo bucket
-        testCase(CategorizeTextAggregatorTests::writeTestDocs, (InternalHistogram result) -> {
+        testCase(CategorizeTextAggregatorTests::writeTestDocs, agg -> {
+            InternalHistogram result = (InternalHistogram) agg;
             assertThat(result.getBuckets(), hasSize(3));
 
             // First histo bucket
@@ -256,7 +260,8 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                 .subAggregation(new AvgAggregationBuilder("avg").field(NUMERIC_FIELD_NAME))
                 .subAggregation(new MinAggregationBuilder("min").field(NUMERIC_FIELD_NAME))
         );
-        testCase(CategorizeTextAggregatorTests::writeManyTestDocs, (InternalCategorizationAggregation result) -> {
+        testCase(CategorizeTextAggregatorTests::writeManyTestDocs, agg -> {
+            InternalCategorizationAggregation result = (InternalCategorizationAggregation) agg;
             assertThat(result.getBuckets(), hasSize(2));
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(30000L));
             assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));

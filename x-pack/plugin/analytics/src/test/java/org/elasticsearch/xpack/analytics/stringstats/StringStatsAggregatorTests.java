@@ -391,7 +391,11 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         Consumer<InternalStringStats> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
+        testCase(
+            buildIndex,
+            agg -> verify.accept((InternalStringStats) agg),
+            new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query)
+        );
     }
 
     @Override

@@ -586,7 +586,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         Consumer<InternalAvg> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
+        testCase(buildIndex, agg -> verify.accept((InternalAvg) agg), new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
     }
 
     /**

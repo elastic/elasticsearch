@@ -964,7 +964,8 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                     singleton(new SortedDocValuesField(field, new BytesRef(InetAddressPoint.encode(ipDataHolder.getIpAddress()))))
                 );
             }
-        }, (InternalIpPrefix ipPrefix) -> {
+        }, agg -> {
+            InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = Set.of("192.168.0.0");
             final Set<String> ipAddressesAsString = ipPrefix.getBuckets()
                 .stream()

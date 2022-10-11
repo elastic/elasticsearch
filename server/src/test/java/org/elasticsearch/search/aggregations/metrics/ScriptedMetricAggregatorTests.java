@@ -30,6 +30,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.junit.Before;
@@ -552,7 +553,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             .reduceScript(REDUCE_SCRIPT);
         testCase(
             iw -> { iw.addDocument(new Document()); },
-            (InternalScriptedMetric r) -> { assertEquals(1, r.aggregation()); },
+            r -> assertEquals(1, ((InternalScriptedMetric) r).aggregation()),
             new AggTestConfig(aggregationBuilder)
         );
     }
@@ -571,7 +572,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new SortedSetDocValuesField("t", i % 2 == 0 ? new BytesRef("even") : new BytesRef("odd"))));
             }
         };
-        Consumer<StringTerms> verify = terms -> {
+        Consumer<InternalAggregation> verify = agg -> {
+            StringTerms terms = (StringTerms) agg;
             StringTerms.Bucket even = terms.getBucketByKey("even");
             assertThat(even.getDocCount(), equalTo(50L));
             ScriptedMetric evenMetric = even.getAggregations().get("scripted");

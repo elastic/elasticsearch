@@ -393,7 +393,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         Consumer<InternalStats> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(buildIndex, verify, new AggTestConfig(builder, fieldTypes));
+        testCase(buildIndex, agg -> verify.accept((InternalStats) agg), new AggTestConfig(builder, fieldTypes));
     }
 
     static class SimpleStatsAggregator {

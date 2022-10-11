@@ -153,7 +153,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FiltersAggregationBuilder aggregationBuilder = new FiltersAggregationBuilder("test", new KeyedFilter[0]);
         testCase(
             iw -> { iw.addDocument(List.of()); },
-            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
+            result -> assertThat(((InternalFilters) result).getBuckets(), hasSize(0)),
             new AggTestConfig(aggregationBuilder)
         );
     }
@@ -161,7 +161,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testNoFiltersWithSubAggs() throws IOException {
         testCase(
             iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); },
-            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
+            result -> assertThat(((InternalFilters) result).getBuckets(), hasSize(0)),
             new AggTestConfig(
                 new FiltersAggregationBuilder("test", new KeyedFilter[0]).subAggregation(new MaxAggregationBuilder("m").field("i")),
                 new NumberFieldMapper.NumberFieldType("m", NumberType.INTEGER)
@@ -1578,7 +1578,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
             assertMap(debug, matchesMap().extraOk().entry("segments_counted_in_constant_time", greaterThan(0)));
         }, fieldType, fnft);
-        testCase(buildIndex, (InternalFilters result) -> {
+        testCase(buildIndex, agg -> {
+            InternalFilters result = (InternalFilters) agg;
             assertThat(result.getBuckets(), hasSize(1));
             assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(0L));
         }, new AggTestConfig(builder, fieldType, fnft));

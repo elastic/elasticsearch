@@ -24,42 +24,42 @@ import static org.mockito.Mockito.when;
 
 public class AggregationCollectorTests extends AggregatorTestCase {
     public void testTerms() throws IOException {
-        needsScores(termsBuilder().field("f"), false);
+        assertNeedsScores(termsBuilder().field("f"), false);
     }
 
     public void testSubTerms() throws IOException {
-        needsScores(termsBuilder().field("f").subAggregation(new TermsAggregationBuilder("i").field("f")), false);
+        assertNeedsScores(termsBuilder().field("f").subAggregation(new TermsAggregationBuilder("i").field("f")), false);
     }
 
     public void testScoreConsumingScript() throws IOException {
-        needsScores(termsBuilder().script(new Script("no_scores")), false);
+        assertNeedsScores(termsBuilder().script(new Script("no_scores")), false);
     }
 
     public void testNonScoreConsumingScript() throws IOException {
-        needsScores(termsBuilder().script(new Script("with_scores")), true);
+        assertNeedsScores(termsBuilder().script(new Script("with_scores")), true);
     }
 
     public void testSubScoreConsumingScript() throws IOException {
-        needsScores(termsBuilder().field("f").subAggregation(termsBuilder().script(new Script("no_scores"))), false);
+        assertNeedsScores(termsBuilder().field("f").subAggregation(termsBuilder().script(new Script("no_scores"))), false);
     }
 
     public void testSubNonScoreConsumingScript() throws IOException {
-        needsScores(termsBuilder().field("f").subAggregation(termsBuilder().script(new Script("with_scores"))), true);
+        assertNeedsScores(termsBuilder().field("f").subAggregation(termsBuilder().script(new Script("with_scores"))), true);
     }
 
     public void testTopHits() throws IOException {
-        needsScores(new TopHitsAggregationBuilder("h"), true);
+        assertNeedsScores(new TopHitsAggregationBuilder("h"), true);
     }
 
     public void testSubTopHits() throws IOException {
-        needsScores(termsBuilder().field("f").subAggregation(new TopHitsAggregationBuilder("h")), true);
+        assertNeedsScores(termsBuilder().field("f").subAggregation(new TopHitsAggregationBuilder("h")), true);
     }
 
     private TermsAggregationBuilder termsBuilder() {
         return new TermsAggregationBuilder("t");
     }
 
-    private void needsScores(AggregationBuilder builder, boolean expected) throws IOException {
+    private void assertNeedsScores(AggregationBuilder builder, boolean expected) throws IOException {
         withAggregator(
             builder,
             new MatchAllDocsQuery(),

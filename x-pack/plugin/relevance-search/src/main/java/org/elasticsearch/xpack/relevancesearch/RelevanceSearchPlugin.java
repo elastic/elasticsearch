@@ -68,15 +68,12 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
-
-        // Register REST handlers here
-        return Collections.emptyList();
+        return List.of(new RestXSearchSearchAction());
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        // Register actions here
-        return Collections.emptyList();
+        return List.of(new ActionPlugin.ActionHandler<>(XSearchSearchAction.INSTANCE, XSearchSearchTransportAction.class));
     }
 
     @Override

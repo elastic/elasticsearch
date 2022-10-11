@@ -10,18 +10,24 @@ package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 import java.util.Objects;
 
 public class FunctionalBoost extends ScriptScoreBoost {
-    private final String function;
+    private final FunctionType function;
     private final Float factor;
 
     public static final String TYPE = "functional";
 
+    public enum FunctionType {
+        logarithmic,
+        exponential,
+        linear
+    }
+
     public FunctionalBoost(String function, String operation, Float factor) {
         super(TYPE, operation);
-        this.function = function;
+        this.function = FunctionType.valueOf(function);
         this.factor = factor;
     }
 
-    public String getFunction() {
+    public FunctionType getFunction() {
         return function;
     }
 
@@ -34,7 +40,8 @@ public class FunctionalBoost extends ScriptScoreBoost {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FunctionalBoost that = (FunctionalBoost) o;
-        return (this.function.equals(that.getFunction())
+        return (this.type.equals(that.getType())
+            && this.function.equals(that.getFunction())
             && this.operation.equals(that.getOperation())
             && this.factor.equals(that.getFactor()));
     }
@@ -46,16 +53,11 @@ public class FunctionalBoost extends ScriptScoreBoost {
 
     @Override
     public String getSource(String field) {
-        switch (function) {
-            case "logarithmic":
-                return format("{0} * Math.max(0.0001, Math.log(Math.max(0.0001, {1})))", factor, safeLogValue(field));
-            case "exponential":
-                return format("{0} * Math.exp({1})", factor, safeValue(field));
-            case "linear":
-                return format("{0} * ({1})", factor, safeValue(field));
-            default:
-                throw new IllegalArgumentException("Incorrect function: [" + function + "]");
-        }
+        return switch (function) {
+            case logarithmic -> format("{0} * Math.max(0.0001, Math.log(Math.max(0.0001, {1})))", factor, safeLogValue(field));
+            case exponential -> format("{0} * Math.exp({1})", factor, safeValue(field));
+            case linear -> format("{0} * ({1})", factor, safeValue(field));
+        };
     }
 
     private String safeLogValue(String field) {

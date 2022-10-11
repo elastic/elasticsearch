@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 import java.util.Objects;
 
 public class ValueBoost extends ScriptScoreBoost {
-    private String value;
-    private String operation;
+    private final String value;
     private Float factor;
 
     public static final String TYPE = "value";
@@ -19,7 +18,6 @@ public class ValueBoost extends ScriptScoreBoost {
     public ValueBoost(String value, String operation, Float factor) {
         super(TYPE, operation);
         this.value = value;
-        this.operation = operation;
         this.factor = factor;
     }
 
@@ -36,7 +34,10 @@ public class ValueBoost extends ScriptScoreBoost {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ValueBoost that = (ValueBoost) o;
-        return (this.value.equals(that.getValue()) && this.operation.equals(that.getOperation()) && this.factor.equals(that.getFactor()));
+        return (this.type.equals(that.getType())
+            && this.value.equals(that.getValue())
+            && this.operation.equals(that.getOperation())
+            && this.factor.equals(that.getFactor()));
     }
 
     @Override

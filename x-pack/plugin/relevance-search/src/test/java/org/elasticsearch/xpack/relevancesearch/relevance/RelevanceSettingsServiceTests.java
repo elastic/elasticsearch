@@ -121,6 +121,73 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
         assertEquals(expected, actual);
     }
 
+    public void testParseMultipleBoosts() throws Exception {
+        String settingsId = "1";
+        indexDocument(
+            RelevanceSettingsService.ENT_SEARCH_INDEX,
+            RelevanceSettingsService.RELEVANCE_SETTINGS_PREFIX + settingsId,
+            Map.of(
+                "query_configuration",
+                Map.of(
+                    "fields",
+                    List.of("title", "description"),
+                    "boosts",
+                    Map.of(
+                        "location",
+                        List.of(Map.of("type", "proximity", "center", "25.32, -80.93", "factor", 5, "function", "gaussian")),
+                        "visitors",
+                        List.of(Map.of("type", "functional", "operation", "add", "factor", 5, "function", "linear")),
+                        "world_heritage_site",
+                        List.of(Map.of("type", "value", "operation", "multiply", "factor", "10", "value", "true"))
+                    )
+                )
+            )
+        );
+        RelevanceSettings settings = service.getRelevanceSettings(settingsId);
+        Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
+
+        Map<String, List<ScriptScoreBoost>> expected = Map.of(
+            "location",
+            Collections.singletonList(new ProximityBoost("25.32, -80.93", "gaussian", 5f)),
+            "visitors",
+            Collections.singletonList(new FunctionalBoost("linear", "add", 5f)),
+            "world_heritage_site",
+            Collections.singletonList(new ValueBoost("true", "multiply", 10f))
+        );
+        assertEquals(expected, actual);
+    }
+
+    public void testParseMultipleBoostsSameField() throws Exception {
+        String settingsId = "1";
+        indexDocument(
+            RelevanceSettingsService.ENT_SEARCH_INDEX,
+            RelevanceSettingsService.RELEVANCE_SETTINGS_PREFIX + settingsId,
+            Map.of(
+                "query_configuration",
+                Map.of(
+                    "fields",
+                    List.of("title", "description"),
+                    "boosts",
+                    Map.of(
+                        "visitors",
+                        List.of(
+                            Map.of("type", "functional", "operation", "add", "factor", 5, "function", "linear"),
+                            Map.of("type", "functional", "operation", "multiply", "factor", 3, "function", "logarithmic")
+                        )
+                    )
+                )
+            )
+        );
+        RelevanceSettings settings = service.getRelevanceSettings(settingsId);
+        Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
+
+        Map<String, List<ScriptScoreBoost>> expected = Map.of(
+            "visitors",
+            List.of(new FunctionalBoost("linear", "add", 5f), new FunctionalBoost("logarithmic", "multiply", 3f))
+        );
+        assertEquals(expected, actual);
+    }
+
     private void indexDocument(String index, String id, Map<String, Object> document) {
         client().prepareIndex(index)
             .setId(id)

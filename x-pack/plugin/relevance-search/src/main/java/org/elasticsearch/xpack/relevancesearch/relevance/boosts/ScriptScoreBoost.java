@@ -10,18 +10,22 @@ package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 import java.text.MessageFormat;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 public abstract class ScriptScoreBoost {
+    public enum OperationType {
+        multiply,
+        add
+    }
+
     protected String type;
-    protected String operation = "multiply";
+    protected OperationType operation = OperationType.multiply;
 
     protected ScriptScoreBoost(String type, String operation) {
         this.type = type;
-        this.operation = operation;
+        this.operation = OperationType.valueOf(operation);
     }
 
-    public String getOperation() {
+    public OperationType getOperation() {
         return operation;
     }
 
@@ -32,11 +36,11 @@ public abstract class ScriptScoreBoost {
     public abstract String getSource(String field);
 
     public boolean isAdditive() {
-        return Objects.equals(this.operation, "add");
+        return this.operation == OperationType.add;
     }
 
     public boolean isMultiplicative() {
-        return Objects.equals(this.operation, "multiply");
+        return this.operation == OperationType.multiply;
     }
 
     protected String constantFactor() {

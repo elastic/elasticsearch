@@ -25,10 +25,22 @@ public class ProximityBoost extends ScriptScoreBoost {
     private final DateMathParser dateParser = DateFormatter.forPattern("date_optional_time||epoch_millis").toDateMathParser();
 
     private final String center;
-    private final String function;
+    private final FunctionType function;
     private final Float factor;
 
     public static final String TYPE = "proximity";
+
+    public enum JsDecayFunction {
+        decayNumericLinear,
+        decayNumericExp,
+        decayNumericGauss,
+        decayGeoLinear,
+        decayGeoExp,
+        decayGeoGauss,
+        decayDateLinear,
+        decayDateExp,
+        decayDateGauss
+    }
 
     public enum CenterType {
         Numeric,
@@ -36,12 +48,18 @@ public class ProximityBoost extends ScriptScoreBoost {
         Date
     }
 
+    public enum FunctionType {
+        linear,
+        exponential,
+        gaussian
+    }
+
     private CenterType centerType = null;
 
     public ProximityBoost(String center, String function, Float factor) {
-        super(TYPE, "add");
+        super(TYPE, OperationType.add.toString());
         this.center = center;
-        this.function = function;
+        this.function = FunctionType.valueOf(function);
         this.factor = factor;
         this.setCenterType();
     }
@@ -130,7 +148,7 @@ public class ProximityBoost extends ScriptScoreBoost {
         return center;
     }
 
-    public String getFunction() {
+    public FunctionType getFunction() {
         return function;
     }
 
@@ -143,7 +161,10 @@ public class ProximityBoost extends ScriptScoreBoost {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ProximityBoost that = (ProximityBoost) o;
-        return (this.function.equals(that.getFunction()) && this.center.equals(that.getCenter()) && this.factor.equals(that.getFactor()));
+        return (this.type.equals(that.getType())
+            && this.function.equals(that.getFunction())
+            && this.center.equals(that.getCenter())
+            && this.factor.equals(that.getFactor()));
     }
 
     @Override
@@ -173,11 +194,11 @@ public class ProximityBoost extends ScriptScoreBoost {
 
     private String getNumericSource(String field) throws ParseException {
         Double scale = Math.max(Math.abs(getNumericCenter().doubleValue() / 2f), 1f);
-        String jsFunc = "decayNumericLinear";
+        JsDecayFunction jsFunc = JsDecayFunction.decayNumericLinear;
         switch (this.function) {
-            case "linear" -> jsFunc = "decayNumericLinear";
-            case "exponential" -> jsFunc = "decayNumericExp";
-            case "gaussian" -> jsFunc = "decayNumericGauss";
+            case linear -> jsFunc = JsDecayFunction.decayNumericLinear;
+            case exponential -> jsFunc = JsDecayFunction.decayNumericExp;
+            case gaussian -> jsFunc = JsDecayFunction.decayNumericGauss;
         }
         String funcCall = format(
             "{0}({1}, {2}, 0.0, 0.5, doc[''{3}''].value)",
@@ -190,11 +211,11 @@ public class ProximityBoost extends ScriptScoreBoost {
     }
 
     private String getGeoSource(String field) {
-        String jsFunc = "decayGeoLinear";
+        JsDecayFunction jsFunc = JsDecayFunction.decayGeoLinear;
         switch (this.function) {
-            case "linear" -> jsFunc = "decayGeoLinear";
-            case "exponential" -> jsFunc = "decayGeoExp";
-            case "gaussian" -> jsFunc = "decayGeoGauss";
+            case linear -> jsFunc = JsDecayFunction.decayGeoLinear;
+            case exponential -> jsFunc = JsDecayFunction.decayGeoExp;
+            case gaussian -> jsFunc = JsDecayFunction.decayGeoGauss;
         }
         String funcCall = format(
             "{0}(''{1}'', ''{2}'', ''0km'', 0.5, doc[''{3}''].value)",
@@ -207,11 +228,11 @@ public class ProximityBoost extends ScriptScoreBoost {
     }
 
     private String getDateSource(String field) {
-        String jsFunc = "decayDateLinear";
+        JsDecayFunction jsFunc = JsDecayFunction.decayDateLinear;
         switch (this.function) {
-            case "linear" -> jsFunc = "decayDateLinear";
-            case "exponential" -> jsFunc = "decayDateExp";
-            case "gaussian" -> jsFunc = "decayDateGauss";
+            case linear -> jsFunc = JsDecayFunction.decayDateLinear;
+            case exponential -> jsFunc = JsDecayFunction.decayDateExp;
+            case gaussian -> jsFunc = JsDecayFunction.decayDateGauss;
         }
         String funcCall = format(
             "{0}(''{1}'', ''{2}'', ''0'', 0.5, doc[''{3}''].value)",

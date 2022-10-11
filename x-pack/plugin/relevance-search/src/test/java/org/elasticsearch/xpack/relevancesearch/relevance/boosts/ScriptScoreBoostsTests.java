@@ -103,21 +103,21 @@ public class ScriptScoreBoostsTests extends ESTestCase {
         assertEquals("8 * ((doc['foo'].size() > 0) ? decayNumericGauss(20, 10, 0.0, 0.5, doc['foo'].value) : 0)", boost.getSource("foo"));
     }
 
-    public void testIsGeo() {
+    public void testProximityIsGeo() {
         assertEquals(true, new ProximityBoost("40, -70.12", "linear", 2f).isGeo());
         assertEquals(true, new ProximityBoost("drm3btev3e86", "linear", 2f).isGeo());
         assertEquals(true, new ProximityBoost("POINT (-71.34 41.12)", "linear", 2f).isGeo());
         assertEquals(false, new ProximityBoost("other", "linear", 2f).isGeo());
     }
 
-    public void testIsNumber() {
+    public void testProximityIsNumber() {
         assertEquals(true, new ProximityBoost("1", "linear", 2f).isNumber());
         assertEquals(true, new ProximityBoost("1.5", "linear", 2f).isNumber());
         assertEquals(true, new ProximityBoost("2.5e-6", "linear", 2f).isNumber());
         assertEquals(false, new ProximityBoost("nothing", "linear", 2f).isNumber());
     }
 
-    public void testIsDate() {
+    public void testProximityIsDate() {
         assertEquals(true, new ProximityBoost("now", "linear", 2f).isDate());
         assertEquals(false, new ProximityBoost("blah", "linear", 2f).isDate());
         assertEquals(true, new ProximityBoost("2022-01-02", "linear", 2f).isDate());

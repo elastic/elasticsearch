@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.relevancesearch.relevance.curations;
 
 import org.elasticsearch.client.internal.Client;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -51,15 +52,24 @@ public class CurationsService {
         // see org/elasticsearch/index/mapper/DocumentParser.java
 
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> sourceConditions = (List<Map<String, Object>>) source.get(CONDITIONS_FIELD);
+        final List<Map<String, Object>> sourceConditions = (List<Map<String, Object>>) source.getOrDefault(
+            CONDITIONS_FIELD,
+            Collections.emptyList()
+        );
         List<Condition> conditions = sourceConditions.stream().map(this::parseCondition).toList();
 
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> sourcePinnedDocs = (List<Map<String, Object>>) source.get(PINNED_DOCS_FIELD);
+        final List<Map<String, Object>> sourcePinnedDocs = (List<Map<String, Object>>) source.getOrDefault(
+            PINNED_DOCS_FIELD,
+            Collections.emptyList()
+        );
         List<CurationSettings.DocumentReference> pinnedDocs = sourcePinnedDocs.stream().map(this::parseDocumentReference).toList();
 
         @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> sourceExcludedDocs = (List<Map<String, Object>>) source.get(EXCLUDED_DOCS_FIELD);
+        final List<Map<String, Object>> sourceExcludedDocs = (List<Map<String, Object>>) source.getOrDefault(
+            EXCLUDED_DOCS_FIELD,
+            Collections.emptyList()
+        );
         List<CurationSettings.DocumentReference> excludedDocs = sourceExcludedDocs.stream().map(this::parseDocumentReference).toList();
 
         return new CurationSettings(pinnedDocs, excludedDocs, conditions);

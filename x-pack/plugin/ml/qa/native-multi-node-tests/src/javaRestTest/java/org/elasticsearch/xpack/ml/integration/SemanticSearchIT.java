@@ -138,7 +138,7 @@ public class SemanticSearchIT extends PyTorchModelRestTestCase {
             assertOkWithErrorMessage(semanticSearchResponse);
 
             Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
-            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("search_response.hits.hits", responseMap);
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
             Map<String, Object> topHit = hits.get(0);
             String sourceText = (String) MapHelper.dig("_source.source_text", topHit);
             assertEquals(inputs.get(randomInput), sourceText);

@@ -685,7 +685,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ActionListener<ClusterState> listener
     ) {
         TrainedModelAssignment.Builder updatedAssignment = numberOfAllocations < assignment.totalTargetAllocations()
-            ? new AllocationReducer(assignment, nodeAvailabilityZoneMapper.getMlNodesByAvailabilityZone()).reduceTo(numberOfAllocations)
+            ? new AllocationReducer(assignment, nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(clusterState)).reduceTo(
+                numberOfAllocations
+            )
             : TrainedModelAssignment.Builder.fromAssignment(assignment).setNumberOfAllocations(numberOfAllocations);
 
         // We have now reduced allocations to a number we can be sure it is satisfied

@@ -54,7 +54,7 @@ public final class Page {
 
     private Page(boolean copyBlocks, int positionCount, Block[] blocks) {
         Objects.requireNonNull(blocks, "blocks is null");
-        assert assertPositionCount(blocks);
+        // assert assertPositionCount(blocks);
         this.positionCount = positionCount;
         this.blocks = copyBlocks ? blocks.clone() : blocks;
     }

@@ -101,15 +101,16 @@ public class RelevanceMatchQueryRewriter {
     private void setQueryConfiguration(String relevanceSettingsId) {
         if (relevanceSettingsId == null) {
             // we'll work with defaults
-            return;
-        }
-        try {
-            RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
-            queryConfiguration = relevanceSettings.getQueryConfiguration();
-        } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
-            throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
-        } catch (RelevanceSettingsService.RelevanceSettingsInvalidException e) {
-            throw new IllegalArgumentException("[relevance_match] invalid relevance search settings for: " + relevanceSettingsId);
+            queryConfiguration = null;
+        } else {
+            try {
+                RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
+                queryConfiguration = relevanceSettings.getQueryConfiguration();
+            } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
+                throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
+            } catch (RelevanceSettingsService.RelevanceSettingsInvalidException e) {
+                throw new IllegalArgumentException("[relevance_match] invalid relevance search settings for: " + relevanceSettingsId);
+            }
         }
     }
 

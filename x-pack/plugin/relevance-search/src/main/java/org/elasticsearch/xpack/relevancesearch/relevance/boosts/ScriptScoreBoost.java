@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 
 import java.text.MessageFormat;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -46,7 +47,12 @@ public abstract class ScriptScoreBoost {
     }
 
     protected String safeValue(String field) {
-        return MessageFormat.format("(doc[''{0}''].size() > 0) ? doc[''{0}''].value : {1}", field, constantFactor());
+        return format("(doc[''{0}''].size() > 0) ? doc[''{0}''].value : {1}", field, constantFactor());
+    }
+
+    protected String format(String pattern, Object... arguments) {
+        MessageFormat formatter = new MessageFormat(pattern, Locale.ROOT);
+        return formatter.format(arguments);
     }
 
     public static ScriptScoreBoost parse(Map<String, Object> props) {

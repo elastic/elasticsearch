@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 
-import java.text.MessageFormat;
 import java.util.Objects;
 
 public class ValueBoost extends ScriptScoreBoost {
@@ -46,7 +45,7 @@ public class ValueBoost extends ScriptScoreBoost {
     }
 
     public String getSource(String field) {
-        return MessageFormat.format(
+        return format(
             "(((doc[''{0}''].size() > 0) && (doc[''{0}''].value.toString() == ''{1}'')) ? {2} : {3})",
             field,
             value,

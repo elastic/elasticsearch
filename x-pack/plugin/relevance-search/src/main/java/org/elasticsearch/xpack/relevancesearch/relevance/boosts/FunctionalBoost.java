@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 
-import java.text.MessageFormat;
 import java.util.Objects;
 
 public class FunctionalBoost extends ScriptScoreBoost {
@@ -49,17 +48,17 @@ public class FunctionalBoost extends ScriptScoreBoost {
     public String getSource(String field) {
         switch (function) {
             case "logarithmic":
-                return MessageFormat.format("{0} * Math.max(0.0001, Math.log(Math.max(0.0001, {1})))", factor, safeLogValue(field));
+                return format("{0} * Math.max(0.0001, Math.log(Math.max(0.0001, {1})))", factor, safeLogValue(field));
             case "exponential":
-                return MessageFormat.format("{0} * Math.exp({1})", factor, safeValue(field));
+                return format("{0} * Math.exp({1})", factor, safeValue(field));
             case "linear":
-                return MessageFormat.format("{0} * ({1})", factor, safeValue(field));
+                return format("{0} * ({1})", factor, safeValue(field));
             default:
                 throw new IllegalArgumentException("Incorrect function: [" + function + "]");
         }
     }
 
     private String safeLogValue(String field) {
-        return MessageFormat.format("(doc[''{0}''].size() > 0) ? (doc[''{0}''].value + 1) : {1}", field, constantFactor());
+        return format("(doc[''{0}''].size() > 0) ? (doc[''{0}''].value + 1) : {1}", field, constantFactor());
     }
 }

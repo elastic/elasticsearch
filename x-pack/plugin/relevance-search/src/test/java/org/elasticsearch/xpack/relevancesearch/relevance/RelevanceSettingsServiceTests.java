@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.relevancesearch.relevance.boosts.FunctionalBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ProximityBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ScriptScoreBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ValueBoost;
+import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettings;
+import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 
 import java.util.Collections;
 import java.util.List;

@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.relevancesearch.relevance;
 
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ScriptScoreBoost;
+import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -75,11 +76,11 @@ public class QueryConfiguration {
         String addScores = String.join(" + ", additiveScriptSources());
         String mulScores = String.join(" * ", multiplicativeScriptSources());
         if (addScores.length() > 0 && mulScores.length() > 0) {
-            return MessageFormat.format("Math.max(_score * ({0}) + ({1}) + _score, _score)", mulScores, addScores);
+            return format("Math.max(_score * ({0}) + ({1}) + _score, _score)", mulScores, addScores);
         } else if (addScores.length() > 0) {
-            return MessageFormat.format("Math.max({0} + _score, _score)", addScores);
+            return format("Math.max({0} + _score, _score)", addScores);
         } else if (mulScores.length() > 0) {
-            return MessageFormat.format("Math.max(_score * ({0}) + _score, _score)", mulScores);
+            return format("Math.max(_score * ({0}) + _score, _score)", mulScores);
         }
         return null;
     }
@@ -106,5 +107,10 @@ public class QueryConfiguration {
             }
         }
         return scriptSources;
+    }
+
+    private String format(String pattern, Object... arguments) {
+        MessageFormat formatter = new MessageFormat(pattern, Locale.ROOT);
+        return formatter.format(arguments);
     }
 }

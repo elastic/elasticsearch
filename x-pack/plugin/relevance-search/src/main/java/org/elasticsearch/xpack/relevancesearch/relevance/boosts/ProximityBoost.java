@@ -15,9 +15,9 @@ import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 
-import java.text.MessageFormat;
 import java.text.NumberFormat;
 import java.text.ParseException;
+import java.util.Locale;
 import java.util.Objects;
 
 public class ProximityBoost extends ScriptScoreBoost {
@@ -58,16 +58,18 @@ public class ProximityBoost extends ScriptScoreBoost {
         }
         if (isGeo()) {
             centerType = CenterType.Geo;
-            return;
         }
-        throw new IllegalArgumentException("Invalid center: [" + center + "]");
+    }
+
+    private NumberFormat getNumberFormat() {
+        return NumberFormat.getInstance(Locale.ROOT);
     }
 
     public boolean isGeo() {
         try {
             String[] latLon = center.split(",", 2);
-            NumberFormat.getInstance().parse(latLon[0].trim());
-            NumberFormat.getInstance().parse(latLon[1].trim());
+            getNumberFormat().parse(latLon[0].trim());
+            getNumberFormat().parse(latLon[1].trim());
             return true;
         } catch (Exception e) {
             // do nothing
@@ -118,7 +120,7 @@ public class ProximityBoost extends ScriptScoreBoost {
     }
 
     public Number getNumericCenter() throws ParseException {
-        return NumberFormat.getInstance().parse(center);
+        return getNumberFormat().parse(center);
     }
 
     public String getDateCenter() {
@@ -177,14 +179,14 @@ public class ProximityBoost extends ScriptScoreBoost {
             case "exponential" -> jsFunc = "decayNumericExp";
             case "gaussian" -> jsFunc = "decayNumericGauss";
         }
-        String funcCall = MessageFormat.format(
+        String funcCall = format(
             "{0}({1}, {2}, 0.0, 0.5, doc[''{3}''].value)",
             jsFunc,
             center, // origin
             scale,
             field
         );
-        return MessageFormat.format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
+        return format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
     }
 
     private String getGeoSource(String field) {
@@ -194,14 +196,14 @@ public class ProximityBoost extends ScriptScoreBoost {
             case "exponential" -> jsFunc = "decayGeoExp";
             case "gaussian" -> jsFunc = "decayGeoGauss";
         }
-        String funcCall = MessageFormat.format(
+        String funcCall = format(
             "{0}(''{1}'', ''{2}'', ''0km'', 0.5, doc[''{3}''].value)",
             jsFunc,
             center, // origin
             "1km",
             field
         );
-        return MessageFormat.format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
+        return format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
     }
 
     private String getDateSource(String field) {
@@ -211,13 +213,13 @@ public class ProximityBoost extends ScriptScoreBoost {
             case "exponential" -> jsFunc = "decayDateExp";
             case "gaussian" -> jsFunc = "decayDateGauss";
         }
-        String funcCall = MessageFormat.format(
+        String funcCall = format(
             "{0}(''{1}'', ''{2}'', ''0'', 0.5, doc[''{3}''].value)",
             jsFunc,
             getDateCenter(), // origin
             "1d",
             field
         );
-        return MessageFormat.format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
+        return format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
     }
 }

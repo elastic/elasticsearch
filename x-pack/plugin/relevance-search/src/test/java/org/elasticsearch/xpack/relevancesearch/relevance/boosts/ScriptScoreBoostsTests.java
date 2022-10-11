@@ -5,12 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.relevancesearch.relevance;
+package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.relevancesearch.relevance.boosts.FunctionalBoost;
-import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ProximityBoost;
-import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ValueBoost;
 
 public class ScriptScoreBoostsTests extends ESTestCase {
     public void testValueSource() {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analyzer;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
+@Experimental
 public class Avg extends AggregateFunction implements EnclosedAgg {
 
     public Avg(Source source, Expression field) {

@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Arrays.stream;
 import static org.hamcrest.Matchers.containsString;
@@ -337,7 +338,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("my-service-jar.jar");
 
-        createServiceTestJar(jar, false, true);
+        createServiceTestSingleJar(jar, false, true);
 
         try (
             UberModuleClassLoader cl = UberModuleClassLoader.getInstance(
@@ -357,7 +358,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("my-service-jar.jar");
 
-        createServiceTestJar(jar, true, false);
+        createServiceTestSingleJar(jar, true, false);
 
         try (
             UberModuleClassLoader cl = UberModuleClassLoader.getInstance(
@@ -377,7 +378,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Path topLevelDir = createTempDir(getTestName());
         Path jar = topLevelDir.resolve("my-service-jar.jar");
 
-        createServiceTestJar(jar, true, true);
+        createServiceTestSingleJar(jar, true, true);
 
         try (
             UberModuleClassLoader cl = UberModuleClassLoader.getInstance(
@@ -393,7 +394,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         }
     }
 
-    private static void createServiceTestJar(Path jar, boolean modularize, boolean addMetaInfService) throws IOException {
+    private static void createServiceTestSingleJar(Path jar, boolean modularize, boolean addMetaInfService) throws IOException {
         String serviceInterface = """
             package p;
 
@@ -459,6 +460,308 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         }
 
         JarUtils.createJarWithEntries(jar, jarEntries);
+    }
+
+    public void testFoo() throws Exception {
+
+        ClassLoader loader = getServiceTestLoader();
+
+        Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
+        Object instance = serviceCallerClass.getConstructor().newInstance();
+
+        var requiredParent = serviceCallerClass.getMethod("callServiceFromRequiredParent");
+        assertThat(requiredParent.invoke(instance), equalTo("AB"));
+        var optionalParent = serviceCallerClass.getMethod("callServiceFromOptionalParent");
+        assertThat(optionalParent.invoke(instance), equalTo("catdog"));
+        var modular = serviceCallerClass.getMethod("callServiceFromModularJar");
+        assertThat(modular.invoke(instance), equalTo("12"));
+        var nonModular = serviceCallerClass.getMethod("callServiceFromNonModularJar");
+        assertThat(nonModular.invoke(instance), equalTo("foo"));
+    }
+
+    // going to return a set of jars...
+    private static ClassLoader getServiceTestLoader() throws IOException {
+        Path libDir = createTempDir("libs");
+        Path parentJar = createRequiredJarForParentLayer(libDir);
+        Path optionalJar = createOptionalJarForParentLayer(libDir);
+
+        // jars for the ubermodule
+        Path modularJar = createModularizedJarForBundle(libDir);
+        Path nonModularJar = createNonModularizedJarForBundle(libDir, parentJar, optionalJar, modularJar);
+        Path serviceCallerJar = createServiceCallingJarForBundle(libDir, parentJar, optionalJar, modularJar, nonModularJar);
+
+        return UberModuleClassLoader.getInstance(
+            UberModuleClassLoaderTests.class.getClassLoader(),
+            "synthetic",
+            Stream.of(parentJar, optionalJar, modularJar, nonModularJar, serviceCallerJar)
+                .map(UberModuleClassLoaderTests::pathToUrlUnchecked)
+                .collect(Collectors.toSet())
+        );
+    }
+
+    private static Path createServiceCallingJarForBundle(Path libDir, Path parentJar, Path optionalJar, Path modularJar, Path nonModularJar)
+        throws IOException {
+        // 3. service-calling jar
+        // - q.caller.ServiceCaller
+        String serviceCaller = """
+            package q.caller;
+
+            import p.optional.AnimalService;
+            import p.required.LetterService;
+            import q.jar.one.NumberService;
+            import q.jar.two.FooBarService;
+
+            import java.util.ServiceLoader;
+            import java.util.stream.Collectors;
+
+            public class ServiceCaller {
+
+                public ServiceCaller() { }
+
+                public String callServiceFromRequiredParent() {
+                    return ServiceLoader.load(LetterService.class, ServiceCaller.class.getClassLoader()).stream()
+                            .map(ServiceLoader.Provider::get)
+                            .map(LetterService::getLetter)
+                            .sorted()
+                            .collect(Collectors.joining());
+                }
+
+                public String callServiceFromOptionalParent() {
+                    Class<?> animalServiceClass;
+                    try {
+                        animalServiceClass = ServiceCaller.class.getClassLoader().loadClass("p.optional.AnimalService");
+                    } catch (ClassNotFoundException e) {
+                        return "Optional AnimalService dependency not present at runtime.";
+                    }
+                    return ServiceLoader.load(animalServiceClass, ServiceCaller.class.getClassLoader()).stream()
+                            .map(ServiceLoader.Provider::get)
+                            .filter(instance -> instance instanceof AnimalService)
+                            .map(AnimalService.class::cast)
+                            .map(AnimalService::getAnimal)
+                            .sorted()
+                            .collect(Collectors.joining());
+                }
+
+                public String callServiceFromModularJar() {
+                    return ServiceLoader.load(NumberService.class, ServiceCaller.class.getClassLoader()).stream()
+                            .map(ServiceLoader.Provider::get)
+                            .map(NumberService::getNumber)
+                            .sorted()
+                            .collect(Collectors.joining());
+                }
+
+                public String callServiceFromNonModularJar() {
+                    return ServiceLoader.load(FooBarService.class, ServiceCaller.class.getClassLoader()).stream()
+                            .map(ServiceLoader.Provider::get)
+                            .map(FooBarService::getFoo)
+                            .sorted()
+                            .collect(Collectors.joining());
+                }
+            }
+            """;
+
+        Map<String, CharSequence> serviceCallerJarSources = new HashMap<>();
+        serviceCallerJarSources.put("q.caller.ServiceCaller", serviceCaller);
+        var serviceCallerJarCompiled = InMemoryJavaCompiler.compile(
+            serviceCallerJarSources,
+            "--class-path",
+            parentJar + ":" + optionalJar + ":" + modularJar + ":" + nonModularJar
+        );
+
+        assertThat(serviceCallerJarCompiled, notNullValue());
+
+        Path serviceCallerJar = libDir.resolve("service-caller.jar");
+        JarUtils.createJarWithEntries(
+            serviceCallerJar,
+            serviceCallerJarCompiled.entrySet()
+                .stream()
+                .collect(Collectors.toMap(e -> e.getKey().replace(".", "/") + ".class", Map.Entry::getValue))
+        );
+        return serviceCallerJar;
+    }
+
+    private static Path createNonModularizedJarForBundle(Path libDir, Path parentJar, Path optionalJar, Path modularJar)
+        throws IOException {
+        // 2. non-modularized service jar (FooBarService)
+        // - q.jar.two.FooBarService
+        String serviceFromNonModularJar = """
+            package q.jar.two;
+            public interface FooBarService {
+                String getFoo();
+            }
+            """;
+        // - q.jar.two.JarTwoProvider
+        String providerInNonModularJar = """
+            package q.jar.two;
+            import q.jar.one.NumberService;
+            import p.required.LetterService;
+
+            public class JarTwoProvider implements FooBarService, LetterService, NumberService {
+                @Override public String getFoo() { return "foo"; }
+                @Override public String getLetter() { return "B"; }
+                @Override public String getNumber() { return "2"; }
+            }
+            """;
+        // - q.jar.two.JarTwoOptionalProvider
+        String providerOfOptionalInNonModularJar = """
+            package q.jar.two;
+            import p.optional.AnimalService;
+
+            public class JarTwoOptionalProvider implements AnimalService {
+                @Override public String getAnimal() { return "cat"; }
+            }
+
+            """;
+        // - META-INF/services
+        // - LetterService, AnimalService, NumberService
+
+        Map<String, CharSequence> nonModularJarSources = new HashMap<>();
+        nonModularJarSources.put("q.jar.two.FooBarService", serviceFromNonModularJar);
+        nonModularJarSources.put("q.jar.two.JarTwoProvider", providerInNonModularJar);
+        nonModularJarSources.put("q.jar.two.JarTwoOptionalProvider", providerOfOptionalInNonModularJar);
+        var nonModularJarCompiled = InMemoryJavaCompiler.compile(
+            nonModularJarSources,
+            "--class-path",
+            parentJar + ":" + optionalJar + ":" + modularJar
+        );
+
+        assertThat(nonModularJarCompiled, notNullValue());
+
+        Path nonModularJar = libDir.resolve("non-modular.jar");
+        var nonModularJarEntries = new HashMap<String, byte[]>();
+        nonModularJarEntries.put("q/jar/two/FooBarService.class", nonModularJarCompiled.get("q.jar.two.FooBarService"));
+        nonModularJarEntries.put("q/jar/two/JarTwoProvider.class", nonModularJarCompiled.get("q.jar.two.JarTwoProvider"));
+        nonModularJarEntries.put("q/jar/two/JarTwoOptionalProvider.class", nonModularJarCompiled.get("q.jar.two.JarTwoOptionalProvider"));
+        nonModularJarEntries.put("META-INF/services/p.required.LetterService", "q.jar.two.JarTwoProvider".getBytes(StandardCharsets.UTF_8));
+        nonModularJarEntries.put(
+            "META-INF/services/p.optional.AnimalService",
+            "q.jar.two.JarTwoOptionalProvider".getBytes(StandardCharsets.UTF_8)
+        );
+        nonModularJarEntries.put("META-INF/services/q.jar.one.NumberService", "q.jar.two.JarTwoProvider".getBytes(StandardCharsets.UTF_8));
+        nonModularJarEntries.put("META-INF/services/q.jar.two.FooBarService", "q.jar.two.JarTwoProvider".getBytes(StandardCharsets.UTF_8));
+        JarUtils.createJarWithEntries(nonModularJar, nonModularJarEntries);
+        return nonModularJar;
+    }
+
+    private static Path createModularizedJarForBundle(Path libDir) throws IOException {
+        // 1. modularized service jar (NumberService)
+        // - q.jar.one.NumberService
+        String serviceFromModularJar = """
+            package q.jar.one;
+            public interface NumberService {
+                String getNumber();
+            }
+            """;
+        // - q.jar.one.JarOneProvider
+        String providerInModularJar = """
+            package q.jar.one;
+            import p.required.LetterService;
+
+            public class JarOneProvider implements LetterService, NumberService {
+                @Override public String getLetter() { return "A"; }
+                @Override public String getNumber() { return "1"; }
+            }
+            """;
+        // - q.jar.one.JarOneOptionalProvider
+        String providerOfOptionalInModularJar = """
+            package q.jar.one;
+            import p.optional.AnimalService;
+
+            public class JarOneOptionalProvider implements AnimalService {
+                @Override public String getAnimal() { return "dog"; }
+            }
+            """;
+        // - module info
+        String moduleInfo = """
+            module q.jar.one {
+                exports q.jar.one;
+
+                requires p.parent;
+                requires static p.optional;
+
+                provides p.optional.AnimalService with q.jar.one.JarOneOptionalProvider;
+                provides p.required.LetterService with q.jar.one.JarOneProvider;
+                provides q.jar.one.NumberService with q.jar.one.JarOneProvider;
+            }
+            """;
+
+        Map<String, CharSequence> modularizedJarSources = new HashMap<>();
+        modularizedJarSources.put("q.jar.one.NumberService", serviceFromModularJar);
+        modularizedJarSources.put("q.jar.one.JarOneProvider", providerInModularJar);
+        modularizedJarSources.put("q.jar.one.JarOneOptionalProvider", providerOfOptionalInModularJar);
+        modularizedJarSources.put("module-info", moduleInfo);
+        var modularJarCompiled = InMemoryJavaCompiler.compile(modularizedJarSources, "--module-path", libDir.toString());
+
+        assertThat(modularJarCompiled, notNullValue());
+
+        Path modularJar = libDir.resolve("modular.jar");
+        JarUtils.createJarWithEntries(
+            modularJar,
+            modularJarCompiled.entrySet()
+                .stream()
+                .collect(Collectors.toMap(e -> e.getKey().replace(".", "/") + ".class", Map.Entry::getValue))
+        );
+        return modularJar;
+    }
+
+    private static Path createOptionalJarForParentLayer(Path libDir) throws IOException {
+        // 2. optional (static requirement) (AnimalService)
+        // - p.optional.AnimalService
+        String serviceFromOptionalParent = """
+            package p.optional;
+            public interface AnimalService {
+                String getAnimal();
+            }
+            """;
+        // - module info
+        String optionalParentModuleInfo = """
+            module p.optional { exports p.optional; }
+            """;
+        Map<String, CharSequence> optionalModuleSources = new HashMap<>();
+        optionalModuleSources.put("p.optional.AnimalService", serviceFromOptionalParent);
+        optionalModuleSources.put("module-info", optionalParentModuleInfo);
+        var optionalModuleCompiled = InMemoryJavaCompiler.compile(optionalModuleSources);
+        assertThat(optionalModuleCompiled, notNullValue());
+
+        Path optionalJar = libDir.resolve("optional.jar");
+        JarUtils.createJarWithEntries(
+            optionalJar,
+            optionalModuleCompiled.entrySet()
+                .stream()
+                .collect(Collectors.toMap(e -> e.getKey().replace(".", "/") + ".class", Map.Entry::getValue))
+        );
+        return optionalJar;
+    }
+
+    private static Path createRequiredJarForParentLayer(Path libDir) throws IOException {
+        // jars for the parent layer
+        // 1. always present (LetterService)
+        // - p.required.LetterService
+        String serviceFromRequiredParent = """
+            package p.required;
+            public interface LetterService {
+                String getLetter();
+            }
+            """;
+        // - module info
+        String requiredParentModuleInfo = """
+            module p.parent { exports p.required; }
+            """;
+        Map<String, CharSequence> requiredModuleSources = new HashMap<>();
+        requiredModuleSources.put("p.required.LetterService", serviceFromRequiredParent);
+        requiredModuleSources.put("module-info", requiredParentModuleInfo);
+        var requiredModuleCompiled = InMemoryJavaCompiler.compile(requiredModuleSources);
+
+        assertThat(requiredModuleCompiled, notNullValue());
+        Path parentJar = libDir.resolve("parent.jar");
+
+        JarUtils.createJarWithEntries(
+            parentJar,
+            requiredModuleCompiled.entrySet()
+                .stream()
+                .collect(Collectors.toMap(e -> e.getKey().replace(".", "/") + ".class", Map.Entry::getValue))
+        );
+        return parentJar;
     }
 
     private static UberModuleClassLoader getLoader(Path jar) {

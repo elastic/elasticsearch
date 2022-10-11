@@ -35,8 +35,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.relevancesearch.query.QueryFieldsResolver;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
-import org.elasticsearch.xpack.relevancesearch.relevance.RelevanceSettingsService;
+import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
+import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
+import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -51,7 +54,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         logger.info("Relevance Search Plugin loaded");
     }
 
-    private final SetOnce<RelevanceSettingsService> relevanceSettingsService = new SetOnce<>();
+    private final SetOnce<RelevanceMatchQueryRewriter> relevanceMatchQueryRewriter = new SetOnce<>();
 
     @Override
     public List<RestHandler> getRestHandlers(
@@ -79,8 +82,8 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         return Collections.singletonList(
             new QuerySpec<QueryBuilder>(
                 RelevanceMatchQueryBuilder.NAME,
-                (in) -> new RelevanceMatchQueryBuilder(relevanceSettingsService.get(), in),
-                (parser) -> RelevanceMatchQueryBuilder.fromXContent(parser, relevanceSettingsService.get())
+                (in) -> new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter.get(), in),
+                (parser) -> RelevanceMatchQueryBuilder.fromXContent(parser, relevanceMatchQueryRewriter.get())
             )
         );
     }
@@ -101,8 +104,13 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         Tracer tracer,
         AllocationDeciders allocationDeciders
     ) {
-        relevanceSettingsService.set(new RelevanceSettingsService(client, clusterService));
 
-        return Collections.singletonList(relevanceSettingsService.get());
+        RelevanceSettingsService relevanceSettingsService = new RelevanceSettingsService(client, clusterService);
+        CurationsService curationsService = new CurationsService(client);
+        QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
+
+        relevanceMatchQueryRewriter.set(new RelevanceMatchQueryRewriter(relevanceSettingsService, curationsService, queryFieldsResolver));
+
+        return List.of(relevanceMatchQueryRewriter.get());
     }
 }

@@ -14,7 +14,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.relevancesearch.RelevanceSearchPlugin;
-import org.elasticsearch.xpack.relevancesearch.relevance.RelevanceSettingsService;
+import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
+import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 
 import java.util.Collection;
 import java.util.List;
@@ -40,13 +41,12 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         relevanceMatchQueryBuilder = new RelevanceMatchQueryBuilder();
-        relevanceMatchQueryBuilder.setRelevanceSettingsService(getInstanceFromNode(RelevanceSettingsService.class));
+        relevanceMatchQueryBuilder.setQueryRewriter(getInstanceFromNode(RelevanceMatchQueryRewriter.class));
 
         createIndex(DOCUMENTS_INDEX);
-        createIndex(RelevanceSettingsService.ENT_SEARCH_INDEX);
     }
 
-    public void testTextFieldsWitoutSettings() {
+    public void testTextFieldsWithoutSettings() {
         indexDocument(
             DOCUMENTS_INDEX,
             "1",
@@ -101,6 +101,89 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
 
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
+    }
+
+    public void testCurationWithPinnedAndHiddenDocs() {
+        final String curationId = "test-curation";
+        final String query = "hit";
+
+        indexDocument(
+            CurationsService.ENT_SEARCH_INDEX,
+            CurationsService.CURATIONS_SETTINGS_PREFIX + curationId,
+            Map.of(
+                "conditions",
+                List.of(Map.of("context", "query", "value", query)),
+                "pinned_document_ids",
+                List.of(Map.of("_id", "3", "_index", DOCUMENTS_INDEX)),
+                "excluded_document_ids",
+                List.of(Map.of("_id", "1", "_index", DOCUMENTS_INDEX))
+            )
+        );
+
+        indexDocument(DOCUMENTS_INDEX, "1", Map.of("textField", "text example hit"));
+        indexDocument(DOCUMENTS_INDEX, "2", Map.of("textField", "text another example hit"));
+        indexDocument(DOCUMENTS_INDEX, "3", Map.of("textField", "this should not have score"));
+
+        relevanceMatchQueryBuilder.setQuery(query);
+        relevanceMatchQueryBuilder.setCurationsSettingsId(curationId);
+        SearchResponse response = client().prepareSearch(DOCUMENTS_INDEX).setQuery(relevanceMatchQueryBuilder).get();
+
+        assertHitCount(response, 2);
+        assertSearchHits(response, "3", "2");
+    }
+
+    public void testCurationWithExcludedDocs() {
+        final String curationId = "test-curation";
+        final String query = "hit";
+
+        indexDocument(
+            CurationsService.ENT_SEARCH_INDEX,
+            CurationsService.CURATIONS_SETTINGS_PREFIX + curationId,
+            Map.of(
+                "conditions",
+                List.of(Map.of("context", "query", "value", query)),
+                "excluded_document_ids",
+                List.of(Map.of("_id", "1", "_index", DOCUMENTS_INDEX))
+            )
+        );
+
+        indexDocument(DOCUMENTS_INDEX, "1", Map.of("textField", "text example hit"));
+        indexDocument(DOCUMENTS_INDEX, "2", Map.of("textField", "text another example hit"));
+        indexDocument(DOCUMENTS_INDEX, "3", Map.of("textField", "this should not have score"));
+
+        relevanceMatchQueryBuilder.setQuery(query);
+        relevanceMatchQueryBuilder.setCurationsSettingsId(curationId);
+        SearchResponse response = client().prepareSearch(DOCUMENTS_INDEX).setQuery(relevanceMatchQueryBuilder).get();
+
+        assertHitCount(response, 2);
+        assertSearchHits(response, "2", "3");
+    }
+
+    public void testCurationWithPinnedDocs() {
+        final String curationId = "test-curation";
+        final String query = "hit";
+
+        indexDocument(
+            CurationsService.ENT_SEARCH_INDEX,
+            CurationsService.CURATIONS_SETTINGS_PREFIX + curationId,
+            Map.of(
+                "conditions",
+                List.of(Map.of("context", "query", "value", query)),
+                "pinned_document_ids",
+                List.of(Map.of("_id", "3", "_index", DOCUMENTS_INDEX))
+            )
+        );
+
+        indexDocument(DOCUMENTS_INDEX, "1", Map.of("textField", "text example hit"));
+        indexDocument(DOCUMENTS_INDEX, "2", Map.of("textField", "text another example hit"));
+        indexDocument(DOCUMENTS_INDEX, "3", Map.of("textField", "this should not have score"));
+
+        relevanceMatchQueryBuilder.setQuery(query);
+        relevanceMatchQueryBuilder.setCurationsSettingsId(curationId);
+        SearchResponse response = client().prepareSearch(DOCUMENTS_INDEX).setQuery(relevanceMatchQueryBuilder).get();
+
+        assertHitCount(response, 3);
+        assertSearchHits(response, "3", "1", "2");
     }
 
     public void testFieldSettingsWithBoosts() {

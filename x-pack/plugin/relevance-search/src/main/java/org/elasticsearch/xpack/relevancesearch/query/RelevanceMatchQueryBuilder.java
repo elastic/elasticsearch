@@ -10,28 +10,21 @@ package org.elasticsearch.xpack.relevancesearch.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
-import org.elasticsearch.xpack.relevancesearch.relevance.RelevanceSettings;
-import org.elasticsearch.xpack.relevancesearch.relevance.RelevanceSettingsService;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
- * Parses and builds relevance_match queries
+ * Parses and serializes / deserializes relevance_match queries. Uses the {@link RelevanceMatchQueryRewriter} for rewriting the query
  */
 public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMatchQueryBuilder> {
 
@@ -39,40 +32,46 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField RELEVANCE_SETTINGS_FIELD = new ParseField("relevance_settings");
+    private static final ParseField CURATIONS_SETTINGS_FIELD = new ParseField("curations");
 
     private static final ObjectParser<RelevanceMatchQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, RelevanceMatchQueryBuilder::new);
-
-    private RelevanceSettingsService relevanceSettingsService;
-
-    private final QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
 
     static {
         declareStandardFields(PARSER);
 
         PARSER.declareString(RelevanceMatchQueryBuilder::setQuery, QUERY_FIELD);
         PARSER.declareStringOrNull(RelevanceMatchQueryBuilder::setRelevanceSettingsId, RELEVANCE_SETTINGS_FIELD);
+        PARSER.declareStringOrNull(RelevanceMatchQueryBuilder::setCurationsSettingsId, CURATIONS_SETTINGS_FIELD);
     }
 
     private String query;
 
     private String relevanceSettingsId;
 
+    private String curationsSettingsId;
+
+    private RelevanceMatchQueryRewriter queryRewriter;
+
     public RelevanceMatchQueryBuilder() {
         super();
     }
 
-    public RelevanceMatchQueryBuilder(RelevanceSettingsService relevanceSettingsService, StreamInput in) throws IOException {
+    public RelevanceMatchQueryBuilder(RelevanceMatchQueryRewriter queryRewriter) {
+        super();
+        this.queryRewriter = queryRewriter;
+    }
+
+    public RelevanceMatchQueryBuilder(RelevanceMatchQueryRewriter queryRewriter, StreamInput in) throws IOException {
         super(in);
 
-        this.relevanceSettingsService = relevanceSettingsService;
         query = in.readString();
+        relevanceSettingsId = in.readOptionalString();
+        curationsSettingsId = in.readOptionalString();
+
+        this.queryRewriter = queryRewriter;
     }
 
-    public void setRelevanceSettingsService(RelevanceSettingsService relevanceSettingsService) {
-        this.relevanceSettingsService = relevanceSettingsService;
-    }
-
-    public static RelevanceMatchQueryBuilder fromXContent(final XContentParser parser, RelevanceSettingsService relevanceSettingsService) {
+    public static RelevanceMatchQueryBuilder fromXContent(final XContentParser parser, RelevanceMatchQueryRewriter queryRewriter) {
 
         final RelevanceMatchQueryBuilder builder;
         try {
@@ -85,15 +84,43 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
             throw new ParsingException(parser.getTokenLocation(), "[relevance_match] requires a query, none specified");
         }
 
-        builder.setRelevanceSettingsService(relevanceSettingsService);
+        if ((builder.relevanceSettingsId != null) && builder.relevanceSettingsId.isEmpty()) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "[relevance_match] " + RELEVANCE_SETTINGS_FIELD + " must have at least one character in length"
+            );
+        }
+
+        if ((builder.curationsSettingsId != null) && Strings.isEmpty(builder.curationsSettingsId)) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "[relevance_match] " + CURATIONS_SETTINGS_FIELD + " must have at least one character in length"
+            );
+        }
+
+        builder.setQueryRewriter(queryRewriter);
 
         return builder;
     }
 
-    @Override
-    protected void doWriteTo(final StreamOutput out) throws IOException {
-        out.writeString(query);
-        out.writeOptionalString(relevanceSettingsId);
+    RelevanceMatchQueryRewriter getQueryRewriter() {
+        return queryRewriter;
+    }
+
+    void setQueryRewriter(RelevanceMatchQueryRewriter queryRewriter) {
+        this.queryRewriter = queryRewriter;
+    }
+
+    public void setCurationsSettingsId(String curationsSettingsId) {
+        this.curationsSettingsId = curationsSettingsId;
+    }
+
+    public void setQuery(String query) {
+        this.query = query;
+    }
+
+    public String getQuery() {
+        return query;
     }
 
     @Override
@@ -104,45 +131,47 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         if (relevanceSettingsId != null) {
             builder.field(RELEVANCE_SETTINGS_FIELD.getPreferredName(), relevanceSettingsId);
         }
-
+        if (curationsSettingsId != null) {
+            builder.field(CURATIONS_SETTINGS_FIELD.getPreferredName(), curationsSettingsId);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
+    }
+
+    public void setRelevanceSettingsId(String relevanceSettingsId) {
+        this.relevanceSettingsId = relevanceSettingsId;
+    }
+
+    @Override
+    protected void doWriteTo(final StreamOutput out) throws IOException {
+        out.writeString(query);
+        out.writeOptionalString(relevanceSettingsId);
+        out.writeOptionalString(curationsSettingsId);
+    }
+
+    String getRelevanceSettingsId() {
+        return relevanceSettingsId;
     }
 
     @Override
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
+        return queryRewriter.rewriteQuery(this, context);
+    }
 
-        Map<String, Float> fieldsAndBoosts;
-        if (relevanceSettingsId != null) {
-            try {
-                RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
-                QueryConfiguration queryConfiguration = relevanceSettings.getQueryConfiguration();
-                fieldsAndBoosts = queryConfiguration.getFieldsAndBoosts();
-            } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
-                throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
-            } catch (RelevanceSettingsService.RelevanceSettingsInvalidException e) {
-                throw new IllegalArgumentException("[relevance_match] invalid relevance search settings for: " + relevanceSettingsId);
-            }
-        } else {
-            Collection<String> fields = queryFieldsResolver.getQueryFields(context);
-            if (fields.isEmpty()) {
-                throw new IllegalArgumentException("[relevance_match] query cannot find text fields in the index");
-            }
-            fieldsAndBoosts = fields.stream().collect(Collectors.toMap(Function.identity(), (field) -> AbstractQueryBuilder.DEFAULT_BOOST));
-        }
-
-        final CombinedFieldsQueryBuilder builder = new CombinedFieldsQueryBuilder(query, fieldsAndBoosts);
-
-        return builder.toQuery(context);
+    String getCurationsSettingsId() {
+        return curationsSettingsId;
     }
 
     @Override
     protected boolean doEquals(final RelevanceMatchQueryBuilder other) {
-        return Objects.equals(this.query, other.query);
+        return Objects.equals(this.query, other.query)
+            && Objects.equals(this.relevanceSettingsId, other.relevanceSettingsId)
+            && Objects.equals(this.curationsSettingsId, other.curationsSettingsId);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query);
+        return Objects.hash(query, relevanceSettingsId, curationsSettingsId);
     }
 
     @Override
@@ -155,11 +184,4 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         return Version.V_8_6_0;
     }
 
-    public void setQuery(String query) {
-        this.query = query;
-    }
-
-    public void setRelevanceSettingsId(String relevanceSettingsId) {
-        this.relevanceSettingsId = relevanceSettingsId;
-    }
 }

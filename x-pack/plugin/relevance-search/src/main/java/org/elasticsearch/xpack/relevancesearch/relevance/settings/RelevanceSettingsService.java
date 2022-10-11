@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.relevancesearch.relevance;
+package org.elasticsearch.xpack.relevancesearch.relevance.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -167,12 +168,45 @@ public class RelevanceSettingsService implements ClusterStateListener {
                 .startObject("type")
                 .field("type", "keyword")
                 .endObject()
+                .startObject("group_name")
+                .field("type", "keyword")
+                .endObject()
                 .startObject("query_type")
                 .field("type", "keyword")
                 .endObject()
                 .startObject("query_configuration")
                 .startObject("properties")
                 .startObject("fields")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("conditions")
+                .startObject("properties")
+                .startObject("context")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("value")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("pinned_document_ids")
+                .startObject("properties")
+                .startObject("_id")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("_index")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("excluded_document_ids")
+                .startObject("properties")
+                .startObject("_id")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("_index")
                 .field("type", "keyword")
                 .endObject()
                 .endObject()

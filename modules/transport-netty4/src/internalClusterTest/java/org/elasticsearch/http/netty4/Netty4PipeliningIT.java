@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Collection;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -54,7 +53,7 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
     private void assertOpaqueIdsInOrder(Collection<String> opaqueIds) {
         // check if opaque ids are monotonically increasing
         int i = 0;
-        String msg = String.format(Locale.ROOT, "Expected list of opaque ids to be monotonically increasing, got [%s]", opaqueIds);
+        String msg = formatted("Expected list of opaque ids to be monotonically increasing, got [%s]", opaqueIds);
         for (String opaqueId : opaqueIds) {
             assertThat(msg, opaqueId, is(String.valueOf(i++)));
         }

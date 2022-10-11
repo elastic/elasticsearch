@@ -1135,9 +1135,7 @@ public class IndexNameExpressionResolver {
          */
         public static Collection<String> resolve(Context context, List<String> expressions) {
             Objects.requireNonNull(expressions);
-            // only check open/closed since if we do not expand to open or closed it doesn't make sense to
-            // expand to hidden
-            if (context.getOptions().expandWildcardsClosed() == false && context.getOptions().expandWildcardsOpen() == false) {
+            if (context.getOptions().expandWildcardExpressions() == false) {
                 return expressions;
             } else if (isEmptyOrTrivialWildcard(expressions)) {
                 return innerResolveAll(context);

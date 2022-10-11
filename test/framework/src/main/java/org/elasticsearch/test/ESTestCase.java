@@ -1809,6 +1809,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    protected static String formatted(String string, Object... args) {
+        return String.format(Locale.ROOT, string, args);
+    }
+
     /**
      * Call method at the beginning of a test to disable its execution
      * until a given Lucene version is released and integrated into Elasticsearch

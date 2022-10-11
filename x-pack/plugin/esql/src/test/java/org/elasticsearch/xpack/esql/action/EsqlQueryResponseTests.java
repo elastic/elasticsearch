@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class EsqlQueryResponseTests extends AbstractSerializingTestCase<EsqlQueryResponse> {
+public class EsqlQueryResponseTests extends AbstractXContentSerializingTestCase<EsqlQueryResponse> {
 
     @Override
     protected EsqlQueryResponse createTestInstance() {

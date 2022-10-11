@@ -209,11 +209,11 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
             clusterState.metadata().index(index).getLifecycleExecutionState()
         );
-        lifecycleState.setPhase(stepKey.getPhase());
+        lifecycleState.setPhase(stepKey.phase());
         lifecycleState.setPhaseTime(now);
-        lifecycleState.setAction(stepKey.getAction());
+        lifecycleState.setAction(stepKey.action());
         lifecycleState.setActionTime(now);
-        lifecycleState.setStep(stepKey.getName());
+        lifecycleState.setStep(stepKey.name());
         lifecycleState.setStepTime(now);
         lifecycleState.setPhaseDefinition("{\"actions\":{\"TEST_ACTION\":{}}}");
         clusterState = ClusterState.builder(clusterState)

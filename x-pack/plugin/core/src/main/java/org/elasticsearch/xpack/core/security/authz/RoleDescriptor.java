@@ -356,6 +356,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     public static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat) throws IOException {
+        return parse(name, parser, allow2xFormat, TcpTransport.isUntrustedRemoteClusterEnabled());
+    }
+
+    static RoleDescriptor parse(String name, XContentParser parser, boolean allow2xFormat, boolean untrustedRemoteClusterEnabled)
+        throws IOException {
         // validate name
         Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
         if (validationError != null) {
@@ -412,7 +417,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                                 currentFieldName
                             );
                         }
-                    } else if (TcpTransport.isUntrustedRemoteClusterEnabled()
+                    } else if (untrustedRemoteClusterEnabled
                         && Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
                             remoteIndicesPrivileges = parseRemoteIndices(name, parser, allow2xFormat);
                         } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {

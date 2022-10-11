@@ -17,11 +17,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
@@ -579,6 +581,32 @@ public class RoleDescriptorTests extends ESTestCase {
             TestMatchers.throwableWithMessage(
                 containsString("failed to parse remote indices privileges for role [test]. missing required [clusters] field")
             )
+        );
+    }
+
+    public void testParseRemoteIndicesPrivilegesFailsWhenUntrustedRemoteClusterEnabledFlagIsFalse() {
+        final String json = """
+            {
+              "remote_indices": [
+                {
+                  "names": [ "idx1", "idx2" ],
+                  "privileges": [ "all" ],
+                  "clusters": ["rmt"]
+                }
+              ]
+            }""";
+        final ElasticsearchParseException epe = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parse(
+                "test",
+                XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON),
+                false,
+                false
+            )
+        );
+        assertThat(
+            epe,
+            TestMatchers.throwableWithMessage(containsString("failed to parse role [test]. unexpected field [remote_indices]"))
         );
     }
 

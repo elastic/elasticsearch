@@ -14,11 +14,12 @@ import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
-import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationSettings;
-import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettings;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
+import org.elasticsearch.xpack.relevancesearch.settings.AbstractSettingsService;
+import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationSettings;
+import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsService;
+import org.elasticsearch.xpack.relevancesearch.settings.relevance.QueryConfiguration;
+import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettings;
+import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettingsService;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 
 import java.io.IOException;
@@ -91,12 +92,12 @@ public class RelevanceMatchQueryRewriter {
         Map<String, Float> fieldsAndBoosts;
         if (relevanceSettingsId != null) {
             try {
-                RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
+                RelevanceSettings relevanceSettings = relevanceSettingsService.getSettings(relevanceSettingsId);
                 QueryConfiguration queryConfiguration = relevanceSettings.getQueryConfiguration();
                 fieldsAndBoosts = queryConfiguration.getFieldsAndBoosts();
-            } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
+            } catch (RelevanceSettingsService.SettingsNotFoundException e) {
                 throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
-            } catch (RelevanceSettingsService.RelevanceSettingsInvalidException e) {
+            } catch (RelevanceSettingsService.InvalidSettingsException e) {
                 throw new IllegalArgumentException("[relevance_match] invalid relevance search settings for: " + relevanceSettingsId);
             }
         } else {
@@ -113,15 +114,17 @@ public class RelevanceMatchQueryRewriter {
         String curationsSettingsId = relevanceMatchQueryBuilder.getCurationsSettingsId();
         if (curationsSettingsId != null) {
             try {
-                CurationSettings curationSettings = curationsService.getCurationsSettings(curationsSettingsId);
+                CurationSettings curationSettings = curationsService.getSettings(curationsSettingsId);
                 final boolean conditionMatch = curationSettings.conditions().stream().anyMatch(c -> c.match(relevanceMatchQueryBuilder));
                 if (conditionMatch) {
                     queryBuilder = applyPinnedDocs(queryBuilder, curationSettings);
                     queryBuilder = applyExcludedDocs(queryBuilder, curationSettings);
                 }
 
-            } catch (CurationsService.CurationsSettingsNotFoundException e) {
+            } catch (CurationsService.SettingsNotFoundException e) {
                 throw new IllegalArgumentException("[relevance_match] query cannot find curation settings: " + curationsSettingsId);
+            } catch (AbstractSettingsService.InvalidSettingsException e) {
+                throw new IllegalArgumentException("[relevance_match] invalid curation settings for: " + curationsSettingsId);
             }
         }
 

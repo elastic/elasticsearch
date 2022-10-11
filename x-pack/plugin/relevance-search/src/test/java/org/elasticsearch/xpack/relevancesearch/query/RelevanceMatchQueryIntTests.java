@@ -14,8 +14,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.relevancesearch.RelevanceSearchPlugin;
-import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
+import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsService;
+import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettingsService;
 
 import java.util.Collection;
 import java.util.List;

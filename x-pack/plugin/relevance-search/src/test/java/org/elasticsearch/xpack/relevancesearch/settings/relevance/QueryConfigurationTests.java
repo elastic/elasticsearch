@@ -5,18 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.relevancesearch.relevance;
+package org.elasticsearch.xpack.relevancesearch.settings.relevance;
 
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 
 import java.util.List;
 import java.util.Map;
 
 public class QueryConfigurationTests extends ESTestCase {
 
-    public void testParsingFieldsAndBoosts() throws RelevanceSettingsService.RelevanceSettingsInvalidException {
+    public void testParsingFieldsAndBoosts() throws RelevanceSettingsService.InvalidSettingsException {
         List<String> fields = List.of("foo^2.5", "bar^5", "foobar");
         QueryConfiguration queryConfiguration = new QueryConfiguration();
         queryConfiguration.parseFieldsAndBoosts(fields);
@@ -30,7 +29,7 @@ public class QueryConfigurationTests extends ESTestCase {
         List<String> fields = List.of("foo^bar");
         QueryConfiguration queryConfiguration = new QueryConfiguration();
         expectThrows(
-            RelevanceSettingsService.RelevanceSettingsInvalidException.class,
+            RelevanceSettingsService.InvalidSettingsException.class,
             () -> queryConfiguration.parseFieldsAndBoosts(fields)
         );
     }

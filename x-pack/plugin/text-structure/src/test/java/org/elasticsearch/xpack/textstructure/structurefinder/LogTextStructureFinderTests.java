@@ -207,7 +207,7 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
             assertNull(structure.getHasHeaderRow());
             assertNull(structure.getShouldTrimFields());
             // a timestamp field is detected but it's not set to be the primary one.
-            assertEquals("\\[%{TIMESTAMP_ISO8601:extra_timestamp}\\]" + "\\[%{LOGLEVEL:loglevel} \\]\\[.*", structure.getGrokPattern());
+            assertEquals("\\[%{TIMESTAMP_ISO8601:extra_timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]\\[.*", structure.getGrokPattern());
             assertNull(structure.getTimestampField());
             assertNull(structure.getJodaTimestampFormats());
             FieldStats messageFieldStats = structure.getFieldStats().get("message");

@@ -89,6 +89,9 @@ public class ModuleSupport {
                     // read providers from the list of service files
                     for (String serviceFileName : scan.serviceFiles()) {
                         String serviceName = getServiceName(serviceFileName);
+                        if (uses.contains(serviceName) == false) {
+                            pkgs.add(toPackageName(serviceName, ".").orElseThrow());
+                        }
                         List<String> providersInJar = getProvidersFromServiceFile(jf, serviceFileName);
 
                         allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInJar));
@@ -246,7 +249,7 @@ public class ModuleSupport {
     @SuppressForbidden(reason = "need access to the jar file")
     private static List<String> getProvidersFromServiceFile(JarFile jf, String sf) throws IOException {
         try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf)), StandardCharsets.UTF_8))) {
-            return bf.lines().toList();
+            return bf.lines().filter(Predicate.not(l -> l.startsWith("#"))).filter(Predicate.not(String::isEmpty)).toList();
         }
     }
 

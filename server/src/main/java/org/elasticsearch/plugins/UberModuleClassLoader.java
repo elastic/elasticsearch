@@ -57,7 +57,7 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     private final ModuleLayer.Controller moduleController;
     private final Set<String> packageNames;
 
-    private static final Map<String, Set<String>> platformModulesToServices;
+    private static final Map<String, Set<String>> bootLayerModulesToServices;
 
     static {
         Set<String> unqualifiedExports = ModuleLayer.boot()
@@ -67,11 +67,10 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
             .filter(Predicate.not(ModuleDescriptor.Exports::isQualified))
             .map(ModuleDescriptor.Exports::source)
             .collect(Collectors.toSet());
-        platformModulesToServices = ModuleLayer.boot()
+        bootLayerModulesToServices = ModuleLayer.boot()
             .modules()
             .stream()
             .map(Module::getDescriptor)
-            .filter(ModuleSupport::isJavaPlatformModule)
             .filter(ModuleSupport::hasAtLeastOneUnqualifiedExport)
             .collect(
                 Collectors.toMap(
@@ -89,15 +88,23 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         return getInstance(parent, moduleName, jarUrls, Set.of());
     }
 
+    static UberModuleClassLoader getRestrictedInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls) {
+        Set<String> denyList = bootLayerModulesToServices.keySet()
+            .stream()
+            .filter(Predicate.not(s -> s.startsWith("jdk.") || s.startsWith("java.")))
+            .collect(Collectors.toSet());
+        return getInstance(parent, moduleName, jarUrls, denyList);
+    }
+
     @SuppressWarnings("removal")
     static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls, Set<String> moduleDenyList) {
         Path[] jarPaths = jarUrls.stream().map(UberModuleClassLoader::urlToPathUnchecked).toArray(Path[]::new);
 
-        Set<String> requires = platformModulesToServices.keySet()
+        Set<String> requires = bootLayerModulesToServices.keySet()
             .stream()
             .filter(Predicate.not(moduleDenyList::contains))
             .collect(Collectors.toSet());
-        Set<String> uses = platformModulesToServices.entrySet()
+        Set<String> uses = bootLayerModulesToServices.entrySet()
             .stream()
             .filter(Predicate.not(entry -> moduleDenyList.contains(entry.getKey())))
             .flatMap(entry -> entry.getValue().stream())

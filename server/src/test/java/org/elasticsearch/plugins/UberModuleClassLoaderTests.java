@@ -21,12 +21,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Arrays.stream;
 import static org.hamcrest.Matchers.containsString;
@@ -462,9 +462,9 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         JarUtils.createJarWithEntries(jar, jarEntries);
     }
 
-    public void testFoo() throws Exception {
+    public void testServiceLoadingWithOptionalDependencies() throws Exception {
 
-        ClassLoader loader = getServiceTestLoader();
+        ClassLoader loader = getServiceTestLoader(true);
 
         Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
         Object instance = serviceCallerClass.getConstructor().newInstance();
@@ -479,8 +479,34 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         assertThat(nonModular.invoke(instance), equalTo("foo"));
     }
 
-    // going to return a set of jars...
-    private static ClassLoader getServiceTestLoader() throws IOException {
+    public void testServiceLoadingWithoutOptionalDependencies() throws Exception {
+
+        ClassLoader loader = getServiceTestLoader(false);
+
+        Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
+        Object instance = serviceCallerClass.getConstructor().newInstance();
+
+        var requiredParent = serviceCallerClass.getMethod("callServiceFromRequiredParent");
+        assertThat(requiredParent.invoke(instance), equalTo("AB"));
+        var optionalParent = serviceCallerClass.getMethod("callServiceFromOptionalParent");
+        assertThat(optionalParent.invoke(instance), equalTo("Optional AnimalService dependency not present at runtime."));
+        var modular = serviceCallerClass.getMethod("callServiceFromModularJar");
+        assertThat(modular.invoke(instance), equalTo("12"));
+        var nonModular = serviceCallerClass.getMethod("callServiceFromNonModularJar");
+        assertThat(nonModular.invoke(instance), equalTo("foo"));
+    }
+
+    /**
+     * We need to create a test scenario that covers four service loading situations:
+     * 1. Service defined in package exported in parent layer.
+     * 2. Service defined in a compile-time dependency, optionally present at runtime.
+     * 3. Service defined in modular jar in uberjar
+     * 4. Service defined in non-modular jar in uberjar
+     *
+     * We create a jar for each scenario, plus "service caller" jar with a demo class, then
+     * create an UberModuleClassLoader for the relevant jars.
+     */
+    private static ClassLoader getServiceTestLoader(boolean includeOptionalDeps) throws IOException {
         Path libDir = createTempDir("libs");
         Path parentJar = createRequiredJarForParentLayer(libDir);
         Path optionalJar = createOptionalJarForParentLayer(libDir);
@@ -490,19 +516,20 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Path nonModularJar = createNonModularizedJarForBundle(libDir, parentJar, optionalJar, modularJar);
         Path serviceCallerJar = createServiceCallingJarForBundle(libDir, parentJar, optionalJar, modularJar, nonModularJar);
 
+        Set<Path> jarPaths = new HashSet<>(Set.of(parentJar, modularJar, nonModularJar, serviceCallerJar));
+        if (includeOptionalDeps) {
+            jarPaths.add(optionalJar);
+        }
         return UberModuleClassLoader.getInstance(
             UberModuleClassLoaderTests.class.getClassLoader(),
             "synthetic",
-            Stream.of(parentJar, optionalJar, modularJar, nonModularJar, serviceCallerJar)
-                .map(UberModuleClassLoaderTests::pathToUrlUnchecked)
-                .collect(Collectors.toSet())
+            jarPaths.stream().map(UberModuleClassLoaderTests::pathToUrlUnchecked).collect(Collectors.toSet())
         );
     }
 
     private static Path createServiceCallingJarForBundle(Path libDir, Path parentJar, Path optionalJar, Path modularJar, Path nonModularJar)
         throws IOException {
-        // 3. service-calling jar
-        // - q.caller.ServiceCaller
+
         String serviceCaller = """
             package q.caller;
 
@@ -582,8 +609,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
     private static Path createNonModularizedJarForBundle(Path libDir, Path parentJar, Path optionalJar, Path modularJar)
         throws IOException {
-        // 2. non-modularized service jar (FooBarService)
-        // - q.jar.two.FooBarService
         String serviceFromNonModularJar = """
             package q.jar.two;
             public interface FooBarService {
@@ -644,8 +669,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
     }
 
     private static Path createModularizedJarForBundle(Path libDir) throws IOException {
-        // 1. modularized service jar (NumberService)
-        // - q.jar.one.NumberService
         String serviceFromModularJar = """
             package q.jar.one;
             public interface NumberService {
@@ -705,15 +728,12 @@ public class UberModuleClassLoaderTests extends ESTestCase {
     }
 
     private static Path createOptionalJarForParentLayer(Path libDir) throws IOException {
-        // 2. optional (static requirement) (AnimalService)
-        // - p.optional.AnimalService
         String serviceFromOptionalParent = """
             package p.optional;
             public interface AnimalService {
                 String getAnimal();
             }
             """;
-        // - module info
         String optionalParentModuleInfo = """
             module p.optional { exports p.optional; }
             """;
@@ -734,9 +754,6 @@ public class UberModuleClassLoaderTests extends ESTestCase {
     }
 
     private static Path createRequiredJarForParentLayer(Path libDir) throws IOException {
-        // jars for the parent layer
-        // 1. always present (LetterService)
-        // - p.required.LetterService
         String serviceFromRequiredParent = """
             package p.required;
             public interface LetterService {

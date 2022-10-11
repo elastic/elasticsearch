@@ -122,6 +122,15 @@ to `-1` meaning that application-level pings are not sent. You should use TCP
 keepalives (see `transport.tcp.keep_alive`) instead of application-level pings
 wherever possible.
 
+`transport.min_accepted_version`::
+(<<static-cluster-setting,Static>>, integer)
+Configures the minimum version id to accept during handshake.
+(e.g. 8_05_00_99, 8000000)
+If set, this overrides the minimum compatibility version.
+If not set, it defaults to the minimum compatibility version.
+Only values between the minimum compatibility version
+and current version, inclusive, can be set.
+
 [[transport-profiles]]
 ===== Transport profiles
 

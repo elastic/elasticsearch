@@ -15,7 +15,11 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformHealth;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 
+import java.time.Instant;
+
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -32,17 +36,20 @@ public class TransformHealthCheckerTests extends ESTestCase {
     public void testPersistenceFailure() {
         TransformTask task = mock(TransformTask.class);
         TransformContext context = createTestContext();
+        Instant now = Instant.now();
 
         withIdStateAndContext(task, randomAlphaOfLength(10), context);
         assertThat(TransformHealthChecker.checkTransform(task), equalTo(TransformHealth.GREEN));
 
         context.incrementAndGetStatePersistenceFailureCount(new ElasticsearchException("failed to persist"));
-        assertThat(TransformHealthChecker.checkTransform(task).getStatus(), equalTo(HealthStatus.YELLOW));
-        assertEquals(1, TransformHealthChecker.checkTransform(task).getIssues().size());
-        assertThat(
-            TransformHealthChecker.checkTransform(task).getIssues().get(0).getIssue(),
-            equalTo("Task encountered failures updating internal state")
-        );
+        TransformHealth health = TransformHealthChecker.checkTransform(task);
+        assertThat(health.getStatus(), equalTo(HealthStatus.YELLOW));
+        assertEquals(1, health.getIssues().size());
+        assertThat(health.getIssues().get(0).getIssue(), equalTo("Task encountered failures updating internal state"));
+        assertThat(health.getIssues().get(0).getFirstOccurrence(), greaterThanOrEqualTo(now));
+
+        assertThat(health.getIssues().get(0).getFirstOccurrence(), lessThan(Instant.MAX));
+
         context.resetStatePersistenceFailureCount();
         assertThat(TransformHealthChecker.checkTransform(task), equalTo(TransformHealth.GREEN));
     }
@@ -50,12 +57,18 @@ public class TransformHealthCheckerTests extends ESTestCase {
     public void testStatusSwitchingAndMultipleFailures() {
         TransformTask task = mock(TransformTask.class);
         TransformContext context = createTestContext();
+        Instant now = Instant.now();
 
         withIdStateAndContext(task, randomAlphaOfLength(10), context);
         assertThat(TransformHealthChecker.checkTransform(task), equalTo(TransformHealth.GREEN));
 
         context.incrementAndGetFailureCount(new ElasticsearchException("internal error"));
-        assertThat(TransformHealthChecker.checkTransform(task).getStatus(), equalTo(HealthStatus.YELLOW));
+        TransformHealth health = TransformHealthChecker.checkTransform(task);
+        assertThat(health.getStatus(), equalTo(HealthStatus.YELLOW));
+
+        assertThat(health.getIssues().get(0).getFirstOccurrence(), greaterThanOrEqualTo(now));
+
+        assertThat(health.getIssues().get(0).getFirstOccurrence(), lessThan(Instant.MAX));
 
         for (int i = 1; i < TransformHealthChecker.RED_STATUS_FAILURE_COUNT_BOUNDARY; ++i) {
             context.incrementAndGetFailureCount(new ElasticsearchException("internal error"));

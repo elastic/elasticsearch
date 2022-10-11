@@ -103,7 +103,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
         String reason = null;
         TransformHealth expectedHealth = new TransformHealth(
             HealthStatus.RED,
-            List.of(new TransformHealthIssue("Transform task state is [failed]", null))
+            List.of(new TransformHealthIssue("Transform task state is [failed]", null, 1, null))
         );
 
         TransformIndexerStats stats = TransformIndexerStatsTests.randomStats();
@@ -139,7 +139,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
         reason = "the task is failed";
         expectedHealth = new TransformHealth(
             HealthStatus.RED,
-            List.of(new TransformHealthIssue("Transform task state is [failed]", reason))
+            List.of(new TransformHealthIssue("Transform task state is [failed]", reason, 1, null))
         );
         failedState = new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0, reason, null, null, true);
         withIdStateAndStats(transformId, failedState, stats);

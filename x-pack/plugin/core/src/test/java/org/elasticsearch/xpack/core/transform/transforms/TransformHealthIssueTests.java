@@ -12,11 +12,17 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Instant;
 
 public class TransformHealthIssueTests extends AbstractXContentSerializingTestCase<TransformHealthIssue> {
 
     public static TransformHealthIssue randomTransformHealthIssue() {
-        return new TransformHealthIssue(randomAlphaOfLengthBetween(10, 200), randomBoolean() ? randomAlphaOfLengthBetween(10, 200) : null);
+        return new TransformHealthIssue(
+            randomAlphaOfLengthBetween(10, 200),
+            randomBoolean() ? randomAlphaOfLengthBetween(10, 200) : null,
+            randomIntBetween(0, 10),
+            randomBoolean() ? null : Instant.ofEpochMilli(randomLongBetween(1, 100000))
+        );
     }
 
     @Override

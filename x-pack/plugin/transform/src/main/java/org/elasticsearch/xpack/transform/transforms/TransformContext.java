@@ -28,6 +28,7 @@ public class TransformContext {
 
     private final AtomicReference<TransformTaskState> taskState;
     private final AtomicReference<String> stateReason;
+    private volatile Instant stateFailureTime;
     private final Listener taskListener;
     private volatile int numFailureRetries = Transform.DEFAULT_FAILURE_RETRIES;
     private final AtomicInteger failureCount;
@@ -70,17 +71,24 @@ public class TransformContext {
     void setTaskStateToFailed(String reason) {
         taskState.set(TransformTaskState.FAILED);
         stateReason.set(reason);
+        stateFailureTime = Instant.now();
     }
 
     void resetReasonAndFailureCounter() {
         stateReason.set(null);
         failureCount.set(0);
         lastFailure.set(null);
+        stateFailureTime = null;
+        lastFailureStartTime = null;
         taskListener.failureCountChanged();
     }
 
     String getStateReason() {
         return stateReason.get();
+    }
+
+    Instant getStateFailureTime() {
+        return stateFailureTime;
     }
 
     void setCheckpoint(long newValue) {
@@ -161,6 +169,7 @@ public class TransformContext {
     void resetStatePersistenceFailureCount() {
         statePersistenceFailureCount.set(0);
         lastStatePersistenceFailure.set(null);
+        lastStatePersistenceFailureStartTime = null;
     }
 
     int getStatePersistenceFailureCount() {

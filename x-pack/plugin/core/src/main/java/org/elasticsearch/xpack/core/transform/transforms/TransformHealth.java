@@ -72,7 +72,7 @@ public class TransformHealth implements Writeable, ToXContentObject {
         this.issues = in.readOptionalList(TransformHealthIssue::new);
     }
 
-    public HealthStatus getStatus(){
+    public HealthStatus getStatus() {
         return status;
     }
 

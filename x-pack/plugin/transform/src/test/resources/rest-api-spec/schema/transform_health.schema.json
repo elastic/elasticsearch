@@ -39,6 +39,14 @@
             "details": {
               "type": "string",
               "description": "single issue details"
+            },
+            "first_occurrence": {
+              "type": "integer",
+              "description": "time the issue appeared for the first time"
+            },
+            "count": {
+              "type": "integer",
+              "description": "number of times the issue appeared"
             }
           }
         }

@@ -160,7 +160,7 @@ public class NodeAvailabilityZoneMapper implements ClusterStateListener {
                 });
             }
         }
-        return new NodesByAvailabilityZone(allNodesByAvailabilityZone, mlNodesByAvailabilityZone);
+        return new NodesByAvailabilityZone(Map.copyOf(allNodesByAvailabilityZone), Map.copyOf(mlNodesByAvailabilityZone));
     }
 
     /**
@@ -175,7 +175,7 @@ public class NodeAvailabilityZoneMapper implements ClusterStateListener {
      *         map will also be returned if there are no ML nodes in the cluster. (These two empty map return scenarios can be
      *         distinguished by calling one of the other methods.)
      */
-    public synchronized Map<List<String>, Collection<DiscoveryNode>> buildMlNodesByAvailabilityZone(ClusterState clusterState) {
+    public Map<List<String>, Collection<DiscoveryNode>> buildMlNodesByAvailabilityZone(ClusterState clusterState) {
         return buildNodesByAvailabilityZone(clusterState.nodes(), awarenessAttributes).mlNodes;
     }
 

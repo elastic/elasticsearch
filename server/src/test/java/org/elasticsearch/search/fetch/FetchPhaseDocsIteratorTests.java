@@ -106,7 +106,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         writer.close();
 
         int[] docs = randomDocIds(docCount - 1);
-        int badDoc = docs[randomInt(docs.length)];
+        int badDoc = docs[randomInt(docs.length - 1)];
 
         FetchPhaseDocsIterator it = new FetchPhaseDocsIterator() {
             @Override

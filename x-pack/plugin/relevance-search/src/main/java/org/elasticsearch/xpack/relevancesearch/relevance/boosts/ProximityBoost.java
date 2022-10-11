@@ -94,13 +94,13 @@ public class ProximityBoost extends ScriptScoreBoost {
         try {
             Double.valueOf(center);
             return true;
-        } catch (Exception x) {
+        } catch (Exception e) {
             // do nothing
         }
         try {
             Integer.valueOf(center);
             return true;
-        } catch (Exception x) {
+        } catch (Exception e) {
             // do nothing
         }
         return false;
@@ -165,7 +165,7 @@ public class ProximityBoost extends ScriptScoreBoost {
                     return getDateSource(field);
                 }
             }
-        } catch (Exception x) {
+        } catch (Exception e) {
             // do nothing
         }
         return null;

@@ -40,7 +40,7 @@ public abstract class ScriptScoreBoost {
     }
 
     protected String constantFactor() {
-        if (Objects.equals(this.operation, "add")) {
+        if (isAdditive()) {
             return "0";
         }
         return "1";

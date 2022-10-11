@@ -39,10 +39,19 @@ public abstract class AbstractSettingsService<S extends Settings> implements Set
         return parseSettings(settingsContent);
     }
 
-    protected abstract String getName();
-
     protected abstract S parseSettings(Map<String, Object> source) throws InvalidSettingsException;
 
     protected abstract String getSettingsPrefix();
 
+    public static class SettingsNotFoundException extends Exception {
+        public SettingsNotFoundException(String message) {
+            super(message);
+        }
+    }
+
+    public static class InvalidSettingsException extends Exception {
+        public InvalidSettingsException(String message) {
+            super(message);
+        }
+    }
 }

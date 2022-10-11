@@ -39,8 +39,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         FunctionRegistry functionRegistry = new FunctionRegistry();
-        Configuration configuration = new Configuration(request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
-            null, null, x -> Collections.emptySet());
+        Configuration configuration = new Configuration(
+            request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
+            null,
+            null,
+            x -> Collections.emptySet()
+        );
         new EsqlSession(planExecutor.indexResolver(), functionRegistry, configuration).execute(request.query(), listener.map(r -> {
             List<ColumnInfo> columns = r.columns().stream().map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType())).toList();
             return new EsqlQueryResponse(columns, r.values());

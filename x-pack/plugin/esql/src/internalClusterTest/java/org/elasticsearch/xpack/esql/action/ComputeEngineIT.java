@@ -18,33 +18,26 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.xpack.esql.analyzer.Analyzer;
 import org.elasticsearch.xpack.esql.analyzer.Avg;
 import org.elasticsearch.xpack.esql.compute.transport.ComputeAction2;
 import org.elasticsearch.xpack.esql.compute.transport.ComputeRequest2;
-import org.elasticsearch.xpack.esql.plan.physical.Optimizer;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.Mapper;
+import org.elasticsearch.xpack.esql.plan.physical.Optimizer;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
-import org.elasticsearch.xpack.ql.analyzer.TableInfo;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.index.RemoteClusterResolver;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.session.Configuration;
-import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.junit.Assert;
 
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
@@ -106,29 +99,16 @@ public class ComputeEngineIT extends ESIntegTestCase {
 
     private Tuple<List<ColumnInfo>, List<Page>> run(String esqlCommands) {
         EsqlParser parser = new EsqlParser();
+        logger.info("Commands to parse:\n{}", esqlCommands);
         LogicalPlan logicalPlan = parser.createStatement(esqlCommands);
         logger.info("Plan after parsing:\n{}", logicalPlan);
-
-        PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(logicalPlan);
-        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(Settings.EMPTY, clusterService().getClusterSettings());
-        IndexResolver indexResolver = new IndexResolver(
-            client(),
-            clusterService().getClusterName().value(),
-            DefaultDataTypeRegistry.INSTANCE,
-            remoteClusterResolver::remoteClusters
-        );
-        if (preAnalysis.indices.size() != 1) {
-            throw new UnsupportedOperationException();
-        }
-        TableInfo tableInfo = preAnalysis.indices.get(0);
-        TableIdentifier table = tableInfo.id();
-
-        PlainActionFuture<IndexResolution> fut = new PlainActionFuture<>();
-        indexResolver.resolveAsMergedMapping(table.index(), false, Map.of(), fut);
+        IndexResolver indexResolver = internalCluster().getInstances(PlanExecutor.class).iterator().next().indexResolver();
         FunctionRegistry functionRegistry = new FunctionRegistry(FunctionRegistry.def(Avg.class, Avg::new, "AVG"));
         Configuration configuration = new Configuration(ZoneOffset.UTC, null, null, x -> Collections.emptySet());
-        Analyzer analyzer = new Analyzer(fut.actionGet(), functionRegistry, configuration);
-        logicalPlan = analyzer.analyze(logicalPlan);
+        EsqlSession esqlSession = new EsqlSession(indexResolver, functionRegistry, configuration);
+        PlainActionFuture<LogicalPlan> fut = new PlainActionFuture<>();
+        esqlSession.analyzedPlan(logicalPlan, fut);
+        logicalPlan = fut.actionGet();
         logger.info("Plan after analysis:\n{}", logicalPlan);
         Mapper mapper = new Mapper();
         PhysicalPlan physicalPlan = mapper.map(logicalPlan);

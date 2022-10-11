@@ -176,22 +176,22 @@ public class LocalExecutionPlanner {
                 layout.put(esQuery.output().get(i).id(), i);
             }
             return new PhysicalOperation(operatorFactory, layout);
-        } else if (node instanceof FieldExtract fieldExtract) {
-            PhysicalOperation source = plan(fieldExtract.child(), context);
+        } else if (node instanceof FieldExtractExec fieldExtractExec) {
+            PhysicalOperation source = plan(fieldExtractExec.child(), context);
             Map<Object, Integer> layout = new HashMap<>();
             layout.putAll(source.layout);
 
             PhysicalOperation op = source;
-            for (Attribute attr : fieldExtract.getAttrs()) {
+            for (Attribute attr : fieldExtractExec.getAttrs()) {
                 layout = new HashMap<>(layout);
                 layout.put(attr.id(), layout.size());
                 Map<Object, Integer> previousLayout = op.layout;
                 op = new PhysicalOperation(
                     () -> new NumericDocValuesExtractor(
                         indexReaders.stream().map(IndexReaderReference::indexReader).collect(Collectors.toList()),
-                        previousLayout.get(fieldExtract.getEsQueryAttrs().get(0).id()),
-                        previousLayout.get(fieldExtract.getEsQueryAttrs().get(1).id()),
-                        previousLayout.get(fieldExtract.getEsQueryAttrs().get(2).id()),
+                        previousLayout.get(fieldExtractExec.getEsQueryAttrs().get(0).id()),
+                        previousLayout.get(fieldExtractExec.getEsQueryAttrs().get(1).id()),
+                        previousLayout.get(fieldExtractExec.getEsQueryAttrs().get(2).id()),
                         attr.name()
                     ),
                     layout,
@@ -199,15 +199,15 @@ public class LocalExecutionPlanner {
                 );
             }
             return op;
-        } else if (node instanceof Output output) {
-            PhysicalOperation source = plan(output.child(), context);
-            if (output.output().size() != source.layout.size()) {
+        } else if (node instanceof OutputExec outputExec) {
+            PhysicalOperation source = plan(outputExec.child(), context);
+            if (outputExec.output().size() != source.layout.size()) {
                 throw new IllegalStateException();
             }
             return new PhysicalOperation(
                 () -> new OutputOperator(
-                    output.output().stream().map(NamedExpression::name).collect(Collectors.toList()),
-                    output.getPageConsumer()
+                    outputExec.output().stream().map(NamedExpression::name).collect(Collectors.toList()),
+                    outputExec.getPageConsumer()
                 ),
                 source.layout,
                 source

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -17,13 +18,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class FieldExtract extends UnaryExec {
+@Experimental
+public class FieldExtractExec extends UnaryExec {
 
     private final EsIndex index;
     private final List<Attribute> attrs;
     private final List<Attribute> esQueryAttrs;
 
-    public FieldExtract(Source source, PhysicalPlan child, EsIndex index, List<Attribute> attrs, List<Attribute> esQueryAttrs) {
+    public FieldExtractExec(Source source, PhysicalPlan child, EsIndex index, List<Attribute> attrs, List<Attribute> esQueryAttrs) {
         super(source, child);
         this.index = index;
         this.attrs = attrs;
@@ -31,8 +33,8 @@ public class FieldExtract extends UnaryExec {
     }
 
     @Override
-    protected NodeInfo<FieldExtract> info() {
-        return NodeInfo.create(this, FieldExtract::new, child(), index, attrs, esQueryAttrs);
+    protected NodeInfo<FieldExtractExec> info() {
+        return NodeInfo.create(this, FieldExtractExec::new, child(), index, attrs, esQueryAttrs);
     }
 
     public EsIndex index() {
@@ -41,7 +43,7 @@ public class FieldExtract extends UnaryExec {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtract(source(), newChild, index, attrs, esQueryAttrs);
+        return new FieldExtractExec(source(), newChild, index, attrs, esQueryAttrs);
     }
 
     public List<Attribute> getAttrs() {
@@ -74,7 +76,7 @@ public class FieldExtract extends UnaryExec {
             return false;
         }
 
-        FieldExtract other = (FieldExtract) obj;
+        FieldExtractExec other = (FieldExtractExec) obj;
         return Objects.equals(index, other.index) && Objects.equals(attrs, other.attrs) && Objects.equals(esQueryAttrs, other.esQueryAttrs);
     }
 

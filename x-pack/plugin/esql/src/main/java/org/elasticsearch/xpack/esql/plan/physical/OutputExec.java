@@ -8,24 +8,22 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.function.BiConsumer;
 
-public class Output extends UnaryExec {
+public class OutputExec extends UnaryExec {
 
     private final BiConsumer<List<String>, Page> pageConsumer;
 
-    public Output(PhysicalPlan child, BiConsumer<List<String>, Page> pageConsumer) {
+    public OutputExec(PhysicalPlan child, BiConsumer<List<String>, Page> pageConsumer) {
         super(null, child);
         this.pageConsumer = pageConsumer;
     }
 
-    public Output(Source source, PhysicalPlan child, BiConsumer<List<String>, Page> pageConsumer) {
+    public OutputExec(Source source, PhysicalPlan child, BiConsumer<List<String>, Page> pageConsumer) {
         super(source, child);
         this.pageConsumer = pageConsumer;
     }
@@ -36,11 +34,11 @@ public class Output extends UnaryExec {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new Output(source(), newChild, pageConsumer);
+        return new OutputExec(source(), newChild, pageConsumer);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, Output::new, child(), pageConsumer);
+        return NodeInfo.create(this, OutputExec::new, child(), pageConsumer);
     }
 }

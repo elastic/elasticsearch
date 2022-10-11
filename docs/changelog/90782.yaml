@@ -1,0 +1,5 @@
+pr: 90782
+summary: Add YAML setting `transport.min_accepted_version`
+area: Cluster Coordination
+type: enhancement
+issues: []

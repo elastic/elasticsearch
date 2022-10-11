@@ -117,6 +117,51 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     private final String searchEngineName;
 
+    public SearchExecutionContext(
+        int shardId,
+        int shardRequestIndex,
+        IndexSettings indexSettings,
+        BitsetFilterCache bitsetFilterCache,
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        MappingLookup mappingLookup,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        XContentParserConfiguration parserConfiguration,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        Map<String, Object> runtimeMappings
+    ) {
+        this(
+            shardId,
+            shardRequestIndex,
+            null,
+            indexSettings,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            mappingLookup,
+            similarityService,
+            scriptService,
+            parserConfiguration,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            runtimeMappings
+        );
+    }
+
     /**
      * Build a {@linkplain SearchExecutionContext}.
      */

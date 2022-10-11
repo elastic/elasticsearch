@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -38,6 +40,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     private Set<Indices> index;
     private Set<RoleDescriptor.ApplicationResourcePrivileges> application;
     private Set<String> runAs;
+    private Set<RemoteIndices> remoteIndex;
 
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
@@ -46,6 +49,11 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         index = Collections.unmodifiableSet(in.readSet(Indices::new));
         application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
         runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            remoteIndex = Collections.unmodifiableSet(in.readSet(RemoteIndices::new));
+        } else {
+            remoteIndex = Set.of();
+        }
     }
 
     public GetUserPrivilegesResponse(
@@ -55,11 +63,23 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         Set<RoleDescriptor.ApplicationResourcePrivileges> application,
         Set<String> runAs
     ) {
+        this(cluster, conditionalCluster, index, application, runAs, Set.of());
+    }
+
+    public GetUserPrivilegesResponse(
+        Set<String> cluster,
+        Set<ConfigurableClusterPrivilege> conditionalCluster,
+        Set<Indices> index,
+        Set<RoleDescriptor.ApplicationResourcePrivileges> application,
+        Set<String> runAs,
+        Set<RemoteIndices> remoteIndex
+    ) {
         this.cluster = Collections.unmodifiableSet(cluster);
         this.configurableClusterPrivileges = Collections.unmodifiableSet(conditionalCluster);
         this.index = Collections.unmodifiableSet(index);
         this.application = Collections.unmodifiableSet(application);
         this.runAs = Collections.unmodifiableSet(runAs);
+        this.remoteIndex = Collections.unmodifiableSet(remoteIndex);
     }
 
     public Set<String> getClusterPrivileges() {
@@ -72,6 +92,10 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
     public Set<Indices> getIndexPrivileges() {
         return index;
+    }
+
+    public Set<RemoteIndices> getRemoteIndexPrivileges() {
+        return remoteIndex;
     }
 
     public Set<RoleDescriptor.ApplicationResourcePrivileges> getApplicationPrivileges() {
@@ -89,6 +113,9 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         out.writeCollection(index);
         out.writeCollection(application);
         out.writeCollection(runAs, StreamOutput::writeString);
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            out.writeCollection(remoteIndex);
+        }
     }
 
     @Override
@@ -104,12 +131,34 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             && Objects.equals(configurableClusterPrivileges, that.configurableClusterPrivileges)
             && Objects.equals(index, that.index)
             && Objects.equals(application, that.application)
-            && Objects.equals(runAs, that.runAs);
+            && Objects.equals(runAs, that.runAs)
+            && Objects.equals(remoteIndex, that.remoteIndex);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cluster, configurableClusterPrivileges, index, application, runAs);
+        return Objects.hash(cluster, configurableClusterPrivileges, index, application, runAs, remoteIndex);
+    }
+
+    public record RemoteIndices(Indices indices, Set<String> remoteClusters) implements ToXContentObject, Writeable {
+
+        public RemoteIndices(StreamInput in) throws IOException {
+            this(new Indices(in), Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString))));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            indices.innerToXContent(builder);
+            builder.field(RoleDescriptor.Fields.REMOTE_CLUSTERS.getPreferredName(), remoteClusters);
+            return builder.endObject();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            indices.writeTo(out);
+            out.writeStringCollection(remoteClusters);
+        }
     }
 
     /**
@@ -215,6 +264,11 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            innerToXContent(builder);
+            return builder.endObject();
+        }
+
+        void innerToXContent(XContentBuilder builder) throws IOException {
             builder.field(RoleDescriptor.Fields.NAMES.getPreferredName(), indices);
             builder.field(RoleDescriptor.Fields.PRIVILEGES.getPreferredName(), privileges);
             if (fieldSecurity.stream().anyMatch(g -> nonEmpty(g.getGrantedFields()) || nonEmpty(g.getExcludedFields()))) {
@@ -242,7 +296,6 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 builder.endArray();
             }
             builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
-            return builder.endObject();
         }
 
         private static boolean nonEmpty(String[] grantedFields) {

@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -717,25 +718,14 @@ public class RBACEngine implements AuthorizationEngine {
 
         final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
         for (IndicesPermission.Group group : userRole.indices().groups()) {
-            final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
-            final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
-            if (group.getFieldPermissions().hasFieldLevelSecurity()) {
-                final FieldPermissionsDefinition definition = group.getFieldPermissions().getFieldPermissionsDefinition();
-                assert group.getFieldPermissions().getLimitedByFieldPermissionsDefinition() == null
-                    : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
-                fieldSecurity = definition.getFieldGrantExcludeGroups();
-            } else {
-                fieldSecurity = Collections.emptySet();
+            indices.add(toIndices(group));
+        }
+
+        final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndices = new LinkedHashSet<>();
+        for (RemoteIndicesPermission.RemoteIndicesGroup remoteIndicesGroup : userRole.remoteIndices().remoteIndicesGroups()) {
+            for (IndicesPermission.Group group : remoteIndicesGroup.indicesPermissionGroups()) {
+                remoteIndices.add(new GetUserPrivilegesResponse.RemoteIndices(toIndices(group), remoteIndicesGroup.remoteClusterAliases()));
             }
-            indices.add(
-                new GetUserPrivilegesResponse.Indices(
-                    Arrays.asList(group.indices()),
-                    group.privilege().name(),
-                    fieldSecurity,
-                    queries,
-                    group.allowRestrictedIndices()
-                )
-            );
         }
 
         final Set<RoleDescriptor.ApplicationResourcePrivileges> application = new LinkedHashSet<>();
@@ -764,7 +754,27 @@ public class RBACEngine implements AuthorizationEngine {
             runAs = runAsPrivilege.name();
         }
 
-        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
+        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs, remoteIndices);
+    }
+
+    private static GetUserPrivilegesResponse.Indices toIndices(final IndicesPermission.Group group) {
+        final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
+        final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
+        if (group.getFieldPermissions().hasFieldLevelSecurity()) {
+            final FieldPermissionsDefinition definition = group.getFieldPermissions().getFieldPermissionsDefinition();
+            assert group.getFieldPermissions().getLimitedByFieldPermissionsDefinition() == null
+                : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
+            fieldSecurity = definition.getFieldGrantExcludeGroups();
+        } else {
+            fieldSecurity = Collections.emptySet();
+        }
+        return new GetUserPrivilegesResponse.Indices(
+            Arrays.asList(group.indices()),
+            group.privilege().name(),
+            fieldSecurity,
+            queries,
+            group.allowRestrictedIndices()
+        );
     }
 
     static Set<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.ZoneAwareAssignmentPlanner;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
@@ -43,18 +42,18 @@ class TrainedModelAssignmentRebalancer {
 
     private final TrainedModelAssignmentMetadata currentMetadata;
     private final Map<DiscoveryNode, NodeLoad> nodeLoads;
-    private final NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
+    private final Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone;
     private final Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd;
 
     TrainedModelAssignmentRebalancer(
         TrainedModelAssignmentMetadata currentMetadata,
         Map<DiscoveryNode, NodeLoad> nodeLoads,
-        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper,
+        Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone,
         Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd
     ) {
         this.currentMetadata = Objects.requireNonNull(currentMetadata);
         this.nodeLoads = Objects.requireNonNull(nodeLoads);
-        this.nodeAvailabilityZoneMapper = Objects.requireNonNull(nodeAvailabilityZoneMapper);
+        this.mlNodesByZone = Objects.requireNonNull(mlNodesByZone);
         this.modelToAdd = Objects.requireNonNull(modelToAdd);
     }
 
@@ -128,7 +127,6 @@ class TrainedModelAssignmentRebalancer {
     }
 
     private Map<List<String>, List<AssignmentPlan.Node>> createNodesByZoneMap() {
-        Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone = nodeAvailabilityZoneMapper.getMlNodesByAvailabilityZone();
         return mlNodesByZone.entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> {
             Collection<DiscoveryNode> discoveryNodes = e.getValue();
             List<AssignmentPlan.Node> nodes = new ArrayList<>();

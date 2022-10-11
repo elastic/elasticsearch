@@ -31,7 +31,7 @@ public class TransformHealth implements Writeable, ToXContentObject {
 
     public static final String NAME = "data_frame_transform_health";
 
-    public static final TransformHealth OK = new TransformHealth(HealthStatus.GREEN, null);
+    public static final TransformHealth GREEN = new TransformHealth(HealthStatus.GREEN, null);
 
     public static final TransformHealth UNKNOWN = new TransformHealth(HealthStatus.UNKNOWN, null);
 
@@ -70,6 +70,14 @@ public class TransformHealth implements Writeable, ToXContentObject {
     public TransformHealth(StreamInput in) throws IOException {
         this.status = in.readEnum(HealthStatus.class);
         this.issues = in.readOptionalList(TransformHealthIssue::new);
+    }
+
+    public HealthStatus getStatus(){
+        return status;
+    }
+
+    public List<TransformHealthIssue> getIssues() {
+        return issues;
     }
 
     @Override

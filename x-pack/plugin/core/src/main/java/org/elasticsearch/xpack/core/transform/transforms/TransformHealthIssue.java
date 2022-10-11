@@ -57,6 +57,14 @@ public class TransformHealthIssue implements Writeable, ToXContentObject {
         this.details = in.readOptionalString();
     }
 
+    public String getIssue(){
+        return issue;
+    }
+
+    public String getDetails(){
+        return details;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

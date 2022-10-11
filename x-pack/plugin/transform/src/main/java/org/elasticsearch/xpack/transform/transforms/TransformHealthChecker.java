@@ -23,7 +23,8 @@ import java.util.List;
  */
 public final class TransformHealthChecker {
 
-    private static int RED_STATUS_FAILURE_COUNT_BOUNDARY = 5;
+    // simple boundary to decide when to report a red status vs. a yellow status after consecutive retries
+    static int RED_STATUS_FAILURE_COUNT_BOUNDARY = 5;
 
     public static TransformHealth checkUnassignedTransform(String transformId, ClusterState clusterState) {
         final Assignment assignment = TransformNodes.getAssignment(transformId, clusterState);
@@ -38,7 +39,7 @@ public final class TransformHealthChecker {
         if (TransformTaskState.FAILED.equals(transformtask.getState().getTaskState()) == false
             && transformtask.getContext().getFailureCount() == 0
             && transformtask.getContext().getStatePersistenceFailureCount() == 0) {
-            return TransformHealth.OK;
+            return TransformHealth.GREEN;
         }
 
         final TransformContext transformContext = transformtask.getContext();
@@ -47,7 +48,7 @@ public final class TransformHealthChecker {
 
         if (TransformTaskState.FAILED.equals(transformtask.getState().getTaskState())) {
             maxStatus = HealthStatus.RED;
-            issues.add(new TransformHealthIssue("Transform state is [failed]", transformtask.getState().getReason()));
+            issues.add(new TransformHealthIssue("Transform task state is [failed]", transformtask.getState().getReason()));
         }
 
         if (transformContext.getFailureCount() != 0) {
@@ -60,7 +61,7 @@ public final class TransformHealthChecker {
                 maxStatus = transformContext.getFailureCount() > RED_STATUS_FAILURE_COUNT_BOUNDARY ? HealthStatus.RED : HealthStatus.YELLOW;
             }
 
-            issues.add(new TransformHealthIssue("Transform indexer failed multiple times", lastFailureMessage));
+            issues.add(new TransformHealthIssue("Transform indexer failed", lastFailureMessage));
         }
 
         if (transformContext.getStatePersistenceFailureCount() != 0) {
@@ -72,7 +73,7 @@ public final class TransformHealthChecker {
 
             issues.add(
                 new TransformHealthIssue(
-                    "Task encountered several failures updating internal state",
+                    "Task encountered failures updating internal state",
                     transformContext.getLastStatePersistenceFailure().getMessage()
                 )
             );

@@ -357,7 +357,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             null,
                             stat.getTransformStats(),
                             checkpointingInfo,
-                            TransformHealth.OK
+                            TransformHealth.GREEN
                         )
                     );
                 }

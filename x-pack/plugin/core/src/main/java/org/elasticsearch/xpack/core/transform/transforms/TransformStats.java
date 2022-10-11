@@ -94,7 +94,7 @@ public class TransformStats implements Writeable, ToXContentObject {
             null,
             indexerTransformStats,
             TransformCheckpointingInfo.EMPTY,
-            TransformHealth.OK
+            TransformHealth.GREEN
         );
     }
 

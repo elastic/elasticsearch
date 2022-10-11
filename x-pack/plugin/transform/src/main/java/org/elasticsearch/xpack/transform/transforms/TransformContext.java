@@ -33,8 +33,10 @@ public class TransformContext {
     private final AtomicInteger failureCount;
     // Keeps track of the last failure that occurred, used for throttling logs and audit
     private final AtomicReference<Throwable> lastFailure = new AtomicReference<>();
+    private volatile Instant lastFailureStartTime;
     private final AtomicInteger statePersistenceFailureCount = new AtomicInteger();
     private final AtomicReference<Throwable> lastStatePersistenceFailure = new AtomicReference<>();
+    private volatile Instant lastStatePersistenceFailureStartTime;
     private volatile Instant changesLastDetectedAt;
     private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint = false;
@@ -108,12 +110,20 @@ public class TransformContext {
     int incrementAndGetFailureCount(Throwable failure) {
         int newFailureCount = failureCount.incrementAndGet();
         lastFailure.set(failure);
+        if (newFailureCount == 1) {
+            lastFailureStartTime = Instant.now();
+        }
+
         taskListener.failureCountChanged();
         return newFailureCount;
     }
 
     Throwable getLastFailure() {
         return lastFailure.get();
+    }
+
+    Instant getLastFailureStartTime() {
+        return lastFailureStartTime;
     }
 
     void setChangesLastDetectedAt(Instant time) {
@@ -163,7 +173,15 @@ public class TransformContext {
 
     int incrementAndGetStatePersistenceFailureCount(Throwable failure) {
         lastStatePersistenceFailure.set(failure);
-        return statePersistenceFailureCount.incrementAndGet();
+        int newFailureCount = statePersistenceFailureCount.incrementAndGet();
+        if (newFailureCount == 1) {
+            lastStatePersistenceFailureStartTime = Instant.now();
+        }
+        return newFailureCount;
+    }
+
+    Instant getLastStatePersistenceFailureStartTime() {
+        return lastStatePersistenceFailureStartTime;
     }
 
     void shutdown() {

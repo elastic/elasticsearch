@@ -5,24 +5,21 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical;
+package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
 
-public class Row extends LeafPlan {
-
+public class RowExec extends LeafExec {
     private final List<NamedExpression> fields;
 
-    public Row(Source source, List<NamedExpression> fields) {
+    public RowExec(Source source, List<NamedExpression> fields) {
         super(source);
         this.fields = fields;
     }
@@ -37,20 +34,15 @@ public class Row extends LeafPlan {
     }
 
     @Override
-    public boolean expressionsResolved() {
-        return false;
-    }
-
-    @Override
-    protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Row::new, fields);
+    protected NodeInfo<? extends PhysicalPlan> info() {
+        return NodeInfo.create(this, RowExec::new, fields);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Row constant = (Row) o;
+        RowExec constant = (RowExec) o;
         return Objects.equals(fields, constant.fields);
     }
 

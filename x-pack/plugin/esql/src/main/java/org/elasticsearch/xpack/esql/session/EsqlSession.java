@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.analyzer.Analyzer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.physical.Mapper;
+import org.elasticsearch.xpack.esql.plan.physical.Optimizer;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.ql.analyzer.TableInfo;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
@@ -28,6 +33,8 @@ import static org.elasticsearch.action.ActionListener.wrap;
 
 public class EsqlSession {
 
+    private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
+
     private final IndexResolver indexResolver;
     private final FunctionRegistry functionRegistry;
     private final Configuration configuration;
@@ -38,16 +45,27 @@ public class EsqlSession {
         this.configuration = configuration;
     }
 
-    public void execute(String query, ActionListener<Result> listener) {
+    public void execute(String query, ActionListener<PhysicalPlan> listener) {
         LogicalPlan parsed;
+        LOGGER.debug("ESQL query:\n{}", query);
         try {
             parsed = parse(query);
+            LOGGER.debug("Parsed logical plan:\n{}", parsed);
         } catch (ParsingException pe) {
             listener.onFailure(pe);
             return;
         }
 
-        analyzedPlan(parsed, ActionListener.wrap(plan -> ((Executable) plan).execute(this, listener), listener::onFailure));
+        analyzedPlan(parsed, ActionListener.wrap(plan -> {
+            LOGGER.debug("Analyzed logical plan:\n{}", plan);
+            Mapper mapper = new Mapper();
+            PhysicalPlan physicalPlan = mapper.map(plan);
+            LOGGER.debug("Physical plan:\n{}", physicalPlan);
+            Optimizer optimizer = new Optimizer();
+            physicalPlan = optimizer.optimize(physicalPlan);
+            LOGGER.debug("Optimized physical plan:\n{}", physicalPlan);
+            listener.onResponse(physicalPlan);
+        }, listener::onFailure));
     }
 
     private LogicalPlan parse(String query) {

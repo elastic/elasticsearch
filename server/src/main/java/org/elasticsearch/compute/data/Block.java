@@ -73,6 +73,17 @@ public abstract class Block {
         throw new UnsupportedOperationException(getClass().getName());
     }
 
+    /**
+     * Retrieves the value stored at the given position.
+     *
+     * @param position the position
+     * @return the data value
+     * @throws UnsupportedOperationException if retrieval as this primitive data type is not supported
+     */
+    public Object getObject(int position) {
+        throw new UnsupportedOperationException(getClass().getName());
+    }
+
     protected final boolean assertPosition(int position) {
         assert (position >= 0 || position < getPositionCount())
             : "illegal position, " + position + ", position count:" + getPositionCount();
@@ -97,6 +108,11 @@ public abstract class Block {
             @Override
             public double getDouble(int ignored) {
                 return curr.getDouble(position);
+            }
+
+            @Override
+            public Object getObject(int ignored) {
+                return curr.getObject(position);
             }
 
             @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
@@ -38,6 +39,10 @@ public class Mapper {
 
         if (p instanceof Eval eval) {
             return new EvalExec(eval.source(), map(eval.child()), eval.fields());
+        }
+
+        if (p instanceof Row row) {
+            return new RowExec(row.source(), row.fields());
         }
 
         throw new UnsupportedOperationException(p.nodeName());

@@ -29,6 +29,11 @@ public final class DoubleArrayBlock extends Block {
     }
 
     @Override
+    public Object getObject(int position) {
+        return getDouble(position);
+    }
+
+    @Override
     public String toString() {
         return "DoubleArrayBlock{positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + '}';
     }

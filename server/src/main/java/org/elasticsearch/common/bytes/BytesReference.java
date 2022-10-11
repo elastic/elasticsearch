@@ -130,6 +130,11 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     int getIntLE(int index);
 
     /**
+     * Returns the long read from the 8 bytes (LE) starting at the given index.
+     */
+    long getLongLE(int index);
+
+    /**
      * Returns the double read from the 8 bytes (LE) starting at the given index.
      */
     double getDoubleLE(int index);

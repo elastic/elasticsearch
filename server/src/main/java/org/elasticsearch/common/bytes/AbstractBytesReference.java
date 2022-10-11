@@ -32,11 +32,15 @@ public abstract class AbstractBytesReference implements BytesReference {
     }
 
     @Override
-    public double getDoubleLE(int index) {
-        long bits = (long) (get(index + 7) & 0xFF) << 56 | (long) (get(index + 6) & 0xFF) << 48 | (long) (get(index + 5) & 0xFF) << 40
+    public long getLongLE(int index) {
+        return (long) (get(index + 7) & 0xFF) << 56 | (long) (get(index + 6) & 0xFF) << 48 | (long) (get(index + 5) & 0xFF) << 40
             | (long) (get(index + 4) & 0xFF) << 32 | (long) (get(index + 3) & 0xFF) << 24 | (get(index + 2) & 0xFF) << 16 | (get(index + 1)
-                & 0xFF) << 8 | get(index) & 0xFF;
-        return Double.longBitsToDouble(bits);
+            & 0xFF) << 8 | get(index) & 0xFF;
+    }
+
+    @Override
+    public double getDoubleLE(int index) {
+        return Double.longBitsToDouble(getLongLE(index));
     }
 
     @Override

@@ -21,14 +21,10 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Locale;
 
 public class GeoUtils {
 
@@ -41,12 +37,6 @@ public class GeoUtils {
     /** Minimum valid longitude in degrees. */
     public static final double MIN_LON = -180.0;
 
-    public static final String LATITUDE = "lat";
-    public static final String LONGITUDE = "lon";
-    public static final String GEOHASH = "geohash";
-    public static final String COORDINATES = "coordinates";
-    public static final String TYPE = "type";
-
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
 
@@ -55,9 +45,6 @@ public class GeoUtils {
 
     /** Earth mean radius defined by WGS 84 in meters */
     public static final double EARTH_MEAN_RADIUS = 6371008.7714D;      // meters (WGS 84)
-
-    /** Earth axis ratio defined by WGS 84 (0.996647189335) */
-    public static final double EARTH_AXIS_RATIO = EARTH_SEMI_MINOR_AXIS / EARTH_SEMI_MAJOR_AXIS;
 
     /** Earth ellipsoid equator length in meters */
     public static final double EARTH_EQUATOR = 2 * Math.PI * EARTH_SEMI_MAJOR_AXIS;
@@ -356,36 +343,19 @@ public class GeoUtils {
      * @return new {@link GeoPoint} parsed from the parse
      */
     public static GeoPoint parseGeoPoint(XContentParser parser) throws IOException, ElasticsearchParseException {
-        return parseGeoPoint(parser, new GeoPoint());
-    }
-
-    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point) throws IOException, ElasticsearchParseException {
-        return parseGeoPoint(parser, point, false);
+        return parseGeoPoint(parser, false);
     }
 
     /**
      * Parses the value as a geopoint. The following types of values are supported:
      * <p>
-     * Object: has to contain either lat and lon or geohash fields
+     * Object: has to contain either lat and lon or geohash or type and coordinates fields
      * <p>
      * String: expected to be in "latitude, longitude" format or a geohash
      * <p>
      * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
      */
     public static GeoPoint parseGeoPoint(Object value, final boolean ignoreZValue) throws ElasticsearchParseException {
-        return parseGeoPoint(value, new GeoPoint(), ignoreZValue);
-    }
-
-    /**
-     * Parses the value as a geopoint. The following types of values are supported:
-     * <p>
-     * Object: has to contain either lat and lon or geohash fields
-     * <p>
-     * String: expected to be in "latitude, longitude" format or a geohash
-     * <p>
-     * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
-     */
-    public static GeoPoint parseGeoPoint(Object value, GeoPoint point, final boolean ignoreZValue) throws ElasticsearchParseException {
         try (
             XContentParser parser = new MapXContentParser(
                 NamedXContentRegistry.EMPTY,
@@ -397,7 +367,7 @@ public class GeoUtils {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value
-            return parseGeoPoint(parser, point, ignoreZValue);
+            return parseGeoPoint(parser, ignoreZValue);
         } catch (IOException ex) {
             throw new ElasticsearchParseException("error parsing geopoint", ex);
         }
@@ -417,174 +387,57 @@ public class GeoUtils {
      * Parse a geopoint represented as an object, string or an array. If the geopoint is represented as a geohash,
      * the left bottom corner of the geohash cell is used as the geopoint coordinates.GeoBoundingBoxQueryBuilder.java
      */
-    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue) throws IOException,
+    public static GeoPoint parseGeoPoint(XContentParser parser, final boolean ignoreZValue) throws IOException,
         ElasticsearchParseException {
-        return parseGeoPoint(parser, point, ignoreZValue, EffectivePoint.BOTTOM_LEFT);
+        return parseGeoPoint(parser, ignoreZValue, EffectivePoint.BOTTOM_LEFT);
     }
 
     /**
-     * Parse a {@link GeoPoint} with a {@link XContentParser}. A geopoint has one of the following forms:
+     * Parse a {@link GeoPoint} with a {@link XContentParser}. A geo_point has one of the following forms:
      *
      * <ul>
      *     <li>Object: <pre>{&quot;lat&quot;: <i>&lt;latitude&gt;</i>, &quot;lon&quot;: <i>&lt;longitude&gt;</i>}</pre></li>
+     *     <li>Object: <pre>{&quot;type&quot;: <i>Point</i>, &quot;coordinates&quot;: <i>&lt;array of doubles&gt;</i>}</pre></li>
      *     <li>String: <pre>&quot;<i>&lt;latitude&gt;</i>,<i>&lt;longitude&gt;</i>&quot;</pre></li>
      *     <li>Geohash: <pre>&quot;<i>&lt;geohash&gt;</i>&quot;</pre></li>
      *     <li>Array: <pre>[<i>&lt;longitude&gt;</i>,<i>&lt;latitude&gt;</i>]</pre></li>
      * </ul>
      *
      * @param parser {@link XContentParser} to parse the value from
-     * @param point A {@link GeoPoint} that will be reset by the values parsed
+     * @param ignoreZValue {@link XContentParser} to not throw an error if 3 dimensional data is provided
      * @return new {@link GeoPoint} parsed from the parse
      */
-    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue, EffectivePoint effectivePoint)
+    public static GeoPoint parseGeoPoint(XContentParser parser, final boolean ignoreZValue, final EffectivePoint effectivePoint)
         throws IOException, ElasticsearchParseException {
-        double lat = Double.NaN;
-        double lon = Double.NaN;
-        String geohash = null;
-        String geojsonType = null;
-        ArrayList<Double> coordinates = null;
-
-        if (parser.currentToken() == Token.START_OBJECT) {
-            try (XContentSubParser subParser = new XContentSubParser(parser)) {
-                while (subParser.nextToken() != Token.END_OBJECT) {
-                    if (subParser.currentToken() == Token.FIELD_NAME) {
-                        String field = subParser.currentName();
-                        subParser.nextToken();
-                        if (LATITUDE.equals(field)) {
-                            lat = parseValidDouble(subParser, "latitude");
-                        } else if (LONGITUDE.equals(field)) {
-                            lon = parseValidDouble(subParser, "longitude");
-                        } else if (GEOHASH.equals(field)) {
-                            if (subParser.currentToken() == Token.VALUE_STRING) {
-                                geohash = subParser.text();
-                            } else {
-                                throw new ElasticsearchParseException("geohash must be a string");
-                            }
-                        } else if (COORDINATES.equals(field)) {
-                            if (subParser.currentToken() == Token.START_ARRAY) {
-                                coordinates = new ArrayList<>();
-                                while (subParser.nextToken() != Token.END_ARRAY) {
-                                    coordinates.add(parseValidDouble(subParser, field));
-                                }
-                            } else {
-                                throw new ElasticsearchParseException("GeoJSON 'coordinates' must be an array");
-                            }
-                        } else if (TYPE.equals(field)) {
-                            if (subParser.currentToken() == Token.VALUE_STRING) {
-                                geojsonType = subParser.text();
-                            } else {
-                                throw new ElasticsearchParseException("GeoJSON 'type' must be a string");
-                            }
-                        } else {
-                            throw new ElasticsearchParseException(
-                                "field must be either [{}], [{}], [{}], [{}] or [{}]",
-                                LATITUDE,
-                                LONGITUDE,
-                                GEOHASH,
-                                COORDINATES,
-                                TYPE
-                            );
-                        }
-                    } else {
-                        throw new ElasticsearchParseException("token [{}] not allowed", subParser.currentToken());
-                    }
-                }
-            }
-            assertOnlyOneFormat(
-                geohash != null,
-                Double.isNaN(lat) == false,
-                Double.isNaN(lon) == false,
-                coordinates != null,
-                geojsonType != null
-            );
-            if (geohash != null) {
-                return point.parseGeoHash(geohash, effectivePoint);
-            }
-            if (coordinates != null) {
-                if (geojsonType == null || geojsonType.toLowerCase(Locale.ROOT).equals("point") == false) {
-                    throw new ElasticsearchParseException("GeoJSON 'type' for geo_point can only be 'Point'");
-                }
-                if (coordinates.size() < 2) {
-                    throw new ElasticsearchParseException("GeoJSON 'coordinates' must contain at least two values");
-                }
-                if (coordinates.size() == 3) {
-                    GeoPoint.assertZValue(ignoreZValue, coordinates.get(2));
-                }
-                if (coordinates.size() > 3) {
-                    throw new ElasticsearchParseException("[geo_point] field type does not accept > 3 dimensions");
-                }
-                return point.reset(coordinates.get(1), coordinates.get(0));
-            }
-            return point.reset(lat, lon);
-
-        } else if (parser.currentToken() == Token.START_ARRAY) {
-            try (XContentSubParser subParser = new XContentSubParser(parser)) {
-                int element = 0;
-                while (subParser.nextToken() != Token.END_ARRAY) {
-                    if (subParser.currentToken() == Token.VALUE_NUMBER) {
-                        element++;
-                        if (element == 1) {
-                            lon = subParser.doubleValue();
-                        } else if (element == 2) {
-                            lat = subParser.doubleValue();
-                        } else if (element == 3) {
-                            GeoPoint.assertZValue(ignoreZValue, subParser.doubleValue());
-                        } else {
-                            throw new ElasticsearchParseException("[geo_point] field type does not accept > 3 dimensions");
-                        }
-                    } else {
-                        throw new ElasticsearchParseException("numeric value expected");
-                    }
-                }
-            }
-            return point.reset(lat, lon);
-        } else if (parser.currentToken() == Token.VALUE_STRING) {
-            String val = parser.text();
-            return point.resetFromString(val, ignoreZValue, effectivePoint);
-        } else {
-            throw new ElasticsearchParseException("geo_point expected");
-        }
+        return geoPointParser.parsePoint(parser, ignoreZValue, value -> {
+            GeoPoint point = new GeoPoint();
+            point.resetFromString(value, ignoreZValue, effectivePoint);
+            return point;
+        }, value -> {
+            GeoPoint point = new GeoPoint();
+            point.parseGeoHash(value, effectivePoint);
+            return point;
+        });
     }
 
-    private static double parseValidDouble(XContentSubParser subParser, String field) throws IOException {
-        try {
-            return switch (subParser.currentToken()) {
-                case VALUE_NUMBER, VALUE_STRING -> subParser.doubleValue(true);
-                default -> throw new ElasticsearchParseException("{} must be a number", field);
-            };
-        } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("[{}] must be a valid double value", e, field);
-        }
-    }
+    private static GenericPointParser<GeoPoint> geoPointParser = new GenericPointParser<>("geo_point", "lon", "lat", true) {
 
-    private static void assertOnlyOneFormat(boolean geohash, boolean lat, boolean lon, boolean coordinates, boolean type) {
-        String invalidFieldsMessage = "field must be either lat/lon, geohash string or type/coordinates";
-        boolean latlon = lat && lon;
-        boolean geojson = coordinates && type;
-        var found = new ArrayList<String>();
-        if (geohash) found.add("geohash");
-        if (latlon) found.add("lat/lon");
-        if (geojson) found.add("GeoJSON");
-        if (found.size() > 1) {
-            throw new ElasticsearchParseException("fields matching more than one point format found: {}", found);
-        } else if (geohash) {
-            if (lat || lon || type || coordinates) {
-                throw new ElasticsearchParseException(invalidFieldsMessage);
-            }
-        } else if (found.size() == 0) {
-            if (lat) {
-                throw new ElasticsearchParseException("field [{}] missing", LONGITUDE);
-            } else if (lon) {
-                throw new ElasticsearchParseException("field [{}] missing", LATITUDE);
-            } else if (coordinates) {
-                throw new ElasticsearchParseException("field [{}] missing", TYPE);
-            } else if (type) {
-                throw new ElasticsearchParseException("field [{}] missing", COORDINATES);
-            } else {
-                throw new ElasticsearchParseException(invalidFieldsMessage);
-            }
+        @Override
+        public void assertZValue(boolean ignoreZValue, double zValue) {
+            GeoPoint.assertZValue(ignoreZValue, zValue);
         }
-    }
+
+        @Override
+        public GeoPoint createPoint(double x, double y) {
+            // GeoPoint takes lat,lon which is the reverse order from CartesianPoint
+            return new GeoPoint(y, x);
+        }
+
+        @Override
+        public String fieldError() {
+            return "field must be either lat/lon, geohash string or type/coordinates";
+        }
+    };
 
     /**
      * Parse a {@link GeoPoint} from a string. The string must have one of the following forms:
@@ -646,14 +499,6 @@ public class GeoUtils {
         return precision;
     }
 
-    /** Returns the maximum distance/radius (in meters) from the point 'center' before overlapping */
-    public static double maxRadialDistanceMeters(final double centerLat, final double centerLon) {
-        if (Math.abs(centerLat) == MAX_LAT) {
-            return SloppyMath.haversinMeters(centerLat, centerLon, 0, centerLon);
-        }
-        return SloppyMath.haversinMeters(centerLat, centerLon, centerLat, (MAX_LON + centerLon) % 360);
-    }
-
     /** Return the distance (in meters) between 2 lat,lon geo points using the haversine method implemented by lucene */
     public static double arcDistance(double lat1, double lon1, double lat2, double lon2) {
         return SloppyMath.haversinMeters(lat1, lon1, lat2, lon2);
@@ -692,7 +537,7 @@ public class GeoUtils {
                 @Override
                 public double doubleValue() throws IOException {
                     final GeoPoint from = fromPoints[0];
-                    final GeoPoint to = singleValues.geoPointValue();
+                    final GeoPoint to = singleValues.pointValue();
                     return distance.calculate(from.lat(), from.lon(), to.lat(), to.lon(), unit);
                 }
 

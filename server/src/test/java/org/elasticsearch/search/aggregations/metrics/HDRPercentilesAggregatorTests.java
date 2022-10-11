@@ -15,7 +15,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -71,7 +71,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     public void testStringField() throws IOException {
         final String fieldName = "string";
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType(fieldName);
-        expectThrows(IllegalArgumentException.class, () -> testCase(new DocValuesFieldExistsQuery(fieldName), iw -> {
+        expectThrows(IllegalArgumentException.class, () -> testCase(new FieldExistsQuery(fieldName), iw -> {
             iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("bogus"))));
             iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("zwomp"))));
             iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foobar"))));
@@ -91,7 +91,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> testCase(
-                new DocValuesFieldExistsQuery(fieldName),
+                new FieldExistsQuery(fieldName),
                 iw -> { iw.addDocument(singleton(new BinaryDocValuesField(fieldName, encodedRange))); },
                 hdr -> {},
                 fieldType,
@@ -111,7 +111,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testCase(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 60)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 40)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 20)));
@@ -128,7 +128,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testCase(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 60)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 40)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 20)));
@@ -207,7 +207,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
                 HDRPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
-                indexSearcher.search(query, aggregator);
+                indexSearcher.search(query, aggregator.asCollector());
                 aggregator.postCollection();
                 verify.accept((InternalHDRPercentiles) aggregator.buildAggregation(0L));
 

@@ -286,7 +286,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
         final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();
-        clusterService.submitStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
+        clusterService.submitUnbatchedStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return currentState;
@@ -301,12 +301,12 @@ public class ClusterHealthIT extends ESIntegTestCase {
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 if (keepSubmittingTasks.get()) {
-                    clusterService.submitStateUpdateTask("looping task", this, ClusterStateTaskExecutor.unbatched());
+                    clusterService.submitUnbatchedStateUpdateTask("looping task", this);
                 } else {
                     completionFuture.onResponse(null);
                 }
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
 
         try {
             createIndex("index");
@@ -377,7 +377,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
         final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();
-        clusterService.submitStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
+        clusterService.submitUnbatchedStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return currentState;
@@ -392,12 +392,12 @@ public class ClusterHealthIT extends ESIntegTestCase {
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 if (keepSubmittingTasks.get()) {
-                    clusterService.submitStateUpdateTask("looping task", this, ClusterStateTaskExecutor.unbatched());
+                    clusterService.submitUnbatchedStateUpdateTask("looping task", this);
                 } else {
                     completionFuture.onResponse(null);
                 }
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
 
         try {
             final ClusterHealthResponse clusterHealthResponse = client().admin()

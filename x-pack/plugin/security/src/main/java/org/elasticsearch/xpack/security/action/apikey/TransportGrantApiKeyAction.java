@@ -18,10 +18,12 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.action.TransportGrantAction;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 /**
@@ -29,15 +31,17 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
  */
 public final class TransportGrantApiKeyAction extends TransportGrantAction<GrantApiKeyRequest, CreateApiKeyResponse> {
 
-    private final ApiKeyGenerator generator;
+    private final ApiKeyService apiKeyService;
+    private final ApiKeyUserRoleDescriptorResolver resolver;
 
     @Inject
     public TransportGrantApiKeyAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
-        ApiKeyService apiKeyService,
         AuthenticationService authenticationService,
+        AuthorizationService authorizationService,
+        ApiKeyService apiKeyService,
         CompositeRolesStore rolesStore,
         NamedXContentRegistry xContentRegistry
     ) {
@@ -45,28 +49,48 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
             transportService,
             actionFilters,
             threadPool.getThreadContext(),
-            new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry),
-            authenticationService
+            authenticationService,
+            authorizationService,
+            apiKeyService,
+            new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry)
         );
     }
 
-    // Constructor for testing
     TransportGrantApiKeyAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadContext threadContext,
-        ApiKeyGenerator generator,
-        AuthenticationService authenticationService
+        AuthenticationService authenticationService,
+        AuthorizationService authorizationService,
+        ApiKeyService apiKeyService,
+        ApiKeyUserRoleDescriptorResolver resolver
     ) {
-        super(GrantApiKeyAction.NAME, transportService, actionFilters, GrantApiKeyRequest::new, authenticationService, threadContext);
-        this.generator = generator;
+        super(
+            GrantApiKeyAction.NAME,
+            transportService,
+            actionFilters,
+            GrantApiKeyRequest::new,
+            authenticationService,
+            authorizationService,
+            threadContext
+        );
+        this.apiKeyService = apiKeyService;
+        this.resolver = resolver;
     }
 
     @Override
-    protected void doExecute(Task task, GrantApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
-        executeWithGrantAuthentication(
-            request,
-            listener.delegateFailure((l, authentication) -> generator.generateApiKey(authentication, request.getApiKeyRequest(), listener))
+    protected void doExecuteWithGrantAuthentication(
+        Task task,
+        GrantApiKeyRequest request,
+        Authentication authentication,
+        ActionListener<CreateApiKeyResponse> listener
+    ) {
+        resolver.resolveUserRoleDescriptors(
+            authentication,
+            ActionListener.wrap(
+                roleDescriptors -> apiKeyService.createApiKey(authentication, request.getApiKeyRequest(), roleDescriptors, listener),
+                listener::onFailure
+            )
         );
     }
 }

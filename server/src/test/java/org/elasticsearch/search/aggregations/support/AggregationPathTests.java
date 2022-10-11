@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -17,7 +16,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AggregationPathTests extends ESTestCase {
-    public void testInvalidPaths() throws Exception {
+    public void testInvalidPaths() {
         assertInvalidPath("[foo]", "brackets at the beginning of the token expression");
         assertInvalidPath("foo[bar", "open brackets without closing at the token expression");
         assertInvalidPath("foo[", "open bracket at the end of the token expression");
@@ -27,19 +26,20 @@ public class AggregationPathTests extends ESTestCase {
         assertInvalidPath("foo.", "dot separator at the end of the token expression");
     }
 
-    public void testValidPaths() throws Exception {
+    public void testValidPaths() {
+        assertValidPath("foo[bar]._count", tokens().addKeyAndMetric("foo", "bar", "_count"));
         assertValidPath("foo>bar", tokens().add("foo").add("bar"));
-        assertValidPath("foo.bar", tokens().add("foo", "bar"));
-        assertValidPath("foo[bar]", tokens().add("foo", "bar"));
-        assertValidPath("foo[bar]>baz", tokens().add("foo", "bar").add("baz"));
-        assertValidPath("foo[bar]>baz[qux]", tokens().add("foo", "bar").add("baz", "qux"));
-        assertValidPath("foo[bar]>baz.qux", tokens().add("foo", "bar").add("baz", "qux"));
-        assertValidPath("foo.bar>baz.qux", tokens().add("foo.bar").add("baz", "qux"));
-        assertValidPath("foo.bar>baz[qux]", tokens().add("foo.bar").add("baz", "qux"));
+        assertValidPath("foo.bar", tokens().addMetric("foo", "bar"));
+        assertValidPath("foo[bar]", tokens().addKey("foo", "bar"));
+        assertValidPath("foo[bar]>baz", tokens().addKey("foo", "bar").add("baz"));
+        assertValidPath("foo[bar]>baz[qux]", tokens().addKey("foo", "bar").addKey("baz", "qux"));
+        assertValidPath("foo[bar]>baz.qux", tokens().addKey("foo", "bar").addMetric("baz", "qux"));
+        assertValidPath("foo.bar>baz.qux", tokens().add("foo.bar").addMetric("baz", "qux"));
+        assertValidPath("foo.bar>baz[qux]", tokens().add("foo.bar").addKey("baz", "qux"));
     }
 
-    private AggregationExecutionException assertInvalidPath(String path, String reason) {
-        return expectThrows(AggregationExecutionException.class, () -> AggregationPath.parse(path));
+    private IllegalArgumentException assertInvalidPath(String path, String _unused) {
+        return expectThrows(IllegalArgumentException.class, () -> AggregationPath.parse(path));
     }
 
     private void assertValidPath(String path, Tokens tokenz) {
@@ -58,24 +58,30 @@ public class AggregationPathTests extends ESTestCase {
     }
 
     private static class Tokens {
-        private List<AggregationPath.PathElement> tokens = new ArrayList<>();
+        private final List<AggregationPath.PathElement> tokens = new ArrayList<>();
 
         Tokens add(String name) {
-            tokens.add(new AggregationPath.PathElement(name, name, null));
+            tokens.add(new AggregationPath.PathElement(name, name, null, null));
             return this;
         }
 
-        Tokens add(String name, String key) {
-            if (randomBoolean()) {
-                tokens.add(new AggregationPath.PathElement(name + "." + key, name, key));
-            } else {
-                tokens.add(new AggregationPath.PathElement(name + "[" + key + "]", name, key));
-            }
+        Tokens addKey(String name, String key) {
+            tokens.add(new AggregationPath.PathElement(name + "[" + key + "]", name, key, null));
+            return this;
+        }
+
+        Tokens addMetric(String name, String metric) {
+            tokens.add(new AggregationPath.PathElement(name + "." + metric, name, null, metric));
+            return this;
+        }
+
+        Tokens addKeyAndMetric(String name, String key, String metric) {
+            tokens.add(new AggregationPath.PathElement(name + "[" + key + "]." + metric, name, key, metric));
             return this;
         }
 
         AggregationPath.PathElement[] toArray() {
-            return tokens.toArray(new AggregationPath.PathElement[tokens.size()]);
+            return tokens.toArray(new AggregationPath.PathElement[0]);
         }
     }
 }

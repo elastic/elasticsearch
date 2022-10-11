@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -31,20 +32,28 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.script.field.TextDocValuesField;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -53,8 +62,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * A {@link FieldMapper} for full-text fields that only indexes
@@ -97,13 +106,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
-                m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap
+                m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap,
+                indexCreatedVersion
             );
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { meta };
         }
 
         private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context) {
@@ -167,6 +177,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "Field [" + name() + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
                 );
+            }
+            if (searchExecutionContext.isSourceSynthetic()) {
+                String name = storedFieldNameForSyntheticSource();
+                StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(name));
+                return context -> {
+                    LeafStoredFieldLoader leafLoader = loader.getLoader(context, null);
+                    return docId -> {
+                        leafLoader.advanceTo(docId);
+                        return leafLoader.storedFields().get(name);
+                    };
+                };
             }
             SourceLookup sourceLookup = searchExecutionContext.lookup().source();
             ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
@@ -275,10 +296,23 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            if (fieldDataContext.fielddataOperation() == FielddataOperation.SCRIPT) {
+                return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                    fieldDataContext.lookupSupplier().get().source(),
+                    TextDocValuesField::new
+                );
+            }
+
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
         }
 
+        private String storedFieldNameForSyntheticSource() {
+            return name() + "._original";
+        }
     }
 
     private final Version indexCreatedVersion;
@@ -295,7 +329,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, builder.analyzers.getIndexAnalyzer(), multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
@@ -303,6 +337,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
     @Override
@@ -321,6 +360,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         Field field = new Field(fieldType().name(), value, fieldType);
         context.doc().add(field);
         context.addToFieldNames(fieldType().name());
+
+        if (context.isSyntheticSource()) {
+            context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), value));
+        }
     }
 
     @Override
@@ -333,4 +376,18 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         return (MatchOnlyTextFieldType) super.fieldType();
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), simpleName(), null) {
+            @Override
+            protected void write(XContentBuilder b, Object value) throws IOException {
+                b.value((String) value);
+            }
+        };
+    }
 }

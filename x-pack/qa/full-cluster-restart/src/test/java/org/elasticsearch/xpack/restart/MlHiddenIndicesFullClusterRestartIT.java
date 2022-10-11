@@ -163,7 +163,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {
-        String jobConfig = """
+        String jobConfig = formatted("""
             {
                 "job_id": "%s",
                 "analysis_config": {
@@ -174,7 +174,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractFullClusterRest
                     }]
                 },
                 "data_description": {}
-            }""".formatted(jobId);
+            }""", jobId);
 
         Request putJobRequest = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
         putJobRequest.setJsonEntity(jobConfig);

@@ -211,11 +211,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
                         indexMetadataBuilder.putCustom(
                             LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
                             LifecycleExecutionState.builder()
-                                .setPhase(step.getKey().getPhase())
+                                .setPhase(step.getKey().phase())
                                 .setPhaseTime(0L)
-                                .setAction(step.getKey().getAction())
+                                .setAction(step.getKey().action())
                                 .setActionTime(0L)
-                                .setStep(step.getKey().getName())
+                                .setStep(step.getKey().name())
                                 .setStepTime(0L)
                                 .build()
                                 .asMap()

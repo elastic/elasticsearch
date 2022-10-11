@@ -142,7 +142,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
         builder.startObject(fieldName);
         builder.field(VALUE_FIELD.getPreferredName(), maybeConvertToString(this.value));
         addExtraXContent(builder, params);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }

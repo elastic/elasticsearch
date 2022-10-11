@@ -30,7 +30,6 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,8 +61,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
 
     private static final String SYSTEM_INDEX_NAME = ".my-system";
     private static final SystemIndices SYSTEM_INDICES = new SystemIndices(
-        Map.of(
-            "test-feature",
+        List.of(
             new SystemIndices.Feature("test-feature", "a test feature", List.of(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test")))
         )
     );

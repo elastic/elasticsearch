@@ -51,12 +51,12 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         QueryBuilder innerQuery = createTestQueryBuilder().innerQueries().get(0);
         DisMaxQueryBuilder expectedQuery = new DisMaxQueryBuilder();
         expectedQuery.add(innerQuery);
-        String contentString = """
+        String contentString = formatted("""
             {
               "dis_max": {
                 "queries": %s
               }
-            }""".formatted(innerQuery.toString());
+            }""", innerQuery.toString());
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
     }
@@ -67,7 +67,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     public void testToQueryInnerPrefixQuery() throws Exception {
-        String queryAsString = """
+        String queryAsString = formatted("""
             {
               "dis_max": {
                 "queries": [
@@ -81,7 +81,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                   }
                 ]
               }
-            }""".formatted(TEXT_FIELD_NAME);
+            }""", TEXT_FIELD_NAME);
         Query query = parseQuery(queryAsString).toQuery(createSearchExecutionContext());
         Query expected = new DisjunctionMaxQuery(List.of(new BoostQuery(new PrefixQuery(new Term(TEXT_FIELD_NAME, "sh")), 1.2f)), 0);
         assertEquals(expected, query);
@@ -95,15 +95,13 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                 "queries" : [ {
                   "term" : {
                     "age" : {
-                      "value" : 34,
-                      "boost" : 1.0
+                      "value" : 34
                     }
                   }
                 }, {
                   "term" : {
                     "age" : {
-                      "value" : 35,
-                      "boost" : 1.0
+                      "value" : 35
                     }
                   }
                 } ],

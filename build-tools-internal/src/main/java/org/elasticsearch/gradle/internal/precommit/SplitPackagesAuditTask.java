@@ -298,12 +298,13 @@ public class SplitPackagesAuditTask extends DefaultTask {
             if (Files.exists(root) == false) {
                 return;
             }
-            Files.walk(root)
-                .filter(p -> p.toString().endsWith(suffix))
-                .map(root::relativize)
-                .filter(p -> p.getNameCount() > 1) // module-info or other things without a package can be skipped
-                .filter(p -> p.toString().startsWith("META-INF") == false)
-                .forEach(classConsumer);
+            try (var paths = Files.walk(root)) {
+                paths.filter(p -> p.toString().endsWith(suffix))
+                    .map(root::relativize)
+                    .filter(p -> p.getNameCount() > 1) // module-info or other things without a package can be skipped
+                    .filter(p -> p.toString().startsWith("META-INF") == false)
+                    .forEach(classConsumer);
+            }
         }
 
         private static String getPackageName(Path path) {

@@ -1,0 +1,5 @@
+pr: 88954
+summary: "Support source fallback for byte, short, and long fields"
+area: Mapping
+type: enhancement
+issues: []

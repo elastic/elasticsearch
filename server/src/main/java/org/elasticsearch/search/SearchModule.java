@@ -91,8 +91,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -252,6 +250,8 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -457,14 +457,6 @@ public class SearchModule {
         registerAggregation(
             new AggregationSpec(FiltersAggregationBuilder.NAME, FiltersAggregationBuilder::new, FiltersAggregationBuilder::parse)
                 .addResultReader(InternalFilters::new),
-            builder
-        );
-        registerAggregation(
-            new AggregationSpec(
-                AdjacencyMatrixAggregationBuilder.NAME,
-                AdjacencyMatrixAggregationBuilder::new,
-                AdjacencyMatrixAggregationBuilder::parse
-            ).addResultReader(InternalAdjacencyMatrix::new),
             builder
         );
         registerAggregation(
@@ -1163,6 +1155,24 @@ public class SearchModule {
             new QuerySpec<>(MatchBoolPrefixQueryBuilder.NAME, MatchBoolPrefixQueryBuilder::new, MatchBoolPrefixQueryBuilder::fromXContent)
         );
         registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
+
+        registerQuery(
+            new QuerySpec<>(
+                KnnVectorQueryBuilder.NAME,
+                KnnVectorQueryBuilder::new,
+                parser -> {
+                    throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [knn] body parameter instead");
+                }
+            )
+        );
+
+        registerQuery(
+            new QuerySpec<>(
+                KnnScoreDocQueryBuilder.NAME,
+                KnnScoreDocQueryBuilder::new,
+                parser -> { throw new IllegalArgumentException("[score_doc] queries cannot be provided directly"); }
+            )
+        );
 
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
 

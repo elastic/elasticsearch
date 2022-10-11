@@ -54,12 +54,12 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
         List<? extends ElasticsearchException> nodeFailures
     ) {
         super(taskFailures, nodeFailures);
-        this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
+        this.tasks = tasks == null ? List.of() : List.copyOf(tasks);
     }
 
     public ListTasksResponse(StreamInput in) throws IOException {
         super(in);
-        tasks = Collections.unmodifiableList(in.readList(TaskInfo::from));
+        tasks = in.readImmutableList(TaskInfo::from);
     }
 
     @Override

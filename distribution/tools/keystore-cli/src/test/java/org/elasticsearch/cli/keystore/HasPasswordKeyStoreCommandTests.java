@@ -8,11 +8,12 @@
 
 package org.elasticsearch.cli.keystore;
 
+import joptsimple.OptionSet;
+
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
-
-import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -24,7 +25,7 @@ public class HasPasswordKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new HasPasswordKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return env;
             }
         };

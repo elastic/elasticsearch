@@ -24,7 +24,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -72,8 +71,8 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, hasDocValues, store, analyzer, nullValue, enablePositionIncrements, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { index, hasDocValues, store, analyzer, nullValue, enablePositionIncrements, meta };
         }
 
         @Override
@@ -123,7 +122,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             if (hasDocValues() == false) {
                 return (lookup, ignoredValues) -> List.of();
             }
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
     }
 
@@ -167,7 +166,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }
 
-        context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, store));
+        NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
     }
 
     /**

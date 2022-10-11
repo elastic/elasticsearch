@@ -38,9 +38,8 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
+import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
@@ -85,7 +84,12 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
     /**
      * Return the bounding tile as a {@link Rectangle} for a given point
      */
-    protected abstract Rectangle getTile(double lng, double lat, int precision);
+    protected abstract boolean intersects(double lng, double lat, int precision, GeoShapeValues.GeoShapeValue value) throws IOException;
+
+    /**
+     * Return true if the points intersects the bounds
+     */
+    protected abstract boolean intersectsBounds(double lng, double lat, int precision, GeoBoundingBox box);
 
     /**
      * Create a new named {@link GeoGridAggregationBuilder}-derived builder
@@ -158,42 +162,14 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
         GeoBoundingBox bbox = randomBBox();
-        final double boundsTop = bbox.top();
-        final double boundsBottom = bbox.bottom();
-        final double boundsWestLeft;
-        final double boundsWestRight;
-        final double boundsEastLeft;
-        final double boundsEastRight;
-        final boolean crossesDateline;
-        if (bbox.right() < bbox.left()) {
-            boundsWestLeft = -180;
-            boundsWestRight = bbox.right();
-            boundsEastLeft = bbox.left();
-            boundsEastRight = 180;
-            crossesDateline = true;
-        } else { // only set east bounds
-            boundsEastLeft = bbox.left();
-            boundsEastRight = bbox.right();
-            boundsWestLeft = 0;
-            boundsWestRight = 0;
-            crossesDateline = false;
-        }
 
-        List<BinaryGeoShapeDocValuesField> docs = new ArrayList<>();
+        List<BinaryShapeDocValuesField> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            Point p;
-            p = randomPoint();
-            double x = GeoTestUtils.encodeDecodeLon(p.getX());
-            double y = GeoTestUtils.encodeDecodeLat(p.getY());
-            Rectangle pointTile = getTile(x, y, precision);
-
+            Point p = randomPoint();
+            double lon = GeoTestUtils.encodeDecodeLon(p.getX());
+            double lat = GeoTestUtils.encodeDecodeLat(p.getY());
             GeoShapeValues.GeoShapeValue value = geoShapeValue(p);
-            GeoRelation tileRelation = value.relate(pointTile);
-            boolean intersectsBounds = boundsTop > pointTile.getMinY()
-                && boundsBottom < pointTile.getMaxY()
-                && (boundsEastLeft < pointTile.getMaxX() && boundsEastRight > pointTile.getMinX()
-                    || (crossesDateline && boundsWestLeft < pointTile.getMaxX() && boundsWestRight > pointTile.getMinX()));
-            if (tileRelation != GeoRelation.QUERY_DISJOINT && intersectsBounds) {
+            if (intersects(lon, lat, precision, value) && intersectsBounds(lon, lat, precision, bbox)) {
                 numDocsWithin += 1;
             }
 
@@ -203,7 +179,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         final long numDocsInBucket = numDocsWithin;
 
         testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, bbox, iw -> {
-            for (BinaryGeoShapeDocValuesField docField : docs) {
+            for (BinaryShapeDocValuesField docField : docs) {
                 iw.addDocument(Collections.singletonList(docField));
             }
         }, geoGrid -> {
@@ -311,7 +287,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
+        indexSearcher.search(query, aggregator.asCollector());
         aggregator.postCollection();
 
         verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());

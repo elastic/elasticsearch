@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
@@ -19,6 +18,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -352,20 +352,17 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 clusterSizes.set(index, holdSize);
 
                 // Move the underlying buckets
-                LongUnaryOperator mergeMap = new LongUnaryOperator() {
-                    @Override
-                    public long applyAsLong(long i) {
-                        if (i < index) {
-                            // The clusters in range {0 ... idx - 1} don't move
-                            return i;
-                        }
-                        if (i == numClusters - 1) {
-                            // The new cluster moves to index
-                            return (long) index;
-                        }
-                        // The clusters in range {index ... numClusters - 1} shift forward
-                        return i + 1;
+                LongUnaryOperator mergeMap = i -> {
+                    if (i < index) {
+                        // The clusters in range {0 ... idx - 1} don't move
+                        return i;
                     }
+                    if (i == numClusters - 1) {
+                        // The new cluster moves to index
+                        return (long) index;
+                    }
+                    // The clusters in range {index ... numClusters - 1} shift forward
+                    return i + 1;
                 };
 
                 rewriteBuckets(numClusters, mergeMap);
@@ -525,11 +522,11 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

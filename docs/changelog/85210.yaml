@@ -1,5 +1,0 @@
-pr: 85210
-summary: Fix atomic writes in HDFS
-area: Snapshot/Restore
-type: bug
-issues: []

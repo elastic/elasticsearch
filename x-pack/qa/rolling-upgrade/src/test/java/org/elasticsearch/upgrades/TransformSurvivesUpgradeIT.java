@@ -116,7 +116,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void createAndStartContinuousTransform() throws Exception {
-        createIndex(CONTINUOUS_TRANSFORM_SOURCE);
+        createIndexWithName(CONTINUOUS_TRANSFORM_SOURCE);
         long totalDocsWrittenSum = 0;
         for (TimeValue bucket : BUCKETS) {
             int docs = randomIntBetween(1, 25);
@@ -256,7 +256,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             TRANSFORM_INTERNAL_INDEX_PREFIX + "*," + TRANSFORM_INTERNAL_INDEX_PREFIX_DEPRECATED + "*" + "/_search"
         );
 
-        getStatsDocsRequest.setJsonEntity("""
+        getStatsDocsRequest.setJsonEntity(formatted("""
             {
                "query": {
                  "bool": {
@@ -269,7 +269,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                },
                "sort": [ { "_index": { "order": "desc" } } ],
                "size": 1
-             }""".formatted(id));
+             }""", id));
         assertBusy(() -> {
             // Want to make sure we get the latest docs
             client().performRequest(new Request("POST", TRANSFORM_INTERNAL_INDEX_PREFIX + "*/_refresh"));
@@ -339,7 +339,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
-    private void createIndex(String indexName) throws IOException {
+    private void createIndexWithName(String indexName) throws IOException {
         // create mapping
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -373,10 +373,10 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
             for (String entity : entityIds) {
-                bulk.append("""
+                bulk.append(formatted("""
                     {"index":{"_index":"%s"}}
                     {"user_id":"%s","stars":%s,"timestamp":%s}
-                    """.formatted(indexName, entity, randomLongBetween(0, 5), timeStamp));
+                    """, indexName, entity, randomLongBetween(0, 5), timeStamp));
             }
         }
         bulk.append("\r\n");

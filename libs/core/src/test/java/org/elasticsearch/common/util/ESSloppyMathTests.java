@@ -11,6 +11,7 @@ package org.elasticsearch.common.util;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.core.ESSloppyMath.atan;
+import static org.elasticsearch.core.ESSloppyMath.log;
 import static org.elasticsearch.core.ESSloppyMath.sinh;
 
 public class ESSloppyMathTests extends ESTestCase {
@@ -19,6 +20,9 @@ public class ESSloppyMathTests extends ESTestCase {
     static double ATAN_DELTA = 1E-15;
     // accuracy for sinh(x)
     static double SINH_DELTA = 1E-15; // for small x
+    // accuracy for log(x)
+    static double LOG_DELTA = 1E-12;
+    static double LOG_DELTA_1 = 1E-14; // near 1.0 we can be more accurate
 
     public void testAtan() {
         assertTrue(Double.isNaN(atan(Double.NaN)));
@@ -40,6 +44,19 @@ public class ESSloppyMathTests extends ESTestCase {
                 d = -d;
             }
             assertEquals(StrictMath.sinh(d), sinh(d), SINH_DELTA);
+        }
+    }
+
+    public void testLog() {
+        assertTrue(Double.isNaN(log(Double.NaN)));
+        assertEquals(Double.NaN, log(Double.NEGATIVE_INFINITY), LOG_DELTA);
+        assertEquals(Double.POSITIVE_INFINITY, log(Double.POSITIVE_INFINITY), LOG_DELTA);
+        for (int i = 0; i < 10000; i++) {
+            double d = randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true);
+            assertEquals(StrictMath.log(d), log(d), LOG_DELTA);
+            // Do extra testing around 1.0 due to the special cases near 0, 0.95 and 1.14
+            d = randomDoubleBetween(0, 2, true);
+            assertEquals(StrictMath.log(d), log(d), LOG_DELTA_1);
         }
     }
 }

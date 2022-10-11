@@ -63,6 +63,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -73,14 +74,13 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
-import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
-import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.stream.Collectors.toList;
@@ -115,28 +115,21 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             CommonAnalysisPlugin.class,
             ParentJoinPlugin.class,
             InternalSettingsPlugin.class,
-            DenseVectorPlugin.class,
             SpatialPlugin.class,
             PercolatorPlugin.class
         );
     }
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        // a test requires the real SpatialPlugin because it utilizes the shape query
-        return false;
-    }
-
-    @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() + """
+        return super.configUsers() + String.format(Locale.ROOT, """
             user1:%s
             user2:%s
             user3:%s
             user4:%s
             user5:%s
-            """.formatted(usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
+            """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
     }
 
     @Override

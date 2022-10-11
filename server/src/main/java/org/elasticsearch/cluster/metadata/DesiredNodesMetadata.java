@@ -50,7 +50,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     public DesiredNodesMetadata(StreamInput in) throws IOException {
-        this.latestDesiredNodes = new DesiredNodes(in);
+        this.latestDesiredNodes = DesiredNodes.readFrom(in);
     }
 
     @Override
@@ -68,12 +68,12 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(LATEST_FIELD.getPreferredName(), latestDesiredNodes);
+        builder.field(LATEST_FIELD.getPreferredName(), latestDesiredNodes, params);
         return builder;
     }
 
-    public static DesiredNodes latestFromClusterState(ClusterState clusterState) {
-        return clusterState.metadata().custom(TYPE, EMPTY).getLatestDesiredNodes();
+    public static DesiredNodesMetadata fromClusterState(ClusterState clusterState) {
+        return clusterState.metadata().custom(TYPE, EMPTY);
     }
 
     @Nullable
@@ -83,7 +83,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        return Metadata.ALL_CONTEXTS;
+        return Metadata.API_AND_GATEWAY;
     }
 
     @Override

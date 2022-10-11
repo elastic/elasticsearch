@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.env.NodeEnvironment.SEARCHABLE_SHARED_CACHE_FILE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -216,6 +217,20 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
             }
         }
 
+        // simulate a frozen node with a shared cache file
+        if (rarely()) {
+            final Path randomDataPath = randomFrom(dataPaths);
+            final Path sharedCache = randomDataPath.resolve("nodes").resolve("0").resolve(SEARCHABLE_SHARED_CACHE_FILE);
+            Files.createFile(sharedCache);
+        }
+
+        // check that settings are validated prior to moving folders
+        dataPaths.forEach(path -> assertTrue(Files.isDirectory(path.resolve("nodes"))));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> internalCluster().startNode(Settings.builder().put(dataPathSettings).put("bad", "setting"))
+        );
+
         // check that upgrade works
         dataPaths.forEach(path -> assertTrue(Files.isDirectory(path.resolve("nodes"))));
         internalCluster().startNode(dataPathSettings);
@@ -236,8 +251,8 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         final List<String> allDataPaths = new ArrayList<>(node0DataPaths);
         allDataPaths.addAll(node1DataPaths);
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
+        internalCluster().stopNode(nodes.get(1));
+        internalCluster().stopNode(nodes.get(0));
 
         CorruptStateException corruptStateException = expectThrows(
             CorruptStateException.class,

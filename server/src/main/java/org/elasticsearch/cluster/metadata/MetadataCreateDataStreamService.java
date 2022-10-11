@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -81,23 +80,19 @@ public class MetadataCreateDataStreamService {
                 finalListener.onResponse(AcknowledgedResponse.FALSE);
             }
         }, finalListener::onFailure);
-        clusterService.submitStateUpdateTask(
-            "create-data-stream [" + request.name + "]",
-            new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
-                    firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
-                    return clusterState;
-                }
-            },
-            newExecutor()
-        );
+        submitUnbatchedTask("create-data-stream [" + request.name + "]", new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
+                firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
+                return clusterState;
+            }
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     public ClusterState createDataStream(CreateDataStreamClusterStateUpdateRequest request, ClusterState current) throws Exception {
@@ -208,6 +203,7 @@ public class MetadataCreateDataStreamService {
             );
         }
 
+        final var metadata = currentState.metadata();
         final boolean isSystem = systemDataStreamDescriptor != null;
         final ComposableIndexTemplate template = isSystem
             ? systemDataStreamDescriptor.getComposableIndexTemplate()
@@ -249,14 +245,12 @@ public class MetadataCreateDataStreamService {
         assert writeIndex != null;
         assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";
 
-        String fieldName = ComposableIndexTemplate.DataStreamTemplate.getTimestampField();
-        DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         List<Index> dsBackingIndices = backingIndices.stream()
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toCollection(ArrayList::new));
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
-        final IndexMode indexMode = template.getDataStreamTemplate().getIndexMode();
+        final IndexMode indexMode = metadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
         DataStream newDataStream = new DataStream(
             dataStreamName,
             dsBackingIndices,

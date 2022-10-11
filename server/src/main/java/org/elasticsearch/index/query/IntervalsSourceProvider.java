@@ -155,7 +155,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 assert fieldType != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             }
             IntervalsSource source = intervals(fieldType, query, maxGaps, ordered, analyzer, context);
             if (useField != null) {
@@ -541,7 +541,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 assert fieldType != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             }
             final BytesRef prefixTerm = analyzer.normalize(fieldType.name(), prefix);
             IntervalsSource source = fieldType.prefixIntervals(prefixTerm, context);
@@ -659,7 +659,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 assert fieldType != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             }
             BytesRef normalizedPattern = analyzer.normalize(fieldType.name(), pattern);
             IntervalsSource source = fieldType.wildcardIntervals(normalizedPattern, context);
@@ -786,7 +786,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 assert fieldType != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             }
             // Fuzzy queries only work with unicode content so it's legal to call utf8ToString here.
             String normalizedTerm = analyzer.normalize(fieldType.name(), term).utf8ToString();

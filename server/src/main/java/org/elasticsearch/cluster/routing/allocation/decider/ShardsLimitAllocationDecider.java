@@ -81,22 +81,28 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return doDecide(shardRouting, node, allocation, (count, limit) -> count >= limit);
+        return doDecide(
+            allocation.metadata().getIndexSafe(shardRouting.index()),
+            shardRouting,
+            node,
+            allocation,
+            (count, limit) -> count >= limit
+        );
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return doDecide(shardRouting, node, allocation, (count, limit) -> count > limit);
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return doDecide(indexMetadata, shardRouting, node, allocation, (count, limit) -> count > limit);
 
     }
 
     private Decision doDecide(
+        IndexMetadata indexMd,
         ShardRouting shardRouting,
         RoutingNode node,
         RoutingAllocation allocation,
         BiPredicate<Integer, Integer> decider
     ) {
-        IndexMetadata indexMd = allocation.metadata().getIndexSafe(shardRouting.index());
         final int indexShardLimit = indexMd.getShardsPerNodeLimit();
         // Capture the limit here in case it changes during this method's
         // execution

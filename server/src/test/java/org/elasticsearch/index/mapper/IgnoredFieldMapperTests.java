@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +51,11 @@ public class IgnoredFieldMapperTests extends MapperServiceTestCase {
             mapperService,
             iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "value"))).rootDoc()); },
             iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+                SearchLookup lookup = new SearchLookup(
+                    mapperService::fieldType,
+                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
+                    new SourceLookup.ReaderSourceProvider()
+                );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IgnoredFieldMapper.IgnoredFieldType ft = (IgnoredFieldMapper.IgnoredFieldType) mapperService.fieldType("_ignored");

@@ -1,6 +1,0 @@
-pr: 84535
-summary: Don't apply the rewrite-as-range optimization if field is multivalued
-area: Aggregations
-type: bug
-issues:
- - 82903

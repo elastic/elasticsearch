@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
@@ -17,6 +16,8 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.FrozenCacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenIndexInput extends MetadataCachingIndexInput {
@@ -177,7 +179,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     private static int positionalWrite(SharedBytes.IO fc, long start, ByteBuffer byteBuffer) throws IOException {
-        assert assertCurrentThreadMayWriteCacheFile();
+        assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         byteBuffer.flip();
         int written = fc.write(byteBuffer, start);
         assert byteBuffer.hasRemaining() == false;
@@ -303,7 +305,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         final Consumer<Long> progressUpdater,
         final long startTimeNanos
     ) throws IOException {
-        assert assertCurrentThreadMayWriteCacheFile();
+        assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         logger.trace(
             "{}: writing channel {} pos {} length {} (details: {})",
             fileInfo.physicalName(),
@@ -314,7 +316,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
         );
         final long end = relativePos + length;
         final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", relativePos, end, frozenCacheFile));
+        logger.trace(() -> format("writing range [%s-%s] to cache file [%s]", relativePos, end, frozenCacheFile));
 
         long bytesCopied = 0L;
         long remaining = length;

@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -34,8 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
@@ -111,12 +108,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             IndicesShardStoresAction.NAME,
             new IndicesShardStoresRequest().indices(stalePrimaryAllocations.keySet().toArray(Strings.EMPTY_ARRAY)),
             new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
-                ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> status = response
-                    .getStoreStatuses();
+                Map<String, Map<Integer, List<IndicesShardStoresResponse.StoreStatus>>> status = response.getStoreStatuses();
                 Exception e = null;
                 for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
                     final String index = entry.getKey();
-                    final ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> indexStatus = status.get(index);
+                    final Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> indexStatus = status.get(index);
                     if (indexStatus == null) {
                         // The index in the stale primary allocation request was green and hence filtered out by the store status
                         // request. We ignore it here since the relevant exception will be thrown by the reroute action later on.
@@ -163,21 +159,20 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     private static final String TASK_SOURCE = "cluster_reroute (api)";
 
     private void submitStateUpdate(final ClusterRerouteRequest request, final ActionListener<ClusterRerouteResponse> listener) {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             TASK_SOURCE,
             new ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, request, listener.map(response -> {
                 if (request.dryRun() == false) {
                     response.getExplanations().getYesDecisionMessages().forEach(logger::info);
                 }
                 return response;
-            })),
-            newExecutor()
+            }))
         );
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask {

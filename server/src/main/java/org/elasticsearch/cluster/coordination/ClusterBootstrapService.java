@@ -9,8 +9,8 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -43,7 +43,7 @@ import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
-public class ClusterBootstrapService {
+public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
 
     public static final Setting<List<String>> INITIAL_MASTER_NODES_SETTING = Setting.listSetting(
         "cluster.initial_master_nodes",
@@ -123,7 +123,32 @@ public class ClusterBootstrapService {
             .anyMatch(s -> s.exists(settings));
     }
 
-    void onFoundPeersUpdated() {
+    void logBootstrapState(Metadata metadata) {
+        if (metadata.clusterUUIDCommitted()) {
+            final var clusterUUID = metadata.clusterUUID();
+            if (bootstrapRequirements.isEmpty()) {
+                logger.info("this node is locked into cluster UUID [{}] and will not attempt further cluster bootstrapping", clusterUUID);
+            } else {
+                logger.warn(
+                    """
+                        this node is locked into cluster UUID [{}] but [{}] is set to {}; \
+                        remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts""",
+                    clusterUUID,
+                    INITIAL_MASTER_NODES_SETTING.getKey(),
+                    bootstrapRequirements
+                );
+            }
+        } else {
+            logger.info(
+                "this node has not joined a bootstrapped cluster yet; [{}] is set to {}",
+                INITIAL_MASTER_NODES_SETTING.getKey(),
+                bootstrapRequirements
+            );
+        }
+    }
+
+    @Override
+    public void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
         if (bootstrappingPermitted.get()
             && transportService.getLocalNode().isMasterNode()
@@ -225,7 +250,7 @@ public class ClusterBootstrapService {
         try {
             votingConfigurationConsumer.accept(votingConfiguration);
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("exception when bootstrapping with {}, rescheduling", votingConfiguration), e);
+            logger.warn(() -> "exception when bootstrapping with " + votingConfiguration + ", rescheduling", e);
             transportService.getThreadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), Names.GENERIC, new Runnable() {
                 @Override
                 public void run() {

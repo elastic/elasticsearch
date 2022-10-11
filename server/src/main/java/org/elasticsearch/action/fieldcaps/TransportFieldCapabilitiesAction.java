@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -56,7 +55,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    private final Predicate<String> metadataFieldPred;
     private final IndicesService indicesService;
     private final boolean ccsCheckCompatibility;
 
@@ -75,8 +73,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesService = indicesService;
-        final Set<String> metadataFields = indicesService.getAllMetadataFields();
-        this.metadataFieldPred = metadataFields::contains;
         transportService.registerRequestHandler(
             ACTION_NODE_NAME,
             ThreadPool.Names.SEARCH_COORDINATION,
@@ -281,8 +277,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             response.getOriginVersion(),
             response.get(),
             request.filters(),
-            request.types(),
-            metadataFieldPred
+            request.types()
         );
         for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {
             final String field = entry.getKey();

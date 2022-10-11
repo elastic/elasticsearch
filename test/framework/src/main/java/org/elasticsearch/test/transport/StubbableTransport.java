@@ -199,11 +199,6 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
-    public void removeLifecycleListener(LifecycleListener listener) {
-        delegate.removeLifecycleListener(listener);
-    }
-
-    @Override
     public void start() {
         delegate.start();
     }

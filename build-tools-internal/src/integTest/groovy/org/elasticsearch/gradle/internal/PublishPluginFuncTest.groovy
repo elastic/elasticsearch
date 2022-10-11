@@ -10,16 +10,14 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
-import org.junit.Ignore
 import org.xmlunit.builder.DiffBuilder
 import org.xmlunit.builder.Input
-import spock.lang.IgnoreRest
 
 class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         // required for JarHell to work
-        addSubProject(":libs:elasticsearch-core") << "apply plugin:'java'"
+        subProject(":libs:elasticsearch-core") << "apply plugin:'java'"
     }
     def "artifacts and tweaked pom is published"() {
         given:
@@ -252,6 +250,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def "generates artifacts for shadowed elasticsearch plugin"() {
         given:
+        // we use the esplugin plugin in this test that is not configuration cache compatible yet
+        configurationCacheCompatible = false
         file('license.txt') << "License file"
         file('notice.txt') << "Notice file"
         buildFile << """
@@ -336,6 +336,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def "generates pom for elasticsearch plugin"() {
         given:
+        // we use the esplugin plugin in this test that is not configuration cache compatible yet
+        configurationCacheCompatible = false
         file('license.txt') << "License file"
         file('notice.txt') << "Notice file"
         buildFile << """

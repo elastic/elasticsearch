@@ -9,10 +9,11 @@ package org.elasticsearch.license.licensor.tools;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.cli.LoggingAwareCommand;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -24,7 +25,7 @@ import java.security.SecureRandom;
 
 import static org.elasticsearch.license.CryptUtils.writeEncryptedPrivateKey;
 
-public class KeyPairGeneratorTool extends LoggingAwareCommand {
+public class KeyPairGeneratorTool extends Command {
 
     private final OptionSpec<String> publicKeyPathOption;
     private final OptionSpec<String> privateKeyPathOption;
@@ -36,10 +37,6 @@ public class KeyPairGeneratorTool extends LoggingAwareCommand {
         this.privateKeyPathOption = parser.accepts("privateKeyPath", "private key path").withRequiredArg().required();
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new KeyPairGeneratorTool().main(args, Terminal.DEFAULT));
-    }
-
     @Override
     protected void printAdditionalHelp(Terminal terminal) {
         terminal.println("This tool generates and saves a key pair to the provided publicKeyPath");
@@ -49,7 +46,7 @@ public class KeyPairGeneratorTool extends LoggingAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         Path publicKeyPath = parsePath(publicKeyPathOption.value(options));
         Path privateKeyPath = parsePath(privateKeyPathOption.value(options));
         if (Files.exists(privateKeyPath)) {

@@ -1,6 +1,0 @@
-pr: 84988
-summary: Improve `zero_shot_classification` tokenization performance
-area: Machine Learning
-type: enhancement
-issues:
- - 84820

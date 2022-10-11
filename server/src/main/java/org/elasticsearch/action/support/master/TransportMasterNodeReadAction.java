@@ -50,7 +50,7 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
 
     protected TransportMasterNodeReadAction(
         String actionName,
-        boolean checkSizeLimit,
+        boolean canTripCircuitBreaker,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -62,7 +62,7 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
     ) {
         super(
             actionName,
-            checkSizeLimit,
+            canTripCircuitBreaker,
             transportService,
             clusterService,
             threadPool,

@@ -12,12 +12,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -29,6 +31,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,7 +83,9 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             dimensionMapping.accept(mapping);
             mapping.field("time_series_dimension", true);
             mapping.endObject();
-        });
+            // Add a keyword dimension as a routing parameter
+            mapping.startObject("k").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }, List.of("k"));
         String[] dates = new String[] {
             "2021-01-01T00:10:00.000Z",
             "2021-01-01T00:11:00.000Z",
@@ -88,36 +93,37 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             "2021-01-01T00:20:00.000Z", };
         indexRandom(
             true,
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[0], "dim", d1, "v", 1, "m", 1)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d1, "v", 2, "m", 2)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[2], "dim", d1, "v", 3, "m", 3)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[3], "dim", d1, "v", 4, "m", 4)),
-            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "dim", d2, "v", 5, "m", 6))
+            false,
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[0], "k", "k", "dim", d1, "v", 1, "m", 1)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "k", "k", "dim", d1, "v", 2, "m", 2)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[2], "k", "k", "dim", d1, "v", 3, "m", 3)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[3], "k", "k", "dim", d1, "v", 4, "m", 4)),
+            client().prepareIndex("tsdb").setSource(Map.of("@timestamp", dates[1], "k", "k", "dim", d2, "v", 5, "m", 6))
         );
 
         assertMap(
             latest(between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS), TimeValue.timeValueMinutes(5), dates[0]),
-            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[0], 1.0)))
+            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1, "k", "k")), List.of(Map.entry(dates[0], 1.0)))
         );
 
         assertMap(
             latest(between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS), TimeValue.timeValueMinutes(10), dates[2]),
-            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[2], 3.0)))
-                .entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[2], 5.0)))
+            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1, "k", "k")), List.of(Map.entry(dates[2], 3.0)))
+                .entry(Tuple.tuple("v", Map.of("dim", d2, "k", "k")), List.of(Map.entry(dates[2], 5.0)))
         );
 
         assertMap(
             latest(between(1, MultiBucketConsumerService.DEFAULT_MAX_BUCKETS), TimeValue.timeValueMinutes(15), dates[3]),
-            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
-                .entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[3], 5.0)))
+            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1, "k", "k")), List.of(Map.entry(dates[3], 4.0)))
+                .entry(Tuple.tuple("v", Map.of("dim", d2, "k", "k")), List.of(Map.entry(dates[3], 5.0)))
         );
 
         assertMap(
             range(between(1, MAX_RESULT_WINDOW), TimeValue.timeValueMinutes(15), TimeValue.timeValueMinutes(10), null, dates[3]),
             matchesMap().entry(
-                Tuple.tuple("v", Map.of("dim", d1)),
+                Tuple.tuple("v", Map.of("dim", d1, "k", "k")),
                 List.of(Map.entry(dates[1], 2.0), Map.entry(dates[2], 3.0), Map.entry(dates[3], 4.0))
-            ).entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[1], 5.0)))
+            ).entry(Tuple.tuple("v", Map.of("dim", d2, "k", "k")), List.of(Map.entry(dates[1], 5.0)))
         );
 
         assertMap(
@@ -129,7 +135,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 dates[3]
             ),
             matchesMap().entry(
-                Tuple.tuple("v", Map.of("dim", d1)),
+                Tuple.tuple("v", Map.of("dim", d1, "k", "k")),
                 List.of(
                     Map.entry("2021-01-01T00:11:00.000Z", 2.0),
                     Map.entry("2021-01-01T00:12:00.000Z", 2.0),
@@ -144,7 +150,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 )
             )
                 .entry(
-                    Tuple.tuple("v", Map.of("dim", d2)),
+                    Tuple.tuple("v", Map.of("dim", d2, "k", "k")),
                     List.of(
                         Map.entry("2021-01-01T00:11:00.000Z", 5.0),
                         Map.entry("2021-01-01T00:12:00.000Z", 5.0),
@@ -168,8 +174,8 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 TimeValue.timeValueMinutes(15),
                 FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
             ),
-            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
-                .entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[3], 5.0)))
+            matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1, "k", "k")), List.of(Map.entry(dates[3], 4.0)))
+                .entry(Tuple.tuple("v", Map.of("dim", d2, "k", "k")), List.of(Map.entry(dates[3], 5.0)))
         );
 
         assertMap(
@@ -180,7 +186,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 TimeValue.timeValueMinutes(15),
                 FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
             ),
-            matchesMap().entry(Tuple.tuple("m", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
+            matchesMap().entry(Tuple.tuple("m", Map.of("dim", d1, "k", "k")), List.of(Map.entry(dates[3], 4.0)))
         );
 
         assertMap(
@@ -191,7 +197,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 TimeValue.timeValueMinutes(15),
                 FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
             ),
-            matchesMap().entry(Tuple.tuple("m", Map.of("dim", d2)), List.of(Map.entry(dates[3], 6.0)))
+            matchesMap().entry(Tuple.tuple("m", Map.of("dim", d2, "k", "k")), List.of(Map.entry(dates[3], 6.0)))
         );
 
         if ("a".equals(d1)) {
@@ -204,7 +210,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                     TimeValue.timeValueMinutes(15),
                     FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
                 ),
-                matchesMap().entry(Tuple.tuple("m", Map.of("dim", d2)), List.of(Map.entry(dates[3], 6.0)))
+                matchesMap().entry(Tuple.tuple("m", Map.of("dim", d2, "k", "k")), List.of(Map.entry(dates[3], 6.0)))
             );
 
             assertMap(
@@ -215,7 +221,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                     TimeValue.timeValueMinutes(15),
                     FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
                 ),
-                matchesMap().entry(Tuple.tuple("m", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
+                matchesMap().entry(Tuple.tuple("m", Map.of("dim", d1, "k", "k")), List.of(Map.entry(dates[3], 4.0)))
             );
 
             assertMap(
@@ -226,8 +232,8 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                     TimeValue.timeValueMinutes(15),
                     FORMATTER.parse(dates[3]).getLong(INSTANT_SECONDS) * 1000
                 ),
-                matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1)), List.of(Map.entry(dates[3], 4.0)))
-                    .entry(Tuple.tuple("v", Map.of("dim", d2)), List.of(Map.entry(dates[3], 5.0)))
+                matchesMap().entry(Tuple.tuple("v", Map.of("dim", d1, "k", "k")), List.of(Map.entry(dates[3], 4.0)))
+                    .entry(Tuple.tuple("v", Map.of("dim", d2, "k", "k")), List.of(Map.entry(dates[3], 5.0)))
             );
         }
     }
@@ -289,7 +295,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             expectedLatest = expectedLatest.entry(dimensions, List.of(Map.entry(max, value)));
             expectedValues = expectedValues.entry(dimensions, expectedValuesForTimeSeries);
         }
-        indexRandom(true, docs);
+        indexRandom(true, false, docs);
         assertMap(latest(iterationSize, TimeValue.timeValueMillis(maxMillis - minMillis), maxMillis), expectedLatest);
         assertMap(
             range(
@@ -328,7 +334,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             expectedValues.add(Map.entry(timestamp, v));
             docs.add(client().prepareIndex("tsdb").setSource(Map.of("@timestamp", timestamp, "dim", "dim", "v", v)));
         }
-        indexRandom(true, docs);
+        indexRandom(true, false, docs);
         assertMap(
             range(
                 iterationBuckets,
@@ -356,10 +362,11 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             for (String d : keywordDimensions) {
                 mapping.startObject(d).field("type", "keyword").field("time_series_dimension", true).endObject();
             }
-        });
+        }, Arrays.asList(keywordDimensions));
     }
 
-    private void createTsdbIndex(CheckedConsumer<XContentBuilder, IOException> dimensionMapping) throws IOException {
+    private void createTsdbIndex(CheckedConsumer<XContentBuilder, IOException> dimensionMapping, List<String> routingDims)
+        throws IOException {
         XContentBuilder mapping = JsonXContent.contentBuilder();
         mapping.startObject().startObject("properties");
         mapping.startObject("@timestamp").field("type", "date").endObject();
@@ -367,7 +374,14 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         mapping.startObject("m").field("type", "double").field("time_series_metric", "gauge").endObject();
         dimensionMapping.accept(mapping);
         mapping.endObject().endObject();
-        client().admin().indices().prepareCreate("tsdb").setMapping(mapping).get();
+
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingDims)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .build();
+        client().admin().indices().prepareCreate("tsdb").setSettings(settings).setMapping(mapping).get();
     }
 
     private Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>> latest(

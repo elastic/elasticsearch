@@ -252,3 +252,25 @@ setup:
                   term: "lucane"
 
   - match: { "hits.total.value": 3 }
+
+---
+"Wildcard highlighting":
+
+  - skip:
+      version: " - 8.2.99"
+      reason: "Wildcard highlighting on match_only_text was fixed in 8.3"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              foo: "many"
+          highlight:
+            fields:
+              "*": {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.foo: "The Apache Software Foundation manages many projects including Lucene" }
+  - match: { hits.hits.0.highlight.foo.0: "The Apache Software Foundation manages <em>many</em> projects including Lucene" }

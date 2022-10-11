@@ -55,8 +55,7 @@ public class LookupRuntimeFieldTypeTests extends MapperServiceTestCase {
             """;
         var mapperService = createMapperService(mapping);
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("foo", List.of("f1", "f2")).endObject();
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
+        SourceLookup sourceLookup = new SourceLookup(new SourceLookup.BytesSourceProvider(BytesReference.bytes(source)));
         MappedFieldType fieldType = mapperService.fieldType("foo_lookup_field");
         ValueFetcher valueFetcher = fieldType.valueFetcher(createSearchExecutionContext(mapperService), null);
         DocumentField doc = valueFetcher.fetchDocumentField("foo_lookup_field", sourceLookup);
@@ -111,8 +110,7 @@ public class LookupRuntimeFieldTypeTests extends MapperServiceTestCase {
             source.field("foo", List.of());
         }
         source.endObject();
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
+        SourceLookup sourceLookup = new SourceLookup(new SourceLookup.BytesSourceProvider(BytesReference.bytes(source)));
         MappedFieldType fieldType = mapperService.fieldType("foo_lookup_field");
         ValueFetcher valueFetcher = fieldType.valueFetcher(createSearchExecutionContext(mapperService), null);
         DocumentField doc = valueFetcher.fetchDocumentField("foo_lookup_field", sourceLookup);

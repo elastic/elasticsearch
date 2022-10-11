@@ -43,6 +43,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaModulePathPlugin.class);
 
         // configureConfigurations(project);
         configureJars(project);
@@ -137,5 +138,4 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
     }
-
 }

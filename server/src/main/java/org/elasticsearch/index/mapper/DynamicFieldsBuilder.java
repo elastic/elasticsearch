@@ -159,7 +159,10 @@ final class DynamicFieldsBuilder {
      */
     static Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
-        return mapper != null ? mapper : new ObjectMapper.Builder(name).enabled(true).build(MapperBuilderContext.forPath(context.path()));
+        return mapper != null
+            ? mapper
+            : new ObjectMapper.Builder(name, ObjectMapper.Defaults.SUBOBJECTS).enabled(ObjectMapper.Defaults.ENABLED)
+                .build(context.createMapperBuilderContext());
     }
 
     /**
@@ -167,7 +170,7 @@ final class DynamicFieldsBuilder {
      */
     static Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
         Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
-        return templateBuilder == null ? null : templateBuilder.build(MapperBuilderContext.forPath(context.path()));
+        return templateBuilder == null ? null : templateBuilder.build(context.createMapperBuilderContext());
     }
 
     /**
@@ -302,7 +305,7 @@ final class DynamicFieldsBuilder {
         }
 
         void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
-            Mapper mapper = builder.build(MapperBuilderContext.forPath(context.path()));
+            Mapper mapper = builder.build(context.createMapperBuilderContext());
             context.addDynamicMapper(mapper);
             parseField.accept(context, mapper);
         }
@@ -415,7 +418,9 @@ final class DynamicFieldsBuilder {
         @Override
         public void newDynamicDateField(DocumentParserContext context, String name, DateFormatter dateFormatter) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(DateScriptFieldType.sourceOnly(fullName, dateFormatter), context);
+            MappingParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
+
+            createDynamicField(DateScriptFieldType.sourceOnly(fullName, dateFormatter, parserContext.indexVersionCreated()), context);
         }
     }
 }

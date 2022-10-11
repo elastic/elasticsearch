@@ -70,8 +70,8 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
 
-        public Builder(String name) {
-            super(name);
+        public Builder(String name, Explicit<Boolean> subobjects) {
+            super(name, subobjects);
         }
 
         public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
@@ -105,8 +105,9 @@ public class RootObjectMapper extends ObjectMapper {
             return new RootObjectMapper(
                 name,
                 enabled,
+                subobjects,
                 dynamic,
-                buildMappers(true, context),
+                buildMappers(context),
                 runtimeFields,
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -151,7 +152,8 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         public RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            RootObjectMapper.Builder builder = new Builder(name);
+            Explicit<Boolean> subobjects = parseSubobjects(node);
+            RootObjectMapper.Builder builder = new Builder(name, subobjects);
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -251,6 +253,7 @@ public class RootObjectMapper extends ObjectMapper {
     RootObjectMapper(
         String name,
         Explicit<Boolean> enabled,
+        Explicit<Boolean> subobjects,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Map<String, RuntimeField> runtimeFields,
@@ -259,7 +262,7 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<Boolean> dateDetection,
         Explicit<Boolean> numericDetection
     ) {
-        super(name, name, enabled, dynamic, mappers);
+        super(name, name, enabled, subobjects, dynamic, mappers);
         this.runtimeFields = runtimeFields;
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
@@ -276,7 +279,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     @Override
     public RootObjectMapper.Builder newBuilder(Version indexVersionCreated) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name());
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name(), subobjects);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         return builder;
@@ -319,13 +322,19 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason) {
-        return (RootObjectMapper) super.merge(mergeWith, reason);
+    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
+        assert mapperBuilderContext == MapperBuilderContext.ROOT;
+        return mapperBuilderContext;
     }
 
     @Override
-    protected void doMerge(ObjectMapper mergeWith, MergeReason reason) {
-        super.doMerge(mergeWith, reason);
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
+        return (RootObjectMapper) super.merge(mergeWith, reason, parentBuilderContext);
+    }
+
+    @Override
+    protected void doMerge(ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
+        super.doMerge(mergeWith, reason, parentBuilderContext);
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {
             this.numericDetection = mergeWithObject.numericDetection;
@@ -507,5 +516,10 @@ public class RootObjectMapper extends ObjectMapper {
             return ((String) value).contains(snippet);
         }
         return false;
+    }
+
+    @Override
+    protected void startSyntheticField(XContentBuilder b) throws IOException {
+        b.startObject();
     }
 }

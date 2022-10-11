@@ -21,37 +21,14 @@ import static org.hamcrest.Matchers.containsString;
 
 public class TextClassificationConfigTests extends InferenceConfigItemTestCase<TextClassificationConfig> {
 
-    public static TextClassificationConfig mutateInstance(TextClassificationConfig instance, Version version) {
-        if (version.before(Version.V_8_2_0)) {
-            final Tokenization tokenization;
-            if (instance.getTokenization() instanceof BertTokenization) {
-                tokenization = new BertTokenization(
-                    instance.getTokenization().doLowerCase,
-                    instance.getTokenization().withSpecialTokens,
-                    instance.getTokenization().maxSequenceLength,
-                    instance.getTokenization().truncate,
-                    null
-                );
-            } else if (instance.getTokenization() instanceof MPNetTokenization) {
-                tokenization = new MPNetTokenization(
-                    instance.getTokenization().doLowerCase,
-                    instance.getTokenization().withSpecialTokens,
-                    instance.getTokenization().maxSequenceLength,
-                    instance.getTokenization().truncate,
-                    null
-                );
-            } else {
-                throw new UnsupportedOperationException("unknown tokenization type: " + instance.getTokenization().getName());
-            }
-            return new TextClassificationConfig(
-                instance.getVocabularyConfig(),
-                tokenization,
-                instance.getClassificationLabels(),
-                instance.getNumTopClasses(),
-                instance.getResultsField()
-            );
-        }
-        return instance;
+    public static TextClassificationConfig mutateForVersion(TextClassificationConfig instance, Version version) {
+        return new TextClassificationConfig(
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getClassificationLabels(),
+            instance.getNumTopClasses(),
+            instance.getResultsField()
+        );
     }
 
     @Override
@@ -81,7 +58,7 @@ public class TextClassificationConfigTests extends InferenceConfigItemTestCase<T
 
     @Override
     protected TextClassificationConfig mutateInstanceForVersion(TextClassificationConfig instance, Version version) {
-        return mutateInstance(instance, version);
+        return mutateForVersion(instance, version);
     }
 
     public void testInvalidClassificationLabels() {

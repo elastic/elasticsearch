@@ -228,7 +228,7 @@ The API returns the following response:
       "host": "node-0.elastic.co",
       "ip": "192.168.17",
       "version": "{version}",
-      "build_flavor": "{build_flavor}",
+      "build_flavor": "default",
       "build_type": "{build_type}",
       "build_hash": "587409e",
       "roles": [
@@ -299,7 +299,7 @@ The API returns the following response:
       "host": "node-0.elastic.co",
       "ip": "192.168.17",
       "version": "{version}",
-      "build_flavor": "{build_flavor}",
+      "build_flavor": "default",
       "build_type": "{build_type}",
       "build_hash": "587409e",
       "roles": [],

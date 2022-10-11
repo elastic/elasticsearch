@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.idp.saml.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -77,7 +76,7 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
                         builder.field("entity_id", response.getEntityId());
                         builder.endObject();
                         builder.endObject();
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new RestResponse(RestStatus.OK, builder);
                     }
                 }
             );

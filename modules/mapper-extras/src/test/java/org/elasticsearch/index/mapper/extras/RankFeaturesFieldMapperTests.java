@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -54,6 +55,11 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
         return false;
     }
 
@@ -175,5 +181,15 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean allowsNullValues() {
         return false;       // TODO should this allow null values?
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

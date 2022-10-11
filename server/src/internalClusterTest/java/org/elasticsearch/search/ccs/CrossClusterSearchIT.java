@@ -42,6 +42,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -156,7 +157,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 for (TransportService transportService : transportServices) {
                     Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                     for (CancellableTask cancellableTask : cancellableTasks) {
-                        assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                        if (TransportActionProxy.isProxyAction(cancellableTask.getAction())) {
+                            assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                        }
                     }
                 }
             });
@@ -236,7 +239,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             for (TransportService transportService : transportServices) {
                 Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                 for (CancellableTask cancellableTask : cancellableTasks) {
-                    assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                    if (cancellableTask.getAction().contains(SearchAction.INSTANCE.name())) {
+                        assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                    }
                 }
             }
         });

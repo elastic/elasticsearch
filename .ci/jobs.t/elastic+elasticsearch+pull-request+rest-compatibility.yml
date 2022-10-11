@@ -23,7 +23,6 @@
             - 7.16
             - 7.15
             - 6.8
-            - feature/desired-balance-allocator
           excluded-regions:
             - ^docs/.*
           black-list-labels:

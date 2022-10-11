@@ -18,7 +18,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -76,7 +75,7 @@ public class RestGetSourceAction extends BaseRestHandler {
             if (getRequest.fetchSourceContext() != null && getRequest.fetchSourceContext().fetchSource() == false) {
                 final ActionRequestValidationException validationError = new ActionRequestValidationException();
                 validationError.addValidationError("fetching source can not be disabled");
-                channel.sendResponse(new BytesRestResponse(channel, validationError));
+                channel.sendResponse(new RestResponse(channel, validationError));
             } else {
                 client.get(getRequest, new RestGetSourceResponseListener(channel, request));
             }
@@ -100,7 +99,7 @@ public class RestGetSourceAction extends BaseRestHandler {
             try (InputStream stream = source.streamInput()) {
                 builder.rawValue(stream, XContentHelper.xContentType(source));
             }
-            return new BytesRestResponse(OK, builder);
+            return new RestResponse(OK, builder);
         }
 
         /**

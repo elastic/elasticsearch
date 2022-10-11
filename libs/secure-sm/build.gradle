@@ -25,12 +25,6 @@ tasks.named('forbiddenApisMain').configure {
 
 // JAR hell is part of core which we do not want to add as a dependency
 tasks.named("jarHell").configure { enabled = false }
-
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass 'junit.framework.TestCase'
-    }
-  }
+tasks.named("testTestingConventions").configure {
+  baseClass 'junit.framework.TestCase'
 }

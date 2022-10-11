@@ -21,19 +21,28 @@ public class PyTorchBuilder {
     private static final String PROCESS_PATH = "./" + PROCESS_NAME;
 
     private static final String LICENSE_KEY_VALIDATED_ARG = "--validElasticLicenseKeyConfirmed=";
-    private static final String INFERENCE_THREADS_ARG = "--inferenceThreads=";
-    private static final String MODEL_THREADS_ARG = "--modelThreads=";
+    private static final String NUM_THREADS_PER_ALLOCATION_ARG = "--numThreadsPerAllocation=";
+    private static final String NUM_ALLOCATIONS_ARG = "--numAllocations=";
+    private static final String CACHE_MEMORY_LIMIT_BYTES_ARG = "--cacheMemorylimitBytes=";
 
     private final NativeController nativeController;
     private final ProcessPipes processPipes;
-    private final int inferenceThreads;
-    private final int modelThreads;
+    private final int threadsPerAllocation;
+    private final int numberOfAllocations;
+    private final long cacheMemoryLimitBytes;
 
-    public PyTorchBuilder(NativeController nativeController, ProcessPipes processPipes, int inferenceThreads, int modelThreads) {
+    public PyTorchBuilder(
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        int threadPerAllocation,
+        int numberOfAllocations,
+        long cacheMemoryLimitBytes
+    ) {
         this.nativeController = Objects.requireNonNull(nativeController);
         this.processPipes = Objects.requireNonNull(processPipes);
-        this.inferenceThreads = inferenceThreads;
-        this.modelThreads = modelThreads;
+        this.threadsPerAllocation = threadPerAllocation;
+        this.numberOfAllocations = numberOfAllocations;
+        this.cacheMemoryLimitBytes = cacheMemoryLimitBytes;
     }
 
     public void build() throws IOException, InterruptedException {
@@ -49,8 +58,11 @@ public class PyTorchBuilder {
         // License was validated when the trained model was started
         command.add(LICENSE_KEY_VALIDATED_ARG + true);
 
-        command.add(INFERENCE_THREADS_ARG + inferenceThreads);
-        command.add(MODEL_THREADS_ARG + modelThreads);
+        command.add(NUM_THREADS_PER_ALLOCATION_ARG + threadsPerAllocation);
+        command.add(NUM_ALLOCATIONS_ARG + numberOfAllocations);
+        if (cacheMemoryLimitBytes > 0) {
+            command.add(CACHE_MEMORY_LIMIT_BYTES_ARG + cacheMemoryLimitBytes);
+        }
 
         return command;
     }

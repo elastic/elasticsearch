@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Settings for JWT realms.
+ * Settings unique to each JWT realm.
  */
 public class JwtRealmSettings {
 
@@ -49,7 +49,7 @@ public class JwtRealmSettings {
         NONE("none"),
         SHARED_SECRET("shared_secret");
 
-        private String value;
+        private final String value;
 
         ClientAuthenticationType(String value) {
             this.value = value;
@@ -75,7 +75,7 @@ public class JwtRealmSettings {
                     + "]"
             );
         }
-    };
+    }
 
     // Default values and min/max constraints
 

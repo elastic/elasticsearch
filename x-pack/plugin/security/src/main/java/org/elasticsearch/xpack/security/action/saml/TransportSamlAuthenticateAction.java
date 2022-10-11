@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.action.saml;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -90,7 +89,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                     }, listener::onFailure)
                 );
             }, e -> {
-                logger.debug(() -> new ParameterizedMessage("SamlToken [{}] could not be authenticated", saml), e);
+                logger.debug(() -> "SamlToken [" + saml + "] could not be authenticated", e);
                 listener.onFailure(e);
             }));
         }

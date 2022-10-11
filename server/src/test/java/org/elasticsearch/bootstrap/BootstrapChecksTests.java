@@ -447,12 +447,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     public void testSystemCallFilterCheck() throws NodeValidationException {
         final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
-        final BootstrapContext context;
-        if (randomBoolean()) {
-            context = createTestContext(Settings.builder().put("bootstrap.system_call_filter", true).build(), null);
-        } else {
-            context = emptyContext;
-        }
+        final BootstrapContext context = emptyContext;
 
         final BootstrapChecks.SystemCallFilterCheck systemCallFilterEnabledCheck = new BootstrapChecks.SystemCallFilterCheck() {
 

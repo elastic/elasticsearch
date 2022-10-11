@@ -696,11 +696,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                                     .entry("segments_collected", greaterThan(0))
                                     .entry(
                                         "filters",
-                                        matchesList().item(
-                                            matchesMap().entry("query", "*:*")
-                                                .entry("results_from_metadata", 0)
-                                                .entry("specialized_for", "match_all")
-                                        )
+                                        matchesList().item(matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 0))
                                     )
                             )
                     )
@@ -776,7 +772,13 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     debug,
                     matchesMap().entry("delegate", "RangeAggregator.NoOverlap")
                         .entry("built_buckets", 1)
-                        .entry("delegate_debug", matchesMap().entry("ranges", 1).entry("average_docs_per_range", 10000.0))
+                        .entry(
+                            "delegate_debug",
+                            matchesMap().entry("ranges", 1)
+                                .entry("average_docs_per_range", 10000.0)
+                                .entry("singletons", greaterThan(0))
+                                .entry("non-singletons", 0)
+                        )
                 );
             }
         } finally {

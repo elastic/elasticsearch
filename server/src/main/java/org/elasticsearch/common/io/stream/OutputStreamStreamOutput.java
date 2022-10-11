@@ -38,9 +38,4 @@ public class OutputStreamStreamOutput extends StreamOutput {
     public void close() throws IOException {
         out.close();
     }
-
-    @Override
-    public void reset() throws IOException {
-        throw new UnsupportedOperationException();
-    }
 }

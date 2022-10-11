@@ -48,14 +48,7 @@ public abstract class WebServerTestCase extends ESTestCase {
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
-        Build build = new Build(
-            Build.Flavor.UNKNOWN,
-            Build.Type.UNKNOWN,
-            randomAlphaOfLength(8),
-            date,
-            randomBoolean(),
-            version.toString()
-        );
+        Build build = new Build(Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(), version.toString());
         return new MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }
 

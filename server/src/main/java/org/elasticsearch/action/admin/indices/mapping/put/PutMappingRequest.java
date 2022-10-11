@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -35,6 +33,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -51,7 +50,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
-    private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
+    private static Set<String> RESERVED_FIELDS = Set.of(
         "_uid",
         "_id",
         "_type",

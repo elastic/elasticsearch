@@ -1,2 +1,0 @@
-org.elasticsearch.client.ilm.IndexLifecycleNamedXContentProvider
-org.elasticsearch.client.transform.TransformNamedXContentProvider

@@ -94,7 +94,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
         );
@@ -125,7 +125,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream, new Template(null, null, null));
+        createComposableTemplate(
+            client(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
+            dataStream,
+            new Template(null, null, null)
+        );
 
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             indexDocument(client(), dataStream, true);
@@ -199,7 +204,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
         );
@@ -245,7 +250,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                     TimeValue.ZERO,
                     Map.of(
                         RolloverAction.NAME,
-                        new RolloverAction(null, null, null, 1L, null),
+                        new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                         SearchableSnapshotAction.NAME,
                         new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))
                     )
@@ -260,7 +265,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertThat(
             exception.getMessage(),
             containsString(
-                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup]"
+                "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, downsample]"
                     + " actions which are not allowed after a managed index is mounted as a searchable snapshot"
             )
         );
@@ -276,7 +281,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null),
+                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo)
                 )
@@ -289,7 +294,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
@@ -317,8 +322,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("hot"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("hot"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
 
         createPolicy(
@@ -339,8 +344,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // skip and ILM should not be blocked (not should the managed index move into the ERROR step)
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("cold"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("cold"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -355,7 +360,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null),
+                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo)
                 )
@@ -368,7 +373,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
@@ -395,8 +400,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("hot"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("hot"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
 
         // snapshot the data stream
@@ -437,8 +442,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // the restored index is now managed by the now updated ILM policy and needs to go through the warm and cold phase
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("cold"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("cold"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -447,7 +452,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + "-000001";
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         Map<String, LifecycleAction> hotActions = new HashMap<>();
-        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         hotActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()));
         createPolicy(
             client(),
@@ -485,8 +490,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("cold"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("cold"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
 
         Request getSnaps = new Request("GET", "/_snapshot/" + snapshotRepo + "/_all");
@@ -546,8 +551,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
-            assertThat(stepKeyForIndex.getPhase(), is("frozen"));
-            assertThat(stepKeyForIndex.getName(), is(PhaseCompleteStep.NAME));
+            assertThat(stepKeyForIndex.phase(), is("frozen"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
         }, 30, TimeUnit.SECONDS);
 
         Request getSnaps = new Request("GET", "/_snapshot/" + snapshotRepo + "/_all");
@@ -615,7 +620,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null),
+                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(snapshotRepo, randomBoolean())
                 )
@@ -628,7 +633,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
@@ -659,6 +664,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Map<String, Object> hotIndexSettings = getIndexSettingsAsMap(restoredIndex);
         // searchable snapshots mounted in the hot phase should be pinned to hot nodes
         assertThat(hotIndexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
+
+        assertOK(client().performRequest(new Request("DELETE", "_data_stream/" + dataStream)));
+        assertOK(client().performRequest(new Request("DELETE", "_ilm/policy/" + policy)));
     }
 
     // See: https://github.com/elastic/elasticsearch/issues/77269
@@ -675,7 +683,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
         );

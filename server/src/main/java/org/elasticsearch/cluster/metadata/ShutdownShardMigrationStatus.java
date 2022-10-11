@@ -24,6 +24,8 @@ import java.util.Objects;
 public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject {
     private static final Version ALLOCATION_DECISION_ADDED_VERSION = Version.V_7_16_0;
 
+    public static final String NODE_ALLOCATION_DECISION_KEY = "node_allocation_decision";
+
     private final SingleNodeShutdownMetadata.Status status;
     private final long shardsRemaining;
     @Nullable
@@ -83,7 +85,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
             builder.field("explanation", explanation);
         }
         if (Objects.nonNull(allocationDecision)) {
-            builder.startObject("node_allocation_decision");
+            builder.startObject(NODE_ALLOCATION_DECISION_KEY);
             {
                 allocationDecision.toXContent(builder, params);
             }

@@ -34,6 +34,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static java.util.Map.entry;
 
@@ -351,5 +352,13 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         public String toString() {
             return "RoundingInfo[" + rounding + " " + Arrays.toString(innerIntervals) + "]";
         }
+    }
+
+    @Override
+    protected void validateSequentiallyOrdered(String type, String name, Consumer<String> addValidationError) {}
+
+    @Override
+    protected void validateSequentiallyOrderedWithoutGaps(String type, String name, Consumer<String> addValidationError) {
+        // auto_date_histogram never has gaps
     }
 }

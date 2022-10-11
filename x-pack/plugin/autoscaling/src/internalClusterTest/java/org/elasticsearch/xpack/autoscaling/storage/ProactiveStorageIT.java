@@ -90,7 +90,10 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
             response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
             Matchers.greaterThanOrEqualTo(enoughSpace + used)
         );
-        assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
+        assertThat(
+            response.results().get(policyName).requiredCapacity().node().storage().getBytes(),
+            Matchers.equalTo(maxShardSize + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD + LOW_WATERMARK_BYTES)
+        );
 
         // with 0 window, we expect just current.
         putAutoscalingPolicy(
@@ -101,7 +104,10 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         assertThat(response.results().get(policyName).requiredCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
-        assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
+        assertThat(
+            response.results().get(policyName).requiredCapacity().node().storage().getBytes(),
+            Matchers.equalTo(maxShardSize + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD + LOW_WATERMARK_BYTES)
+        );
     }
 
     private void putAutoscalingPolicy(String policyName, Settings settings) {

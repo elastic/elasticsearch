@@ -43,7 +43,8 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private volatile boolean active; // false;
     private volatile ServerSocketChannel serverChannel;
-    private CountDownLatch listenerThreadLatch;
+    // package private for testing
+    volatile CountDownLatch listenerThreadLatch = new CountDownLatch(0);
     final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
     private final Collection<BoundAddressListener> boundAddressListeners = new CopyOnWriteArrayList<>();
 
@@ -152,7 +153,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         this.listenerThreadLatch = new CountDownLatch(1);
 
         new Thread(() -> {
-            assert serverChannel != null && listenerThreadLatch != null;
+            assert serverChannel != null;
             try {
                 while (serverChannel.isOpen()) {
                     AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
@@ -182,6 +183,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     synchronized void stopListener() {
         assert enabled(environment);
         try {
+            logger.info(
+                "stopping readiness service on channel {}",
+                (this.serverChannel == null) ? "None" : this.serverChannel.getLocalAddress()
+            );
             if (this.serverChannel != null) {
                 this.serverChannel.close();
                 listenerThreadLatch.await();

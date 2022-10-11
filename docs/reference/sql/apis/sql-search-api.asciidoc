@@ -54,6 +54,11 @@ precedence.
 [[sql-search-api-request-body]]
 ==== {api-request-body-title}
 
+`allow_partial_search_results`::
+(Optional, Boolean) If `true`, returns partial results if there are shard
+request timeouts or <<shard-failures,shard failures>>. If `false`, returns an error with no
+partial results. Defaults to `false`.
+
 `catalog`::
 (Optional, string) Default catalog (cluster) for queries. If unspecified, the
 queries execute on the data in the local cluster only.

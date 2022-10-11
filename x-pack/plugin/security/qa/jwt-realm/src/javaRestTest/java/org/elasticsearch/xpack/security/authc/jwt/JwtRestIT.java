@@ -126,12 +126,12 @@ public class JwtRestIT extends ESRestTestCase {
         final String dn = randomDn();
         final String name = randomName();
         final String mail = randomMail();
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "username": "%s" } }
             ] }
-            """.formatted(principal);
+            """, principal);
 
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
     }
@@ -142,12 +142,12 @@ public class JwtRestIT extends ESRestTestCase {
         final String name = randomName();
         final String mail = randomMail();
 
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "dn": "%s" } }
             ] }
-            """.formatted(dn);
+            """, dn);
 
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
     }
@@ -160,12 +160,12 @@ public class JwtRestIT extends ESRestTestCase {
         final List<String> groups = randomList(1, 12, () -> randomAlphaOfLengthBetween(4, 12));
         final String mappedGroup = randomFrom(groups);
 
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "groups": "%s" } }
             ] }
-            """.formatted(mappedGroup);
+            """, mappedGroup);
 
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, groups, rules);
     }
@@ -175,12 +175,12 @@ public class JwtRestIT extends ESRestTestCase {
         final String dn = randomDn();
         final String name = randomName();
         final String mail = randomMail();
-        final String rules = """
+        final String rules = formatted("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "metadata.jwt_claim_sub": "%s" } }
             ] }
-            """.formatted(principal);
+            """, principal);
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
     }
 
@@ -502,7 +502,8 @@ public class JwtRestIT extends ESRestTestCase {
         final String audience = "es0" + randomIntBetween(1, 3);
         final JWTClaimsSet claimsSet = buildJwt(
             Map.ofEntries(Map.entry("iss", "my-issuer"), Map.entry("aud", audience), Map.entry("email", emailAddress)),
-            issueTime
+            issueTime,
+            false
         );
         return claimsSet;
     }
@@ -563,9 +564,15 @@ public class JwtRestIT extends ESRestTestCase {
 
     // JWT construction
     private JWTClaimsSet buildJwt(Map<String, Object> claims, Instant issueTime) {
+        return buildJwt(claims, issueTime, true);
+    }
+
+    private JWTClaimsSet buildJwt(Map<String, Object> claims, Instant issueTime, boolean includeSub) {
         final JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder();
         builder.issuer(randomAlphaOfLengthBetween(4, 24));
-        builder.subject(randomAlphaOfLengthBetween(4, 24));
+        if (includeSub) {
+            builder.subject(randomAlphaOfLengthBetween(4, 24));
+        }
         builder.audience(randomList(1, 6, () -> randomAlphaOfLengthBetween(4, 12)));
         if (randomBoolean()) {
             builder.jwtID(UUIDs.randomBase64UUID(random()));

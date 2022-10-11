@@ -420,7 +420,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
     }
 
     private static void createIndexWithMapping(String indexName, CheckedConsumer<XContentBuilder, IOException> mapping) throws Exception {
-        createIndex(indexName);
+        createIndexWithSettingsAndMappings(indexName);
         updateMapping(indexName, mapping);
     }
 

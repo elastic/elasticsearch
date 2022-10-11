@@ -64,10 +64,6 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertOK(client.performRequest(request));
     }
 
-    protected static void refresh(String index) throws IOException {
-        assertOK(adminClient().performRequest(new Request("POST", "/" + index + "/_refresh")));
-    }
-
     protected static void resumeFollow(String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_ccr/resume_follow");
         request.setJsonEntity("{\"read_poll_timeout\": \"10ms\"}");
@@ -224,13 +220,15 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         Request request = new Request("GET", "/.monitoring-*/_search");
         request.setJsonEntity("""
             {"query": {"term": {"type": "ccr_auto_follow_stats"}}}""");
+        String responseEntity;
         Map<String, ?> response;
         try {
-            response = toMap(adminClient().performRequest(request));
+            responseEntity = EntityUtils.toString(adminClient().performRequest(request).getEntity());
+            response = toMap(responseEntity);
         } catch (ResponseException e) {
             throw new AssertionError("error while searching", e);
         }
-
+        assertNotNull(responseEntity);
         int numberOfSuccessfulFollowIndices = 0;
 
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
@@ -246,7 +244,11 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             numberOfSuccessfulFollowIndices = Math.max(numberOfSuccessfulFollowIndices, foundNumberOfOperationsReceived);
         }
 
-        assertThat(numberOfSuccessfulFollowIndices, greaterThanOrEqualTo(1));
+        assertThat(
+            "Unexpected number of followed indices [" + responseEntity + ']',
+            numberOfSuccessfulFollowIndices,
+            greaterThanOrEqualTo(1)
+        );
     }
 
     protected static Map<String, Object> toMap(Response response) throws IOException {
@@ -302,16 +304,6 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected record CcrNodeTask(String remoteCluster, String leaderIndex, String followerIndex, int shardId) {}
 
-    protected static void createIndex(String name, Settings settings) throws IOException {
-        createIndex(name, settings, "");
-    }
-
-    protected static void createIndex(String name, Settings settings, String mapping) throws IOException {
-        final Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{ \"settings\": " + Strings.toString(settings) + ", \"mappings\" : {" + mapping + "} }");
-        assertOK(adminClient().performRequest(request));
-    }
-
     protected static boolean indexExists(String index) throws IOException {
         Response response = adminClient().performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
@@ -343,7 +335,13 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return List.copyOf(actualBackingIndices);
     }
 
-    protected static void createAutoFollowPattern(RestClient client, String name, String pattern, String remoteCluster) throws IOException {
+    protected static void createAutoFollowPattern(
+        RestClient client,
+        String name,
+        String pattern,
+        String remoteCluster,
+        String followIndexPattern
+    ) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
             bodyBuilder.startObject();
@@ -353,6 +351,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
                     bodyBuilder.value(pattern);
                 }
                 bodyBuilder.endArray();
+                if (followIndexPattern != null) {
+                    bodyBuilder.field("follow_index_pattern", followIndexPattern);
+                }
                 bodyBuilder.field("remote_cluster", remoteCluster);
             }
             bodyBuilder.endObject();

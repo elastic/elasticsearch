@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.dataframe.stats;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -56,9 +55,9 @@ public class StatsPersister {
                 )
             );
         } catch (IOException ioe) {
-            LOGGER.error(() -> new ParameterizedMessage("[{}] Failed serializing stats result", jobId), ioe);
+            LOGGER.error(() -> "[" + jobId + "] Failed serializing stats result", ioe);
         } catch (Exception e) {
-            LOGGER.error(() -> new ParameterizedMessage("[{}] Failed indexing stats result", jobId), e);
+            LOGGER.error(() -> "[" + jobId + "] Failed indexing stats result", e);
             auditor.error(jobId, "Failed indexing stats result with id [" + docIdSupplier.apply(jobId) + "]; " + e.getMessage());
         }
     }

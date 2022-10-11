@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -29,6 +30,15 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorF
 
 public interface DataExtractorFactory {
     DataExtractor newExtractor(long start, long end);
+
+    /**
+     * Creates a new extractor with the additional filter
+     * @param start start time of the extractor
+     * @param end end time of the extractor
+     * @param queryBuilder An additional query filter to apply to the supplied datafeed query
+     * @return new extractor
+     */
+    DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder);
 
     /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.

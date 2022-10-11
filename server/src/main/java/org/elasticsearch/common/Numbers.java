@@ -9,49 +9,34 @@
 package org.elasticsearch.common;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.ByteUtils;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.nio.ByteOrder;
 
 /**
  * A set of utilities for numbers.
  */
 public final class Numbers {
-
-    private static final VarHandle BIG_ENDIAN_SHORT = MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.BIG_ENDIAN);
-
-    private static final VarHandle BIG_ENDIAN_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
-
-    private static final VarHandle BIG_ENDIAN_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
-
     private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
     private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
 
     private Numbers() {}
 
     public static short bytesToShort(byte[] bytes, int offset) {
-        return (short) BIG_ENDIAN_SHORT.get(bytes, offset);
+        return ByteUtils.readShortBE(bytes, offset);
     }
 
     public static int bytesToInt(byte[] bytes, int offset) {
-        return (int) BIG_ENDIAN_INT.get(bytes, offset);
+        return ByteUtils.readIntBE(bytes, offset);
     }
 
     public static long bytesToLong(byte[] bytes, int offset) {
-        return (long) BIG_ENDIAN_LONG.get(bytes, offset);
+        return ByteUtils.readLongBE(bytes, offset);
     }
 
     public static long bytesToLong(BytesRef bytes) {
         return bytesToLong(bytes.bytes, bytes.offset);
-    }
-
-    public static byte[] intToBytes(int val) {
-        byte[] arr = new byte[4];
-        BIG_ENDIAN_INT.set(arr, 0, val);
-        return arr;
     }
 
     /**
@@ -60,9 +45,21 @@ public final class Numbers {
      * @param val The int to convert to a byte array
      * @return The byte array converted
      */
+    public static byte[] intToBytes(int val) {
+        byte[] arr = new byte[4];
+        ByteUtils.writeIntBE(val, arr, 0);
+        return arr;
+    }
+
+    /**
+     * Converts a short to a byte array.
+     *
+     * @param val The short to convert to a byte array
+     * @return The byte array converted
+     */
     public static byte[] shortToBytes(int val) {
         byte[] arr = new byte[2];
-        BIG_ENDIAN_SHORT.set(arr, 0, (short) val);
+        ByteUtils.writeShortBE((short) val, arr, 0);
         return arr;
     }
 
@@ -74,7 +71,7 @@ public final class Numbers {
      */
     public static byte[] longToBytes(long val) {
         byte[] arr = new byte[8];
-        BIG_ENDIAN_LONG.set(arr, 0, val);
+        ByteUtils.writeLongBE(val, arr, 0);
         return arr;
     }
 

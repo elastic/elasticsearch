@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.core.TimeValue;
 import org.opensaml.saml.common.SAMLObject;
@@ -20,6 +19,7 @@ import org.w3c.dom.Element;
 import java.time.Clock;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 
 /**
@@ -105,8 +105,8 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
             return decrypter.decrypt(encrypted);
         } catch (DecryptionException e) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "Failed to decrypt SAML EncryptedID [{}] with [{}]",
+                () -> format(
+                    "Failed to decrypt SAML EncryptedID [%s] with [%s]",
                     text(encrypted, 512),
                     describe(getSpConfiguration().getEncryptionCredentials())
                 ),

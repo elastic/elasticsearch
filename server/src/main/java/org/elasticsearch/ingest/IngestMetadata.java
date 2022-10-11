@@ -49,10 +49,6 @@ public final class IngestMetadata implements Metadata.Custom {
     // IngestMetadata is registered as custom metadata.
     private final Map<String, PipelineConfiguration> pipelines;
 
-    private IngestMetadata() {
-        this.pipelines = Collections.emptyMap();
-    }
-
     public IngestMetadata(Map<String, PipelineConfiguration> pipelines) {
         this.pipelines = Collections.unmodifiableMap(pipelines);
     }

@@ -1,5 +1,0 @@
-pr: 85021
-summary: Fix snapshot status messages on node-left
-area: Snapshot/Restore
-type: bug
-issues: []

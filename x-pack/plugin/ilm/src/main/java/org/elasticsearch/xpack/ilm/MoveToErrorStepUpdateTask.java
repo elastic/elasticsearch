@@ -6,25 +6,25 @@
  */
 package org.elasticsearch.xpack.ilm;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
 
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
-public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
+public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateTask {
 
     private static final Logger logger = LogManager.getLogger(MoveToErrorStepUpdateTask.class);
 
@@ -45,6 +45,7 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
         BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction,
         Consumer<ClusterState> stateChangeConsumer
     ) {
+        super(index, currentStepKey);
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
@@ -55,7 +56,7 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState) {
+    protected ClusterState doExecute(ClusterState currentState) throws Exception {
         IndexMetadata idxMeta = currentState.getMetadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
@@ -73,25 +74,42 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        if (newState.equals(oldState) == false) {
-            stateChangeConsumer.accept(newState);
-        }
+    public void onClusterStateProcessed(ClusterState newState) {
+        stateChangeConsumer.accept(newState);
     }
 
     @Override
-    public void onFailure(Exception e) {
-        final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
-            "policy [{}] for index [{}] failed trying to move from step [{}] to the ERROR step.",
-            policy,
-            index.getName(),
-            currentStepKey
-        );
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MoveToErrorStepUpdateTask that = (MoveToErrorStepUpdateTask) o;
+        // We don't have a stable equals on the cause and shouldn't have simultaneous moves to error step to begin with when deduplicating
+        // tasks so we only compare the current state here and in the hashcode.
+        return index.equals(that.index) && policy.equals(that.policy) && currentStepKey.equals(that.currentStepKey);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(index, policy, currentStepKey);
+    }
+
+    @Override
+    protected void handleFailure(Exception e) {
+        Level level;
         if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
-            logger.debug(messageSupplier, e);
+            level = Level.DEBUG;
         } else {
-            logger.error(messageSupplier, e);
+            level = Level.ERROR;
             assert false : new AssertionError("unexpected exception", e);
         }
+        logger.log(
+            level,
+            () -> Strings.format(
+                "policy [%s] for index [%s] failed trying to move from step [%s] to the ERROR step.",
+                policy,
+                index.getName(),
+                currentStepKey
+            )
+        );
     }
 }

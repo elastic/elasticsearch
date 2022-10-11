@@ -116,6 +116,11 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         );
     }
 
+    public void testVersionFields() throws IOException {
+        assertQuery("SELECT CAST('1.2.3' AS VERSION)", "CAST('1.2.3' AS VERSION)", "version", "1.2.3", 2147483647);
+        assertQuery("SELECT CAST('bad' AS VERSION)", "CAST('bad' AS VERSION)", "version", "bad", 2147483647);
+    }
+
     public void testDateTimeIntervals() throws IOException {
         assertQuery("SELECT INTERVAL '326' YEAR", "INTERVAL '326' YEAR", "interval_year", "P326Y", "+326-0", 7);
         assertQuery("SELECT INTERVAL '50' MONTH", "INTERVAL '50' MONTH", "interval_month", "P50M", "+0-50", 7);

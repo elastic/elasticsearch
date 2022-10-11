@@ -20,12 +20,14 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RequestOptions.Builder;
@@ -35,6 +37,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -44,10 +48,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -103,6 +108,7 @@ import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -448,7 +454,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
      * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified filter is used
-     * to filter out outstanding tasks that are expected to be there.
+     * to filter out outstanding tasks that are expected to be there. In addition to the expected tasks that are defined by the filter we
+     * expect the list task to be there since it is created by the call and the health node task which is always running on the background.
      *
      * @param restClient the admin client
      * @param taskFilter  predicate used to filter tasks that are expected to be there
@@ -475,7 +482,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                         final StringBuilder tasksListString = new StringBuilder();
                         while ((line = responseReader.readLine()) != null) {
                             final String taskName = line.split("\\s+")[0];
-                            if (taskName.startsWith(ListTasksAction.NAME) || taskFilter.test(taskName)) {
+                            if (taskName.startsWith(ListTasksAction.NAME)
+                                || taskName.startsWith(HealthNode.TASK_NAME)
+                                || taskFilter.test(taskName)) {
                                 continue;
                             }
                             activeTasks++;
@@ -716,17 +725,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
-                                    logger.warn(
-                                        new ParameterizedMessage("unable to remove multiple composable index templates {}", names),
-                                        e
-                                    );
+                                    logger.warn(() -> format("unable to remove multiple composable index templates %s", names), e);
                                 }
                             } else {
                                 for (String name : names) {
                                     try {
                                         adminClient().performRequest(new Request("DELETE", "_index_template/" + name));
                                     } catch (ResponseException e) {
-                                        logger.warn(new ParameterizedMessage("unable to remove composable index template {}", name), e);
+                                        logger.warn(() -> format("unable to remove composable index template %s", name), e);
                                     }
                                 }
                             }
@@ -750,17 +756,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
-                                    logger.warn(new ParameterizedMessage("unable to remove multiple component templates {}", names), e);
+                                    logger.warn(() -> format("unable to remove multiple component templates %s", names), e);
                                 }
                             } else {
                                 for (String componentTemplate : names) {
                                     try {
                                         adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
                                     } catch (ResponseException e) {
-                                        logger.warn(
-                                            new ParameterizedMessage("unable to remove component template {}", componentTemplate),
-                                            e
-                                        );
+                                        logger.warn(() -> format("unable to remove component template %s", componentTemplate), e);
                                     }
                                 }
                             }
@@ -784,7 +787,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     try {
                         adminClient().performRequest(new Request("DELETE", "_template/" + name));
                     } catch (ResponseException e) {
-                        logger.debug(new ParameterizedMessage("unable to remove index template {}", name), e);
+                        logger.debug(() -> format("unable to remove index template %s", name), e);
                     }
                 }
             } else {
@@ -1141,6 +1144,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(refreshRequest);
     }
 
+    protected static RefreshResponse refresh(String index) throws IOException {
+        return refresh(client(), index);
+    }
+
+    protected static RefreshResponse refresh(RestClient client, String index) throws IOException {
+        Request refreshRequest = new Request("POST", "/" + index + "/_refresh");
+        Response response = client.performRequest(refreshRequest);
+        return RefreshResponse.fromXContent(responseAsParser(response));
+    }
+
     private void waitForPendingRollupTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
@@ -1413,6 +1426,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
+    /**
+     * Assert that the index in question has the given number of documents present
+     */
+    public static void assertDocCount(RestClient client, String indexName, long docCount) throws IOException {
+        Request countReq = new Request("GET", "/" + indexName + "/_count");
+        ObjectPath resp = ObjectPath.createFromResponse(client.performRequest(countReq));
+        assertEquals(
+            "expected " + docCount + " documents but it was a different number",
+            docCount,
+            Long.parseLong(resp.evaluate("count").toString())
+        );
+    }
+
     public static void assertAcknowledged(Response response) throws IOException {
         assertOK(response);
         String jsonBody = EntityUtils.toString(response.getEntity());
@@ -1511,38 +1537,66 @@ public abstract class ESRestTestCase extends ESTestCase {
         adminClient().performRequest(request);
     }
 
-    protected static void createIndex(String name, Settings settings) throws IOException {
-        createIndex(name, settings, null);
+    protected static CreateIndexResponse createIndex(String name) throws IOException {
+        return createIndex(name, null, null, null);
     }
 
-    protected static void createIndex(String name, Settings settings, String mapping) throws IOException {
-        createIndex(name, settings, mapping, null);
+    protected static CreateIndexResponse createIndex(String name, Settings settings) throws IOException {
+        return createIndex(name, settings, null, null);
     }
 
-    protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
+    protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings) throws IOException {
+        return createIndex(client, name, settings, null, null);
+    }
+
+    protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping) throws IOException {
+        return createIndex(name, settings, mapping, null);
+    }
+
+    protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
+        return createIndex(client(), name, settings, mapping, aliases);
+    }
+
+    public static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping, String aliases)
+        throws IOException {
         Request request = new Request("PUT", "/" + name);
-        String entity = "{\"settings\": " + Strings.toString(settings);
+        String entity = "{";
+        if (settings != null) {
+            entity += "\"settings\": " + Strings.toString(settings);
+            if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
+                expectSoftDeletesWarning(request, name);
+            }
+        }
         if (mapping != null) {
-            entity += ",\"mappings\" : {" + mapping + "}";
+            if (settings != null) {
+                entity += ",";
+            }
+            if (mapping.trim().startsWith("{")) {
+                entity += "\"mappings\" : " + mapping + "";
+            } else {
+                entity += "\"mappings\" : {" + mapping + "}";
+            }
         }
         if (aliases != null) {
-            entity += ",\"aliases\": {" + aliases + "}";
+            if (settings != null || mapping != null) {
+                entity += ",";
+            }
+            entity += "\"aliases\": {" + aliases + "}";
         }
         entity += "}";
-        if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-            expectSoftDeletesWarning(request, name);
-        }
         request.setJsonEntity(entity);
-        client().performRequest(request);
+        Response response = client.performRequest(request);
+        return CreateIndexResponse.fromXContent(responseAsParser(response));
     }
 
-    protected static void deleteIndex(String name) throws IOException {
-        deleteIndex(client(), name);
+    protected static AcknowledgedResponse deleteIndex(String name) throws IOException {
+        return deleteIndex(client(), name);
     }
 
-    protected static void deleteIndex(RestClient restClient, String name) throws IOException {
+    protected static AcknowledgedResponse deleteIndex(RestClient restClient, String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
-        restClient.performRequest(request);
+        Response response = restClient.performRequest(request);
+        return AcknowledgedResponse.fromXContent(responseAsParser(response));
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -1587,6 +1641,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
         Map<String, Object> indexSettings = getIndexSettings(index);
         return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("settings");
+    }
+
+    protected static Map<String, Object> getIndexMapping(String index) throws IOException {
+        return entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_mapping")));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getIndexMappingAsMap(String index) throws IOException {
+        Map<String, Object> indexSettings = getIndexMapping(index);
+        return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("mappings");
     }
 
     protected static boolean indexExists(String index) throws IOException {
@@ -1655,6 +1719,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
         assertNotNull(responseEntity);
         return responseEntity;
+    }
+
+    protected static XContentParser responseAsParser(Response response) throws IOException {
+        return XContentHelper.createParser(XContentParserConfiguration.EMPTY, responseAsBytes(response), XContentType.JSON);
+    }
+
+    protected static BytesReference responseAsBytes(Response response) throws IOException {
+        return new BytesArray(EntityUtils.toByteArray(response.getEntity()));
     }
 
     protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
@@ -2015,4 +2087,5 @@ public abstract class ESRestTestCase extends ESTestCase {
             return FieldCapabilitiesResponse.fromXContent(parser);
         }
     }
+
 }

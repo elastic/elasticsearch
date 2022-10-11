@@ -1,0 +1,5 @@
+pr: 88439
+summary: Add new `text_similarity` nlp task
+area: Machine Learning
+type: enhancement
+issues: []

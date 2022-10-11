@@ -142,7 +142,7 @@ public class CoordinationMetadataTests extends ESTestCase {
 
     private Set<VotingConfigExclusion> randomVotingTombstones() {
         final int size = randomIntBetween(1, 10);
-        final Set<VotingConfigExclusion> nodes = new HashSet<>(size);
+        final Set<VotingConfigExclusion> nodes = Sets.newHashSetWithExpectedSize(size);
         while (nodes.size() < size) {
             assertTrue(nodes.add(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))));
         }

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -14,9 +15,8 @@ public class AsyncSearchUser extends User {
 
     public static final String NAME = UsernamesField.ASYNC_SEARCH_NAME;
     public static final AsyncSearchUser INSTANCE = new AsyncSearchUser();
-    public static final String ROLE_NAME = UsernamesField.ASYNC_SEARCH_ROLE;
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
-        ROLE_NAME,
+        UsernamesField.ASYNC_SEARCH_ROLE,
         new String[] { "cancel_task" },
         new RoleDescriptor.IndicesPrivileges[] {
             RoleDescriptor.IndicesPrivileges.builder()
@@ -32,12 +32,11 @@ public class AsyncSearchUser extends User {
     );
 
     private AsyncSearchUser() {
-        super(NAME, ROLE_NAME);
+        super(NAME, Strings.EMPTY_ARRAY);
         // the following traits, and especially the run-as one, go with all the internal users
         // TODO abstract in a base `InternalUser` class
-        assert false == isRunAs() : "cannot run-as the system user";
         assert enabled();
-        assert roles() != null && roles().length == 1;
+        assert roles() != null && roles().length == 0;
     }
 
     @Override
@@ -54,7 +53,4 @@ public class AsyncSearchUser extends User {
         return INSTANCE.equals(user);
     }
 
-    public static boolean is(String principal) {
-        return NAME.equals(principal);
-    }
 }

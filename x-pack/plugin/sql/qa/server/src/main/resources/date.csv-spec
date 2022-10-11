@@ -404,3 +404,46 @@ SELECT emp_no FROM test_emp WHERE DATE_ADD('day', 1, hire_date) = '2021-02-03||-
 10044
 10085
 ;
+
+
+
+// format
+
+formatNormalPattern
+SELECT FORMAT(birth_date, 'dd/MM/yyyy') as x FROM test_emp ORDER BY emp_no LIMIT 1;
+     x
+----------
+02/09/1953
+;
+
+formatWithDoubleQuoteEscaping
+SELECT FORMAT(birth_date, '"yyyy" yyyy') as x FROM test_emp ORDER BY emp_no LIMIT 1;
+
+  x
+------
+yyyy 1953
+;
+
+formatSingleQuote
+SELECT FORMAT(birth_date, '"''" yyyy') as x FROM test_emp ORDER BY emp_no LIMIT 1;
+
+  x
+------
+' 1953
+;
+
+formatQuotesAndAllowedCharacters
+SELECT FORMAT(birth_date, 'abc ''yyy'' yyyy') as x FROM test_emp ORDER BY emp_no LIMIT 1;
+
+  x
+------
+abc yyy 1953
+;
+
+formatQuotesComplexString
+SELECT FORMAT(birth_date, '\t\hi\s i\s \t\h\e \y\ear yyyy an\d \t\h\e \mon\t\h MM') as x FROM test_emp ORDER BY emp_no LIMIT 1;
+
+                   x
+------------------------------------
+this is the year 1953 and the month 09
+;

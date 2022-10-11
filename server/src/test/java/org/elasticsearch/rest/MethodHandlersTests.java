@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class MethodHandlersTests extends ESTestCase {
 
     private final RestApiVersion current = RestApiVersion.current();
-    private final RestApiVersion previous = current.previous();
+    private final RestApiVersion previous = RestApiVersion.previous();
 
     public void testLookupForDifferentMethodsSameVersion() {
         RestHandler putHandler = (request, channel, client) -> {};

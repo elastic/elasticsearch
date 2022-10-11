@@ -96,10 +96,7 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(indexResponses.size());
-        for (IndexLifecycleExplainResponse e : indexResponses.values()) {
-            e.writeTo(out);
-        }
+        out.writeCollection(indexResponses.values());
     }
 
     @Override

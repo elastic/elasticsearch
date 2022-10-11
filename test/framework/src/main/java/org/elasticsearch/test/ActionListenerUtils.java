@@ -10,6 +10,8 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.action.ActionListener;
 
+import java.util.Collection;
+
 import static org.mockito.ArgumentMatchers.any;
 
 /**
@@ -25,5 +27,15 @@ public abstract class ActionListenerUtils {
     @SuppressWarnings("unchecked")
     public static <T> ActionListener<T> anyActionListener() {
         return any(ActionListener.class);
+    }
+
+    /**
+     * Returns a Mockito matcher for any argument that is a {@link Collection}.
+     * @param <T> the action listener type that the caller expects. Do not specify this, it will be inferred
+     * @return a collection matcher
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> Collection<T> anyCollection() {
+        return any(Collection.class);
     }
 }

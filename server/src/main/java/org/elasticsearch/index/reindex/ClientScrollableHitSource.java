@@ -9,7 +9,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -117,7 +116,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
+                logger.warn(() -> "Failed to clear scroll [" + scrollId + "]", e);
                 onCompletion.run();
             }
         });

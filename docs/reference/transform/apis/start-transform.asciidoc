@@ -21,9 +21,6 @@ Requires the following privileges:
 
 * cluster: `manage_transform` (the `transform_admin` built-in role grants this
   privilege)
-* source indices: `read`, `view_index_metadata`.
-* destination index: `read`, `create_index`, `index`. If a `retention_policy` is configured, the `delete` privilege is
-  also required.
 
 [[start-transform-desc]]
 == {api-description-title}

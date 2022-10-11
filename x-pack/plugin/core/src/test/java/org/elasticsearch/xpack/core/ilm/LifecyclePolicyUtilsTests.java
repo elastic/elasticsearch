@@ -136,7 +136,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                                         null,
                                         null,
                                         null,
-                                        new ComposableIndexTemplate.DataStreamTemplate(false, false, null)
+                                        new ComposableIndexTemplate.DataStreamTemplate(false, false)
                                     )
                                 )
                             )
@@ -205,7 +205,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                                 null,
                                 null,
                                 null,
-                                new ComposableIndexTemplate.DataStreamTemplate(false, false, null)
+                                new ComposableIndexTemplate.DataStreamTemplate(false, false)
                             )
                         )
                     )

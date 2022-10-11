@@ -475,15 +475,13 @@ subprojects {
     if (project.name.contains('deb')) {
       checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
         onlyIf dpkgExists
-        final ByteArrayOutputStream output = new ByteArrayOutputStream()
         exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
-        exec.standardOutput = output
+        exec.getCaptureOutput().set(true)
         doLast {
           String expectedLicense
           expectedLicense = "Elastic-License"
           final Pattern pattern = Pattern.compile("\\s*License: (.+)")
-          final String info = output.toString('UTF-8')
-          final String[] actualLines = info.split("\n")
+          final String[] actualLines = getOutput().split("\n")
           int count = 0
           for (final String actualLine : actualLines) {
             final Matcher matcher = pattern.matcher(actualLine)
@@ -507,11 +505,10 @@ subprojects {
       assert project.name.contains('rpm')
       checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
         onlyIf rpmExists
-        final ByteArrayOutputStream output = new ByteArrayOutputStream()
         exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.get().outputs.files.singleFile}"
-        exec.standardOutput = output
+        exec.getCaptureOutput().set(true)
         doLast {
-          String license = output.toString('UTF-8')
+          String license = getOutput()
           String expectedLicense
           expectedLicense = "Elastic License"
           if (license != expectedLicense) {

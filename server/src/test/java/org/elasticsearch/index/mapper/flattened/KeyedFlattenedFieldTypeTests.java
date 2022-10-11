@@ -176,14 +176,14 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         Map<String, Object> sourceValue = Map.of("key", "value");
 
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath("field.key")).thenReturn(Set.of("field.key"));
 
         ValueFetcher fetcher = ft.valueFetcher(searchExecutionContext, null);
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap("field", sourceValue));
+        SourceLookup lookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.singletonMap("field", sourceValue)));
 
         assertEquals(List.of("value"), fetcher.fetchValues(lookup, new ArrayList<Object>()));
-        lookup.setSource(Collections.singletonMap("field", null));
+        lookup.setSourceProvider(new SourceLookup.MapSourceProvider(Collections.singletonMap("field", null)));
         assertEquals(List.of(), fetcher.fetchValues(lookup, new ArrayList<Object>()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.valueFetcher(searchExecutionContext, "format"));

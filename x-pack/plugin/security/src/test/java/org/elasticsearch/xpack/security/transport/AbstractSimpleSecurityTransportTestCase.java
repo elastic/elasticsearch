@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -17,8 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -121,7 +122,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("connect_exception"));
             assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
-            Throwable cause = e.getCause();
+            Throwable cause = ExceptionsHelper.unwrap(e, IOException.class);
             assertThat(cause, instanceOf(IOException.class));
         }
 

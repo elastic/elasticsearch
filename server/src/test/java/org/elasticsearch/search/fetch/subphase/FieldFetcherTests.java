@@ -14,13 +14,15 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.LongFieldScriptTests;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -29,7 +31,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -39,7 +42,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.ObjectPath.eval;
@@ -231,14 +234,17 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                 new FieldAndFormat("_ignored", null)
             );
             FieldFetcher fieldFetcher = FieldFetcher.create(
-                newSearchExecutionContext(mapperService, (ft, index, sl) -> fieldDataLookup().apply(ft, sl)),
+                newSearchExecutionContext(
+                    mapperService,
+                    (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+                ),
                 fieldList
             );
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
 
-            SourceLookup sourceLookup = new SourceLookup();
+            SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
             sourceLookup.setSegmentAndDocument(readerContext, 0);
 
             Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(sourceLookup);
@@ -278,8 +284,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     public void testEmptyFetch() throws IOException {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject();
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
+        SourceLookup sourceLookup = new SourceLookup(new SourceLookup.BytesSourceProvider(BytesReference.bytes(source)));
         {
             // make sure that an empty fetch don't deserialize the document
             FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), List.of());
@@ -1070,6 +1075,103 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         expectThrows(TooComplexToDeterminizeException.class, () -> fetchFields(mapperService, source, fieldAndFormatList));
     }
 
+    public void testFetchFromSourceWithSourceDisabled() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source").field("enabled", false).endObject();
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("field").field("type", "keyword").endObject();
+                    mapping.startObject("location").field("type", "geo_point").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+        {
+            Map<String, DocumentField> fields = fetchFields(mapperService, null, "field");
+            assertEquals(0, fields.size());
+        }
+        {
+            Map<String, DocumentField> fields = fetchFields(mapperService, null, "location");
+            assertEquals(0, fields.size());
+        }
+    }
+
+    public void testFetchRuntimeFieldWithSourceDisabled() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source").field("enabled", false).endObject();
+                mapping.startObject("runtime");
+                {
+                    mapping.startObject("runtime_field").field("type", "long").field("script", "emit(1);").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+        SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
+            mapperService,
+            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+        );
+        withLuceneIndex(mapperService, iw -> iw.addDocument(new LuceneDocument()), iw -> {
+            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("runtime_field", null, false));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+            fieldFetcher.setNextReader(readerContext);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(new SourceLookup(new SourceLookup.ReaderSourceProvider()));
+            assertEquals(1, fields.size());
+            DocumentField field = fields.get("runtime_field");
+            assertEquals(1L, (long) field.getValue());
+        });
+    }
+
+    public void testFetchMetadataFieldWithSourceDisabled() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source").field("enabled", false).endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+        SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
+            mapperService,
+            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+        );
+        withLuceneIndex(mapperService, iw -> {
+            ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("{}"));
+            iw.addDocument(parsedDocument.rootDoc());
+        }, iw -> {
+            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("_id", null, false));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+            fieldFetcher.setNextReader(readerContext);
+            SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
+            sourceLookup.setSegmentAndDocument(readerContext, 0);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
+            assertEquals(1, fields.size());
+            DocumentField field = fields.get("_id");
+            assertEquals("1", field.getValue());
+        });
+    }
+
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
         return Collections.singletonList(new FieldAndFormat(name, format, includeUnmapped));
     }
@@ -1081,10 +1183,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
         throws IOException {
-
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
-
+        SourceLookup sourceLookup = null;
+        if (source != null) {
+            sourceLookup = new SourceLookup(new SourceLookup.BytesSourceProvider(BytesReference.bytes(source)));
+        } else {
+            sourceLookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.emptyMap()));
+        }
         FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
         return fieldFetcher.fetch(sourceLookup);
     }
@@ -1137,7 +1241,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     private static SearchExecutionContext newSearchExecutionContext(
         MapperService mapperService,
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup
     ) {
         Settings settings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
@@ -1168,5 +1272,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             emptyMap()
         );
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        return (T) LongFieldScriptTests.DUMMY;
     }
 }

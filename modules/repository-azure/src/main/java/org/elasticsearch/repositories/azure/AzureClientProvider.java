@@ -13,10 +13,12 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.resolver.DefaultAddressResolverGroup;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
+import reactor.netty.resources.LoopResources;
 
 import com.azure.core.http.HttpClient;
 import com.azure.core.http.HttpMethod;
@@ -31,7 +33,10 @@ import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
+import com.azure.storage.common.StorageSharedKeyCredential;
+import com.azure.storage.common.implementation.connectionstring.StorageAuthenticationSettings;
 import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
+import com.azure.storage.common.implementation.connectionstring.StorageEndpoint;
 import com.azure.storage.common.policy.RequestRetryOptions;
 
 import org.apache.logging.log4j.LogManager;
@@ -94,6 +99,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
     private final ClientLogger clientLogger = new ClientLogger(AzureClientProvider.class);
+    private final LoopResources nioLoopResources;
     private volatile boolean closed = false;
 
     AzureClientProvider(
@@ -108,6 +114,10 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         this.eventLoopGroup = eventLoopGroup;
         this.connectionProvider = connectionProvider;
         this.byteBufAllocator = byteBufAllocator;
+        // The underlying http client uses this as part of the connection pool key,
+        // hence we need to use the same instance across all the client instances
+        // to avoid creating multiple connection pools.
+        this.nioLoopResources = useNative -> eventLoopGroup;
     }
 
     static int eventLoopThreadsFromSettings(Settings settings) {
@@ -164,29 +174,39 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         }
 
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);
-        nettyHttpClient = nettyHttpClient.port(80).wiretap(false);
-
-        nettyHttpClient = nettyHttpClient.tcpConfiguration(tcpClient -> {
-            tcpClient = tcpClient.runOn(eventLoopGroup);
-            tcpClient = tcpClient.option(ChannelOption.ALLOCATOR, byteBufAllocator);
-            return tcpClient;
-        });
+        nettyHttpClient = nettyHttpClient.port(80)
+            .wiretap(false)
+            .resolver(DefaultAddressResolverGroup.INSTANCE)
+            .runOn(nioLoopResources)
+            .option(ChannelOption.ALLOCATOR, byteBufAllocator);
 
         final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
 
         final String connectionString = settings.getConnectString();
+        final StorageConnectionString storageConnectionString = StorageConnectionString.create(connectionString, clientLogger);
+        final StorageEndpoint endpoint = storageConnectionString.getBlobEndpoint();
+        final StorageAuthenticationSettings authSettings = storageConnectionString.getStorageAuthSettings();
 
-        BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
+        BlobServiceClientBuilder builder = new BlobServiceClientBuilder().endpoint(endpoint.getPrimaryUri())
             .httpClient(httpClient)
             .retryOptions(retryOptions);
+
+        if (authSettings.getType() == StorageAuthenticationSettings.Type.ACCOUNT_NAME_KEY) {
+            builder.credential(
+                new StorageSharedKeyCredential(authSettings.getAccount().getName(), authSettings.getAccount().getAccessKey())
+            );
+        } else if (authSettings.getType() == StorageAuthenticationSettings.Type.SAS_TOKEN) {
+            // Notice that we used the SAS token as it is provided in settings,
+            // this avoids going through the SDK SAS token sanitation process
+            // which can provide an invalid signature (see #88140)
+            builder.sasToken(settings.getSasToken());
+        }
 
         if (successfulRequestConsumer != null) {
             builder.addPolicy(new SuccessfulRequestTracker(successfulRequestConsumer));
         }
 
         if (locationMode.isSecondary()) {
-            // TODO: maybe extract this logic so we don't need to have a client logger around?
-            StorageConnectionString storageConnectionString = StorageConnectionString.create(connectionString, clientLogger);
             String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
             if (secondaryUri == null) {
                 throw new IllegalArgumentException(

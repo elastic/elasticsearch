@@ -25,6 +25,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -261,6 +262,7 @@ class DocumentLeafReader extends LeafReader {
             0,
             0,
             0,
+            VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
             false
         );
@@ -457,6 +459,11 @@ class DocumentLeafReader extends LeafReader {
                     return NO_MORE_ORDS;
                 }
                 return i;
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.size();
             }
 
             @Override

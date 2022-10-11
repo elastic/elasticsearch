@@ -38,7 +38,9 @@ public class LongGCDisruption extends SingleNodeDisruption {
         // security manager is shared across all nodes and it uses synchronized maps internally
         Pattern.compile("java\\.lang\\.SecurityManager"),
         // SecureRandom instance from SecureRandomHolder class is shared by all nodes
-        Pattern.compile("java\\.security\\.SecureRandom") };
+        Pattern.compile("java\\.security\\.SecureRandom"),
+        // Lucene's WindowsFS is shared across nodes and contains some coarse synchronization
+        Pattern.compile("org\\.apache\\.lucene\\.tests\\.mockfile\\.WindowsFS") };
 
     private static final ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
 

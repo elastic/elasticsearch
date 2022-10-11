@@ -15,6 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -31,6 +33,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
@@ -150,6 +153,15 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("ml.jobs.opened.count", usage));
     }
 
+    public void testOpenJob_GivenTimeout_Returns408() throws IOException {
+        String jobId = "test-timeout-returns-408";
+        createFarequoteJob(jobId);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> openJob(jobId, Optional.of(TimeValue.timeValueNanos(1L))));
+
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.REQUEST_TIMEOUT.getStatus()));
+    }
+
     private Response createFarequoteJob(String jobId) throws IOException {
         return putJob(jobId, """
             {
@@ -207,32 +219,34 @@ public class MlJobIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 String aliasesResponse = getAliases();
-                assertThat(aliasesResponse, containsString("""
-                    "%s":{"aliases":{""".formatted(AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName))));
+                assertThat(aliasesResponse, containsString(formatted("""
+                    "%s":{"aliases":{""", AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName))));
                 assertThat(
                     aliasesResponse,
                     containsString(
-                        """
-                            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+                        formatted(
+                            """
+                                "%s":{"filter":{"term":{"job_id":{"value":"%s"}}},"is_hidden":true}""",
                             AnomalyDetectorsIndex.jobResultsAliasedName(jobId1),
                             jobId1
                         )
                     )
                 );
-                assertThat(aliasesResponse, containsString("""
-                    "%s":{"is_hidden":true}""".formatted(AnomalyDetectorsIndex.resultsWriteAlias(jobId1))));
+                assertThat(aliasesResponse, containsString(formatted("""
+                    "%s":{"is_hidden":true}""", AnomalyDetectorsIndex.resultsWriteAlias(jobId1))));
                 assertThat(
                     aliasesResponse,
                     containsString(
-                        """
-                            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+                        formatted(
+                            """
+                                "%s":{"filter":{"term":{"job_id":{"value":"%s"}}},"is_hidden":true}""",
                             AnomalyDetectorsIndex.jobResultsAliasedName(jobId2),
                             jobId2
                         )
                     )
                 );
-                assertThat(aliasesResponse, containsString("""
-                    "%s":{"is_hidden":true}""".formatted(AnomalyDetectorsIndex.resultsWriteAlias(jobId2))));
+                assertThat(aliasesResponse, containsString(formatted("""
+                    "%s":{"is_hidden":true}""", AnomalyDetectorsIndex.resultsWriteAlias(jobId2))));
             } catch (ResponseException e) {
                 throw new AssertionError(e);
             }
@@ -726,7 +740,7 @@ public class MlJobIT extends ESRestTestCase {
         // Make the job's results span an extra two indices, i.e. three in total.
         // To do this the job's results alias needs to encompass all three indices.
         Request extraIndex1 = new Request("PUT", indexName + "-001");
-        extraIndex1.setJsonEntity("""
+        extraIndex1.setJsonEntity(formatted("""
             {
               "aliases": {
                 "%s": {
@@ -738,10 +752,10 @@ public class MlJobIT extends ESRestTestCase {
                   }
                 }
               }
-            }""".formatted(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), Job.ID, jobId));
+            }""", AnomalyDetectorsIndex.jobResultsAliasedName(jobId), Job.ID, jobId));
         client().performRequest(extraIndex1);
         Request extraIndex2 = new Request("PUT", indexName + "-002");
-        extraIndex2.setJsonEntity("""
+        extraIndex2.setJsonEntity(formatted("""
             {
               "aliases": {
                 "%s": {
@@ -753,7 +767,7 @@ public class MlJobIT extends ESRestTestCase {
                   }
                 }
               }
-            }""".formatted(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), Job.ID, jobId));
+            }""", AnomalyDetectorsIndex.jobResultsAliasedName(jobId), Job.ID, jobId));
         client().performRequest(extraIndex2);
 
         // Use _cat/indices/.ml-anomalies-* instead of _cat/indices/_all to workaround https://github.com/elastic/elasticsearch/issues/45652
@@ -907,13 +921,14 @@ public class MlJobIT extends ESRestTestCase {
             assertNull(recreationException.get().getMessage(), recreationException.get());
         }
 
-        String expectedReadAliasString = """
-            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+        String expectedReadAliasString = formatted(
+            """
+                "%s":{"filter":{"term":{"job_id":{"value":"%s"}}},"is_hidden":true}""",
             AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
             jobId
         );
-        String expectedWriteAliasString = """
-            "%s":{"is_hidden":true}""".formatted(AnomalyDetectorsIndex.resultsWriteAlias(jobId));
+        String expectedWriteAliasString = formatted("""
+            "%s":{"is_hidden":true}""", AnomalyDetectorsIndex.resultsWriteAlias(jobId));
         try {
             // The idea of the code above is that the deletion is sufficiently time-consuming that
             // all threads enter the deletion call before the first one exits it. Usually this happens,
@@ -960,10 +975,17 @@ public class MlJobIT extends ESRestTestCase {
     }
 
     private void openJob(String jobId) throws IOException {
-        Response openResponse = client().performRequest(
-            new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open")
-        );
-        assertThat(entityAsMap(openResponse), hasEntry("opened", true));
+        Response response = openJob(jobId, Optional.empty());
+        assertThat(entityAsMap(response), hasEntry("opened", true));
+    }
+
+    private Response openJob(String jobId, Optional<TimeValue> timeout) throws IOException {
+        StringBuilder path = new StringBuilder(MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
+        if (timeout.isPresent()) {
+            path.append("?timeout=" + timeout.get().getStringRep());
+        }
+        Response openResponse = client().performRequest(new Request("POST", path.toString()));
+        return openResponse;
     }
 
     private void closeJob(String jobId) throws IOException {

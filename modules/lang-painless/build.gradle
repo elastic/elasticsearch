@@ -100,27 +100,6 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     ].join(',')
 }
 
-/* Build Javadoc for the Java classes in Painless's public API that are in the
- * Painless plugin */
-tasks.register("apiJavadoc", Javadoc) {
-    source = sourceSets.main.allJava
-    classpath = sourceSets.main.compileClasspath + sourceSets.main.output
-    include '**/org/elasticsearch/painless/api/'
-    destinationDir = new File(docsDir, 'apiJavadoc')
-}
-
-tasks.register("apiJavadocJar", Jar) {
-    archiveClassifier = 'apiJavadoc'
-    from apiJavadoc
-}
-
-tasks.named("assemble").configure {
-    dependsOn "apiJavadocJar"
-}
-tasks.named("check").configure {
-    dependsOn "apiJavadocJar"
-}
-
 esplugin.bundleSpec.into("spi") {
     from(configurations.spi)
 }

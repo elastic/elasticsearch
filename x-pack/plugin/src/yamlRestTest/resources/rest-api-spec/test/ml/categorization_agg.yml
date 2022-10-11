@@ -71,8 +71,6 @@ setup:
                 "categorize_text": {
                   "field": "text",
                   "size": 10,
-                  "max_unique_tokens": 2,
-                  "max_matched_tokens": 1,
                   "similarity_threshold": 11
                 }
               }
@@ -81,13 +79,18 @@ setup:
 
   - length: { aggregations.categories.buckets: 2 }
   - match: { aggregations.categories.buckets.0.doc_count: 4 }
-  - match: { aggregations.categories.buckets.0.key: "Node *" }
+  - match: { aggregations.categories.buckets.0.key: "Node" }
+  - match: { aggregations.categories.buckets.0.regex: ".*?Node.*?" }
+  - match: { aggregations.categories.buckets.0.max_matching_length: 16 }
   - match: { aggregations.categories.buckets.1.doc_count: 3 }
-  - match: { aggregations.categories.buckets.1.key: "User Foo logging *" }
+  - match: { aggregations.categories.buckets.1.key: "User Foo logging" }
+  - match: { aggregations.categories.buckets.1.regex: ".*?User.+?Foo.+?logging.*?" }
+  - match: { aggregations.categories.buckets.1.max_matching_length: 22 }
+
 ---
 "Test categorization aggregation against unsupported field":
   - do:
-      catch: /categorize_text agg \[categories\] only works on analyzable text fields/
+      catch: /categorize_text agg \[categories\] only works on text and keyword fields/
       search:
         index: to_categorize
         body: >
@@ -104,71 +107,6 @@ setup:
 
 ---
 "Test categorization aggregation with poor settings":
-
-  - do:
-      catch: /\[max_unique_tokens\] must be greater than 0 and less than or equal \[100\]/
-      search:
-        index: to_categorize
-        body: >
-          {
-            "size": 0,
-            "aggs": {
-              "categories": {
-                "categorize_text": {
-                  "field": "text",
-                  "max_unique_tokens": -2
-                }
-              }
-            }
-          }
-  - do:
-      catch: /\[max_unique_tokens\] must be greater than 0 and less than or equal \[100\]/
-      search:
-        index: to_categorize
-        body: >
-          {
-            "size": 0,
-            "aggs": {
-              "categories": {
-                "categorize_text": {
-                  "field": "text",
-                  "max_unique_tokens": 101
-                }
-              }
-            }
-          }
-  - do:
-      catch: /\[max_matched_tokens\] must be greater than 0 and less than or equal \[100\]/
-      search:
-        index: to_categorize
-        body: >
-          {
-            "size": 0,
-            "aggs": {
-              "categories": {
-                "categorize_text": {
-                  "field": "text",
-                  "max_matched_tokens": -2
-                }
-              }
-            }
-          }
-  - do:
-      catch: /\[max_matched_tokens\] must be greater than 0 and less than or equal \[100\]/
-      search:
-        index: to_categorize
-        body: >
-          {
-            "size": 0,
-            "aggs": {
-              "categories": {
-                "categorize_text": {
-                  "field": "text",
-                  "max_matched_tokens": 101
-                }
-              }
-            }
-          }
 
   - do:
       catch: /\[similarity_threshold\] must be in the range \[1, 100\]/

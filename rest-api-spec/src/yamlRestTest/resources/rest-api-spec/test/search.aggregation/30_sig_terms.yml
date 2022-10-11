@@ -233,3 +233,52 @@
                 significant_terms:
                   field: foo
                   jlp: {}
+
+---
+"Test alias background filter":
+  - skip:
+      version: " - 8.3.99"
+      reason: fixed in 8.4
+
+  - do:
+      indices.create:
+        index:  test_index
+        body:
+          mappings:
+            properties:
+              field1:
+                type: keyword
+              field2:
+                type: keyword
+
+  - do:
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+        body: {"filter": {"bool": {"filter": [{"term": {"field2": "foo"}}]}}}
+  - do:
+      index:
+        index: test_index
+        id: "1"
+        body: { "field1" : "1", "field2": "foo" }
+
+  - do:
+      index:
+        index: test_index
+        id: "2"
+        body: { "field1": "2", "field2": "bar" }
+
+  - do:
+      index:
+        index: test_index
+        id: "3"
+        body: { "field1": "3", "field2": "foo" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_alias
+        body: {"aggs": {"sig_terms": {"significant_terms": {"field": "field1"}}}}
+  - match: { aggregations.sig_terms.bg_count: 2 }

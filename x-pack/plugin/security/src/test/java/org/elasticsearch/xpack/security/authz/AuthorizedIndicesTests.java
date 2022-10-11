@@ -21,6 +21,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -365,7 +366,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             "node0" + randomIntBetween(1, 9)
         );
         return new AuthorizationEngine.RequestInfo(
-            new Authentication(new User(randomAlphaOfLength(8)), realm, realm),
+            AuthenticationTestHelper.builder().user(new User(randomAlphaOfLength(8))).realmRef(realm).build(false),
             request,
             action,
             null

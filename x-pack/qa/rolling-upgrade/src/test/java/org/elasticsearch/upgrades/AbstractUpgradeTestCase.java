@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
@@ -30,6 +31,8 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     );
 
     protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+
+    protected static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

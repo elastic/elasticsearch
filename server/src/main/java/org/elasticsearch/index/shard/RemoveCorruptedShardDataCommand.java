@@ -234,7 +234,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
     // Visible for testing
     @Override
-    public void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment environment) throws IOException {
+    public void processDataPaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment environment) throws IOException {
         warnAboutIndexBackup(terminal);
 
         final ClusterState clusterState = loadTermAndClusterState(
@@ -449,11 +449,11 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
     }
 
     private static void printRerouteCommand(ShardPath shardPath, Terminal terminal, boolean allocateStale) throws IOException {
-        final Path nodePath = getNodePath(shardPath);
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePath);
+        final Path dataPath = getDataPath(shardPath);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPath);
 
         if (nodeMetadata == null) {
-            throw new ElasticsearchException("No node meta data at " + nodePath);
+            throw new ElasticsearchException("No node meta data at " + dataPath);
         }
 
         final String nodeId = nodeMetadata.nodeId();
@@ -472,13 +472,13 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         terminal.println("");
     }
 
-    private static Path getNodePath(ShardPath shardPath) {
-        final Path nodePath = shardPath.getDataPath().getParent().getParent().getParent();
-        if (Files.exists(nodePath) == false
-            || Files.exists(nodePath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME)) == false) {
-            throw new ElasticsearchException("Unable to resolve node path for " + shardPath);
+    private static Path getDataPath(ShardPath shardPath) {
+        final Path dataPath = shardPath.getDataPath().getParent().getParent().getParent();
+        if (Files.exists(dataPath) == false
+            || Files.exists(dataPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME)) == false) {
+            throw new ElasticsearchException("Unable to resolve data path for " + shardPath);
         }
-        return nodePath;
+        return dataPath;
     }
 
     public enum CleanStatus {

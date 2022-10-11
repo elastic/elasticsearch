@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.rest.action.enrollment;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -52,7 +51,7 @@ public final class RestNodeEnrollmentAction extends EnrollmentBaseRestHandler {
                 @Override
                 public RestResponse buildResponse(NodeEnrollmentResponse nodeEnrollmentResponse, XContentBuilder builder) throws Exception {
                     nodeEnrollmentResponse.toXContent(builder, channel.request());
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new RestResponse(RestStatus.OK, builder);
                 }
             }
         );

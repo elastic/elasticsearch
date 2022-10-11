@@ -101,7 +101,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     @Override
-    protected GetResponse shardOperation(GetRequest request, ShardId shardId) {
+    protected GetResponse shardOperation(GetRequest request, ShardId shardId) throws IOException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
 
@@ -116,7 +116,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 request.realtime(),
                 request.version(),
                 request.versionType(),
-                request.fetchSourceContext()
+                request.fetchSourceContext(),
+                request.isForceSyntheticSource()
             );
         return new GetResponse(result);
     }

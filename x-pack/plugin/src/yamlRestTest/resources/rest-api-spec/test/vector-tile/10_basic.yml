@@ -77,6 +77,18 @@ setup:
           exact_bounds: true
 
 ---
+"with labels":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          with_labels: true
+
+---
 "grid precision":
   - do:
       search_mvt:
@@ -149,6 +161,32 @@ setup:
           grid_type: centroid
 
 ---
+"grid agg geotile with labels":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          grid_agg: geotile
+          with_labels: true
+
+---
+"grid agg geohex with labels":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          grid_agg: geohex
+          with_labels: true
+
+---
 "field field":
   - do:
       search_mvt:
@@ -175,6 +213,24 @@ setup:
               script: emit(doc['location'].lon)
               type: double
           fields: [lon]
+
+---
+"runtime_fields label position":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          runtime_mappings:
+            label_position:
+              script:
+                GeoPoint point = doc['location'].getLabelPosition();
+                emit(point.getLat(), point.getLon());
+              type: geo_point
+          fields: [label_position]
 
 ---
 "query field":

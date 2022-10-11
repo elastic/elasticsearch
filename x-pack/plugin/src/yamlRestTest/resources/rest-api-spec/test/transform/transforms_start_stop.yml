@@ -61,6 +61,16 @@ setup:
               }
             }
           }
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "logger.org.elasticsearch.xpack.transform.action": "DEBUG",
+              "logger.org.elasticsearch.xpack.transform.transforms": "DEBUG"
+            }
+          }
+
 
 ---
 teardown:
@@ -91,6 +101,16 @@ teardown:
   - do:
       transform.delete_transform:
         transform_id: "airline-transform-start-stop-continuous"
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "logger.org.elasticsearch.xpack.transform.action": "INFO",
+              "logger.org.elasticsearch.xpack.transform.transforms": "INFO"
+            }
+          }
+
 ---
 "Test start transform":
   - do:

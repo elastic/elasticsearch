@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -131,7 +130,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 )
             )
         );
-        ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp);
+        ClusterService clusterService = new ClusterService(builder.build(), clusterSettings, tp, null);
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, builder.build());
@@ -253,7 +252,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
         GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsIndex);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
-        ImmutableOpenMap<String, MappingMetadata> indexMappings = response.getMappings();
+        Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
         MappingMetadata typeMappings = indexMappings.get(sharedResultsIndex);
         assertNotNull("expected " + sharedResultsIndex + " in " + indexMappings, typeMappings);
@@ -504,7 +503,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     private Map<String, Object> getIndexMappingProperties(String index) {
         GetMappingsRequest request = new GetMappingsRequest().indices(index);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
-        ImmutableOpenMap<String, MappingMetadata> indexMappings = response.getMappings();
+        Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
         MappingMetadata typeMappings = indexMappings.get(index);
         assertNotNull("expected " + index + " in " + indexMappings, typeMappings);
@@ -526,7 +525,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     private Set<String> getAliases(String index) {
         GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest().indices(index)).actionGet();
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = getAliasesResponse.getAliases();
+        Map<String, List<AliasMetadata>> aliases = getAliasesResponse.getAliases();
         assertThat(aliases.containsKey(index), is(true));
         List<AliasMetadata> aliasMetadataList = aliases.get(index);
         for (AliasMetadata aliasMetadata : aliasMetadataList) {
@@ -601,7 +600,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Consumer<Exception> exceptionConsumer
     ) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.getDataCountsModelSizeAndTimingStats(jobId, (dataCounts, modelSizeStats, timingStats) -> {
+        jobProvider.getDataCountsModelSizeAndTimingStats(jobId, null, (dataCounts, modelSizeStats, timingStats) -> {
             dataCountsConsumer.accept(dataCounts);
             modelSizeStatsConsumer.accept(modelSizeStats);
             timingStatsConsumer.accept(timingStats);
@@ -800,7 +799,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             .get();
 
         PlainActionFuture<QueryPage<ModelSnapshot>> future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_2,snap_1", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_2,snap_1", null, future::onResponse, future::onFailure);
         List<ModelSnapshot> snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertNull(snapshots.get(0).getQuantiles());
@@ -808,7 +807,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertNull(snapshots.get(1).getQuantiles());
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*", null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
@@ -816,21 +815,21 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertNull(snapshots.get(1).getQuantiles());
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*,other_snap", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_*,other_snap", null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
         assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "*", future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "*", null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
         assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
 
         future = new PlainActionFuture<>();
-        jobProvider.modelSnapshots("*", 0, 5, null, null, "min_version", false, null, future::onResponse, future::onFailure);
+        jobProvider.modelSnapshots("*", 0, 5, null, null, "min_version", false, null, null, future::onResponse, future::onFailure);
         snapshots = future.actionGet().results();
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("11"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));

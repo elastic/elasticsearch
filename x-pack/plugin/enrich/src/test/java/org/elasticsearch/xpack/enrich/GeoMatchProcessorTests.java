@@ -96,8 +96,8 @@ public class GeoMatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
             Map.of("location", fieldValue)
         );

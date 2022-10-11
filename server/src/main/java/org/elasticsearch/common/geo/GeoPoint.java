@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 
-public class GeoPoint implements ToXContentFragment {
+public class GeoPoint implements SpatialPoint, ToXContentFragment {
 
     protected double lat;
     protected double lon;
@@ -52,8 +52,8 @@ public class GeoPoint implements ToXContentFragment {
         this.lon = lon;
     }
 
-    public GeoPoint(GeoPoint template) {
-        this(template.getLat(), template.getLon());
+    public GeoPoint(SpatialPoint template) {
+        this(template.getY(), template.getX());
     }
 
     public GeoPoint reset(double lat, double lon) {
@@ -189,12 +189,34 @@ public class GeoPoint implements ToXContentFragment {
         return this.lon;
     }
 
+    @Override
+    public double getX() {
+        return this.lon;
+    }
+
+    @Override
+    public double getY() {
+        return this.lat;
+    }
+
     public String geohash() {
         return Geohash.stringEncode(lon, lat);
     }
 
     public String getGeohash() {
         return Geohash.stringEncode(lon, lat);
+    }
+
+    /** Return the point in Lucene encoded format used to stored points as doc values */
+    public long getEncoded() {
+        final int latitudeEncoded = GeoEncodingUtils.encodeLatitude(this.lat);
+        final int longitudeEncoded = GeoEncodingUtils.encodeLongitude(this.lon);
+        return (((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL);
+    }
+
+    /** reset the point using Lucene encoded format used to stored points as doc values */
+    public GeoPoint resetFromEncoded(long encoded) {
+        return reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
     }
 
     @Override

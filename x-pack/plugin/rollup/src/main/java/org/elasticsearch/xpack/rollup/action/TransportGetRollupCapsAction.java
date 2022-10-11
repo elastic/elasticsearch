@@ -13,9 +13,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
@@ -34,7 +34,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     @Inject
     public TransportGetRollupCapsAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
-        super(GetRollupCapsAction.NAME, transportService, actionFilters, GetRollupCapsAction.Request::new);
+        super(GetRollupCapsAction.NAME, transportService, actionFilters, GetRollupCapsAction.Request::new, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
     }
 
@@ -44,7 +44,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
         listener.onResponse(new GetRollupCapsAction.Response(allCaps));
     }
 
-    static Map<String, RollableIndexCaps> getCaps(String indexPattern, ImmutableOpenMap<String, IndexMetadata> indices) {
+    static Map<String, RollableIndexCaps> getCaps(String indexPattern, Map<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps>> allCaps = new TreeMap<>();
         for (var entry : indices.entrySet()) {
 

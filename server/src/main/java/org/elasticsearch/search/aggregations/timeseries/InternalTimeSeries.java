@@ -181,10 +181,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
-        out.writeVInt(buckets.size());
-        for (InternalTimeSeries.InternalBucket bucket : buckets) {
-            bucket.writeTo(out);
-        }
+        out.writeCollection(buckets);
     }
 
     @Override

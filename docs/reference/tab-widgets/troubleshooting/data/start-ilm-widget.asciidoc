@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Start ILM">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-start-ilm"
+            id="cloud-start-ilm">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-start-ilm"
+            id="self-managed-start-ilm"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-start-ilm"
+       aria-labelledby="cloud-start-ilm">
+++++
+
+include::start-ilm.asciidoc[tag=cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-start-ilm"
+       aria-labelledby="self-managed-start-ilm"
+       hidden="">
+++++
+
+include::start-ilm.asciidoc[tag=self-managed]
+
+++++
+  </div>
+</div>
+++++

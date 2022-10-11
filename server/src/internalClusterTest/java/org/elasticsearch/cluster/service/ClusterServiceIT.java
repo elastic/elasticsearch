@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.service;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +46,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask(
+        clusterService.submitUnbatchedStateUpdateTask(
             "test",
             new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
                 @Override
@@ -90,8 +89,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     onFailure.set(true);
                     latch.countDown();
                 }
-            },
-            ClusterStateTaskExecutor.unbatched()
+            }
         );
 
         ensureGreen();
@@ -117,7 +115,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask(
+        clusterService.submitUnbatchedStateUpdateTask(
             "test",
             new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
                 @Override
@@ -155,8 +153,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     onFailure.set(true);
                     latch.countDown();
                 }
-            },
-            ClusterStateTaskExecutor.unbatched()
+            }
         );
 
         ensureGreen();
@@ -182,7 +179,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
 
-        clusterService.submitStateUpdateTask(
+        clusterService.submitUnbatchedStateUpdateTask(
             "test",
             new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
                 @Override
@@ -223,8 +220,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     onFailure.set(true);
                     latch.countDown();
                 }
-            },
-            ClusterStateTaskExecutor.unbatched()
+            }
         );
 
         ensureGreen();
@@ -248,7 +244,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask(
+        clusterService.submitUnbatchedStateUpdateTask(
             "test",
             new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TimeValue.ZERO, TEN_SECONDS), null) {
                 @Override
@@ -291,8 +287,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                     onFailure.set(true);
                     latch.countDown();
                 }
-            },
-            ClusterStateTaskExecutor.unbatched()
+            }
         );
 
         ensureGreen();
@@ -314,7 +309,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node_0);
         final CountDownLatch block1 = new CountDownLatch(1);
         final CountDownLatch invoked1 = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("1", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("1", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 invoked1.countDown();
@@ -331,11 +326,11 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 invoked1.countDown();
                 fail();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         invoked1.await();
         final CountDownLatch invoked2 = new CountDownLatch(9);
         for (int i = 2; i <= 10; i++) {
-            clusterService.submitStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
+            clusterService.submitUnbatchedStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;
@@ -350,7 +345,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     invoked2.countDown();
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
         }
 
         // there might be other tasks in this node, make sure to only take the ones we add into account in this test
@@ -384,12 +379,12 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         final CountDownLatch block2 = new CountDownLatch(1);
         final CountDownLatch invoked3 = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("1", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("1", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 invoked3.countDown();
                 try {
-                    block2.await();
+                    assertTrue(block2.await(10, TimeUnit.SECONDS));
                 } catch (InterruptedException e) {
                     fail();
                 }
@@ -401,41 +396,49 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 invoked3.countDown();
                 fail();
             }
-        }, ClusterStateTaskExecutor.unbatched());
-        invoked3.await();
+        });
+        assertTrue(invoked3.await(10, TimeUnit.SECONDS));
 
-        for (int i = 2; i <= 5; i++) {
-            clusterService.submitStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return currentState;
-                }
+        try {
+            for (int i = 2; i <= 5; i++) {
+                clusterService.submitUnbatchedStateUpdateTask(Integer.toString(i), new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return currentState;
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    fail();
-                }
-            }, ClusterStateTaskExecutor.unbatched());
-        }
-        Thread.sleep(100);
-
-        pendingClusterTasks = clusterService.getMasterService().pendingTasks();
-        assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(5));
-        controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
-        for (PendingClusterTask task : pendingClusterTasks) {
-            controlSources.remove(task.getSource().string());
-        }
-        assertTrue(controlSources.isEmpty());
-
-        response = internalCluster().coordOnlyNodeClient().admin().cluster().preparePendingClusterTasks().get();
-        assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(5));
-        controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
-        for (PendingClusterTask task : response) {
-            if (controlSources.remove(task.getSource().string())) {
-                assertThat(task.getTimeInQueueInMillis(), greaterThan(0L));
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail();
+                    }
+                });
             }
+
+            final var startNanoTime = System.nanoTime();
+            while (TimeUnit.MILLISECONDS.convert(System.nanoTime() - startNanoTime, TimeUnit.NANOSECONDS) <= 0) {
+                // noinspection BusyWait
+                Thread.sleep(100);
+            }
+
+            pendingClusterTasks = clusterService.getMasterService().pendingTasks();
+            assertThat(pendingClusterTasks.size(), greaterThanOrEqualTo(5));
+            controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
+            for (PendingClusterTask task : pendingClusterTasks) {
+                controlSources.remove(task.getSource().string());
+            }
+            assertTrue(controlSources.isEmpty());
+
+            response = internalCluster().coordOnlyNodeClient().admin().cluster().preparePendingClusterTasks().get();
+            assertThat(response.pendingTasks().size(), greaterThanOrEqualTo(5));
+            controlSources = new HashSet<>(Arrays.asList("1", "2", "3", "4", "5"));
+            for (PendingClusterTask task : response) {
+                if (controlSources.remove(task.getSource().string())) {
+                    assertThat(task.getTimeInQueueInMillis(), greaterThan(0L));
+                }
+            }
+            assertTrue(controlSources.isEmpty());
+        } finally {
+            block2.countDown();
         }
-        assertTrue(controlSources.isEmpty());
-        block2.countDown();
     }
 }

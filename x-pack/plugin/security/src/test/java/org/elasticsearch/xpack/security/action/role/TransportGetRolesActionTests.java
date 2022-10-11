@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -106,7 +108,24 @@ public class TransportGetRolesActionTests extends ESTestCase {
     }
 
     public void testStoreRoles() {
-        final List<RoleDescriptor> storeRoleDescriptors = randomRoleDescriptors();
+        testStoreRoles(randomRoleDescriptors());
+    }
+
+    public void testStoreRolesWithInternalRoleNames() {
+        testStoreRoles(
+            randomNonEmptySubsetOf(
+                Stream.of(
+                    UsernamesField.SYSTEM_ROLE,
+                    UsernamesField.XPACK_ROLE,
+                    UsernamesField.ASYNC_SEARCH_ROLE,
+                    UsernamesField.XPACK_SECURITY_ROLE,
+                    UsernamesField.SECURITY_PROFILE_ROLE
+                ).map(r -> new RoleDescriptor(r, null, null, null)).toList()
+            )
+        );
+    }
+
+    private void testStoreRoles(List<RoleDescriptor> storeRoleDescriptors) {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(
             Settings.EMPTY,

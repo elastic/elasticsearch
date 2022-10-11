@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.grok.Grok;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
@@ -146,14 +147,17 @@ public class LogTextStructureFinder implements TextStructureFinder {
         fieldStats.put("message", TextStructureUtils.calculateFieldStats(messageMapping, sampleMessages, timeoutChecker));
 
         Map<String, String> customGrokPatternDefinitions = timestampFormatFinder.getCustomGrokPatternDefinitions();
+
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(
             explanation,
             sampleMessages,
             fieldMappings,
             fieldStats,
             customGrokPatternDefinitions,
-            timeoutChecker
+            timeoutChecker,
+            Grok.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
         );
+
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField = overrides.getTimestampField();
         String grokPattern = overrides.getGrokPattern();
@@ -191,6 +195,7 @@ public class LogTextStructureFinder implements TextStructureFinder {
             .setJavaTimestampFormats(timestampFormatFinder.getJavaTimestampFormats())
             .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
+            .setEcsCompatibility(overrides.getEcsCompatibility())
             .setIngestPipeline(
                 TextStructureUtils.makeIngestPipelineDefinition(
                     grokPattern,
@@ -200,7 +205,8 @@ public class LogTextStructureFinder implements TextStructureFinder {
                     interimTimestampField,
                     timestampFormatFinder.getJavaTimestampFormats(),
                     needClientTimeZone,
-                    timestampFormatFinder.needNanosecondPrecision()
+                    timestampFormatFinder.needNanosecondPrecision(),
+                    overrides.getEcsCompatibility()
                 )
             )
             .setMappings(Collections.singletonMap(TextStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings))
@@ -238,7 +244,8 @@ public class LogTextStructureFinder implements TextStructureFinder {
             false,
             false,
             false,
-            timeoutChecker
+            timeoutChecker,
+            Grok.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
         );
 
         for (String sampleLine : sampleLines) {

@@ -38,7 +38,7 @@ public class OsService implements ReportingService<OsInfo> {
     public OsService(Settings settings) throws IOException {
         this.probe = OsProbe.getInstance();
         TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
-        this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.allocatedProcessors(settings));
+        this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.nodeProcessors(settings));
         this.osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }
@@ -48,7 +48,7 @@ public class OsService implements ReportingService<OsInfo> {
         return this.info;
     }
 
-    public synchronized OsStats stats() {
+    public OsStats stats() {
         return osStatsCache.getOrRefresh();
     }
 

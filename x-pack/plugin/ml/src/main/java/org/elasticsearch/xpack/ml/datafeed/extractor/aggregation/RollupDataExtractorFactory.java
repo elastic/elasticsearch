@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -78,13 +80,26 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
+        return buildExtractor(start, end, datafeedConfig.getParsedQuery(xContentRegistry));
+    }
+
+    @Override
+    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
+        return buildExtractor(
+            start,
+            end,
+            QueryBuilders.boolQuery().filter(datafeedConfig.getParsedQuery(xContentRegistry)).filter(queryBuilder)
+        );
+    }
+
+    private DataExtractor buildExtractor(long start, long end, QueryBuilder queryBuilder) {
         long histogramInterval = datafeedConfig.getHistogramIntervalMillis(xContentRegistry);
         AggregationDataExtractorContext dataExtractorContext = new AggregationDataExtractorContext(
             job.getId(),
             job.getDataDescription().getTimeField(),
             job.getAnalysisConfig().analysisFields(),
             datafeedConfig.getIndices(),
-            datafeedConfig.getParsedQuery(xContentRegistry),
+            queryBuilder,
             datafeedConfig.getParsedAggregations(xContentRegistry),
             Intervals.alignToCeil(start, histogramInterval),
             Intervals.alignToFloor(end, histogramInterval),

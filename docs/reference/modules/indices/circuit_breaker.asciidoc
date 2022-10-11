@@ -178,7 +178,7 @@ it triggers the regex circuit breaker and returns an error.
 {es} only applies this limit if
 <<script-painless-regex-enabled,`script.painless.regex.enabled`>> is `limited`.
 
-[[eql-circuit-breaker]]
+[[circuit-breakers-page-eql]]
 [discrete]
 === EQL circuit breaker
 

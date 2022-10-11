@@ -217,7 +217,7 @@ The breaker limits memory usage for EQL sequence queries.
 `noop`:::
 Disables the breaker.
 
-[[model-inference-circuit-breaker]]
+[[circuit-breakers-page-model-inference]]
 [discrete]
 ==== {ml-cap} circuit breaker
 

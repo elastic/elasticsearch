@@ -159,6 +159,14 @@ public class MockBigArrays extends BigArrays {
         return new MockBigArrays(this.recycler, this.breakerService, true);
     }
 
+    /* This breaks a whole mess of tests.  I'm fixing them in several PRs, but including this change, commented out, saves
+     * time and cuts down on conflicts when I'm working in multiple branches.
+    @Override
+    public BigArrays withBreakerService(CircuitBreakerService breakerService) {
+        return new MockBigArrays(this.recycler, breakerService, this.shouldCheckBreaker());
+    }
+     */
+
     @Override
     public ByteArray newByteArray(long size, boolean clearOnResize) {
         final ByteArrayWrapper array = new ByteArrayWrapper(super.newByteArray(size, clearOnResize), clearOnResize);

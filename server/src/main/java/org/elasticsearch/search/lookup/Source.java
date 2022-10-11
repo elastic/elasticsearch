@@ -86,6 +86,7 @@ public interface Source {
             Map<String, Object> asMap = null;
             XContentType xContentType = null;
 
+            @SuppressWarnings("deprecation")
             private void parseBytes() {
                 Tuple<XContentType, Map<String, Object>> t = XContentHelper.convertToMap(bytes, true);
                 this.xContentType = t.v1();

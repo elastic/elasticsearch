@@ -77,6 +77,8 @@ payload as well as an array of contexts to the action.
                             The account needs a `service_api_key` attribute.
 |======
 
+NOTE: Although some of the attributes below have names which match the PagerDuty "Events API v1" parameter
+      names, Elastic is now using the "Events API v2" API and it translates to the appropriate parameters.
 
 [[pagerduty-event-trigger-incident-attributes]]
 .Pagerduty event trigger incident attributes
@@ -143,7 +145,7 @@ key:
 
 . Log in to http://pagerduty.com[pagerduty.com] as an account administrator.
 . Go to **Configuration > Services** and select the PagerDuty service. The 
-service must use the API integration.
+service must use the **Events API V2** integration.
 +
 image::images/pagerduty-services.jpg[]
 

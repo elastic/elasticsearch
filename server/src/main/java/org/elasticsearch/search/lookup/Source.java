@@ -116,11 +116,15 @@ public interface Source {
     }
 
     /**
-     * Build a Source from a Map representation
+     * Build a Source from a Map representation.
+     *
+     * Note that {@code null} is accepted as an input and interpreted as an empty map
+     *
      * @param map           the java Map to use as a source
      * @param xContentType  the XContentType to serialize this source
      */
     static Source fromMap(Map<String, Object> map, XContentType xContentType) {
+        Map<String, Object> sourceMap = map == null ? Map.of() : map;
         return new Source() {
             @Override
             public XContentType sourceContentType() {
@@ -129,35 +133,25 @@ public interface Source {
 
             @Override
             public Map<String, Object> source() {
-                return map;
+                return sourceMap;
             }
 
             @Override
             public BytesReference internalSourceRef() {
-                return mapToBytes(map, xContentType, 1024);
+                return mapToBytes(sourceMap, xContentType);
+            }
+
+            private static BytesReference mapToBytes(Map<String, Object> value, XContentType xContentType) {
+                BytesStreamOutput streamOutput = new BytesStreamOutput(1024);
+                try {
+                    XContentBuilder builder = new XContentBuilder(xContentType.xContent(), streamOutput);
+                    builder.value(value);
+                    return BytesReference.bytes(builder);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
         };
     }
 
-    static BytesReference mapToBytes(Map<String, Object> value, XContentType xContentType, int lengthEstimate) {
-        int initialCapacity = Math.min(1024, lengthEstimate);
-        BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
-        try {
-            XContentBuilder builder = new XContentBuilder(xContentType.xContent(), streamOutput);
-            if (value != null) {
-                builder.value(value);
-            } else {
-                // This happens if the source filtering could not find the specified in the _source.
-                // Just doing `builder.value(null)` is valid, but the xcontent validation can't detect what format
-                // it is. In certain cases, for example response serialization we fail if no xcontent type can't be
-                // detected. So instead we just return an empty top level object. Also this is in inline with what was
-                // being return in this situation in 5.x and earlier.
-                builder.startObject();
-                builder.endObject();
-            }
-            return BytesReference.bytes(builder);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
 }

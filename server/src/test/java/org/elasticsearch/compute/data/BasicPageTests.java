@@ -27,7 +27,10 @@ public class BasicPageTests extends ESTestCase {
         expectThrows(IAE, () -> new Page());
         expectThrows(IAE, () -> new Page(new Block[] {}));
 
-        expectThrows(AE, () -> new Page(new Block[] { new IntArrayBlock(new int[] { 1, 2 }, 2), new ConstantIntBlock(1, 1) }));
+        // Temporarily disable, until the intermediate state of grouping aggs is resolved.
+        // Intermediate state consists of a Page with two blocks: one of size N with the groups, the
+        // other has a single entry containing the serialized binary state.
+        // expectThrows(AE, () -> new Page(new Block[] { new IntArrayBlock(new int[] { 1, 2 }, 2), new ConstantIntBlock(1, 1) }));
     }
 
     public void testBasic() {

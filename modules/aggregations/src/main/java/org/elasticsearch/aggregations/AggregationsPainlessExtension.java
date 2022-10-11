@@ -10,12 +10,12 @@ package org.elasticsearch.aggregations;
 
 import org.elasticsearch.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.painless.spi.PainlessExtension;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +30,9 @@ public class AggregationsPainlessExtension implements PainlessExtension {
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
-        return Collections.singletonMap(MovingFunctionScript.CONTEXT, Collections.singletonList(MOVING_FUNCTION_WHITELIST));
+        return Map.ofEntries(
+            Map.entry(MovingFunctionScript.CONTEXT, List.of(MOVING_FUNCTION_WHITELIST)),
+            Map.entry(PainlessTestScript.CONTEXT, List.of(MOVING_FUNCTION_WHITELIST))
+        );
     }
 }

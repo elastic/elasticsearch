@@ -150,7 +150,6 @@ public final class WhitelistLoader {
             String line;
             int number = -1;
 
-            System.err.println("ASDFADFDSAF " + resource.getName() + " " + filepath);
             try (
                 LineNumberReader reader = new LineNumberReader(
                     new InputStreamReader(resource.getResourceAsStream(filepath), StandardCharsets.UTF_8)

@@ -9,7 +9,7 @@ preview::[]
 This is a simplified example that allows you to see quickly how
 <<downsampling,downsampling>> works as part of an ILM policy to reduce the
 storage size of a sampled set of metrics. The example uses typical Kubernetes
-system monitoring data. To test out downsampling with ILM, follow these steps:
+cluster monitoring data. To test out downsampling with ILM, follow these steps:
 
 . Check the <<downsampling-ilm-prereqs,prerequisites>>.
 . <<downsampling-ilm-policy>>.
@@ -54,7 +54,7 @@ PUT _ilm/policy/datastream_policy
             "max_age": "5m"
           },
           "downsample": {
-  	          "fixed_interval": "1h"
+  	        "fixed_interval": "1h"
   	      }
         }
       }
@@ -62,21 +62,6 @@ PUT _ilm/policy/datastream_policy
   }
 }
 ----
-
-By default, index lifecycle management checks every ten minutes for indices that
-meet policy criteria. For this example, update the
-`indices.lifecycle.poll_interval` setting to one minute.
-
-[source,console]
-----
-PUT _cluster/settings
-{
-  "transient": {
-    "indices.lifecycle.poll_interval": "1m"
-  }
-}
-----
-// TEST[continued]
 
 [discrete]
 [[downsampling-ilm-create-index-template]]
@@ -374,7 +359,9 @@ The query returns your ten newly added documents.
 ...
 ```
 
-Wait for five minutes or so (maybe brew up a quick coffee or tea &#9749; ) and then re-run the `GET _data_stream` request.
+By default, index lifecycle management checks every ten minutes for indices that
+meet policy criteria. Wait for about ten minutes (maybe brew up a quick coffee
+or tea &#9749; ) and then re-run the `GET _data_stream` request.
 
 [source,console]
 ----

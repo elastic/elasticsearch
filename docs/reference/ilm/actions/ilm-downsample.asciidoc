@@ -6,7 +6,7 @@ preview::[]
 
 Phases allowed: hot, warm, cold.
 
-Aggregates a <<tsds,time series data stream>> (TSDS) index and stores
+Aggregates a time series (TSDS) index and stores
 pre-computed statistical summaries (`min`, `max`, `sum`, `value_count` and
 `avg`) for each metric field grouped by a configured time interval. For example,
 a TSDS index that contains metrics sampled every 10 seconds can be downsampled

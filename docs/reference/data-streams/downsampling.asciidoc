@@ -114,7 +114,7 @@ downsampling intervals (for example, `15m`, `1h`, `1d`).
 
 The result of a time based histogram aggregation is in a uniform bucket size and
 each downsampled index returns data ignoring the downsampling time interval. For
-example, if you run a date_histogram aggregation with `"fixed_interval": "1m"`
+example, if you run a `date_histogram` aggregation with `"fixed_interval": "1m"`
 on a downsampled index that has been downsampled at an hourly resolution
 (`"fixed_interval": "1h"`), the query returns one bucket with all of the data at
 minute 0, then 59 empty buckets, and then a bucket with data again for the next

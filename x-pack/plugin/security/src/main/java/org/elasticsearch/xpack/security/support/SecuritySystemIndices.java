@@ -245,7 +245,50 @@ public class SecuritySystemIndices {
                     builder.endObject();
 
                     if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-                        addRemoteIndicesIndexMappingSection(builder);
+                        builder.startObject("remote_indices");
+                        {
+                            builder.field("type", "object");
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("field_security");
+                                {
+                                    builder.startObject("properties");
+                                    {
+                                        builder.startObject("grant");
+                                        builder.field("type", "keyword");
+                                        builder.endObject();
+
+                                        builder.startObject("except");
+                                        builder.field("type", "keyword");
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+
+                                builder.startObject("names");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                builder.startObject("privileges");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                builder.startObject("query");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                builder.startObject("allow_restricted_indices");
+                                builder.field("type", "boolean");
+                                builder.endObject();
+
+                                builder.startObject("clusters");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
                     }
 
                     builder.startObject("applications");
@@ -546,53 +589,6 @@ public class SecuritySystemIndices {
             logger.fatal("Failed to build " + MAIN_INDEX_CONCRETE_NAME + " index mappings", e);
             throw new UncheckedIOException("Failed to build " + MAIN_INDEX_CONCRETE_NAME + " index mappings", e);
         }
-    }
-
-    private void addRemoteIndicesIndexMappingSection(XContentBuilder builder) throws IOException {
-        builder.startObject("remote_indices");
-        {
-            builder.field("type", "object");
-            builder.startObject("properties");
-            {
-                builder.startObject("field_security");
-                {
-                    builder.startObject("properties");
-                    {
-                        builder.startObject("grant");
-                        builder.field("type", "keyword");
-                        builder.endObject();
-
-                        builder.startObject("except");
-                        builder.field("type", "keyword");
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-
-                builder.startObject("names");
-                builder.field("type", "keyword");
-                builder.endObject();
-
-                builder.startObject("privileges");
-                builder.field("type", "keyword");
-                builder.endObject();
-
-                builder.startObject("query");
-                builder.field("type", "keyword");
-                builder.endObject();
-
-                builder.startObject("allow_restricted_indices");
-                builder.field("type", "boolean");
-                builder.endObject();
-
-                builder.startObject("clusters");
-                builder.field("type", "keyword");
-                builder.endObject();
-            }
-            builder.endObject();
-        }
-        builder.endObject();
     }
 
     private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {

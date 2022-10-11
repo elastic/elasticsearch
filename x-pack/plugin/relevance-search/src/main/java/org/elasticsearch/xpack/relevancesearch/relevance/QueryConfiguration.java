@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.relevancesearch.relevance;
 
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ScriptScoreBoost;
 
 import java.text.MessageFormat;

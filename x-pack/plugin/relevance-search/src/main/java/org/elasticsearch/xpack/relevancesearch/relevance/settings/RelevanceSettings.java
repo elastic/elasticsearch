@@ -5,13 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.relevancesearch.relevance;
+package org.elasticsearch.xpack.relevancesearch.relevance.settings;
+
+import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
 
 public class RelevanceSettings {
-
-    // TODO - Are these needed later on?
-    private final String TYPE = "relevance_settings";
-    private final String QUERY_TYPE = "combined_fields";
 
     private QueryConfiguration queryConfiguration;
 

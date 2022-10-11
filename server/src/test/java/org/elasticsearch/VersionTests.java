@@ -354,23 +354,27 @@ public class VersionTests extends ESTestCase {
 
     public void testMinAcceptedVersionSetting() {
         // default (if not set)
-        assertThat(TransportSettings.MIN_ACCEPTED_VERSION.getDefault(Settings.EMPTY),
-            is(equalTo(Version.CURRENT.minimumCompatibilityVersion())));
+        assertThat(
+            TransportSettings.MIN_ACCEPTED_VERSION.getDefault(Settings.EMPTY),
+            is(equalTo(Version.CURRENT.minimumCompatibilityVersion()))
+        );
 
         // too old
         final Version tooOld = Version.fromId(Version.CURRENT.minimumCompatibilityVersion().id - 1);
-        IllegalArgumentException tooOldException = expectThrows(IllegalArgumentException.class, () -> {
-            TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version", tooOld.id).build());
-        });
-        assertThat(
-            tooOldException.getMessage(),
-            equalTo("Invalid version [" + tooOld + "] too low for [transport.min_accepted_version].")
+        IllegalArgumentException tooOldException = expectThrows(
+            IllegalArgumentException.class,
+            () -> {
+                TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version", tooOld.id).build());
+            }
         );
+        assertThat(tooOldException.getMessage(), equalTo("Invalid version [" + tooOld + "] too low for [transport.min_accepted_version]."));
 
         // oldest accepted
         final Version oldestAccepted = Version.CURRENT.minimumCompatibilityVersion();
-        assertThat(TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version",
-            oldestAccepted.id).build()), is(equalTo(oldestAccepted)));
+        assertThat(
+            TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version", oldestAccepted.id).build()),
+            is(equalTo(oldestAccepted))
+        );
 
         // random accepted
         final Version randomAccepted = VersionUtils.randomVersionBetween(
@@ -378,19 +382,26 @@ public class VersionTests extends ESTestCase {
             Version.CURRENT.minimumCompatibilityVersion(),
             Version.CURRENT
         );
-        assertThat(TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version",
-            randomAccepted.id).build()), is(equalTo(randomAccepted)));
+        assertThat(
+            TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version", randomAccepted.id).build()),
+            is(equalTo(randomAccepted))
+        );
 
         // newest accepted
         final Version newestAccepted = Version.CURRENT;
-        assertThat(TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version",
-            newestAccepted.id).build()), is(equalTo(newestAccepted)));
+        assertThat(
+            TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version", newestAccepted.id).build()),
+            is(equalTo(newestAccepted))
+        );
 
         // too new
         final Version tooNew = Version.fromId(Version.CURRENT.id + 1);
-        IllegalArgumentException tooNewException = expectThrows(IllegalArgumentException.class, () -> {
-            TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version", tooNew.id).build());
-        });
+        IllegalArgumentException tooNewException = expectThrows(
+            IllegalArgumentException.class,
+            () -> {
+                TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version", tooNew.id).build());
+            }
+        );
         assertThat(
             tooNewException.getMessage(),
             equalTo("Invalid version [" + tooNew + "] too high for [transport.min_accepted_version].")

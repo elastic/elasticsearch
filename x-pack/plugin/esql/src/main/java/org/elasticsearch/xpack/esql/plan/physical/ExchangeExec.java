@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.operator.exchange.Exchange;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Objects;
 
-// TODO not have it unary
+@Experimental
 public class ExchangeExec extends UnaryExec {
 
     public enum Type {

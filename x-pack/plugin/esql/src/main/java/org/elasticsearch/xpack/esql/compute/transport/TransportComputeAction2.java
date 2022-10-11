@@ -28,8 +28,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.plan.physical.Output;
 import org.elasticsearch.xpack.esql.plan.physical.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -103,7 +103,7 @@ public class TransportComputeAction2 extends TransportAction<ComputeRequest2, Co
             );
 
             final List<Page> results = Collections.synchronizedList(new ArrayList<>());
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(new Output(request.plan(), (l, p) -> {
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(new OutputExec(request.plan(), (l, p) -> {
                 logger.warn("adding page with columns {}: {}", l, p);
                 results.add(p);
             }));

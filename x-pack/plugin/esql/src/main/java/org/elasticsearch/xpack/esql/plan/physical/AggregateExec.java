@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
+@Experimental
 public class AggregateExec extends UnaryExec {
 
     private final List<? extends Expression> groupings;
@@ -42,8 +44,13 @@ public class AggregateExec extends UnaryExec {
         this.mode = Mode.SINGLE;
     }
 
-    public AggregateExec(Source source, PhysicalPlan child, List<? extends Expression> groupings, List<? extends NamedExpression> aggregates,
-                         Mode mode) {
+    public AggregateExec(
+        Source source,
+        PhysicalPlan child,
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        Mode mode
+    ) {
         super(source, child);
         this.groupings = groupings;
         this.aggregates = aggregates;

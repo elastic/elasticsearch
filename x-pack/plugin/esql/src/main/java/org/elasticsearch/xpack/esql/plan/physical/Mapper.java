@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -14,12 +15,13 @@ import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 
+@Experimental
 public class Mapper {
 
     public PhysicalPlan map(LogicalPlan p) {
         if (p instanceof EsRelation esRelation) {
             EsQueryExec queryExec = new EsQueryExec(esRelation.source(), esRelation.index());
-            return new FieldExtract(esRelation.source(), queryExec, esRelation.index(), esRelation.output(), queryExec.output());
+            return new FieldExtractExec(esRelation.source(), queryExec, esRelation.index(), esRelation.output(), queryExec.output());
         }
 
         if (p instanceof OrderBy o) {

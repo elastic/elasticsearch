@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import java.util.ArrayList;
 import java.util.List;
 
+@Experimental
 public class Optimizer extends RuleExecutor<PhysicalPlan> {
 
     public PhysicalPlan optimize(PhysicalPlan verified) {
@@ -72,10 +74,10 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(EvalExec eval) {
-            if (eval.child()instanceof FieldExtract fieldExtract) {
+            if (eval.child()instanceof FieldExtractExec fieldExtractExec) {
                 // If you have an ExtractFieldNode below an EvalNode,
                 // only extract the things that the eval needs, and extract the rest above eval
-                return possiblySplitExtractFieldNode(eval, eval.fields(), fieldExtract, true);
+                return possiblySplitExtractFieldNode(eval, eval.fields(), fieldExtractExec, true);
             }
             return eval;
         }
@@ -85,10 +87,10 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(AggregateExec aggregateExec) {
-            if (aggregateExec.child()instanceof FieldExtract fieldExtract) {
+            if (aggregateExec.child()instanceof FieldExtractExec fieldExtractExec) {
                 // If you have an ExtractFieldNode below an Aggregate,
                 // only extract the things that the aggregate needs, and extract the rest above eval
-                return possiblySplitExtractFieldNode(aggregateExec, aggregateExec.aggregates(), fieldExtract, false);
+                return possiblySplitExtractFieldNode(aggregateExec, aggregateExec.aggregates(), fieldExtractExec, false);
             }
             return aggregateExec;
         }
@@ -97,12 +99,12 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
     private static UnaryExec possiblySplitExtractFieldNode(
         UnaryExec parent,
         List<? extends NamedExpression> namedExpressions,
-        FieldExtract fieldExtract,
+        FieldExtractExec fieldExtractExec,
         boolean preserveUnused
     ) {
         List<Attribute> attributesToKeep = new ArrayList<>();
         List<Attribute> attributesToMoveUp = new ArrayList<>();
-        outer: for (Attribute fieldExtractAttribute : fieldExtract.getAttrs()) {
+        outer: for (Attribute fieldExtractAttribute : fieldExtractExec.getAttrs()) {
             if (namedExpressions.stream().anyMatch(ne -> ne.anyMatch(e -> e.semanticEquals(fieldExtractAttribute)))) {
                 attributesToKeep.add(fieldExtractAttribute);
             } else {
@@ -111,34 +113,34 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
                 }
             }
         }
-        if (attributesToKeep.size() == fieldExtract.getAttrs().size()) {
+        if (attributesToKeep.size() == fieldExtractExec.getAttrs().size()) {
             return parent;
         }
-        return new FieldExtract(
-            fieldExtract.source(),
+        return new FieldExtractExec(
+            fieldExtractExec.source(),
             parent.replaceChild(
-                new FieldExtract(
-                    fieldExtract.source(),
-                    fieldExtract.child(),
-                    fieldExtract.index(),
+                new FieldExtractExec(
+                    fieldExtractExec.source(),
+                    fieldExtractExec.child(),
+                    fieldExtractExec.index(),
                     attributesToKeep,
-                    fieldExtract.getEsQueryAttrs()
+                    fieldExtractExec.getEsQueryAttrs()
                 )
             ),
-            fieldExtract.index(),
+            fieldExtractExec.index(),
             attributesToMoveUp,
-            fieldExtract.getEsQueryAttrs()
+            fieldExtractExec.getEsQueryAttrs()
         );
     }
 
-    private static class EmptyFieldExtractRemoval extends OptimizerRule<FieldExtract> {
+    private static class EmptyFieldExtractRemoval extends OptimizerRule<FieldExtractExec> {
 
         @Override
-        protected PhysicalPlan rule(FieldExtract fieldExtract) {
-            if (fieldExtract.getAttrs().isEmpty()) {
-                return fieldExtract.child();
+        protected PhysicalPlan rule(FieldExtractExec fieldExtractExec) {
+            if (fieldExtractExec.getAttrs().isEmpty()) {
+                return fieldExtractExec.child();
             }
-            return fieldExtract;
+            return fieldExtractExec;
         }
     }
 
@@ -193,8 +195,12 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
                     return parent;
                 }
                 return parent.replaceChild(
-                    new ExchangeExec(parent.source(), parent.child(), ExchangeExec.Type.GATHER,
-                        ExchangeExec.Partitioning.SINGLE_DISTRIBUTION)
+                    new ExchangeExec(
+                        parent.source(),
+                        parent.child(),
+                        ExchangeExec.Type.GATHER,
+                        ExchangeExec.Partitioning.SINGLE_DISTRIBUTION
+                    )
                 );
             }
             return parent;

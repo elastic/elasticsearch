@@ -998,7 +998,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
             public RemoteIndicesPrivileges build() {
                 if (remoteClusters == null || remoteClusters.length == 0) {
-                    throw new IllegalArgumentException("remote clusters must refer to at least one cluster alias or cluster alias pattern");
+                    throw new IllegalArgumentException(
+                        "[" + Fields.REMOTE_CLUSTERS + "] must refer to at least one cluster alias or cluster alias pattern"
+                    );
                 }
                 return new RemoteIndicesPrivileges(indicesBuilder.build(), remoteClusters);
             }

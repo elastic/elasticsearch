@@ -77,11 +77,12 @@ public class RoleDescriptorTests extends ESTestCase {
         );
     }
 
-    public void testRemoteIndexGroupThrowsOnEmptyRemoteClusters() {
-        expectThrows(
+    public void testRemoteIndexGroupThrowsOnEmptyClusters() {
+        IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> RoleDescriptor.RemoteIndicesPrivileges.builder().indices("idx").privileges("priv").allowRestrictedIndices(true).build()
+            () -> RoleDescriptor.RemoteIndicesPrivileges.builder().indices("idx").privileges("priv").build()
         );
+        assertThat(ex.getMessage(), containsString("[clusters] must refer to at least one cluster alias or cluster alias pattern"));
     }
 
     public void testEqualsOnEmptyRoles() {

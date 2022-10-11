@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RemoteIndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -442,7 +443,7 @@ public class CompositeRolesStore {
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), true, restrictedIndicesPrivilegesMap);
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
 
-            final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndicesPrivileges = descriptor.getRemoteIndicesPrivileges();
+            final RemoteIndicesPrivileges[] remoteIndicesPrivileges = descriptor.getRemoteIndicesPrivileges();
             if (remoteIndicesPrivileges != null) {
                 MergeableIndicesPrivilege.collatePrivilegesByRemoteIndices(
                     remoteIndicesPrivileges,
@@ -615,7 +616,7 @@ public class CompositeRolesStore {
         }
 
         private static void collatePrivilegesByRemoteIndices(
-            final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndicesPrivileges,
+            final RemoteIndicesPrivileges[] remoteIndicesPrivileges,
             final boolean allowsRestrictedIndices,
             final Map<Set<String>, Map<Set<String>, MergeableIndicesPrivilege>> remoteIndicesPrivilegesMap
         ) {
@@ -627,8 +628,8 @@ public class CompositeRolesStore {
             if (isExplicitDenial) {
                 return;
             }
-            for (final var remoteIndicesPrivilege : remoteIndicesPrivileges) {
-                final var clusterAlias = newHashSet(remoteIndicesPrivilege.remoteClusters());
+            for (final RemoteIndicesPrivileges remoteIndicesPrivilege : remoteIndicesPrivileges) {
+                final Set<String> clusterAlias = newHashSet(remoteIndicesPrivilege.remoteClusters());
                 collatePrivilegesByIndices(
                     remoteIndicesPrivilege.indicesPrivileges(),
                     allowsRestrictedIndices,

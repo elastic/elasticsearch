@@ -8,6 +8,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.compute.Experimental;
+
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -120,5 +122,14 @@ public final class Page {
      */
     public int getBlockCount() {
         return blocks.length;
+    }
+
+    @Experimental
+    public Page getRow(int position) {
+        Block[] newBlocks = new Block[blocks.length];
+        for (int i = 0; i < blocks.length; i++) {
+            newBlocks[i] = blocks[i].getRow(position);
+        }
+        return new Page(false, 1, newBlocks);
     }
 }

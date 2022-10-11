@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-public class SourceLookup implements Map<String, Object> {
+public class SourceLookup implements Source, Map<String, Object> {
     private SourceProvider sourceProvider;
 
     private int docId = -1;
@@ -40,6 +40,7 @@ public class SourceLookup implements Map<String, Object> {
         this.sourceProvider = sourceProvider;
     }
 
+    @Override
     public XContentType sourceContentType() {
         return sourceProvider.sourceContentType();
     }
@@ -48,16 +49,7 @@ public class SourceLookup implements Map<String, Object> {
         return docId;
     }
 
-    /**
-     * Return the source as a map that will be unchanged when the lookup
-     * moves to a different document.
-     * <p>
-     * Important: This can lose precision on numbers with a decimal point. It
-     * converts numbers like {@code "n": 1234.567} to a {@code double} which
-     * only has 52 bits of precision in the mantissa. This will come up most
-     * frequently when folks write nanosecond precision dates as a decimal
-     * number.
-     */
+    @Override
     public Map<String, Object> source() {
         return sourceProvider.source();
     }
@@ -74,6 +66,7 @@ public class SourceLookup implements Map<String, Object> {
     /**
      * Internal source representation, might be compressed....
      */
+    @Override
     public BytesReference internalSourceRef() {
         return sourceProvider.sourceAsBytes();
     }
@@ -114,11 +107,13 @@ public class SourceLookup implements Map<String, Object> {
      *
      * @return the value associated with the path in the source or 'null' if the path does not exist.
      */
+    @Override
     public Object extractValue(String path, @Nullable Object nullValue) {
         return XContentMapValues.extractValue(path, source(), nullValue);
     }
 
-    public Object filter(FetchSourceContext context) {
+    @Override
+    public Map<String, Object> filter(FetchSourceContext context) {
         return context.getFilter().apply(source());
     }
 

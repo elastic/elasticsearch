@@ -19,7 +19,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -48,13 +48,13 @@ public final class InnerHitsPhase implements FetchSubPhase {
             @Override
             public void process(HitContext hitContext) throws IOException {
                 SearchHit hit = hitContext.hit();
-                SourceLookup rootLookup = searchContext.getRootSourceLookup(hitContext);
-                hitExecute(innerHits, hit, rootLookup);
+                Source rootSource = searchContext.getRootSource(hitContext);
+                hitExecute(innerHits, hit, rootSource);
             }
         };
     }
 
-    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, SearchHit hit, SourceLookup rootLookup)
+    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, SearchHit hit, Source rootSource)
         throws IOException {
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHits.entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = entry.getValue();
@@ -71,7 +71,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
             }
             innerHitsContext.docIdsToLoad(docIdsToLoad);
             innerHitsContext.setRootId(hit.getId());
-            innerHitsContext.setRootLookup(rootLookup);
+            innerHitsContext.setRootLookup(rootSource);
 
             fetchPhase.execute(innerHitsContext);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();

@@ -53,57 +53,57 @@ public class ScriptScoreBoostsTests extends ESTestCase {
         // location
         ProximityBoost boost = new ProximityBoost("25.32, -80.93", "linear", 8f);
         assertEquals(
-            "8 * decayGeoLinear('25.32, -80.93', '1km', 0, 0.5, (doc['foo'].size() > 0) ? doc['foo'].value : 0)",
+            "8 * ((doc['foo'].size() > 0) ? decayGeoLinear('25.32, -80.93', '1km', '0km', 0.5, doc['foo'].value) : 0)",
             boost.getSource("foo")
         );
 
         boost = new ProximityBoost("25.32, -80.93", "exponential", 8f);
         assertEquals(
-            "8 * decayGeoExp('25.32, -80.93', '1km', 0, 0.5, (doc['foo'].size() > 0) ? doc['foo'].value : 0)",
+            "8 * ((doc['foo'].size() > 0) ? decayGeoExp('25.32, -80.93', '1km', '0km', 0.5, doc['foo'].value) : 0)",
             boost.getSource("foo")
         );
 
         boost = new ProximityBoost("25.32, -80.93", "gaussian", 8f);
         assertEquals(
-            "8 * decayGeoGauss('25.32, -80.93', '1km', 0, 0.5, (doc['foo'].size() > 0) ? doc['foo'].value : 0)",
+            "8 * ((doc['foo'].size() > 0) ? decayGeoGauss('25.32, -80.93', '1km', '0km', 0.5, doc['foo'].value) : 0)",
             boost.getSource("foo")
         );
 
         // date
         boost = new ProximityBoost("2022-01-01", "linear", 8f);
         assertEquals(
-            "8 * decayDateLinear('2022-01-01', '1d', 0, 0.5, (doc['foo'].size() > 0) ? doc['foo'].value : 0)",
+            "8 * ((doc['foo'].size() > 0) ? decayDateLinear('2022-01-01', '1d', '0', 0.5, doc['foo'].value) : 0)",
             boost.getSource("foo")
         );
 
         boost = new ProximityBoost("2022-01-01", "exponential", 8f);
         assertEquals(
-            "8 * decayDateExp('2022-01-01', '1d', 0, 0.5, (doc['foo'].size() > 0) ? doc['foo'].value : 0)",
+            "8 * ((doc['foo'].size() > 0) ? decayDateExp('2022-01-01', '1d', '0', 0.5, doc['foo'].value) : 0)",
             boost.getSource("foo")
         );
 
         boost = new ProximityBoost("2022-01-01", "gaussian", 8f);
         assertEquals(
-            "8 * decayDateGauss('2022-01-01', '1d', 0, 0.5, (doc['foo'].size() > 0) ? doc['foo'].value : 0)",
+            "8 * ((doc['foo'].size() > 0) ? decayDateGauss('2022-01-01', '1d', '0', 0.5, doc['foo'].value) : 0)",
             boost.getSource("foo")
         );
 
         boost = new ProximityBoost("now", "linear", 8f);
         assertNotEquals(boost.getDateCenter(), "now");
         assertEquals(
-            "8 * decayDateLinear('" + boost.getDateCenter() + "', '1d', 0, 0.5, (doc['foo'].size() > 0) ? doc['foo'].value : 0)",
+            "8 * ((doc['foo'].size() > 0) ? decayDateLinear('" + boost.getDateCenter() + "', '1d', '0', 0.5, doc['foo'].value) : 0)",
             boost.getSource("foo")
         );
 
         // numeric
         boost = new ProximityBoost("20", "linear", 8f);
-        assertEquals("8 * decayNumericLinear(20, 10, 0, 0.5, (doc['foo'].size() > 0) ? doc['foo'].value : 0)", boost.getSource("foo"));
+        assertEquals("8 * ((doc['foo'].size() > 0) ? decayNumericLinear(20, 10, 0.0, 0.5, doc['foo'].value) : 0)", boost.getSource("foo"));
 
         boost = new ProximityBoost("20", "exponential", 8f);
-        assertEquals("8 * decayNumericExp(20, 10, 0, 0.5, (doc['foo'].size() > 0) ? doc['foo'].value : 0)", boost.getSource("foo"));
+        assertEquals("8 * ((doc['foo'].size() > 0) ? decayNumericExp(20, 10, 0.0, 0.5, doc['foo'].value) : 0)", boost.getSource("foo"));
 
         boost = new ProximityBoost("20", "gaussian", 8f);
-        assertEquals("8 * decayNumericGauss(20, 10, 0, 0.5, (doc['foo'].size() > 0) ? doc['foo'].value : 0)", boost.getSource("foo"));
+        assertEquals("8 * ((doc['foo'].size() > 0) ? decayNumericGauss(20, 10, 0.0, 0.5, doc['foo'].value) : 0)", boost.getSource("foo"));
     }
 
     public void testIsGeo() {

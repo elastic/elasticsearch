@@ -177,14 +177,14 @@ public class ProximityBoost extends ScriptScoreBoost {
             case "exponential" -> jsFunc = "decayNumericExp";
             case "gaussian" -> jsFunc = "decayNumericGauss";
         }
-        return MessageFormat.format(
-            "{0} * {1}({2}, {3}, 0, 0.5, {4})",
-            getFactor(),
+        String funcCall = MessageFormat.format(
+            "{0}({1}, {2}, 0.0, 0.5, doc[''{3}''].value)",
             jsFunc,
             center, // origin
-            scale, // scale
-            safeValue(field)
+            scale,
+            field
         );
+        return MessageFormat.format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
     }
 
     private String getGeoSource(String field) {
@@ -194,14 +194,14 @@ public class ProximityBoost extends ScriptScoreBoost {
             case "exponential" -> jsFunc = "decayGeoExp";
             case "gaussian" -> jsFunc = "decayGeoGauss";
         }
-        return MessageFormat.format(
-            "{0} * {1}(''{2}'', ''{3}'', 0, 0.5, {4})",
-            getFactor(),
+        String funcCall = MessageFormat.format(
+            "{0}(''{1}'', ''{2}'', ''0km'', 0.5, doc[''{3}''].value)",
             jsFunc,
             center, // origin
-            "1km", // scale
-            safeValue(field)
+            "1km",
+            field
         );
+        return MessageFormat.format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
     }
 
     private String getDateSource(String field) {
@@ -211,13 +211,13 @@ public class ProximityBoost extends ScriptScoreBoost {
             case "exponential" -> jsFunc = "decayDateExp";
             case "gaussian" -> jsFunc = "decayDateGauss";
         }
-        return MessageFormat.format(
-            "{0} * {1}(''{2}'', ''{3}'', 0, 0.5, {4})",
-            getFactor(),
+        String funcCall = MessageFormat.format(
+            "{0}(''{1}'', ''{2}'', ''0'', 0.5, doc[''{3}''].value)",
             jsFunc,
             getDateCenter(), // origin
-            "1d", // scale
-            safeValue(field)
+            "1d",
+            field
         );
+        return MessageFormat.format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
     }
 }

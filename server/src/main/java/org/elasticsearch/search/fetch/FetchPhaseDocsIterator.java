@@ -29,13 +29,13 @@ abstract class FetchPhaseDocsIterator {
     /**
      * Called when a new leaf reader is reached
      * @param ctx           the leaf reader for this set of doc ids
-     * @param docsInLeaf    the docids to be fetched in this leaf reader
+     * @param docsInLeaf    the reader-specific docids to be fetched in this leaf reader
      */
     protected abstract void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException;
 
     /**
      * Called for each document within a leaf reader
-     * @param doc   the doc id
+     * @param doc   the global doc id
      * @return a {@link SearchHit} for the document
      */
     protected abstract SearchHit nextDoc(int doc) throws IOException;

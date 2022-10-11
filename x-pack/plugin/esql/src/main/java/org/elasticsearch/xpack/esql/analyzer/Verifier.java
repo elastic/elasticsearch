@@ -23,6 +23,12 @@ public class Verifier {
             if (p instanceof Unresolvable u) {
                 failures.add(Failure.fail(p, u.unresolvedMessage()));
             }
+
+            p.forEachExpression(e -> {
+                if (e instanceof Unresolvable u) {
+                    failures.add(Failure.fail(e, u.unresolvedMessage()));
+                }
+            });
         });
 
         return failures;

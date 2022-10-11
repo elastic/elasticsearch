@@ -16,7 +16,9 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.Map;
 
 /**
- * The source of a document
+ * The source of a document.  Note that, while objects returned from {@link #source()}
+ * and {@link #internalSourceRef()} are immutable, objects implementing this interface
+ * may not be immutable themselves.
  */
 public interface Source {
 

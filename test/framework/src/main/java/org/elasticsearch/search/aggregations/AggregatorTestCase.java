@@ -465,7 +465,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             indexSettings,
             searcher,
             aggTestConfig.query(),
-            aggTestConfig.builder(),
+            aggTestConfig.builders(),
             aggTestConfig.maxBuckets(),
             aggTestConfig.splitLeavesIntoSeparateAggregators(),
             aggTestConfig.shouldBeCached(),
@@ -487,7 +487,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     indexSettings,
                     searcher,
                     aggTestConfig.query(),
-                    aggTestConfig.builder(),
+                    aggTestConfig.builders(),
                     aggTestConfig.maxBuckets(),
                     aggTestConfig.splitLeavesIntoSeparateAggregators(),
                     aggTestConfig.shouldBeCached(),
@@ -507,13 +507,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexSettings indexSettings,
         IndexSearcher searcher,
         Query query,
-        AggregationBuilder builder,
+        List<AggregationBuilder> builders,
         int maxBucket,
         boolean splitLeavesIntoSeparateAggregators,
         boolean shouldBeCached,
         CircuitBreakerService breakerService,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        assert builders.size() == 1;
+        AggregationBuilder builder = builders.get(0);
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
@@ -644,12 +646,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
 
-    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
+    protected <V extends InternalAggregation> void testCase(
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<V> verify,
         AggTestConfig aggTestConfig
     ) throws IOException {
-        boolean timeSeries = aggTestConfig.builder().isInSortOrderExecutionRequired();
+        boolean timeSeries = aggTestConfig.requireSortedIndex();
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
             if (timeSeries) {
@@ -669,7 +671,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 V agg = searchAndReduce(indexSearcher, aggTestConfig);
                 verify.accept(agg);
 
-                verifyOutputFieldNames(aggTestConfig.builder(), agg);
+                if (aggTestConfig.builders().size() == 1) {
+                    verifyOutputFieldNames(aggTestConfig.builders().get(0), agg);
+                }
             }
         }
     }
@@ -1522,31 +1526,72 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     public record AggTestConfig(
         Query query,
-        AggregationBuilder builder,
+        List<AggregationBuilder> builders,
         int maxBuckets,
         boolean splitLeavesIntoSeparateAggregators,
         boolean shouldBeCached,
+        boolean requireSortedIndex,
         MappedFieldType... fieldTypes
     ) {
 
         public AggTestConfig(AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this(new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, fieldTypes);
+            this(
+                new MatchAllDocsQuery(),
+                List.of(builder),
+                DEFAULT_MAX_BUCKETS,
+                randomBoolean(),
+                true,
+                builder.isInSortOrderExecutionRequired(),
+                fieldTypes
+            );
         }
 
         public AggTestConfig withQuery(Query query) {
-            return new AggTestConfig(query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, shouldBeCached, fieldTypes);
+            return new AggTestConfig(
+                query,
+                builders,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                requireSortedIndex,
+                fieldTypes
+            );
         }
 
         public AggTestConfig withSplitLeavesIntoSeperateAggregators(boolean splitLeavesIntoSeparateAggregators) {
-            return new AggTestConfig(query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, shouldBeCached, fieldTypes);
+            return new AggTestConfig(
+                query,
+                builders,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                requireSortedIndex,
+                fieldTypes
+            );
         }
 
         public AggTestConfig withShouldBeCached(boolean shouldBeCached) {
-            return new AggTestConfig(query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, shouldBeCached, fieldTypes);
+            return new AggTestConfig(
+                query,
+                builders,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                requireSortedIndex,
+                fieldTypes
+            );
         }
 
         public AggTestConfig withMaxBuckets(int maxBuckets) {
-            return new AggTestConfig(query, builder, maxBuckets, splitLeavesIntoSeparateAggregators, shouldBeCached, fieldTypes);
+            return new AggTestConfig(
+                query,
+                builders,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                requireSortedIndex,
+                fieldTypes
+            );
         }
     }
 }

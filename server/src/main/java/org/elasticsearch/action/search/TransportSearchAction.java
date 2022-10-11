@@ -1240,7 +1240,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         try {
-            List<String> searchEnginesName = resolver.searchEngineNames(clusterState, searchRequest.indicesOptions(), searchRequest.indices());
+            List<String> searchEnginesName = resolver.searchEngineNames(
+                clusterState,
+                searchRequest.indicesOptions(),
+                searchRequest.indices()
+            );
 
             if (searchEnginesName.size() > 0) {
                 if (searchEnginesName.size() > 1) {

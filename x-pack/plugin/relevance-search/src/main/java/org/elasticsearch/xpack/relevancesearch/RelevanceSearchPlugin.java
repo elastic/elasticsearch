@@ -105,7 +105,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         AllocationDeciders allocationDeciders
     ) {
 
-        RelevanceSettingsService relevanceSettingsService = new RelevanceSettingsService(client);
+        RelevanceSettingsService relevanceSettingsService = new RelevanceSettingsService(client, clusterService));
         CurationsService curationsService = new CurationsService(client);
         QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
 

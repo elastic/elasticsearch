@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -52,7 +53,13 @@ public class TransportHandshakerTests extends ESTestCase {
             Version.CURRENT
         );
         threadPool = new TestThreadPool("thread-poll");
-        handshaker = new TransportHandshaker(Version.CURRENT, Version.V_EMPTY, threadPool, requestSender, false);
+        handshaker = new TransportHandshaker(
+            Version.CURRENT,
+            TransportSettings.MIN_ACCEPTED_VERSION.getDefault(Settings.EMPTY),
+            threadPool,
+            requestSender,
+            false
+        );
     }
 
     @Override

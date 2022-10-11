@@ -1249,6 +1249,15 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<Version> versionSetting(
         final String key,
+        Version defaultValue,
+        Validator<Version> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), validator, properties);
+    }
+
+    public static Setting<Version> versionSetting(
+        final String key,
         Setting<Version> fallbackSetting,
         Validator<Version> validator,
         Property... properties

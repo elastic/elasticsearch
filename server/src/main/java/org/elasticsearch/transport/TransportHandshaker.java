@@ -109,10 +109,7 @@ final class TransportHandshaker {
             assert ignoreDeserializationErrors : exception;
             throw exception;
         }
-        if ((request.version != null)
-            && (this.minAcceptedVersion != null)
-            && (Version.V_EMPTY.equals(this.minAcceptedVersion) == false)
-            && (request.version.compareTo(this.minAcceptedVersion) < 0)) {
+        if ((request.version != null) && (request.version.compareTo(this.minAcceptedVersion) < 0)) {
             channel.sendResponse(
                 new IllegalStateException(
                     "remote node request version ["

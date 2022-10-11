@@ -250,11 +250,19 @@ public final class TransportSettings {
     // only used in tests: RST connections when closing to avoid actively closing sockets to end up in time_wait in tests
     public static final Setting<Boolean> RST_ON_CLOSE = boolSetting("transport.rst_on_close", false, Setting.Property.NodeScope);
 
-    // Minimum accepted version during handshake.
-    // Example: Even though 8.6.0 is compatible with 7.17.0 and 8.7.0, either side of handshake may only want to accept 8.5.0 or higher.
+    // Minimum accepted version during handshake. Overrides minimum compatibility version.
+    // Valid values are between min compatibility version to current, inclusive.
+    // Example: 8.6.0 is compatible with 7.17.0 and 8.7.0, but min accepted version could be set to 8.5.0.
     public static final Setting<Version> MIN_ACCEPTED_VERSION = Setting.versionSetting(
         "transport.min_accepted_version",
-        Version.V_EMPTY,
+        Version.CURRENT.minimumCompatibilityVersion(),
+        version -> {
+            if (version.compareTo(Version.CURRENT.minimumCompatibilityVersion()) < 0) {
+                throw new IllegalArgumentException("Invalid version [" + version + "] too low for [transport.min_accepted_version].");
+            } else if (version.compareTo(Version.CURRENT) > 0) {
+                throw new IllegalArgumentException("Invalid version [" + version + "] too high for [transport.min_accepted_version].");
+            }
+        },
         Setting.Property.NodeScope
     );
 

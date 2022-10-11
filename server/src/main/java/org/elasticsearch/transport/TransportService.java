@@ -558,22 +558,21 @@ public class TransportService extends AbstractLifecycleComponent
                                 + "]"
                         )
                     );
-                } else if ((Version.V_EMPTY.equals(this.minAcceptedVersion) == false)
-                    && (response.version.compareTo(this.minAcceptedVersion) < 0)) {
-                        l.onFailure(
-                            new IllegalStateException(
-                                "handshake with ["
-                                    + node
-                                    + "] failed: remote node response version ["
-                                    + response.version
-                                    + "] is not accepted due to local node minimum accepted version ["
-                                    + this.minAcceptedVersion
-                                    + "]"
-                            )
-                        );
-                    } else {
-                        l.onResponse(response);
-                    }
+                } else if (response.version.compareTo(this.minAcceptedVersion) < 0) {
+                    l.onFailure(
+                        new IllegalStateException(
+                            "handshake with ["
+                                + node
+                                + "] failed: remote node response version ["
+                                + response.version
+                                + "] is not accepted due to local node minimum accepted version ["
+                                + this.minAcceptedVersion
+                                + "]"
+                        )
+                    );
+                } else {
+                    l.onResponse(response);
+                }
             }), HandshakeResponse::new, ThreadPool.Names.GENERIC)
         );
     }

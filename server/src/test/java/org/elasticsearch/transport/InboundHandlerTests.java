@@ -67,7 +67,7 @@ public class InboundHandlerTests extends ESTestCase {
         final boolean ignoreDeserializationErrors = true; // suppress assertions to test production error-handling
         TransportHandshaker handshaker = new TransportHandshaker(
             version,
-            Version.V_EMPTY,
+            TransportSettings.MIN_ACCEPTED_VERSION.getDefault(Settings.EMPTY),
             threadPool,
             (n, c, r, v) -> {},
             ignoreDeserializationErrors

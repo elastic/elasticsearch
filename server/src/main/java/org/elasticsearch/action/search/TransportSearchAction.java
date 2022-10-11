@@ -1239,19 +1239,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return;
         }
 
-        List<String> searchEnginesName = resolver.searchEngineNames(clusterState, searchRequest.indicesOptions(), searchRequest.indices());
+        try {
+            List<String> searchEnginesName = resolver.searchEngineNames(clusterState, searchRequest.indicesOptions(), searchRequest.indices());
 
-        if (searchEnginesName.size() > 0) {
-            if (searchEnginesName.size() > 1) {
-                throw new IllegalArgumentException("Can't search several search engines together");
+            if (searchEnginesName.size() > 0) {
+                if (searchEnginesName.size() > 1) {
+                    throw new IllegalArgumentException("Can't search several search engines together");
+                }
+
+                if (searchRequest.indices().length > 1) {
+                    // TODO: need a smarter version too handle wildcards. Enough for a POC.
+                    throw new IllegalArgumentException("Can't search several search engines together");
+                }
+
+                searchRequest.searchEngineName(searchEnginesName.get(0));
             }
-
-            if (searchRequest.indices().length > 1) {
-                // TODO: need a smarter version too handle wildcards. Enough for a POC.
-                throw new IllegalArgumentException("Can't search several search engines together");
-            }
-
-            searchRequest.searchEngineName(searchEnginesName.get(0));
+        } catch (IndexNotFoundException e) {
+            return;
         }
     }
 

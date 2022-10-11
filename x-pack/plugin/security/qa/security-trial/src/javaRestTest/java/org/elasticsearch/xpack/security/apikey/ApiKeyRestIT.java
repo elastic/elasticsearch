@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,6 +31,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,6 +64,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final String END_USER = "end_user";
     private static final SecureString END_USER_PASSWORD = new SecureString("end-user-password".toCharArray());
     private static final String MANAGE_OWN_API_KEY_USER = "manage_own_api_key_user";
+    private static final String REMOTE_INDICES_USER = "remote_indices_user";
 
     @Before
     public void createUsers() throws IOException {
@@ -71,6 +74,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createRole("user_role", Set.of("monitor"));
         createUser(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD, List.of("manage_own_api_key_role"));
         createRole("manage_own_api_key_role", Set.of("manage_own_api_key"));
+        createUser(REMOTE_INDICES_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
+        createRole("remote_indices_role", Set.of("grant_api_key", "manage_own_api_key"), "remote");
     }
 
     @After
@@ -78,9 +83,11 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         deleteUser(SYSTEM_USER);
         deleteUser(END_USER);
         deleteUser(MANAGE_OWN_API_KEY_USER);
+        deleteUser(REMOTE_INDICES_USER);
         deleteRole("system_role");
         deleteRole("user_role");
         deleteRole("manage_own_api_key_role");
+        deleteRole("remote_indices_role");
         invalidateApiKeysForUser(END_USER);
         invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);
     }
@@ -574,67 +581,77 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testRemoteIndicesNotSupportedForApiKeys() {
-        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
-        createApiKeyRequest.setJsonEntity("""
-            {
-              "name": "k1",
-              "role_descriptors": {
-                "r1": {
-                  "remote_indices": [
-                    {
-                      "names": ["index-a", "*"],
-                      "privileges": ["read"],
-                      "clusters": ["remote-a", "*"]
-                    }
-                  ]
+        final String remoteIndicesSection = """
+            "remote_indices": [
+                {
+                  "names": ["index-a", "*"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "*"]
                 }
-              }
-            }""");
-        assertRemoteIndicesNotSupported(createApiKeyRequest);
+            ]""";
+
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        boolean includeRemoteIndices = randomBoolean();
+        createApiKeyRequest.setJsonEntity(Strings.format("""
+            {"name": "k1", "role_descriptors": {"r1": {%s}}}""", includeRemoteIndices ? remoteIndicesSection : ""));
+        doRequestAndAssertRemoteIndicesNotSupported(createApiKeyRequest, false == includeRemoteIndices);
 
         final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
-        grantApiKeyRequest.setJsonEntity("""
+        includeRemoteIndices = randomBoolean();
+        grantApiKeyRequest.setJsonEntity(Strings.format("""
             {
                "grant_type":"password",
-               "username":"manage_own_api_key_user",
+               "username":"%s",
                "password":"end-user-password",
                "api_key":{
                   "name":"k1",
                   "role_descriptors":{
                      "r1":{
-                        "remote_indices":[
-                           {
-                              "names":["index-a","*"],
-                              "privileges":["read"],
-                              "clusters":["remote-a", "*"]
-                           }
-                        ]
+                        %s
                      }
                   }
                }
-            }""");
-        assertRemoteIndicesNotSupported(grantApiKeyRequest);
+            }""", includeRemoteIndices ? MANAGE_OWN_API_KEY_USER : REMOTE_INDICES_USER, includeRemoteIndices ? remoteIndicesSection : ""));
+        doRequestAndAssertRemoteIndicesNotSupported(grantApiKeyRequest, false == includeRemoteIndices);
 
         final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/id");
-        updateApiKeyRequest.setJsonEntity("""
+        includeRemoteIndices = randomBoolean();
+        updateApiKeyRequest.setJsonEntity(Strings.format("""
             {
               "role_descriptors": {
                 "r1": {
-                  "remote_indices": [
-                    {
-                      "names": ["index-a", "*"],
-                      "privileges": ["read"],
-                      "clusters": ["remote-a", "*"]
-                    }
-                  ]
+                  %s
                 }
               }
-            }""");
-        assertRemoteIndicesNotSupported(updateApiKeyRequest);
+            }""", includeRemoteIndices ? remoteIndicesSection : ""));
+        doRequestAndAssertRemoteIndicesNotSupported(updateApiKeyRequest, false == includeRemoteIndices);
+
+        final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        includeRemoteIndices = randomBoolean();
+        bulkUpdateApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+              "ids": ["id"],
+              "role_descriptors": {
+                "r1": {
+                  %s
+                }
+              }
+            }""", includeRemoteIndices ? remoteIndicesSection : ""));
+        doRequestAndAssertRemoteIndicesNotSupported(bulkUpdateApiKeyRequest, false == includeRemoteIndices);
     }
 
-    private void assertRemoteIndicesNotSupported(final Request request) {
-        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+    private void doRequestAndAssertRemoteIndicesNotSupported(final Request request, final boolean executeAsRemoteIndicesUser) {
+        final ResponseException e = expectThrows(ResponseException.class, () -> {
+            if (executeAsRemoteIndicesUser) {
+                request.setOptions(
+                    RequestOptions.DEFAULT.toBuilder()
+                        .addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_INDICES_USER, END_USER_PASSWORD))
+                );
+                client().performRequest(request);
+            } else {
+                adminClient().performRequest(request);
+            }
+        });
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString("remote indices not supported for API keys"));
     }
@@ -777,4 +794,20 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     private record EncodedApiKey(String id, String encoded, String name) {}
+
+    private void createRole(String name, Collection<String> clusterPrivileges, String... remoteIndicesClusterAliases) throws IOException {
+        final RoleDescriptor role = new RoleDescriptor(
+            name,
+            clusterPrivileges.toArray(String[]::new),
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            null,
+            null,
+            null,
+            null,
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                RoleDescriptor.RemoteIndicesPrivileges.builder(remoteIndicesClusterAliases).indices("*").privileges("read").build() }
+        );
+        getSecurityClient().putRole(role);
+    }
 }

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 
-public class FetchPhaseDocsIteratorTest extends ESTestCase {
+public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
     public void testInOrderIteration() throws IOException {
 

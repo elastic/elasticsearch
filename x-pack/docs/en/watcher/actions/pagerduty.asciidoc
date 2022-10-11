@@ -144,14 +144,9 @@ the PagerDuty service you want to send notifications to. To get the
 key:
 
 . Log in to http://pagerduty.com[pagerduty.com] as an account administrator.
-. Go to **Configuration > Services** and select the PagerDuty service. The 
-service must use the **Events API V2** integration.
-+
-image::images/pagerduty-services.jpg[]
-
-. Click the **Integrations** tab and copy the API integration key.
-+
-image::images/pagerduty-integrations.jpg[]
+. Go to **Services** and select the PagerDuty service you wish to target.
+. Click the **Integrations** tab and add an **Events API V2** integration if one does not already exist.
+. Copy the API integration key for use below.
 
 To configure a PagerDuty account in the keystore, you
 must specify an account name and integration key, (see <<secure-settings>>):

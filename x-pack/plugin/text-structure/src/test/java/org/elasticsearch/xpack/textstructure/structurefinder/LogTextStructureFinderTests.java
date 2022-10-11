@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -97,6 +98,12 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
             assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
         }
         assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
+        @SuppressWarnings("unchecked")
+        Set<String> keys = ((Map<String, Object>) structure.getMappings().get("properties")).keySet();
+        assertTrue(keys.size() == 3);
+        assertTrue(keys.contains("message"));
+        assertTrue(keys.contains("loglevel"));
+        assertTrue(keys.contains("@timestamp"));
     }
 
     public void testCreateConfigsGivenElasticsearchLogWithNoTimestamps() throws Exception {
@@ -151,7 +158,7 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
             assertNull(structure.getQuote());
             assertNull(structure.getHasHeaderRow());
             assertNull(structure.getShouldTrimFields());
-            assertEquals("\\[%{LOGLEVEL:loglevel} \\]\\[.*?    .*? .*? .*? .*? .*? .*? .*? .*? .*? .*?\\].*?", structure.getGrokPattern());
+            assertEquals("\\[%{LOGLEVEL:loglevel} \\]\\[.*", structure.getGrokPattern());
             assertNull(structure.getTimestampField());
             assertNull(structure.getJodaTimestampFormats());
             FieldStats messageFieldStats = structure.getFieldStats().get("message");
@@ -163,6 +170,12 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
                 assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
             }
             assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
+            @SuppressWarnings("unchecked")
+            Set<String> keys = ((Map<String, Object>) structure.getMappings().get("properties")).keySet();
+            assertTrue(keys.size() == 2);
+            assertTrue(keys.contains("message"));
+            assertTrue(keys.contains("loglevel"));
+            assertFalse(keys.contains("@timestamp"));
         }
 
         {
@@ -194,11 +207,7 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
             assertNull(structure.getHasHeaderRow());
             assertNull(structure.getShouldTrimFields());
             // a timestamp field is detected but it's not set to be the primary one.
-            assertEquals(
-                "\\[%{TIMESTAMP_ISO8601:extra_timestamp}\\]"
-                    + "\\[%{LOGLEVEL:loglevel} \\]\\[.*?    .*? .*? .*? .*? .*? .*? .*? .*? .*? .*?\\].*?",
-                structure.getGrokPattern()
-            );
+            assertEquals("\\[%{TIMESTAMP_ISO8601:extra_timestamp}\\]" + "\\[%{LOGLEVEL:loglevel} \\]\\[.*", structure.getGrokPattern());
             assertNull(structure.getTimestampField());
             assertNull(structure.getJodaTimestampFormats());
             FieldStats messageFieldStats = structure.getFieldStats().get("message");
@@ -210,6 +219,13 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
                 assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
             }
             assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
+            @SuppressWarnings("unchecked")
+            Set<String> keys = ((Map<String, Object>) structure.getMappings().get("properties")).keySet();
+            assertTrue(keys.size() == 3);
+            assertTrue(keys.contains("message"));
+            assertTrue(keys.contains("loglevel"));
+            assertTrue(keys.contains("extra_timestamp"));
+            assertFalse(keys.contains("@timestamp"));
         }
     }
 
@@ -306,6 +322,12 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
             assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
         }
         assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
+        @SuppressWarnings("unchecked")
+        Set<String> keys = ((Map<String, Object>) structure.getMappings().get("properties")).keySet();
+        assertTrue(keys.size() == 3);
+        assertTrue(keys.contains("message"));
+        assertTrue(keys.contains("loglevel"));
+        assertTrue(keys.contains("@timestamp"));
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndGrokPatternOverride() throws Exception {
@@ -361,6 +383,14 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
             assertThat(structureFinder.getSampleMessages(), not(hasItem(statMessage)));
         }
         assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
+        @SuppressWarnings("unchecked")
+        Set<String> keys = ((Map<String, Object>) structure.getMappings().get("properties")).keySet();
+        assertTrue(keys.size() == 5);
+        assertTrue(keys.contains("message"));
+        assertTrue(keys.contains("loglevel"));
+        assertTrue(keys.contains("class"));
+        assertTrue(keys.contains("node"));
+        assertTrue(keys.contains("@timestamp"));
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndImpossibleGrokPatternOverride() {

@@ -294,7 +294,7 @@ public final class GrokPatternCreator {
         overallGrokPatternBuilder.setLength(0);
 
         if (seedPatternName == null) {
-            appendBestGrokMatchForStrings(false, sampleMessages, false, 0);
+            appendBestGrokMatchForStrings(true, sampleMessages, false, 0);
         } else {
             GrokPatternCandidate seedCandidate = new PrecalculatedMappingGrokPatternCandidate(
                 seedPatternName,

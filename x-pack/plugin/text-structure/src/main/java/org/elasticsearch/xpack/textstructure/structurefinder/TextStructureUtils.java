@@ -534,13 +534,11 @@ public final class TextStructureUtils {
             return Collections.singletonMap(MAPPING_TYPE_SETTING, "boolean");
         }
 
-        if (NULL_TIMESTAMP_FORMAT.equals(timestampFormatOverride) == false) {
-            try {
-                return findTimestampMapping(explanation, fieldValues, timeoutChecker, ecsCompatibility);
-            } catch (IllegalArgumentException e) {
-                // To be mapped as type "date" all the values must match the same timestamp format - if
-                // they don't we'll end up here, and move on to try other possible mappings
-            }
+        try {
+            return findTimestampMapping(explanation, fieldValues, timeoutChecker, ecsCompatibility);
+        } catch (IllegalArgumentException e) {
+            // To be mapped as type "date" all the values must match the same timestamp format - if
+            // they don't we'll end up here, and move on to try other possible mappings
         }
 
         if (fieldValues.stream().allMatch(NUMBER_GROK::match)) {

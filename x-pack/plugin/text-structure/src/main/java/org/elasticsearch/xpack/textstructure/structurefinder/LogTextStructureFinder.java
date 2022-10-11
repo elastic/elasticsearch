@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.joni.exception.SyntaxException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -42,14 +43,7 @@ public class LogTextStructureFinder implements TextStructureFinder {
 
         explanation.add("Timestamp format is explicitly set to \"null\"");
 
-        List<String> sampleMessages = new ArrayList<>();
-
-        for (String sampleLine : sampleLines) {
-            sampleMessages.add(sampleLine);
-        }
-
-        // null to allow GC before Grok pattern search
-        sampleLines = null;
+        List<String> sampleMessages = Arrays.asList(sampleLines);
 
         TextStructure.Builder structureBuilder = new TextStructure.Builder(TextStructure.Format.SEMI_STRUCTURED_TEXT).setCharset(
             charsetName

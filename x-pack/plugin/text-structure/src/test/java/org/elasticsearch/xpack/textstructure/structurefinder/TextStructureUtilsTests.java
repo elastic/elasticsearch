@@ -480,14 +480,14 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
             ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
         }
         {
-            // By setting the override field for the timestamp format to the special value "null"
-            // we are instructing the "guess mappings" algorithm to not hunt for timestamps at all,
-            // hence they will be treated as just keywords if present. In practice the "null"
-            // timestamp format override value should/would only be set if it is known that no
-            // timestamps exist in the data set, in which case it could provide a potential performance
-            // improvement.
+            // The special value of "null" for the timestamp format indicates that the analysis
+            // of semi-structured text should assume the absence of any timestamp.
+            // In the case of structured text, there may be timestamps present in multiple fields
+            // which we want the analysis to identify. For now we don't want the user supplied timestamp
+            // format override to affect this behaviour, hence this check.
             Map<String, String> expected = new HashMap<>();
-            expected.put(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword");
+            expected.put(TextStructureUtils.MAPPING_TYPE_SETTING, "date");
+            expected.put(TextStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
 
             Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
                 assertEquals(

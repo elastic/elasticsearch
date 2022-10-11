@@ -160,8 +160,10 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
         assertThat(comp.getIntLE(2), equalTo(0x02010012));
         assertThat(comp.getIntLE(3), equalTo(0x03020100));
         assertThat(comp.getIntLE(4), equalTo(0x04030201));
-        Exception e = expectThrows(ArrayIndexOutOfBoundsException.class, () -> comp.getIntLE(5));
-        assertThat(e.getMessage(), equalTo("Index 4 out of bounds for length 4"));
+        // The jvm can optimize throwing ArrayIndexOutOfBoundsException by reusing the same exception,
+        // but these reused exceptions have no message or stack trace. This sometimes happens when running this test case.
+        // We can assert the exception message if -XX:-OmitStackTraceInFastThrow is set in gradle test task.
+        expectThrows(ArrayIndexOutOfBoundsException.class, () -> comp.getIntLE(5));
     }
 
     public void testGetDoubleLE() {
@@ -174,7 +176,9 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
         assertThat(comp.getDoubleLE(0), equalTo(1.2));
         assertThat(comp.getDoubleLE(8), equalTo(1.4));
         assertThat(comp.getDoubleLE(16), equalTo(1.6));
-        Exception e = expectThrows(IndexOutOfBoundsException.class, () -> comp.getDoubleLE(17));
-        assertThat(e.getMessage(), equalTo("Index 8 out of bounds for length 8"));
+        // The jvm can optimize throwing ArrayIndexOutOfBoundsException by reusing the same exception,
+        // but these reused exceptions have no message or stack trace. This sometimes happens when running this test case.
+        // We can assert the exception message if -XX:-OmitStackTraceInFastThrow is set in gradle test task.
+        expectThrows(IndexOutOfBoundsException.class, () -> comp.getDoubleLE(17));
     }
 }

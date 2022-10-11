@@ -899,11 +899,11 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     public void testUpdateDeployment_GivenAllocationsAreIncreasedOverResources_AndScalingIsPossible() throws Exception {
         Request maxLazyNodeSetting = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        maxLazyNodeSetting.setJsonEntity("""
             {"persistent" : {
                     "xpack.ml.max_lazy_ml_nodes": 5
                 }}""");
-        client().performRequest(loggingSettings);
+        client().performRequest(maxLazyNodeSetting);
 
         String modelId = "update_deployment_allocations_increased_scaling_possible";
         createTrainedModel(modelId);

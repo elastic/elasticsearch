@@ -95,10 +95,12 @@ public class AllocationReducer {
             }
 
             Map.Entry<String, Integer> smallestAssignmentInLargestZone = largestZoneAssignmentsInAscendingOrder.get(0);
-            if (smallestAssignmentInLargestZone.getValue() == 1
-                || (smallestAssignmentInLargestZone.getValue() <= allocationsToRemove
-                    && (minAllocationsInOtherZones == 0
-                        || ((largestZoneAllocations - smallestAssignmentInLargestZone.getValue()) >= minAllocationsInOtherZones + 1)))) {
+            if (canAssignmentBeRemovedEntirely(
+                smallestAssignmentInLargestZone,
+                minAllocationsInOtherZones,
+                largestZoneAllocations,
+                allocationsToRemove
+            )) {
                 allocationsByNode.remove(smallestAssignmentInLargestZone.getKey());
                 allocationsByZone.computeIfPresent(largestZone, (k, v) -> v - smallestAssignmentInLargestZone.getValue());
                 totalRemainingAllocations -= smallestAssignmentInLargestZone.getValue();
@@ -110,6 +112,31 @@ public class AllocationReducer {
         }
 
         return buildUpdatedAssignment(numberOfAllocations, allocationsByNode);
+    }
+
+    private boolean canAssignmentBeRemovedEntirely(
+        Map.Entry<String, Integer> assignment,
+        int minAllocationsInOtherZones,
+        int zoneAllocations,
+        int allocationsToRemove
+    ) {
+        // Assignment has a single allocations so we should be able to remove it entirely
+        if (assignment.getValue() == 1) {
+            return true;
+        }
+
+        // Assignment has more allocations so we cannot remove it entirely.
+        if (assignment.getValue() > allocationsToRemove) {
+            return false;
+        }
+
+        // No allocations in other zones means we do not have to consider preserving balance of allocations across zones
+        if (minAllocationsInOtherZones == 0) {
+            return true;
+        }
+        // If we remove the allocations of the assignment from the zone and we still have as many allocations
+        // as the smallest of the other zones we're still fairly balanced.
+        return zoneAllocations - assignment.getValue() >= minAllocationsInOtherZones;
     }
 
     private TrainedModelAssignment.Builder buildUpdatedAssignment(int numberOfAllocations, Map<String, Integer> allocationsByNode) {

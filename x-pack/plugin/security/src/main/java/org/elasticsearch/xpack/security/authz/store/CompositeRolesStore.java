@@ -489,8 +489,8 @@ public class CompositeRolesStore {
             )
         );
 
-        remoteIndicesPrivilegesMap.forEach((clusterAliasKey, indicesPrivilegesMapForCluster) -> {
-            indicesPrivilegesMapForCluster.forEach(
+        remoteIndicesPrivilegesMap.forEach((clusterAliasKey, remoteIndicesPrivilegesMapForCluster) -> {
+            remoteIndicesPrivilegesMapForCluster.forEach(
                 (key, privilege) -> builder.addRemoteGroup(
                     clusterAliasKey,
                     fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
@@ -501,8 +501,8 @@ public class CompositeRolesStore {
                 )
             );
         });
-        restrictedRemoteIndicesPrivilegesMap.forEach((clusterAliasKey, indicesPrivilegesMapForCluster) -> {
-            indicesPrivilegesMapForCluster.forEach(
+        restrictedRemoteIndicesPrivilegesMap.forEach((clusterAliasKey, remoteIndicesPrivilegesMapForCluster) -> {
+            remoteIndicesPrivilegesMapForCluster.forEach(
                 (key, privilege) -> builder.addRemoteGroup(
                     clusterAliasKey,
                     fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),

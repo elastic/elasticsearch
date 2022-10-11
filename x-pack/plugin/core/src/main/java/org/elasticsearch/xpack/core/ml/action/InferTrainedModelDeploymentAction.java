@@ -91,8 +91,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
         private boolean skipQueue = false;
-        // textInput added for the semantic search endpoint
-        // which accepts a query string rather than a document
+        // textInput added for uses that accept a query string
+        // and do know which field the model expects to find its
+        // input and so cannot construct a document.
         private final String textInput;
 
         public Request(String modelId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {

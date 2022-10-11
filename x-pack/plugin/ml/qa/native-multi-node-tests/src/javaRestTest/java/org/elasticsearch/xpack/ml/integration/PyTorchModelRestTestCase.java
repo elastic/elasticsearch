@@ -26,6 +26,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -125,8 +126,8 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
 
     protected void putModelDefinition(String modelId, String base64EncodedModel, long unencodedModelSize) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        String body = """
-            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(unencodedModelSize, base64EncodedModel);
+        String body = String.format(Locale.ROOT, """
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", unencodedModelSize, base64EncodedModel);
         request.setJsonEntity(body);
         client().performRequest(request);
     }
@@ -139,9 +140,9 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             { "vocabulary": [%s] }
-            """.formatted(quotedWords));
+            """, quotedWords));
         client().performRequest(request);
     }
 
@@ -233,23 +234,23 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
 
     protected Response infer(String input, String modelId, TimeValue timeout) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=" + timeout.toString());
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
         return client().performRequest(request);
     }
 
     protected Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
+            """, input));
         return client().performRequest(request);
     }
 
     protected Response infer(String input, String modelId, String resultsField) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "docs": [ { "input": "%s" } ],
               "inference_config": {
@@ -257,14 +258,14 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                   "results_field": "%s"
                 }
               }
-            }""".formatted(input, resultsField));
+            }""", input, resultsField));
         return client().performRequest(request);
     }
 
     protected Response semanticSearch(String index, String query, String deploymentId, String denseVectorFieldName) throws IOException {
         Request request = new Request("GET", index + "/_semantic_search?error_trace=true");
 
-        request.setJsonEntity("""
+        request.setJsonEntity(String.format(Locale.ROOT, """
             {
               "deployment_id": "%s",
               "query_string": "%s",
@@ -273,7 +274,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                   "k": 5,
                   "num_candidates": 10
               }
-            }""".formatted(deploymentId, query, denseVectorFieldName));
+            }""", deploymentId, query, denseVectorFieldName));
         return client().performRequest(request);
     }
 
@@ -315,7 +316,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     protected void assertNotificationsContain(String modelId, String... auditMessages) throws IOException {
         client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
         Request search = new Request("POST", ".ml-notifications-*/_search");
-        search.setJsonEntity("""
+        search.setJsonEntity(String.format(Locale.ROOT, """
             {
                 "size": 100,
                 "query": {
@@ -327,7 +328,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                   }
                 }
             }
-            """.formatted(modelId));
+            """, modelId));
         String response = EntityUtils.toString(client().performRequest(search).getEntity());
         for (String msg : auditMessages) {
             assertThat(response, containsString(msg));

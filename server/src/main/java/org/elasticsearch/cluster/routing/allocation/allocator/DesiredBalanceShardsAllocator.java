@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,6 +52,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private static final Logger logger = LogManager.getLogger(DesiredBalanceShardsAllocator.class);
 
     private final ShardsAllocator delegateAllocator;
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final DesiredBalanceReconcilerAction reconciler;
     private final DesiredBalanceComputer desiredBalanceComputer;
@@ -61,6 +63,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final ReconcileDesiredBalanceExecutor executor = new ReconcileDesiredBalanceExecutor();
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
+
+    // stats
+    protected final CounterMetric computationsSubmitted = new CounterMetric();
+    protected final CounterMetric computationsExecuted = new CounterMetric();
+    protected final CounterMetric computationsConverged = new CounterMetric();
+    protected final CounterMetric cumulativeComputationTime = new CounterMetric();
+    protected final CounterMetric cumulativeReconciliationTime = new CounterMetric();
 
     @FunctionalInterface
     public interface DesiredBalanceReconcilerAction {
@@ -84,6 +93,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         DesiredBalanceReconcilerAction reconciler
     ) {
         this.delegateAllocator = delegateAllocator;
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
@@ -95,11 +105,21 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 long index = desiredBalanceInput.index();
                 logger.debug("Starting desired balance computation for [{}]", index);
 
-                setCurrentDesiredBalance(
-                    desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, this::isFresh)
+                recordTime(
+                    cumulativeComputationTime,
+                    () -> setCurrentDesiredBalance(
+                        desiredBalanceComputer.compute(
+                            currentDesiredBalance,
+                            desiredBalanceInput,
+                            pendingDesiredBalanceMoves,
+                            this::isFresh
+                        )
+                    )
                 );
+                computationsExecuted.inc();
                 if (isFresh(desiredBalanceInput)) {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
+                    computationsConverged.inc();
                     submitReconcileTask(currentDesiredBalance);
                 } else {
                     logger.debug("Desired balance computation for [{}] is discarded as newer one is submitted", index);
@@ -130,6 +150,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         assert allocation.ignoreDisable() == false;
         // TODO add system context assertion
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
+
+        computationsSubmitted.inc();
 
         var index = indexGenerator.incrementAndGet();
         logger.debug("Executing allocate for [{}]", index);
@@ -190,7 +212,23 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
         }
         allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
-        new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering).run();
+        recordTime(cumulativeReconciliationTime, new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering)::run);
+    }
+
+    public DesiredBalance getDesiredBalance() {
+        return currentDesiredBalance;
+    }
+
+    public DesiredBalanceStats getStats() {
+        return new DesiredBalanceStats(
+            currentDesiredBalance.lastConvergedIndex(),
+            desiredBalanceComputation.isActive(),
+            computationsSubmitted.count(),
+            computationsExecuted.count(),
+            computationsConverged.count(),
+            cumulativeComputationTime.count(),
+            cumulativeReconciliationTime.count()
+        );
     }
 
     private void onNoLongerMaster() {
@@ -253,6 +291,16 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     taskContext.success(() -> {});
                 }
             }
+        }
+    }
+
+    private void recordTime(CounterMetric metric, Runnable action) {
+        final long started = threadPool.relativeTimeInMillis();
+        try {
+            action.run();
+        } finally {
+            final long finished = threadPool.relativeTimeInMillis();
+            metric.inc(finished - started);
         }
     }
 

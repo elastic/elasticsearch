@@ -31,16 +31,16 @@ class ReleasableDoubleArray implements DoubleArray {
 
     @Override
     public long size() {
-        return ref.length() / 8;
+        return ref.length() / Long.BYTES;
     }
 
     @Override
     public double get(long index) {
-        if (index > Integer.MAX_VALUE / 8) {
+        if (index > Integer.MAX_VALUE / Long.BYTES) {
             // We can't serialize messages longer than 2gb anyway
             throw new ArrayIndexOutOfBoundsException();
         }
-        return ref.getDoubleLE((int) index * 8);
+        return ref.getDoubleLE((int) index * Long.BYTES);
     }
 
     @Override

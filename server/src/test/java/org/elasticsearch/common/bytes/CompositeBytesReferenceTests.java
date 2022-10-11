@@ -168,31 +168,12 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
 
     public void testGetDoubleLE() {
         // first double = 1.2, second double = 1.4, third double = 1.6
+        // tag::noformat
         byte[] data = new byte[] {
-            0x33,
-            0x33,
-            0x33,
-            0x33,
-            0x33,
-            0x33,
-            -0xD,
-            0x3F,
-            0x66,
-            0x66,
-            0x66,
-            0x66,
-            0x66,
-            0x66,
-            -0xA,
-            0x3F,
-            -0x66,
-            -0x67,
-            -0x67,
-            -0x67,
-            -0x67,
-            -0x67,
-            -0x7,
-            0x3F };
+            0x33, 0x33, 0x33, 0x33, 0x33, 0x33, -0xD, 0x3F,
+            0x66, 0x66, 0x66, 0x66, 0x66, 0x66, -0xA, 0x3F,
+            -0x66, -0x67, -0x67, -0x67, -0x67, -0x67, -0x7, 0x3F};
+        // end::noformat
 
         List<BytesReference> refs = new ArrayList<>();
         int bytesPerChunk = randomFrom(4, 16);

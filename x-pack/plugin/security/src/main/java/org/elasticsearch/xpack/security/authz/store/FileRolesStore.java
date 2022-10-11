@@ -240,9 +240,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         }
 
         logger.info("parsed [{}] roles from file [{}]", roles.size(), path.toAbsolutePath());
-        return
-
-        unmodifiableMap(roles);
+        return unmodifiableMap(roles);
     }
 
     public static Map<String, RoleDescriptor> parseRoleDescriptors(

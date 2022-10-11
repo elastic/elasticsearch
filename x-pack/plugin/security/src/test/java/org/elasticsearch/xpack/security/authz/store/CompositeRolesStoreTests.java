@@ -2540,10 +2540,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         return future.actionGet();
     }
 
-    private static Matcher<IndicesPermission.Group> indexGroup(final String... indices) {
-        return indexGroup(IndexPrivilege.READ, false, indices);
-    }
-
     @SafeVarargs
     @SuppressWarnings("varargs")
     private void assertHasRemoteGroupsForClusters(final RemoteIndicesPermission permission, final Set<String>... remoteClustersAliases) {
@@ -2571,6 +2567,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
     }
 
+    private static Matcher<IndicesPermission.Group> indexGroup(final String... indices) {
+        return indexGroup(IndexPrivilege.READ, false, indices);
+    }
+
     private static Matcher<IndicesPermission.Group> indexGroup(
         final IndexPrivilege privilege,
         final boolean allowRestrictedIndices,
@@ -2591,13 +2591,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
             @Override
             public void describeTo(Description description) {
                 description.appendText(
-                    "IndicesPermission.Group with indices ["
-                        + Strings.arrayToCommaDelimitedString(indices)
-                        + "] privilege ["
+                    "IndicesPermission.Group with fields{"
+                        + "privilege="
                         + privilege
-                        + "] allowRestrictedIndices ["
+                        + ", allowRestrictedIndices="
                         + allowRestrictedIndices
-                        + "]"
+                        + ", indices="
+                        + Strings.arrayToCommaDelimitedString(indices)
+                        + '}'
                 );
             }
         };

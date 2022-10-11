@@ -53,8 +53,8 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
 
         switch (between(0, 2)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> {
                 if (numberOfShards != null) {
                     numberOfShards = numberOfShards + 1;
@@ -84,9 +84,9 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         String lifecycleName = randomAlphaOfLength(5);
         ShrinkStep step = createRandomInstance();
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(step.getKey().getPhase());
-        lifecycleState.setAction(step.getKey().getAction());
-        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setPhase(step.getKey().phase());
+        lifecycleState.setAction(step.getKey().action());
+        lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
@@ -134,9 +134,9 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         String lifecycleName = randomAlphaOfLength(5);
         ShrinkStep step = createRandomInstance();
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(step.getKey().getPhase());
-        lifecycleState.setAction(step.getKey().getAction());
-        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setPhase(step.getKey().phase());
+        lifecycleState.setAction(step.getKey().action());
+        lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
         String generatedShrunkenIndexName = GenerateUniqueIndexNameStep.generateValidIndexName(SHRUNKEN_INDEX_PREFIX, sourceIndexName);
         lifecycleState.setShrinkIndexName(generatedShrunkenIndexName);

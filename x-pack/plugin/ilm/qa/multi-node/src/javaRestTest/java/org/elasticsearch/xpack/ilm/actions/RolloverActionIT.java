@@ -232,7 +232,7 @@ public class RolloverActionIT extends ESRestTestCase {
 
         // because the index is empty, it doesn't roll over
         assertBusy(() -> {
-            assertThat(getStepKeyForIndex(client(), originalIndex).getName(), is(WaitForRolloverReadyStep.NAME));
+            assertThat(getStepKeyForIndex(client(), originalIndex).name(), is(WaitForRolloverReadyStep.NAME));
             assertFalse(indexExists(secondIndex));
             assertTrue(indexExists(originalIndex));
         }, 30, TimeUnit.SECONDS);
@@ -504,7 +504,7 @@ public class RolloverActionIT extends ESRestTestCase {
             true
         );
 
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getName(), is(WaitForRolloverReadyStep.NAME)));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).name(), is(WaitForRolloverReadyStep.NAME)));
 
         // moving ILM to the "update-rollover-lifecycle-date" without having gone through the actual rollover step
         // the "update-rollover-lifecycle-date" step will fail as the index has no rollover information

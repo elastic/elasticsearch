@@ -224,8 +224,8 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         Map<String, Object> indexExplainResponse = (Map<String, Object>) ((Map<String, Object>) explainResponseMap.get("indices")).get(
             indexName
         );
-        assertEquals(expectedStep.getPhase(), indexExplainResponse.get("phase"));
-        assertEquals(expectedStep.getAction(), indexExplainResponse.get("action"));
-        assertEquals(expectedStep.getName(), indexExplainResponse.get("step"));
+        assertEquals(expectedStep.phase(), indexExplainResponse.get("phase"));
+        assertEquals(expectedStep.action(), indexExplainResponse.get("action"));
+        assertEquals(expectedStep.name(), indexExplainResponse.get("step"));
     }
 }

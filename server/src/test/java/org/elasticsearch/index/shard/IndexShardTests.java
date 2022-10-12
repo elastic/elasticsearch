@@ -4518,7 +4518,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.retentionLeasesSupplier(),
                 config.getPrimaryTermSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-                config.getLeafSorter()
+                config.getLeafSorter(),
+                config.getRelativeTimeInNanosSupplier()
             );
             return new InternalEngine(configWithWarmer);
         });
@@ -4576,12 +4577,7 @@ public class IndexShardTests extends IndexShardTestCase {
             primary.indexSettings().getIndexMetadata(),
             null,
             null,
-            config -> new InternalEngine(config) {
-                @Override
-                public long getRelativeTimeInNanos() {
-                    return fakeClock.getAsLong();
-                }
-            },
+            new InternalEngineFactory(),
             () -> {},
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,

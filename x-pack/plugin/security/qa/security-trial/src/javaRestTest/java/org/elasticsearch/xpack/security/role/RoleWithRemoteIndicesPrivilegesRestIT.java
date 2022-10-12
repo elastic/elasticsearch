@@ -148,7 +148,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
     }
 
     public void testGetUserPrivileges() throws IOException {
-        var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
               "remote_indices": [
@@ -176,11 +176,58 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "names": ["*", "index-a"],
                   "privileges": ["read"],
                   "allow_restricted_indices": false,
-                  "clusters": [ "remote-a", "*" ]
+                  "clusters": ["remote-a", "*"]
                 }
               ]
             }""";
         assertThat(responseAsJsonString(getUserPrivilegesResponse1), equalTo(XContentHelper.stripWhitespace(expectedJson1)));
+
+        final var putRoleRequest2 = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest2.setJsonEntity("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["index-a"],
+                  "privileges": ["all"]
+                }
+              ],
+              "remote_indices": [
+                {
+                  "names": ["index-a", "*"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "*"]
+                }
+              ]
+            }""");
+        final Response putRoleResponse2 = adminClient().performRequest(putRoleRequest2);
+        assertOK(putRoleResponse2);
+
+        final Response getUserPrivilegesResponse2 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
+        assertOK(getUserPrivilegesResponse2);
+        final var expectedJson2 = """
+            {
+              "cluster": ["all"],
+              "global": [],
+              "indices": [
+                {
+                  "names": ["index-a"],
+                  "privileges": ["all"],
+                  "allow_restricted_indices": false
+                }
+              ],
+              "applications": [],
+              "run_as": [],
+              "remote_indices": [
+                {
+                  "names": ["*", "index-a"],
+                  "privileges": ["read"],
+                  "allow_restricted_indices": false,
+                  "clusters": ["remote-a", "*"]
+                }
+              ]
+            }""";
+        assertThat(responseAsJsonString(getUserPrivilegesResponse2), equalTo(XContentHelper.stripWhitespace(expectedJson2)));
     }
 
     private String responseAsJsonString(final Response response) throws IOException {

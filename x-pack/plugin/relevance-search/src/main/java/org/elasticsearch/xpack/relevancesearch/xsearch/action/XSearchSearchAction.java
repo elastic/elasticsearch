@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+// TODO - Right now I'm calling this `XSearchSearch` in case we decide to expand the API calls under the `XSearch`
+// umbrella. We could consider taking a firm stand here and simply calling these `XSearchActions` if we think that's cleaner.
 public class XSearchSearchAction extends ActionType<XSearchSearchAction.Response> {
 
     public static final XSearchSearchAction INSTANCE = new XSearchSearchAction();

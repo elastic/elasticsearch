@@ -33,12 +33,14 @@ public class Row extends LeafPlan {
 
     @Override
     public List<Attribute> output() {
-        return fields.stream().<Attribute>map(f -> new ReferenceAttribute(f.source(), f.name(), f.dataType())).toList();
+        return fields.stream()
+            .<Attribute>map(f -> new ReferenceAttribute(f.source(), f.name(), f.dataType(), null, f.nullable(), f.id(), f.synthetic()))
+            .toList();
     }
 
     @Override
     public boolean expressionsResolved() {
-        return false;
+        return true;
     }
 
     @Override

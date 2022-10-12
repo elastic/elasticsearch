@@ -41,6 +41,7 @@ public class RestComputeEngineIT extends RemoteClusterAwareSqlRestTestCase {
               "plan" : {
                 "aggregation" : {
                   "mode" : "FINAL",
+                  "groupBy" : { },
                   "aggs" : {
                     "value_avg" : {
                       "avg" : {
@@ -51,6 +52,7 @@ public class RestComputeEngineIT extends RemoteClusterAwareSqlRestTestCase {
                   "source" : {
                     "aggregation" : {
                       "mode" : "PARTIAL",
+                      "groupBy" : { },
                       "aggs" : {
                         "value_avg" : {
                           "avg" : {

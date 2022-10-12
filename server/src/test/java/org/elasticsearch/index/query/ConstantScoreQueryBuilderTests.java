@@ -121,24 +121,4 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
-
-    public void testExceedMaxNestedDepth() throws IOException {
-        ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(
-            new ConstantScoreQueryBuilder(
-                new ConstantScoreQueryBuilder(new ConstantScoreQueryBuilder(RandomQueryBuilder.createQuery(random())))
-            )
-        );
-        AbstractQueryBuilder.setMaxNestedDepth(2);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, query.toString())) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseTopLevelQuery(parser));
-            assertEquals(
-                "The nested depth of the query exceeds the maximum nested depth for queries set in ["
-                    + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
-                    + "]",
-                e.getMessage()
-            );
-        } finally {
-            AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));
-        }
-    }
 }

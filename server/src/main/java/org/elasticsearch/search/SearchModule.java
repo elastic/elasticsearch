@@ -282,7 +282,7 @@ public class SearchModule {
 
     public static final Setting<Integer> INDICES_MAX_NESTED_DEPTH_SETTING = Setting.intSetting(
         "indices.query.bool.max_nested_depth",
-        20,
+        30,
         1,
         Integer.MAX_VALUE,
         Setting.Property.NodeScope

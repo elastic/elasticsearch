@@ -187,7 +187,7 @@ public class ProximityBoost extends ScriptScoreBoost {
                 }
             }
         } catch (Exception e) {
-            // do nothing
+            return null;
         }
         return null;
     }

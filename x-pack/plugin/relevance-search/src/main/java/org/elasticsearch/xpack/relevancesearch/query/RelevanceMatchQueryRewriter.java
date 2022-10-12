@@ -41,8 +41,6 @@ public class RelevanceMatchQueryRewriter {
 
     private final QueryFieldsResolver queryFieldsResolver;
 
-    private QueryConfiguration queryConfiguration;
-
     public RelevanceMatchQueryRewriter(
         RelevanceSettingsService relevanceSettingsService,
         CurationsService curationsService,
@@ -51,16 +49,15 @@ public class RelevanceMatchQueryRewriter {
         this.relevanceSettingsService = relevanceSettingsService;
         this.curationsService = curationsService;
         this.queryFieldsResolver = queryFieldsResolver;
-        this.queryConfiguration = null;
     }
 
     public Query rewriteQuery(RelevanceMatchQueryBuilder relevanceMatchQueryBuilder, SearchExecutionContext context) throws IOException {
-        this.setQueryConfiguration(relevanceMatchQueryBuilder.getRelevanceSettingsId());
+        final QueryConfiguration queryConfiguration = getQueryConfiguration(relevanceMatchQueryBuilder.getRelevanceSettingsId());
 
-        Map<String, Float> fieldsAndBoosts = retrieveFieldsAndBoosts(context);
-        String scriptSource = retrieveScriptSource();
-
+        Map<String, Float> fieldsAndBoosts = retrieveFieldsAndBoosts(queryConfiguration, context);
         QueryBuilder queryBuilder = new CombinedFieldsQueryBuilder(relevanceMatchQueryBuilder.getQuery(), fieldsAndBoosts);
+
+        String scriptSource = retrieveScriptSource(queryConfiguration);
         if (scriptSource != null) {
             queryBuilder = QueryBuilders.scriptScoreQuery(queryBuilder, new Script(scriptSource));
         }
@@ -98,14 +95,14 @@ public class RelevanceMatchQueryRewriter {
         return queryBuilder;
     }
 
-    private void setQueryConfiguration(String relevanceSettingsId) {
+    private QueryConfiguration getQueryConfiguration(String relevanceSettingsId) {
         if (relevanceSettingsId == null) {
             // we'll work with defaults
-            queryConfiguration = null;
+            return null;
         } else {
             try {
                 RelevanceSettings relevanceSettings = relevanceSettingsService.getRelevanceSettings(relevanceSettingsId);
-                queryConfiguration = relevanceSettings.getQueryConfiguration();
+                return relevanceSettings.getQueryConfiguration();
             } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException e) {
                 throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
             } catch (RelevanceSettingsService.RelevanceSettingsInvalidException e) {
@@ -114,14 +111,14 @@ public class RelevanceMatchQueryRewriter {
         }
     }
 
-    private String retrieveScriptSource() {
+    private String retrieveScriptSource(QueryConfiguration queryConfiguration) {
         if (queryConfiguration != null) {
             return queryConfiguration.getScriptSource();
         }
         return null;
     }
 
-    private Map<String, Float> retrieveFieldsAndBoosts(SearchExecutionContext context) {
+    private Map<String, Float> retrieveFieldsAndBoosts(QueryConfiguration queryConfiguration, SearchExecutionContext context) {
         Map<String, Float> fieldsAndBoosts;
         if (queryConfiguration != null) {
             fieldsAndBoosts = queryConfiguration.getFieldsAndBoosts();
@@ -153,5 +150,4 @@ public class RelevanceMatchQueryRewriter {
 
         return queryBuilder;
     }
-
 }

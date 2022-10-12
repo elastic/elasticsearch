@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        final GetUserPrivilegesResponse original = randomResponse();
+        final GetUserPrivilegesResponse original = randomResponse(true);
 
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -57,6 +57,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         assertThat(sorted(copy.getIndexPrivileges()), equalTo(sorted(original.getIndexPrivileges())));
         assertThat(copy.getApplicationPrivileges(), equalTo(original.getApplicationPrivileges()));
         assertThat(copy.getRunAs(), equalTo(original.getRunAs()));
+        assertThat(copy.getRemoteIndexPrivileges(), equalTo(original.getRemoteIndexPrivileges()));
     }
 
     public void testEqualsAndHashCode() throws IOException {
@@ -121,6 +122,10 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
     }
 
     private GetUserPrivilegesResponse randomResponse() {
+        return randomResponse(false);
+    }
+
+    private GetUserPrivilegesResponse randomResponse(boolean allowRemoteIndices) {
         final Set<String> cluster = randomStringSet(5);
         final Set<ConfigurableClusterPrivilege> conditionalCluster = Sets.newHashSet(
             randomArray(3, ConfigurableClusterPrivilege[]::new, () -> new ManageApplicationPrivileges(randomStringSet(3)))
@@ -140,7 +145,17 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             )
         );
         final Set<String> runAs = randomStringSet(3);
-        return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs);
+        final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndex = allowRemoteIndices
+            ? Sets.newHashSet(
+                randomArray(
+                    5,
+                    GetUserPrivilegesResponse.RemoteIndices[]::new,
+                    () -> new GetUserPrivilegesResponse.RemoteIndices(randomIndices(), randomStringSet(6))
+                )
+            )
+            : Set.of();
+
+        return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs, remoteIndex);
     }
 
     private GetUserPrivilegesResponse.Indices randomIndices() {

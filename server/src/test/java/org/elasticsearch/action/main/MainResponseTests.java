@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,7 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Date;
 
-public class MainResponseTests extends AbstractSerializingTestCase<MainResponse> {
+public class MainResponseTests extends AbstractXContentSerializingTestCase<MainResponse> {
 
     @Override
     protected MainResponse createTestInstance() {
@@ -57,25 +57,26 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
             XContentHelper.stripWhitespace(
-                """
-                    {
-                        "name": "nodeName",
-                        "cluster_name": "clusterName",
-                        "cluster_uuid": "%s",
-                        "version": {
-                            "number": "%s",
-                            "build_flavor": "default",
-                            "build_type": "%s",
-                            "build_hash": "%s",
-                            "build_date": "%s",
-                            "build_snapshot": %s,
-                            "lucene_version": "%s",
-                            "minimum_wire_compatibility_version": "%s",
-                            "minimum_index_compatibility_version": "%s"
-                        },
-                        "tagline": "You Know, for Search"
-                    }
-                    """.formatted(
+                formatted(
+                    """
+                        {
+                            "name": "nodeName",
+                            "cluster_name": "clusterName",
+                            "cluster_uuid": "%s",
+                            "version": {
+                                "number": "%s",
+                                "build_flavor": "default",
+                                "build_type": "%s",
+                                "build_hash": "%s",
+                                "build_date": "%s",
+                                "build_snapshot": %s,
+                                "lucene_version": "%s",
+                                "minimum_wire_compatibility_version": "%s",
+                                "minimum_index_compatibility_version": "%s"
+                            },
+                            "tagline": "You Know, for Search"
+                        }
+                        """,
                     clusterUUID,
                     build.qualifiedVersion(),
                     current.type().displayName(),

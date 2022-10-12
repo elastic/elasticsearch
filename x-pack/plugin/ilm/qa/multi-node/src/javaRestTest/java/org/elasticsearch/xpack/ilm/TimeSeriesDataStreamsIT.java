@@ -99,7 +99,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         String firstGenerationIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
         assertBusy(
-            () -> assertThat(getStepKeyForIndex(client(), firstGenerationIndex).getName(), equalTo(WaitForRolloverReadyStep.NAME)),
+            () -> assertThat(getStepKeyForIndex(client(), firstGenerationIndex).name(), equalTo(WaitForRolloverReadyStep.NAME)),
             30,
             TimeUnit.SECONDS
         );

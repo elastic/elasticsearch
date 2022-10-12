@@ -11,7 +11,7 @@ package org.elasticsearch.rest.action;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.ParsingException;
@@ -63,7 +63,8 @@ public class RestActions {
         return (version == Versions.MATCH_ANY) ? defaultVersion : version;
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BroadcastResponse response) throws IOException {
+    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BaseBroadcastResponse response)
+        throws IOException {
         buildBroadcastShardsHeader(
             builder,
             params,

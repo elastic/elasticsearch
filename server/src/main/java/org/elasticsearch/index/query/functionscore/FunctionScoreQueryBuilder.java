@@ -138,7 +138,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     public FunctionScoreQueryBuilder(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);
-        filterFunctionBuilders = in.readList(FilterFunctionBuilder::new).toArray(new FilterFunctionBuilder[0]);
+        filterFunctionBuilders = in.readArray(FilterFunctionBuilder::new, FilterFunctionBuilder[]::new);
         maxBoost = in.readFloat();
         minScore = in.readOptionalFloat();
         boostMode = in.readOptionalWriteable(CombineFunction::readFromStream);

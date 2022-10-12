@@ -25,9 +25,9 @@ public class WaitForSnapshotActionTests extends AbstractActionTestCase<WaitForSn
         assertEquals(nextStep, step.getNextStepKey());
 
         Step.StepKey key = step.getKey();
-        assertEquals("delete", key.getPhase());
-        assertEquals(WaitForSnapshotAction.NAME, key.getAction());
-        assertEquals(WaitForSnapshotStep.NAME, key.getName());
+        assertEquals("delete", key.phase());
+        assertEquals(WaitForSnapshotAction.NAME, key.action());
+        assertEquals(WaitForSnapshotStep.NAME, key.name());
     }
 
     @Override

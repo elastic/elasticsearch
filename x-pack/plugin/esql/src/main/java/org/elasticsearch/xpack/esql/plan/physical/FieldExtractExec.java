@@ -63,7 +63,7 @@ public class FieldExtractExec extends UnaryExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, attrs, esQueryAttrs);
+        return Objects.hash(index, attrs, esQueryAttrs, child());
     }
 
     @Override
@@ -77,7 +77,10 @@ public class FieldExtractExec extends UnaryExec {
         }
 
         FieldExtractExec other = (FieldExtractExec) obj;
-        return Objects.equals(index, other.index) && Objects.equals(attrs, other.attrs) && Objects.equals(esQueryAttrs, other.esQueryAttrs);
+        return Objects.equals(index, other.index)
+            && Objects.equals(attrs, other.attrs)
+            && Objects.equals(esQueryAttrs, other.esQueryAttrs)
+            && Objects.equals(child(), other.child());
     }
 
     @Override

@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.MappingException;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.session.Configuration;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -37,9 +36,9 @@ public class EsqlSession {
 
     private final IndexResolver indexResolver;
     private final FunctionRegistry functionRegistry;
-    private final Configuration configuration;
+    private final EsqlConfiguration configuration;
 
-    public EsqlSession(IndexResolver indexResolver, FunctionRegistry functionRegistry, Configuration configuration) {
+    public EsqlSession(IndexResolver indexResolver, FunctionRegistry functionRegistry, EsqlConfiguration configuration) {
         this.indexResolver = indexResolver;
         this.functionRegistry = functionRegistry;
         this.configuration = configuration;
@@ -61,7 +60,7 @@ public class EsqlSession {
             Mapper mapper = new Mapper();
             PhysicalPlan physicalPlan = mapper.map(plan);
             LOGGER.debug("Physical plan:\n{}", physicalPlan);
-            Optimizer optimizer = new Optimizer();
+            Optimizer optimizer = new Optimizer(configuration);
             physicalPlan = optimizer.optimize(physicalPlan);
             LOGGER.debug("Optimized physical plan:\n{}", physicalPlan);
             listener.onResponse(physicalPlan);

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -216,7 +217,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             influences = in.readList(Influence::new);
         }
         geoResults = in.readOptionalWriteable(GeoResults::new);
-        anomalyScoreExplanation = in.readOptionalWriteable(AnomalyScoreExplanation::new);
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            anomalyScoreExplanation = in.readOptionalWriteable(AnomalyScoreExplanation::new);
+        }
     }
 
     @Override
@@ -261,7 +264,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             out.writeList(influences);
         }
         out.writeOptionalWriteable(geoResults);
-        out.writeOptionalWriteable(anomalyScoreExplanation);
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            out.writeOptionalWriteable(anomalyScoreExplanation);
+        }
     }
 
     @Override

@@ -88,7 +88,7 @@ public final class ReservedFieldNames {
         AnomalyScoreExplanation.SINGLE_BUCKET_IMPACT.getPreferredName(),
         AnomalyScoreExplanation.MULTI_BUCKET_IMPACT.getPreferredName(),
         AnomalyScoreExplanation.ANOMALY_CHARACTERISTICS_IMPACT.getPreferredName(),
-        AnomalyScoreExplanation.LOWER_CONFIDENCE_BOUND.getAllReplacedWith(),
+        AnomalyScoreExplanation.LOWER_CONFIDENCE_BOUND.getPreferredName(),
         AnomalyScoreExplanation.TYPICAL_VALUE.getPreferredName(),
         AnomalyScoreExplanation.UPPER_CONFIDENCE_BOUND.getPreferredName(),
         AnomalyScoreExplanation.HIGH_VARIANCE_PENALTY.getPreferredName(),

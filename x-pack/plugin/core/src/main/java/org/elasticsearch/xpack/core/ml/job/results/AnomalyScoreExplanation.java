@@ -65,7 +65,7 @@ public class AnomalyScoreExplanation implements ToXContentObject, Writeable {
     private Boolean highVariancePenalty;
     private Boolean incompleteBucketPenalty;
 
-    public AnomalyScoreExplanation() {}
+    AnomalyScoreExplanation() {}
 
     public AnomalyScoreExplanation(StreamInput in) throws IOException {
         this.anomalyType = in.readOptionalString();

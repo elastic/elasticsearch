@@ -12,12 +12,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
@@ -164,7 +161,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
 
         final Response getUserPrivilegesResponse1 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
         assertOK(getUserPrivilegesResponse1);
-        final var expectedJson1 = """
+        assertThat(responseAsMap(getUserPrivilegesResponse1), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
             {
               "cluster": [],
               "global": [],
@@ -179,8 +176,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "clusters": ["remote-a", "*"]
                 }
               ]
-            }""";
-        assertThat(responseAsJsonString(getUserPrivilegesResponse1), equalTo(XContentHelper.stripWhitespace(expectedJson1)));
+            }""", false)));
 
         final var putRoleRequest2 = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest2.setJsonEntity("""
@@ -205,7 +201,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
 
         final Response getUserPrivilegesResponse2 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
         assertOK(getUserPrivilegesResponse2);
-        final var expectedJson2 = """
+        assertThat(responseAsMap(getUserPrivilegesResponse2), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
             {
               "cluster": ["all"],
               "global": [],
@@ -226,15 +222,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "clusters": ["remote-a", "*"]
                 }
               ]
-            }""";
-        assertThat(responseAsJsonString(getUserPrivilegesResponse2), equalTo(XContentHelper.stripWhitespace(expectedJson2)));
-    }
-
-    private String responseAsJsonString(final Response response) throws IOException {
-        final var bso = new BytesStreamOutput();
-        responseAsBytes(response).writeTo(bso);
-        final XContentBuilder builder = XContentFactory.jsonBuilder(bso);
-        return Strings.toString(builder);
+            }""", false)));
     }
 
     private void expectRoleDescriptorInResponse(final Response getRoleResponse, final RoleDescriptor expectedRoleDescriptor)

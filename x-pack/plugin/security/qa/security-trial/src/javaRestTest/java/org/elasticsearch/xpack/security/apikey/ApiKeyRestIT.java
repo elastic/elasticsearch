@@ -551,7 +551,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               ],
               "run_as": [
                 "*"
-              ]
+              ],
+              "remote_indices": []
             }""", false)));
     }
 

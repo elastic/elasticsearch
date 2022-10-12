@@ -460,17 +460,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
         // Second run it to the end
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-        return searchAndReduce(
-            indexSettings,
-            searcher,
-            aggTestConfig.query(),
-            aggTestConfig.builders(),
-            aggTestConfig.maxBuckets(),
-            aggTestConfig.splitLeavesIntoSeparateAggregators(),
-            aggTestConfig.shouldBeCached(),
-            breakerService,
-            aggTestConfig.fieldTypes()
-        );
+        return searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig);
     }
 
     /**
@@ -482,17 +472,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
         for (int i = 0; i < 5; i++) {
             try {
-                searchAndReduce(
-                    indexSettings,
-                    searcher,
-                    aggTestConfig.query(),
-                    aggTestConfig.builders(),
-                    aggTestConfig.maxBuckets(),
-                    aggTestConfig.splitLeavesIntoSeparateAggregators(),
-                    aggTestConfig.shouldBeCached(),
-                    crankyService,
-                    aggTestConfig.fieldTypes()
-                );
+                searchAndReduce(indexSettings, searcher, crankyService, aggTestConfig);
             } catch (CircuitBreakingException e) {
                 // expected
             } catch (IOException e) {
@@ -505,22 +485,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
         IndexSettings indexSettings,
         IndexSearcher searcher,
-        Query query,
-        List<AggregationBuilder> builders,
-        int maxBucket,
-        boolean splitLeavesIntoSeparateAggregators,
-        boolean shouldBeCached,
         CircuitBreakerService breakerService,
-        MappedFieldType... fieldTypes
+        AggTestConfig aggTestConfig
     ) throws IOException {
-        assert builders.size() == 1;
-        AggregationBuilder builder = builders.get(0);
+        assert aggTestConfig.builders().size() == 1;
+        AggregationBuilder builder = aggTestConfig.builders().get(0);
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
-        Query rewritten = searcher.rewrite(query);
+        Query rewritten = searcher.rewrite(aggTestConfig.query());
 
-        if (splitLeavesIntoSeparateAggregators
+        if (aggTestConfig.splitLeavesIntoSeparateAggregators()
             && searcher.getIndexReader().leaves().size() > 0
             && builder.isInSortOrderExecutionRequired() == false) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
@@ -535,12 +510,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 AggregationContext context = createAggregationContext(
                     subSearcher,
                     indexSettings,
-                    query,
+                    aggTestConfig.query(),
                     breakerService,
                     randomBoolean() ? 0 : builder.bytesToPreallocate(),
-                    maxBucket,
+                    aggTestConfig.maxBuckets(),
                     builder.isInSortOrderExecutionRequired(),
-                    fieldTypes
+                    aggTestConfig.fieldTypes()
                 );
                 try {
                     Aggregator a = createAggregator(builder, context);
@@ -552,7 +527,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         subSearcher.search(weight, a.asCollector());
                     }
                     a.postCollection();
-                    assertEquals(shouldBeCached, context.isCacheable());
+                    assertEquals(aggTestConfig.shouldBeCached(), context.isCacheable());
                     aggs.add(a.buildTopLevel());
                 } finally {
                     Releasables.close(context);
@@ -562,12 +537,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
             AggregationContext context = createAggregationContext(
                 searcher,
                 indexSettings,
-                query,
+                aggTestConfig.query(),
                 breakerService,
                 randomBoolean() ? 0 : builder.bytesToPreallocate(),
-                maxBucket,
+                aggTestConfig.maxBuckets(),
                 builder.isInSortOrderExecutionRequired(),
-                fieldTypes
+                aggTestConfig.fieldTypes()
             );
             try {
                 C root = createAggregator(builder, context);
@@ -607,7 +582,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             // now do the final reduce
             MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
-                maxBucket,
+                aggTestConfig.maxBuckets(),
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
             );
             AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
@@ -677,7 +652,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         T aggregationBuilder,
         Query query,
         List<CheckedConsumer<RandomIndexWriter, IOException>> indexBuilders,
-        Consumer<V> verify,
+        Consumer<InternalAggregation> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
         Directory[] directories = new Directory[indexBuilders.size()];
@@ -708,7 +683,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 try (MultiReader multiReader = new MultiReader(readers)) {
                     IndexSearcher indexSearcher = newIndexSearcher(multiReader);
 
-                    V agg = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
+                    V agg = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, verify, fieldTypes).withQuery(query));
                     verify.accept(agg);
 
                     verifyOutputFieldNames(aggregationBuilder, agg);
@@ -1058,7 +1033,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     try {
                         InternalAggregation internalAggregation = searchAndReduce(
                             indexSearcher,
-                            new AggTestConfig(aggregationBuilder, fieldType)
+                            new AggTestConfig(aggregationBuilder, r -> {}, fieldType)
                         );
                         // We should make sure if the builder says it supports sampling, that the internal aggregations returned override
                         // finalizeSampling

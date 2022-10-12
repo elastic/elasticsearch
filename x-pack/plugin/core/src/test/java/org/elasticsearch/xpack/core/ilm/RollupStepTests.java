@@ -49,8 +49,8 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         DateHistogramInterval fixedInterval = instance.getFixedInterval();
 
         switch (between(0, 2)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> fixedInterval = ConfigTestHelpers.randomInterval();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -65,9 +65,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
     private IndexMetadata getIndexMetadata(String index, String lifecycleName, RollupStep step) {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(step.getKey().getPhase());
-        lifecycleState.setAction(step.getKey().getAction());
-        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setPhase(step.getKey().phase());
+        lifecycleState.setAction(step.getKey().action());
+        lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
         lifecycleState.setRollupIndexName("rollup-index");
 
@@ -102,9 +102,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         RollupStep step = createRandomInstance();
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(step.getKey().getPhase());
-        lifecycleState.setAction(step.getKey().getAction());
-        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setPhase(step.getKey().phase());
+        lifecycleState.setAction(step.getKey().action());
+        lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
@@ -157,9 +157,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         RollupStep step = createRandomInstance();
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(step.getKey().getPhase());
-        lifecycleState.setAction(step.getKey().getAction());
-        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setPhase(step.getKey().phase());
+        lifecycleState.setAction(step.getKey().action());
+        lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
         String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
@@ -207,9 +207,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         RollupStep step = createRandomInstance();
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(step.getKey().getPhase());
-        lifecycleState.setAction(step.getKey().getAction());
-        lifecycleState.setStep(step.getKey().getName());
+        lifecycleState.setPhase(step.getKey().phase());
+        lifecycleState.setAction(step.getKey().action());
+        lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
         String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);

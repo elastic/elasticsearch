@@ -877,14 +877,94 @@ public class PyTorchModelIT extends ESRestTestCase {
         stopDeployment(modelId2);
     }
 
-    @SuppressWarnings("unchecked")
+    public void testUpdateDeployment_GivenMissingModel() throws IOException {
+        ResponseException ex = expectThrows(ResponseException.class, () -> updateDeployment("missing", 4));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("deployment for model with id [missing] not found"));
+    }
+
+    public void testUpdateDeployment_GivenAllocationsAreIncreased() throws Exception {
+        String modelId = "update_deployment_allocations_increased";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        assertAllocationCount(modelId, 1);
+
+        updateDeployment(modelId, 2);
+
+        assertBusy(() -> assertAllocationCount(modelId, 2));
+    }
+
+    public void testUpdateDeployment_GivenAllocationsAreIncreasedOverResources_AndScalingIsPossible() throws Exception {
+        Request maxLazyNodeSetting = new Request("PUT", "_cluster/settings");
+        maxLazyNodeSetting.setJsonEntity("""
+            {"persistent" : {
+                    "xpack.ml.max_lazy_ml_nodes": 5
+                }}""");
+        client().performRequest(maxLazyNodeSetting);
+
+        String modelId = "update_deployment_allocations_increased_scaling_possible";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        assertAllocationCount(modelId, 1);
+
+        updateDeployment(modelId, 42);
+
+        assertBusy(() -> {
+            int allocationCount = getAllocationCount(modelId);
+            assertThat(allocationCount, greaterThanOrEqualTo(2));
+        });
+    }
+
+    public void testUpdateDeployment_GivenAllocationsAreIncreasedOverResources_AndScalingIsNotPossible() throws Exception {
+        String modelId = "update_deployment_allocations_increased_scaling_not_possible";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        assertAllocationCount(modelId, 1);
+
+        ResponseException ex = expectThrows(ResponseException.class, () -> updateDeployment(modelId, 257));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString("Could not update deployment because there are not enough resources to provide all requested allocations")
+        );
+        assertAllocationCount(modelId, 1);
+    }
+
+    public void testUpdateDeployment_GivenAllocationsAreDecreased() throws Exception {
+        String modelId = "update_deployment_allocations_decreased";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId, "started", 2, 1);
+
+        assertAllocationCount(modelId, 2);
+
+        updateDeployment(modelId, 1);
+
+        assertBusy(() -> assertAllocationCount(modelId, 1));
+    }
+
     private void assertAllocationCount(String modelId, int expectedAllocationCount) throws IOException {
+        int allocations = getAllocationCount(modelId);
+        assertThat(allocations, equalTo(expectedAllocationCount));
+    }
+
+    @SuppressWarnings("unchecked")
+    private int getAllocationCount(String modelId) throws IOException {
         Response response = getTrainedModelStats(modelId);
         var responseMap = entityAsMap(response);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
         assertThat(stats, hasSize(1));
-        int allocations = (int) XContentMapValues.extractValue("deployment_stats.allocation_status.allocation_count", stats.get(0));
-        assertThat(allocations, equalTo(expectedAllocationCount));
+        return (int) XContentMapValues.extractValue("deployment_stats.allocation_status.allocation_count", stats.get(0));
     }
 
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
@@ -971,6 +1051,12 @@ public class PyTorchModelIT extends ESRestTestCase {
         }
         Request request = new Request("POST", endpoint);
         client().performRequest(request);
+    }
+
+    private Response updateDeployment(String modelId, int numberOfAllocations) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_update");
+        request.setJsonEntity("{\"number_of_allocations\":" + numberOfAllocations + "}");
+        return client().performRequest(request);
     }
 
     private Response getTrainedModelStats(String modelId) throws IOException {

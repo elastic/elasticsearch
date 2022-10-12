@@ -846,4 +846,9 @@ public class BigArrays {
         final long newSize = overSize(minSize, PageCacheRecycler.OBJECT_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
         return resize(array, newSize);
     }
+
+    protected boolean shouldCheckBreaker() {
+        return checkBreaker;
+    }
+
 }

@@ -2,4 +2,4 @@ pr: 90806
 summary: Keep a canonical IndexCaps object when constructing field_caps responses
 area: Mapping
 type: enhancement
-issues: [90796]
+issues: []

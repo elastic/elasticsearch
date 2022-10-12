@@ -11,12 +11,12 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.IntervalsSourceProvider.Fuzzy;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class FuzzyIntervalsSourceProviderTests extends AbstractSerializingTestCase<Fuzzy> {
+public class FuzzyIntervalsSourceProviderTests extends AbstractXContentSerializingTestCase<Fuzzy> {
     @Override
     protected Fuzzy createTestInstance() {
         return new Fuzzy(

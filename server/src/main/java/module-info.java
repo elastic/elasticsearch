@@ -329,6 +329,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.lookup;
     exports org.elasticsearch.search.profile;
     exports org.elasticsearch.search.profile.aggregation;
+    exports org.elasticsearch.search.profile.dfs;
     exports org.elasticsearch.search.profile.query;
     exports org.elasticsearch.search.query;
     exports org.elasticsearch.search.rescore;

@@ -247,7 +247,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
             sourceLookup.setSegmentAndDocument(readerContext, 0);
 
-            Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(sourceLookup);
+            Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(sourceLookup, 0);
             assertThat(fetchedFields.size(), equalTo(5));
             assertEquals(docId, fetchedFields.get("_id").getValue());
             assertEquals(routing, fetchedFields.get("_routing").getValue());
@@ -288,7 +288,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         {
             // make sure that an empty fetch don't deserialize the document
             FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), List.of());
-            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup, 0);
             assertThat(fields.size(), equalTo(0));
             assertThat(sourceLookup.hasSourceAsMap(), equalTo(false));
         }
@@ -298,7 +298,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                 newSearchExecutionContext(mapperService),
                 fieldAndFormatList("field", null, false)
             );
-            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup, 0);
             assertThat(fields.size(), equalTo(1));
             assertThat(sourceLookup.hasSourceAsMap(), equalTo(true));
         }
@@ -1131,7 +1131,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
-            Map<String, DocumentField> fields = fieldFetcher.fetch(new SourceLookup(new SourceLookup.ReaderSourceProvider()));
+            Map<String, DocumentField> fields = fieldFetcher.fetch(new SourceLookup(new SourceLookup.ReaderSourceProvider()), 0);
             assertEquals(1, fields.size());
             DocumentField field = fields.get("runtime_field");
             assertEquals(1L, (long) field.getValue());
@@ -1165,7 +1165,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             fieldFetcher.setNextReader(readerContext);
             SourceLookup sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
             sourceLookup.setSegmentAndDocument(readerContext, 0);
-            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup, 0);
             assertEquals(1, fields.size());
             DocumentField field = fields.get("_id");
             assertEquals("1", field.getValue());
@@ -1190,7 +1190,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             sourceLookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.emptyMap()));
         }
         FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
-        return fieldFetcher.fetch(sourceLookup);
+        return fieldFetcher.fetch(sourceLookup, -1);
     }
 
     public MapperService createMapperService() throws IOException {

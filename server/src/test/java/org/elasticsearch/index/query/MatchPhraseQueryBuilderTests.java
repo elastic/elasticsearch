@@ -77,12 +77,12 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        String contentString = """
+        String contentString = formatted("""
             {
                 "match_phrase" : {
                     "%s" : "%s"
                 }
-            }""".formatted(matchPhraseQuery.fieldName(), matchPhraseQuery.value());
+            }""", matchPhraseQuery.fieldName(), matchPhraseQuery.value());
         alternateVersions.put(contentString, matchPhraseQuery);
         return alternateVersions;
     }

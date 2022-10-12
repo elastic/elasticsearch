@@ -229,7 +229,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(formatted("""
             {
               "meta-data" : {
                 "version" : 0,
@@ -274,7 +274,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentAPI_SameTypeName() throws IOException {
@@ -317,7 +317,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(formatted("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -370,7 +370,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""".formatted(Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentGateway_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -388,7 +388,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(formatted("""
             {
               "meta-data" : {
                 "version" : 0,
@@ -435,7 +435,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentAPI_FlatSettingTrue_ReduceMappingFalse() throws IOException {
@@ -454,7 +454,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(formatted("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -538,7 +538,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentAPI_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -557,7 +557,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(formatted("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -647,7 +647,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentAPIReservedMetadata() throws IOException {
@@ -692,7 +692,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(formatted("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -827,7 +827,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     private Metadata buildMetadata() throws IOException {

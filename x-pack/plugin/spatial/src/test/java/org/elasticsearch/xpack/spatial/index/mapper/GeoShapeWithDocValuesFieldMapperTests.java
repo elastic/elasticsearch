@@ -376,7 +376,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         throw new AssumptionViolatedException("not supported");
     }
 

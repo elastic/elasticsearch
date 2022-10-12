@@ -51,7 +51,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return """
+        return formatted("""
             %s
             allowed_role:
               cluster:
@@ -60,7 +60,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
               indices:
                 - names: '*'
                   privileges: [ALL]
-            """.formatted(super.configRoles());
+            """, super.configRoles());
     }
 
     @Before

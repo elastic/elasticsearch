@@ -41,7 +41,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
                 }
             }
         }
-        filteringAliases = new AliasFilter(in);
+        filteringAliases = AliasFilter.readFrom(in);
         explain = in.readBoolean();
         rewrite = in.readBoolean();
         nowInMillis = in.readVLong();

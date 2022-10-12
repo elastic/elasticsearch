@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationBuilder<SignificantTermsAggregationBuilder> {
     public static final String NAME = "significant_terms";
@@ -72,7 +72,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
         PARSER.declareObject(
             SignificantTermsAggregationBuilder::backgroundFilter,
-            (p, context) -> parseInnerQueryBuilder(p),
+            (p, context) -> parseTopLevelQuery(p),
             SignificantTermsAggregationBuilder.BACKGROUND_FILTER
         );
 

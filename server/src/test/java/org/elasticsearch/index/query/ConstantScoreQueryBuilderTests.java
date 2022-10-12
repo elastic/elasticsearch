@@ -44,6 +44,11 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         }
     }
 
+    @Override
+    protected ConstantScoreQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new ConstantScoreQueryBuilder(queryBuilder);
+    }
+
     /**
      * test that missing "filter" element causes {@link ParsingException}
      */

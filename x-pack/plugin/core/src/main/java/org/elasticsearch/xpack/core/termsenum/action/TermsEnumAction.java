@@ -14,7 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class TermsEnumAction extends ActionType<TermsEnumResponse> {
 
@@ -47,6 +47,6 @@ public class TermsEnumAction extends ActionType<TermsEnumResponse> {
             TIMEOUT,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareObject(TermsEnumRequest::indexFilter, (p, context) -> parseInnerQueryBuilder(p), INDEX_FILTER);
+        PARSER.declareObject(TermsEnumRequest::indexFilter, (p, context) -> parseTopLevelQuery(p), INDEX_FILTER);
     }
 }

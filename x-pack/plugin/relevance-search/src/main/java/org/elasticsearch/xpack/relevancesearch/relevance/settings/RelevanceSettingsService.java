@@ -163,79 +163,137 @@ public class RelevanceSettingsService implements ClusterStateListener {
 
     private static XContentBuilder getInternalIndexMapping() {
         try {
-            return jsonBuilder().startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                .startObject("_meta")
-                .field("version", Version.CURRENT)
-                .endObject()
-                .startArray("dynamic_templates")
-                .startObject()
-                .startObject("string_as_keyword")
-                .field("match_mapping_type", "string")
-                .startObject("mapping")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endArray()
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("name")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("type")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("group_name")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("query_type")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("query_configuration")
-                .startObject("properties")
-                .startObject("fields")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("boosts")
-                .field("type", "object")
-                .field("dynamic", "true")
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject("conditions")
-                .startObject("properties")
-                .startObject("context")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("value")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject("pinned_document_ids")
-                .startObject("properties")
-                .startObject("_id")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("_index")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject("excluded_document_ids")
-                .startObject("properties")
-                .startObject("_id")
-                .field("type", "keyword")
-                .endObject()
-                .startObject("_index")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
+            final XContentBuilder builder = jsonBuilder();
+            builder.startObject();
+            {
+                builder.startObject(SINGLE_MAPPING_NAME);
+                {
+                    builder.startObject("_meta");
+                    {
+                        builder.field("version", Version.CURRENT);
+                    }
+                    builder.endObject();
+                    builder.startArray("dynamic_templates");
+                    {
+                        builder.startObject();
+                        {
+                            builder.startObject("string_as_keyword");
+                            {
+                                builder.field("match_mapping_type", "string");
+                                builder.startObject("mapping");
+                                {
+                                    builder.field("type", "keyword");
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endArray();
+                    builder.field("dynamic", "strict");
+                    builder.startObject("properties");
+                    {
+                        builder.startObject("name");
+                        {
+                            builder.field("type", "keyword");
+                        }
+                        builder.endObject();
+                        builder.startObject("type");
+                        {
+                            builder.field("type", "keyword");
+                        }
+                        builder.endObject();
+                        builder.startObject("group_name");
+                        {
+                            builder.field("type", "keyword");
+                        }
+                        builder.endObject();
+                        builder.startObject("query_type");
+                        {
+                            builder.field("type", "keyword");
+                        }
+                        builder.endObject();
+                        builder.startObject("query_configuration");
+                        {
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("fields");
+                                {
+                                    builder.field("type", "keyword");
+                                }
+                                builder.endObject();
+                                builder.startObject("boosts");
+                                {
+                                    builder.field("type", "object");
+                                    builder.field("dynamic", "true");
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                        builder.startObject("conditions");
+                        {
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("context");
+                                {
+                                    builder.field("type", "keyword");
+                                }
+                                builder.endObject();
+                                builder.startObject("value");
+                                {
+                                    builder.field("type", "keyword");
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                        builder.startObject("pinned_document_ids");
+                        {
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("_id");
+                                {
+                                    builder.field("type", "keyword");
+                                }
+                                builder.endObject();
+                                builder.startObject("_index");
+                                {
+                                    builder.field("type", "keyword");
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                        builder.startObject("excluded_document_ids");
+                        {
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("_id");
+                                {
+                                    builder.field("type", "keyword");
+                                }
+                                builder.endObject();
+                                builder.startObject("_index");
+                                {
+                                    builder.field("type", "keyword");
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build mappings for " + ENT_SEARCH_INDEX, e);
         }

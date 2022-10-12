@@ -1244,7 +1244,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Version> versionSetting(final String key, final Version defaultValue, Property... properties) {
-        return new Setting<>(key, Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
+        return versionSetting(key, defaultValue, v -> {}, properties);
     }
 
     public static Setting<Version> versionSetting(
@@ -1253,7 +1253,17 @@ public class Setting<T> implements ToXContentObject {
         Validator<Version> validator,
         Property... properties
     ) {
-        return new Setting<>(key, Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), validator, properties);
+        return versionSetting(key, defaultValue, s -> Version.fromId(Integer.parseInt(s)), validator, properties);
+    }
+
+    public static Setting<Version> versionSetting(
+        final String key,
+        Version defaultValue,
+        Function<String, Version> parser,
+        Validator<Version> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, Integer.toString(defaultValue.id), parser, validator, properties);
     }
 
     public static Setting<Version> versionSetting(

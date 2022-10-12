@@ -359,15 +359,12 @@ public class VersionTests extends ESTestCase {
             is(equalTo(Version.CURRENT.minimumCompatibilityVersion()))
         );
 
-        // too old
+        // too old (rounded up to minCompatibilityVersion)
         final Version tooOld = Version.fromId(Version.CURRENT.minimumCompatibilityVersion().id - 1);
-        IllegalArgumentException tooOldException = expectThrows(
-            IllegalArgumentException.class,
-            () -> {
-                TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version", tooOld.id).build());
-            }
+        assertThat(
+            TransportSettings.MIN_ACCEPTED_VERSION.get(Settings.builder().put("transport.min_accepted_version", tooOld.id).build()),
+            is(equalTo(Version.CURRENT.minimumCompatibilityVersion()))
         );
-        assertThat(tooOldException.getMessage(), equalTo("Invalid version [" + tooOld + "] too low for [transport.min_accepted_version]."));
 
         // oldest accepted
         final Version oldestAccepted = Version.CURRENT.minimumCompatibilityVersion();

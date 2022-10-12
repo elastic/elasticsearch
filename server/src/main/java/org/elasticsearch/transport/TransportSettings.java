@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -28,6 +30,7 @@ import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 public final class TransportSettings {
+    private static final Logger LOGGER = LogManager.getLogger(TransportSettings.class);
 
     public static final String DEFAULT_PROFILE = "default";
     public static final String FEATURE_PREFIX = "transport.features";
@@ -256,10 +259,20 @@ public final class TransportSettings {
     public static final Setting<Version> MIN_ACCEPTED_VERSION = Setting.versionSetting(
         "transport.min_accepted_version",
         Version.CURRENT.minimumCompatibilityVersion(),
+        s -> {
+            final Version minAcceptedVersion = Version.fromId(Integer.parseInt(s));
+            if (minAcceptedVersion.compareTo(Version.CURRENT.minimumCompatibilityVersion()) < 0) {
+                LOGGER.warn(
+                    "Rounded up transport.min_accepted_version=[{}] to minimumCompatibilityVersion=[{}]",
+                    minAcceptedVersion,
+                    Version.CURRENT.minimumCompatibilityVersion()
+                ); // be lenient if minCompatibilityVersion is bumped, and pre-existing minAcceptedVersion setting is too low
+                return Version.CURRENT.minimumCompatibilityVersion();
+            }
+            return minAcceptedVersion;
+        },
         version -> {
-            if (version.compareTo(Version.CURRENT.minimumCompatibilityVersion()) < 0) {
-                throw new IllegalArgumentException("Invalid version [" + version + "] too low for [transport.min_accepted_version].");
-            } else if (version.compareTo(Version.CURRENT) > 0) {
+            if (version.compareTo(Version.CURRENT) > 0) {
                 throw new IllegalArgumentException("Invalid version [" + version + "] too high for [transport.min_accepted_version].");
             }
         },

@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -35,12 +34,12 @@ import java.util.stream.Collectors;
  */
 public final class GetUserPrivilegesResponse extends ActionResponse {
 
-    private Set<String> cluster;
-    private Set<ConfigurableClusterPrivilege> configurableClusterPrivileges;
-    private Set<Indices> index;
-    private Set<RoleDescriptor.ApplicationResourcePrivileges> application;
-    private Set<String> runAs;
-    private Set<RemoteIndices> remoteIndex;
+    private final Set<String> cluster;
+    private final Set<ConfigurableClusterPrivilege> configurableClusterPrivileges;
+    private final Set<Indices> index;
+    private final Set<RoleDescriptor.ApplicationResourcePrivileges> application;
+    private final Set<String> runAs;
+    private final Set<RemoteIndices> remoteIndex;
 
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
@@ -54,16 +53,6 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         } else {
             remoteIndex = Set.of();
         }
-    }
-
-    public GetUserPrivilegesResponse(
-        Set<String> cluster,
-        Set<ConfigurableClusterPrivilege> conditionalCluster,
-        Set<Indices> index,
-        Set<RoleDescriptor.ApplicationResourcePrivileges> application,
-        Set<String> runAs
-    ) {
-        this(cluster, conditionalCluster, index, application, runAs, Set.of());
     }
 
     public GetUserPrivilegesResponse(

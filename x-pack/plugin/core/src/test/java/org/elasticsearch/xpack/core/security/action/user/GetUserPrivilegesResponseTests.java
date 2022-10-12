@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.user;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
@@ -38,6 +40,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetUserPrivilegesResponseTests extends ESTestCase {
@@ -60,6 +63,33 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         assertThat(copy.getRemoteIndexPrivileges(), equalTo(original.getRemoteIndexPrivileges()));
     }
 
+    public void testSerializationForCurrentVersion() throws Exception {
+        final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(Version.V_8_6_0);
+
+        final GetUserPrivilegesResponse original = randomResponse(canIncludeRemoteIndices);
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(version);
+        original.writeTo(out);
+
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+        StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
+        in.setVersion(version);
+        final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
+
+        assertThat(copy.getClusterPrivileges(), equalTo(original.getClusterPrivileges()));
+        assertThat(copy.getConditionalClusterPrivileges(), equalTo(original.getConditionalClusterPrivileges()));
+        assertThat(sorted(copy.getIndexPrivileges()), equalTo(sorted(original.getIndexPrivileges())));
+        assertThat(copy.getApplicationPrivileges(), equalTo(original.getApplicationPrivileges()));
+        assertThat(copy.getRunAs(), equalTo(original.getRunAs()));
+        if (canIncludeRemoteIndices) {
+            assertThat(copy.getRemoteIndexPrivileges(), equalTo(original.getRemoteIndexPrivileges()));
+        } else {
+            assertThat(copy.getRemoteIndexPrivileges(), empty());
+        }
+    }
+
     public void testEqualsAndHashCode() throws IOException {
         final GetUserPrivilegesResponse response = randomResponse();
         final EqualsHashCodeTestUtils.CopyFunction<GetUserPrivilegesResponse> copy = original -> new GetUserPrivilegesResponse(
@@ -67,10 +97,10 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             original.getConditionalClusterPrivileges(),
             original.getIndexPrivileges(),
             original.getApplicationPrivileges(),
-            original.getRunAs()
+            original.getRunAs(),
+            original.getRemoteIndexPrivileges()
         );
-        final EqualsHashCodeTestUtils.MutateFunction<GetUserPrivilegesResponse> mutate = new EqualsHashCodeTestUtils.MutateFunction<
-            GetUserPrivilegesResponse>() {
+        final EqualsHashCodeTestUtils.MutateFunction<GetUserPrivilegesResponse> mutate = new EqualsHashCodeTestUtils.MutateFunction<>() {
             @Override
             public GetUserPrivilegesResponse mutate(GetUserPrivilegesResponse original) {
                 final int random = randomIntBetween(1, 0b11111);
@@ -104,7 +134,22 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                         .build()
                 );
                 final Set<String> runAs = maybeMutate(random, 4, original.getRunAs(), () -> randomAlphaOfLength(8));
-                return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs);
+                final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndex = maybeMutate(
+                    random,
+                    5,
+                    original.getRemoteIndexPrivileges(),
+                    () -> new GetUserPrivilegesResponse.RemoteIndices(
+                        new GetUserPrivilegesResponse.Indices(
+                            randomStringSet(1),
+                            randomStringSet(1),
+                            emptySet(),
+                            emptySet(),
+                            randomBoolean()
+                        ),
+                        randomStringSet(1)
+                    )
+                );
+                return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs, remoteIndex);
             }
 
             private <T> Set<T> maybeMutate(int random, int index, Set<T> original, Supplier<T> supplier) {

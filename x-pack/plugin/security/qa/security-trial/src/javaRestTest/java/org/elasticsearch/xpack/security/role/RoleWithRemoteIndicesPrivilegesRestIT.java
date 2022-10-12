@@ -7,11 +7,19 @@
 
 package org.elasticsearch.xpack.security.role;
 
+import com.fasterxml.jackson.core.JsonFactoryBuilder;
+
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
@@ -23,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -141,6 +150,50 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         );
     }
 
+    public void testGetUserPrivileges() throws IOException {
+        var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "remote_indices": [
+                {
+                  "names": ["index-a", "*"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "*"]
+                }
+              ]
+            }""");
+        final Response putRoleResponse1 = adminClient().performRequest(putRoleRequest);
+        assertOK(putRoleResponse1);
+
+        final Response getUserPrivilegesResponse1 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
+        assertOK(getUserPrivilegesResponse1);
+
+        final var expectedJson1 = """
+             {
+               "cluster": [],
+               "global": [],
+               "indices": [],
+               "applications": [],
+               "run_as": [],
+               "remote_indices": [
+                 {
+                   "names": ["*", "index-a"],
+                   "privileges": ["read"],
+                   "allow_restricted_indices": false,
+                   "clusters": [ "remote-a", "*" ]
+                 }
+               ]
+            }""";
+        assertThat(responseAsJsonString(getUserPrivilegesResponse1), equalTo(XContentHelper.stripWhitespace(expectedJson1)));
+    }
+
+    private String responseAsJsonString(final Response response) throws IOException {
+        final var bso = new BytesStreamOutput();
+        responseAsBytes(response).writeTo(bso);
+        final XContentBuilder builder = XContentFactory.jsonBuilder(bso);
+        return Strings.toString(builder);
+    }
+
     private void expectRoleDescriptorInResponse(final Response getRoleResponse, final RoleDescriptor expectedRoleDescriptor)
         throws IOException {
         final Map<String, RoleDescriptor> actual = responseAsParser(getRoleResponse).map(
@@ -148,5 +201,13 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
             p -> RoleDescriptor.parse(expectedRoleDescriptor.getName(), p, false)
         );
         assertThat(actual, equalTo(Map.of(expectedRoleDescriptor.getName(), expectedRoleDescriptor)));
+    }
+
+    private Response executeAsRemoteSearchUser(final Request request) throws IOException {
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(REMOTE_SEARCH_USER, PASSWORD))
+        );
+        return client().performRequest(request);
     }
 }

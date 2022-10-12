@@ -89,13 +89,12 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
             searchBuilder.setRouting(request.getRouting());
         }
 
-        var knnBuilder = request.getKnnSearchBuilder();
-        knnBuilder.queryVector(inferenceResults.getInferenceAsFloat());
+        var knnSearchBuilder = request.getKnnQueryOptions().toKnnSearchBuilder(inferenceResults.getInferenceAsFloat());
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        sourceBuilder.knnSearch(knnBuilder);
-        sourceBuilder.size(knnBuilder.k());
+        sourceBuilder.knnSearch(knnSearchBuilder);
+        sourceBuilder.size(knnSearchBuilder.k());
 
         if (request.getFetchSource() != null) {
             sourceBuilder.fetchSource(request.getFetchSource());
@@ -109,6 +108,9 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
             for (FieldAndFormat field : request.getDocValueFields()) {
                 sourceBuilder.docValueField(field.field, field.format);
             }
+        }
+        if (request.getStoredFields() != null) {
+            sourceBuilder.storedFields(request.getStoredFields());
         }
 
         searchBuilder.setSource(sourceBuilder);

@@ -16,7 +16,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
-import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -68,7 +67,7 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
             randomBoolean() ? null : randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
-            randomKnnSearchBuilder(),
+            SemanticSearchActionKnnQueryOptionsTests.randomInstance(),
             TextEmbeddingConfigUpdateTests.randomUpdate(),
             randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(1, 10)),
             randomBoolean() ? null : List.of(new TermsQueryBuilder("foo", "bar", "cat")),
@@ -77,14 +76,6 @@ public class SemanticSearchActionRequestTests extends AbstractWireSerializingTes
             randomBoolean() ? null : List.of(new FieldAndFormat("foo", null)),
             randomBoolean() ? null : StoredFieldsContext.fromList(List.of("A", "B"))
         );
-    }
-
-    private KnnSearchBuilder randomKnnSearchBuilder() {
-        String field = randomAlphaOfLength(6);
-        float[] vector = new float[] { randomFloat(), randomFloat(), randomFloat() };
-        int k = randomIntBetween(1, 100);
-        int numCands = randomIntBetween(k + 20, 1000);
-        return new KnnSearchBuilder(field, vector, k, numCands);
     }
 
     public void testValidate() {

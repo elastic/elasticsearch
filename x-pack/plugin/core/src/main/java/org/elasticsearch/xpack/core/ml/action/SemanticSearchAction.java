@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -24,6 +25,7 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -32,9 +34,12 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class SemanticSearchAction extends ActionType<SemanticSearchAction.Response> {
 
@@ -51,7 +56,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
     public static class Request extends ActionRequest {
 
         public static final ParseField QUERY_STRING = new ParseField("query_string"); // TODO a better name.
-        public static final ParseField KNN = new ParseField("knn");
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME);
 
@@ -64,11 +68,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 (p, c) -> TextEmbeddingConfigUpdate.fromXContentStrict(p),
                 InferTrainedModelDeploymentAction.Request.INFERENCE_CONFIG
             );
-            PARSER.declareObject(
-                Request.Builder::setKnnSearch,
-                (p, c) -> KnnSearchBuilder.fromXContentWithoutVectorField(p),
-                SearchSourceBuilder.KNN_FIELD
-            );
+            PARSER.declareObject(Request.Builder::setKnnSearch, (p, c) -> KnnQueryOptions.fromXContent(p), SearchSourceBuilder.KNN_FIELD);
             PARSER.declareFieldArray(
                 Request.Builder::setFilters,
                 (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
@@ -116,7 +116,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         private final String queryString;
         private final String deploymentId;
         private final TimeValue inferenceTimeout;
-        private final KnnSearchBuilder knnSearchBuilder;
+        private final KnnQueryOptions knnQueryOptions;
         private final TextEmbeddingConfigUpdate embeddingConfig;
         private final List<QueryBuilder> filters;
         private final FetchSourceContext fetchSource;
@@ -131,7 +131,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             queryString = in.readString();
             deploymentId = in.readString();
             inferenceTimeout = in.readOptionalTimeValue();
-            knnSearchBuilder = new KnnSearchBuilder(in);
+            knnQueryOptions = new KnnQueryOptions(in);
             embeddingConfig = in.readOptionalWriteable(TextEmbeddingConfigUpdate::new);
             if (in.readBoolean()) {
                 filters = in.readNamedWriteableList(QueryBuilder.class);
@@ -149,7 +149,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             String routing,
             String queryString,
             String deploymentId,
-            KnnSearchBuilder knnSearchBuilder,
+            KnnQueryOptions knnQueryOptions,
             TextEmbeddingConfigUpdate embeddingConfig,
             TimeValue inferenceTimeout,
             List<QueryBuilder> filters,
@@ -162,7 +162,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             this.routing = routing;
             this.queryString = queryString;
             this.deploymentId = deploymentId;
-            this.knnSearchBuilder = knnSearchBuilder;
+            this.knnQueryOptions = knnQueryOptions;
             this.embeddingConfig = embeddingConfig;
             this.inferenceTimeout = inferenceTimeout;
             this.filters = filters;
@@ -180,7 +180,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             out.writeString(queryString);
             out.writeString(deploymentId);
             out.writeOptionalTimeValue(inferenceTimeout);
-            knnSearchBuilder.writeTo(out);
+            knnQueryOptions.writeTo(out);
             out.writeOptionalWriteable(embeddingConfig);
             if (filters != null) {
                 out.writeBoolean(true);
@@ -214,8 +214,8 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             return inferenceTimeout;
         }
 
-        public KnnSearchBuilder getKnnSearchBuilder() {
-            return knnSearchBuilder;
+        public KnnQueryOptions getKnnQueryOptions() {
+            return knnQueryOptions;
         }
 
         public TextEmbeddingConfigUpdate getEmbeddingConfig() {
@@ -252,7 +252,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 && Objects.equals(queryString, request.queryString)
                 && Objects.equals(deploymentId, request.deploymentId)
                 && Objects.equals(inferenceTimeout, request.inferenceTimeout)
-                && Objects.equals(knnSearchBuilder, request.knnSearchBuilder)
+                && Objects.equals(knnQueryOptions, request.knnQueryOptions)
                 && Objects.equals(embeddingConfig, request.embeddingConfig)
                 && Objects.equals(filters, request.filters)
                 && Objects.equals(fetchSource, request.fetchSource)
@@ -268,7 +268,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 queryString,
                 deploymentId,
                 inferenceTimeout,
-                knnSearchBuilder,
+                knnQueryOptions,
                 embeddingConfig,
                 filters,
                 fetchSource,
@@ -289,7 +289,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             if (deploymentId == null) {
                 error.addValidationError("deployment_id cannot be null");
             }
-            if (knnSearchBuilder == null) {
+            if (knnQueryOptions == null) {
                 error.addValidationError("knn cannot be null");
             }
 
@@ -304,7 +304,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             private String queryString;
             private TimeValue timeout;
             private TextEmbeddingConfigUpdate update;
-            private KnnSearchBuilder knnSearchBuilder;
+            private KnnQueryOptions knnSearchBuilder;
             private List<QueryBuilder> filters;
             private FetchSourceContext fetchSource;
             private List<FieldAndFormat> fields;
@@ -339,7 +339,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 this.update = update;
             }
 
-            void setKnnSearch(KnnSearchBuilder knnSearchBuilder) {
+            void setKnnSearch(KnnQueryOptions knnSearchBuilder) {
                 this.knnSearchBuilder = knnSearchBuilder;
             }
 
@@ -380,7 +380,6 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 );
             }
         }
-
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -430,6 +429,106 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         @Override
         public int hashCode() {
             return Objects.hash(searchTook, inferenceTook, searchResponse);
+        }
+    }
+
+    public static class KnnQueryOptions implements Writeable {
+
+        private static final ConstructingObjectParser<KnnQueryOptions, Void> PARSER = new ConstructingObjectParser<>(
+            "knn",
+            true,
+            args -> new KnnQueryOptions((String) args[0], (int) args[1], (int) args[2])
+        );
+
+        static {
+            PARSER.declareString(constructorArg(), KnnSearchBuilder.FIELD_FIELD);
+            PARSER.declareInt(constructorArg(), KnnSearchBuilder.K_FIELD);
+            PARSER.declareInt(constructorArg(), KnnSearchBuilder.NUM_CANDS_FIELD);
+            PARSER.declareFieldArray(
+                KnnQueryOptions::addFilterQueries,
+                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+                KnnSearchBuilder.FILTER_FIELD,
+                ObjectParser.ValueType.OBJECT_ARRAY
+            );
+            PARSER.declareFloat(KnnQueryOptions::boost, KnnSearchBuilder.BOOST_FIELD);
+        }
+
+        public static KnnQueryOptions fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        final String field;
+        final int k;
+        final int numCands;
+        final List<QueryBuilder> filterQueries;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+
+        /**
+         * Holder for the knn search options.
+         * Validation occurs in when this is converted to a {@code KnnSearchBuilder}
+         *
+         * @param field       the name of the vector field to search against
+         * @param k           the final number of nearest neighbors to return as top hits
+         * @param numCands    the number of nearest neighbor candidates to consider per shard
+         */
+        public KnnQueryOptions(String field, int k, int numCands) {
+            this.field = field;
+            this.k = k;
+            this.numCands = numCands;
+            this.filterQueries = new ArrayList<>();
+        }
+
+        public KnnQueryOptions(StreamInput in) throws IOException {
+            this.field = in.readString();
+            this.k = in.readVInt();
+            this.numCands = in.readVInt();
+            this.filterQueries = in.readNamedWriteableList(QueryBuilder.class);
+            this.boost = in.readFloat();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(field);
+            out.writeVInt(k);
+            out.writeVInt(numCands);
+            out.writeNamedWriteableList(filterQueries);
+            out.writeFloat(boost);
+        }
+
+        public void addFilterQueries(List<QueryBuilder> filterQueries) {
+            Objects.requireNonNull(filterQueries);
+            this.filterQueries.addAll(filterQueries);
+        }
+
+        /**
+         * Set a boost to apply to the kNN search scores.
+         */
+        public void boost(float boost) {
+            this.boost = boost;
+        }
+
+        public KnnSearchBuilder toKnnSearchBuilder(float[] queryVector) {
+            if (queryVector == null) {
+                throw new IllegalStateException("[query_vector] not set on the Knn query");
+            }
+            return new KnnSearchBuilder(field, queryVector, k, numCands);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            KnnQueryOptions that = (KnnQueryOptions) o;
+            return k == that.k
+                && numCands == that.numCands
+                && Float.compare(that.boost, boost) == 0
+                && Objects.equals(field, that.field)
+                && Objects.equals(filterQueries, that.filterQueries);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(field, k, numCands, filterQueries, boost);
         }
     }
 

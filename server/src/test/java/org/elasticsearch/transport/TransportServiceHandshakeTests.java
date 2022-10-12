@@ -209,7 +209,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         Settings settingsB = Settings.builder().put("cluster.name", "test").build();
         NetworkHandle handleA = startServices("TS_A", settingsA, versionA);
         NetworkHandle handleB = startServices("TS_B", settingsB, versionB);
-        DiscoveryNode discoveryNodeB = new DiscoveryNode("", handleB.discoveryNode.getAddress(), emptyMap(), emptySet(), versionA);
+        DiscoveryNode discoveryNodeB = new DiscoveryNode("", handleB.discoveryNode.getAddress(), emptyMap(), emptySet(), versionB);
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
             try (
                 Transport.Connection connectionA = AbstractSimpleTransportTestCase.openConnection(
@@ -244,7 +244,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         Settings settingsB = Settings.builder().put("cluster.name", "test").put("transport.min_accepted_version", versionB).build();
         NetworkHandle handleA = startServices("TS_A", settingsA, versionA);
         NetworkHandle handleB = startServices("TS_B", settingsB, versionB);
-        DiscoveryNode discoveryNodeB = new DiscoveryNode("", handleB.discoveryNode.getAddress(), emptyMap(), emptySet(), versionA);
+        DiscoveryNode discoveryNodeB = new DiscoveryNode("", handleB.discoveryNode.getAddress(), emptyMap(), emptySet(), versionB);
 
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, () -> {
             try (

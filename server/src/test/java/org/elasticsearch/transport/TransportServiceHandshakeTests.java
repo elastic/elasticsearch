@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransportServiceHandshakeTests extends ESTestCase {
 
@@ -245,7 +246,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         NetworkHandle handleB = startServices("TS_B", settingsB, versionB);
         DiscoveryNode discoveryNodeB = new DiscoveryNode("", handleB.discoveryNode.getAddress(), emptyMap(), emptySet(), versionA);
 
-        ConnectTransportException connectTransportExceptionA = expectThrows(ConnectTransportException.class, () -> {
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, () -> {
             try (
                 Transport.Connection connectionA = AbstractSimpleTransportTestCase.openConnection(
                     handleA.transportService,
@@ -256,18 +257,9 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                 PlainActionFuture.get(fut -> handleA.transportService.handshake(connectionA, timeout, fut.map(x -> null)));
             }
         });
-        assertThat(connectTransportExceptionA.getCause(), is(instanceOf(IllegalStateException.class)));
-        assertThat(connectTransportExceptionA.getCause().getCause(), is(instanceOf(RemoteTransportException.class)));
-        assertThat(connectTransportExceptionA.getCause().getCause().getCause(), is(instanceOf(IllegalStateException.class)));
-        IllegalStateException illegalStateExceptionA = (IllegalStateException) connectTransportExceptionA.getCause();
-        RemoteTransportException remoteTransportExceptionB = (RemoteTransportException) connectTransportExceptionA.getCause().getCause();
-        IllegalStateException illegalStateExceptionB = (IllegalStateException) connectTransportExceptionA.getCause().getCause().getCause();
-
-        assertThat(connectTransportExceptionA.getMessage(), endsWith(" general node connection failure"));
-        assertThat(illegalStateExceptionA.getMessage(), endsWith("handshake failed"));
-        assertThat(remoteTransportExceptionB.getMessage(), endsWith("[internal:tcp/handshake]"));
+        assertThat(illegalStateException.getCause(), is(nullValue()));
         assertThat(
-            illegalStateExceptionB.getMessage(),
+            illegalStateException.getMessage(),
             endsWith(
                 "remote node request version ["
                     + versionA

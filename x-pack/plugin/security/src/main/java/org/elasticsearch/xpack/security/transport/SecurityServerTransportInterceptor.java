@@ -142,16 +142,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     } else {
                         // We need to store the thread context here as we pollute the context with pre-authorization
                         // which we only want to keep for a single transport request.
-                        try (ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext()) {
+                        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
                             maybePreAuthorizeChildAction(connection.getNode(), action, request);
-                            sendWithUser(
-                                connection,
-                                action,
-                                request,
-                                options,
-                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
-                                sender
-                            );
+                            sendWithUser(connection, action, request, options, handler, sender);
                         }
                     }
             }

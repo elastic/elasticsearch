@@ -275,10 +275,13 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
     private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) {
         this.failure = cause;
         logger.warn(
-            "policy [{}] for index [{}] failed on cluster state step [{}]. Moving to ERROR step",
-            policy,
-            index.getName(),
-            currentStepKey
+            () -> format(
+                "policy [%s] for index [%s] failed on cluster state step [%s]. Moving to ERROR step",
+                policy,
+                index.getName(),
+                currentStepKey
+            ),
+            cause
         );
         return IndexLifecycleTransition.moveClusterStateToErrorStep(index, state, cause, nowSupplier, policyStepsRegistry::getStep);
     }

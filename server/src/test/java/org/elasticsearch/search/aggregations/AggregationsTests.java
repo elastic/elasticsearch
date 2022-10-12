@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFiltersTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridTests;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogramTests;
@@ -118,7 +117,6 @@ public class AggregationsTests extends ESTestCase {
         new InternalGeoCentroidTests(),
         new InternalHistogramTests(),
         new InternalDateHistogramTests(),
-        new InternalAutoDateHistogramTests(),
         new InternalVariableWidthHistogramTests(),
         new LongTermsTests(),
         new DoubleTermsTests(),

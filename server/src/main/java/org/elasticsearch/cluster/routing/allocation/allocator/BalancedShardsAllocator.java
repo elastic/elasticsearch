@@ -732,7 +732,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              */
             MoveDecision moveDecision = decideMove(shardRouting, sourceNode, canRemain, this::decideCanAllocate);
             if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
-                final SingleNodeShutdownMetadata shutdown = allocation.nodeShutdowns().get(shardRouting.currentNodeId());
+                final SingleNodeShutdownMetadata shutdown = allocation.metadata().nodeShutdowns().get(shardRouting.currentNodeId());
                 final boolean shardsOnReplacedNode = shutdown != null && shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
                 if (shardsOnReplacedNode) {
                     return decideMove(shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);

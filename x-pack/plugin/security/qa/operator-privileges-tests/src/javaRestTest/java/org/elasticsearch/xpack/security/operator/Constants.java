@@ -163,6 +163,7 @@ public class Constants {
         "cluster:admin/xpack/ml/trained_models/deployment/clear_cache",
         "cluster:admin/xpack/ml/trained_models/deployment/start",
         "cluster:admin/xpack/ml/trained_models/deployment/stop",
+        "cluster:admin/xpack/ml/trained_models/deployment/update",
         "cluster:admin/xpack/ml/trained_models/part/put",
         "cluster:admin/xpack/ml/trained_models/vocabulary/put",
         "cluster:admin/xpack/ml/upgrade_mode",

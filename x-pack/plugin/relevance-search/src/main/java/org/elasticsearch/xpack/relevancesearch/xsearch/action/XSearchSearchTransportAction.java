@@ -11,20 +11,28 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.TransportService;
 
-public class XSearchSearchTransportAction extends TransportAction<XSearchSearchAction.Request, XSearchSearchAction.Response> {
+public class XSearchSearchTransportAction extends HandledTransportAction<XSearchSearchAction.Request, XSearchSearchAction.Response> {
 
     private static final Logger LOGGER = LogManager.getLogger(XSearchSearchTransportAction.class);
 
-    protected XSearchSearchTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-        super(actionName, actionFilters, taskManager);
+    @Inject
+    public XSearchSearchTransportAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        String executor
+    ) {
+        super(actionName, false, transportService, actionFilters, XSearchSearchAction.Request::new, executor);
     }
 
     @Override
     protected void doExecute(Task task, XSearchSearchAction.Request request, ActionListener<XSearchSearchAction.Response> listener) {
         // TODO
+
     }
 }

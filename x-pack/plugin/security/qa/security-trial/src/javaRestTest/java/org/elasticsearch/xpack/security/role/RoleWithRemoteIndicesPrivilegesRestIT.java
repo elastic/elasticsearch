@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.role;
 
-import com.fasterxml.jackson.core.JsonFactoryBuilder;
-
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -31,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -167,22 +164,21 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
 
         final Response getUserPrivilegesResponse1 = executeAsRemoteSearchUser(new Request("GET", "/_security/user/_privileges"));
         assertOK(getUserPrivilegesResponse1);
-
         final var expectedJson1 = """
-             {
-               "cluster": [],
-               "global": [],
-               "indices": [],
-               "applications": [],
-               "run_as": [],
-               "remote_indices": [
-                 {
-                   "names": ["*", "index-a"],
-                   "privileges": ["read"],
-                   "allow_restricted_indices": false,
-                   "clusters": [ "remote-a", "*" ]
-                 }
-               ]
+            {
+              "cluster": [],
+              "global": [],
+              "indices": [],
+              "applications": [],
+              "run_as": [],
+              "remote_indices": [
+                {
+                  "names": ["*", "index-a"],
+                  "privileges": ["read"],
+                  "allow_restricted_indices": false,
+                  "clusters": [ "remote-a", "*" ]
+                }
+              ]
             }""";
         assertThat(responseAsJsonString(getUserPrivilegesResponse1), equalTo(XContentHelper.stripWhitespace(expectedJson1)));
     }

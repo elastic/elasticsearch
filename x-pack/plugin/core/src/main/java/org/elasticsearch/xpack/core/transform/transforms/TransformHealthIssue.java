@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -49,7 +50,7 @@ public class TransformHealthIssue implements Writeable, ToXContentObject {
     static {
         PARSER.declareString(constructorArg(), ISSUE);
         PARSER.declareString(optionalConstructorArg(), DETAILS);
-        PARSER.declareInt(optionalConstructorArg(), COUNT);
+        PARSER.declareIntOrNull(optionalConstructorArg(), 1, COUNT);
         PARSER.declareField(
             optionalConstructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, FIRST_OCCURRENCE.getPreferredName()),
@@ -63,10 +64,13 @@ public class TransformHealthIssue implements Writeable, ToXContentObject {
     }
 
     public TransformHealthIssue(String issue, String details, int count, Instant firstOccurrence) {
-        this.issue = issue;
+        this.issue = Objects.requireNonNull(issue);
         this.details = details;
+        if (count < 1) {
+            throw new IllegalArgumentException("[count] must be greater than 1, got: " + count);
+        }
         this.count = count;
-        this.firstOccurrence = firstOccurrence;
+        this.firstOccurrence = firstOccurrence != null ? firstOccurrence.truncatedTo(ChronoUnit.MILLIS) : null;
     }
 
     public TransformHealthIssue(StreamInput in) throws IOException {

@@ -20,7 +20,7 @@ public class TransformHealthIssueTests extends AbstractXContentSerializingTestCa
         return new TransformHealthIssue(
             randomAlphaOfLengthBetween(10, 200),
             randomBoolean() ? randomAlphaOfLengthBetween(10, 200) : null,
-            randomIntBetween(0, 10),
+            randomIntBetween(1, 10),
             randomBoolean() ? null : Instant.ofEpochMilli(randomLongBetween(1, 100000))
         );
     }

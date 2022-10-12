@@ -1390,6 +1390,16 @@ public class RBACEngineTests extends ESTestCase {
             )
             .addApplicationPrivilege(new ApplicationPrivilege("app01", "read", "data:read"), Collections.singleton("*"))
             .runAs(new Privilege(Sets.newHashSet("user01", "user02"), "user01", "user02"))
+            .addRemoteGroup(Set.of("remote-1"), IndexPrivilege.READ, "remote-index-1")
+            .addRemoteGroup(
+                Set.of("remote-2", "remote-3"),
+                new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
+                Collections.singleton(query),
+                IndexPrivilege.READ,
+                randomBoolean(),
+                "remote-index-2",
+                "remote-index-3"
+            )
             .build();
 
         final GetUserPrivilegesResponse response = RBACEngine.buildUserPrivilegesResponseObject(role);
@@ -1423,6 +1433,8 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         assertThat(response.getRunAs(), containsInAnyOrder("user01", "user02"));
+
+        assertThat(response.getRemoteIndexPrivileges(), iterableWithSize(2));
     }
 
     public void testBackingIndicesAreIncludedForAuthorizedDataStreams() {

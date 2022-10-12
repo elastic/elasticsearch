@@ -63,9 +63,7 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
-
-  requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.6.0")
-
+  
   user username: 'test_admin'
   user username: 'test_user'
 }

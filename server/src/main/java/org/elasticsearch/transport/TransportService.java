@@ -288,9 +288,7 @@ public class TransportService extends AbstractLifecycleComponent
                         )
                     );
                 } else {
-                    channel.sendResponse(
-                        new HandshakeResponse(localNode.getVersion(), Build.CURRENT.hash(), localNode, clusterName)
-                    );
+                    channel.sendResponse(new HandshakeResponse(localNode.getVersion(), Build.CURRENT.hash(), localNode, clusterName));
                 }
             }
         );
@@ -609,7 +607,9 @@ public class TransportService extends AbstractLifecycleComponent
             this.version = in.getVersion();
         }
 
-        private HandshakeRequest() {this.version = Version.CURRENT;}
+        private HandshakeRequest() {
+            this.version = Version.CURRENT;
+        }
 
     }
 

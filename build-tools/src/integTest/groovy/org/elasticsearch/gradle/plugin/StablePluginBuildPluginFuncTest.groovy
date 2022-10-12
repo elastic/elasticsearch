@@ -78,7 +78,7 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
 
             dependencies {
                 implementation files('${normalized(StableApiJarMocks.createPluginApiJar(jarFolder.toPath()).toAbsolutePath().toString())}')
-                implementation files('${normalized(StableApiJarMocks.createExtensibleApiJar(jarFolder.toPath()).toAbsolutePath())}')
+                implementation files('${normalized(StableApiJarMocks.createExtensibleApiJar(jarFolder.toPath()).toAbsolutePath().toString())}')
             }
 
             """

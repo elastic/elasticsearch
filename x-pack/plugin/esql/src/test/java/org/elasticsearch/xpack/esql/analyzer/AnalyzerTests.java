@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.time.ZoneOffset;
@@ -119,6 +122,52 @@ public class AnalyzerTests extends ESTestCase {
         Attribute ee = eval.output().get(2);
         assertEquals("ee", ee.name());
         assertThat(ee, instanceOf(ReferenceAttribute.class));
+    }
+
+    public void testRowAttributeResolution() {
+        EsIndex idx = new EsIndex("idx", Map.of());
+        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
+
+        Eval eval = (Eval) analyzer.analyze(
+            new Eval(
+                EMPTY,
+                new Row(EMPTY, List.of(new Alias(EMPTY, "emp_no", new Literal(EMPTY, 1, DataTypes.INTEGER)))),
+                List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))
+            )
+        );
+
+        assertEquals(1, eval.fields().size());
+        assertEquals(new Alias(EMPTY, "e", new ReferenceAttribute(EMPTY, "emp_no", DataTypes.INTEGER)), eval.fields().get(0));
+
+        assertEquals(2, eval.output().size());
+        Attribute empNo = eval.output().get(0);
+        assertEquals("emp_no", empNo.name());
+        assertThat(empNo, instanceOf(ReferenceAttribute.class));
+        Attribute e = eval.output().get(1);
+        assertEquals("e", e.name());
+        assertThat(e, instanceOf(ReferenceAttribute.class));
+
+        Row row = (Row) eval.child();
+        ReferenceAttribute rowEmpNo = (ReferenceAttribute) row.output().get(0);
+        assertEquals(rowEmpNo.id(), empNo.id());
+    }
+
+    public void testUnresolvableAttribute() {
+        EsIndex idx = new EsIndex("idx", TypesTests.loadMapping("mapping-one-field.json"));
+        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
+
+        VerificationException ve = expectThrows(
+            VerificationException.class,
+            () -> analyzer.analyze(
+                new Eval(
+                    EMPTY,
+                    new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false),
+                    List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_nos")))
+                )
+            )
+        );
+
+        assertThat(ve.getMessage(), containsString("Unknown column [emp_nos], did you mean [emp_no]?"));
     }
 
     private Analyzer newAnalyzer(IndexResolution indexResolution) {

@@ -59,6 +59,11 @@ public abstract class PlanNode implements NamedXContentObject {
             ),
             new NamedXContentRegistry.Entry(PlanNode.class, ExchangeNode.EXCHANGE_FIELD, (p, c) -> ExchangeNode.PARSER.parse(p, null)),
             new NamedXContentRegistry.Entry(
+                AggregationNode.GroupByType.class,
+                AggregationNode.GroupBy.GROUPBY_FIELD,
+                (p, c) -> AggregationNode.GroupBy.PARSER.parse(p, (String) c)
+            ),
+            new NamedXContentRegistry.Entry(
                 AggregationNode.AggType.class,
                 AggregationNode.AvgAggType.AVG_FIELD,
                 (p, c) -> AggregationNode.AvgAggType.PARSER.parse(p, (String) c)
@@ -183,22 +188,37 @@ public abstract class PlanNode implements NamedXContentObject {
 
     public static class AggregationNode extends PlanNode {
         final PlanNode source;
+        final List<GroupByType> groupBy;
         final Map<String, AggType> aggs; // map from agg_field_name to the aggregate (e.g. f_avg -> AVG(f))
         final Mode mode;
 
         public AggregationNode(PlanNode source, Map<String, AggType> aggs, Mode mode) {
             this.source = source;
+            this.groupBy = List.of(); // no grouping, empty
+            this.aggs = aggs;
+            this.mode = mode;
+        }
+
+        public AggregationNode(PlanNode source, List<GroupByType> groupBy, Map<String, AggType> aggs, Mode mode) {
+            this.source = source;
+            this.groupBy = groupBy;
             this.aggs = aggs;
             this.mode = mode;
         }
 
         public static final ParseField MODE_FIELD = new ParseField("mode");
+        public static final ParseField GROUPBY_FIELD = new ParseField("groupBy");
         public static final ParseField AGGS_FIELD = new ParseField("aggs");
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(MODE_FIELD.getPreferredName(), mode);
+            builder.startObject(GROUPBY_FIELD.getPreferredName());
+            for (var group : groupBy) {
+                NamedXContentObjectHelper.writeNamedObject(builder, params, "group", group);
+            }
+            builder.endObject();
             builder.startObject(AGGS_FIELD.getPreferredName());
             for (Map.Entry<String, AggType> agg : aggs.entrySet()) {
                 NamedXContentObjectHelper.writeNamedObject(builder, params, agg.getKey(), agg.getValue());
@@ -214,8 +234,9 @@ public abstract class PlanNode implements NamedXContentObject {
             "aggregation_node",
             args -> new AggregationNode(
                 (PlanNode) args[0],
-                ((List<Tuple<String, AggType>>) args[1]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)),
-                (Mode) args[2]
+                ((List<GroupByType>) args[1]).stream().collect(Collectors.toList()),
+                ((List<Tuple<String, AggType>>) args[2]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)),
+                (Mode) args[3]
             )
         );
 
@@ -225,6 +246,17 @@ public abstract class PlanNode implements NamedXContentObject {
                 (p, c, n) -> p.namedObject(PlanNode.class, n, c),
                 SOURCE_FIELD
             );
+            PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> {
+                XContentParser.Token token = p.nextToken();
+                assert token == XContentParser.Token.START_OBJECT;
+                token = p.nextToken();
+                assert token == XContentParser.Token.FIELD_NAME;
+                String commandName = p.currentName();
+                GroupByType group = p.namedObject(GroupByType.class, commandName, c);
+                token = p.nextToken();
+                assert token == XContentParser.Token.END_OBJECT;
+                return Tuple.tuple(n, group);
+            }, GROUPBY_FIELD);
             PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> {
                 XContentParser.Token token = p.nextToken();
                 assert token == XContentParser.Token.START_OBJECT;
@@ -249,6 +281,45 @@ public abstract class PlanNode implements NamedXContentObject {
         @Override
         public String getName() {
             return AGGREGATION_FIELD.getPreferredName();
+        }
+
+        public interface GroupByType extends NamedXContentObject {}
+
+        public record GroupBy(String field, Type type) implements GroupByType {
+
+            static final ConstructingObjectParser<GroupByType, String> PARSER = new ConstructingObjectParser<>(
+                "groupBy",
+                args -> new GroupBy((String) args[0], args[1] == null ? Type.DOUBLE : (Type) args[1])
+            );
+
+            public static final ParseField FIELD_FIELD = new ParseField("field");
+            public static final ParseField TYPE_FIELD = new ParseField("type");
+
+            static {
+                PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
+                PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Type::valueOf, TYPE_FIELD);
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                builder.field(FIELD_FIELD.getPreferredName(), field);
+                builder.field(TYPE_FIELD.getPreferredName(), type);
+                builder.endObject();
+                return builder;
+            }
+
+            public static final ParseField GROUPBY_FIELD = new ParseField("groupBy");
+
+            @Override
+            public String getName() {
+                return GROUPBY_FIELD.getPreferredName();
+            }
+
+            public enum Type {
+                LONG,
+                DOUBLE
+            }
         }
 
         public interface AggType extends NamedXContentObject {
@@ -449,6 +520,39 @@ public abstract class PlanNode implements NamedXContentObject {
         public Builder avgFinal(String field) {
             current = new AggregationNode(
                 current,
+                Map.of(field + "_avg", new AggregationNode.AvgAggType(field, AggregationNode.AvgAggType.Type.DOUBLE)),
+                AggregationNode.Mode.FINAL
+            );
+            return this;
+        }
+
+        /**
+         * compute the avg of the given field, grouping by groupField
+         */
+        public Builder avgGrouping(String groupField, String field) {
+            return avgGroupingPartial(groupField, field).avgGroupingFinal(groupField, field);
+        }
+
+        /**
+         * partial computation of avg, grouping by groupField
+         */
+        public Builder avgGroupingPartial(String groupField, String field) {
+            current = new AggregationNode(
+                current,
+                List.of(new AggregationNode.GroupBy(groupField, AggregationNode.GroupBy.Type.DOUBLE)),
+                Map.of(field + "_avg", new AggregationNode.AvgAggType(field, AggregationNode.AvgAggType.Type.DOUBLE)),
+                AggregationNode.Mode.PARTIAL
+            );
+            return this;
+        }
+
+        /**
+         * final computation of avg, grouping by groupField
+         */
+        public Builder avgGroupingFinal(String groupField, String field) {
+            current = new AggregationNode(
+                current,
+                List.of(new AggregationNode.GroupBy(groupField, AggregationNode.GroupBy.Type.DOUBLE)),
                 Map.of(field + "_avg", new AggregationNode.AvgAggType(field, AggregationNode.AvgAggType.Type.DOUBLE)),
                 AggregationNode.Mode.FINAL
             );

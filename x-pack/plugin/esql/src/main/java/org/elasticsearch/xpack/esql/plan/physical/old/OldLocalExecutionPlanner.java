@@ -9,16 +9,20 @@ package org.elasticsearch.xpack.esql.plan.physical.old;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.NumericDocValuesExtractor;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.exchange.Exchange;
@@ -81,25 +85,66 @@ public class OldLocalExecutionPlanner {
             PhysicalOperation source = plan(aggregationNode.source, context);
             Map<Object, Integer> layout = new HashMap<>();
             Supplier<Operator> operatorFactory = null;
-            for (Map.Entry<String, PlanNode.AggregationNode.AggType> e : aggregationNode.aggs.entrySet()) {
-                if (e.getValue()instanceof PlanNode.AggregationNode.AvgAggType avgAggType) {
-                    BiFunction<AggregatorMode, Integer, AggregatorFunction> aggregatorFunc = avgAggType
-                        .type() == PlanNode.AggregationNode.AvgAggType.Type.LONG
-                            ? AggregatorFunction.longAvg
-                            : AggregatorFunction.doubleAvg;
-                    if (aggregationNode.mode == PlanNode.AggregationNode.Mode.PARTIAL) {
-                        operatorFactory = () -> new AggregationOperator(
-                            List.of(new Aggregator(aggregatorFunc, AggregatorMode.INITIAL, source.layout.get(avgAggType.field())))
-                        );
-                        layout.put(e.getKey(), 0);
-                    } else {
-                        operatorFactory = () -> new AggregationOperator(
-                            List.of(new Aggregator(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(e.getKey())))
-                        );
-                        layout.put(e.getKey(), 0);
-                    }
+
+            if (aggregationNode.groupBy.isEmpty() == false) {
+                // grouping
+                List<PlanNode.AggregationNode.GroupByType> groups = aggregationNode.groupBy;
+                assert groups.size() == 1 : "just one group, for now";
+                var grp = groups.iterator().next();
+                PlanNode.AggregationNode.GroupBy groupBy;
+                if (grp instanceof PlanNode.AggregationNode.GroupBy x) {
+                    groupBy = x;
+                    layout.put(groupBy.field(), 0);
                 } else {
-                    throw new UnsupportedOperationException();
+                    throw new AssertionError("unknown group type: " + grp);
+                }
+
+                for (Map.Entry<String, PlanNode.AggregationNode.AggType> e : aggregationNode.aggs.entrySet()) {
+                    if (e.getValue()instanceof PlanNode.AggregationNode.AvgAggType avgAggType) {
+                        BiFunction<AggregatorMode, Integer, GroupingAggregatorFunction> aggregatorFunc = GroupingAggregatorFunction.avg;
+                        if (aggregationNode.mode == PlanNode.AggregationNode.Mode.PARTIAL) {
+                            operatorFactory = () -> new HashAggregationOperator(
+                                source.layout.get(groupBy.field()),
+                                List.of(
+                                    new GroupingAggregator(aggregatorFunc, AggregatorMode.INITIAL, source.layout.get(avgAggType.field()))
+                                ),
+                                BigArrays.NON_RECYCLING_INSTANCE
+                            );
+                            layout.put(e.getKey(), 1);
+                        } else {
+                            operatorFactory = () -> new HashAggregationOperator(
+                                source.layout.get(groupBy.field()),
+                                List.of(new GroupingAggregator(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(e.getKey()))),
+                                BigArrays.NON_RECYCLING_INSTANCE
+                            );
+                            layout.put(e.getKey(), 1);
+                        }
+                    } else {
+                        throw new UnsupportedOperationException();
+                    }
+                }
+            } else {
+                // not grouping
+                for (Map.Entry<String, PlanNode.AggregationNode.AggType> e : aggregationNode.aggs.entrySet()) {
+                    if (e.getValue()instanceof PlanNode.AggregationNode.AvgAggType avgAggType) {
+                        BiFunction<AggregatorMode, Integer, AggregatorFunction> aggregatorFunc = avgAggType
+                            .type() == PlanNode.AggregationNode.AvgAggType.Type.LONG
+                                ? AggregatorFunction.longAvg
+                                : AggregatorFunction.doubleAvg;
+                        if (aggregationNode.mode == PlanNode.AggregationNode.Mode.PARTIAL) {
+                            operatorFactory = () -> new AggregationOperator(
+                                List.of(new Aggregator(aggregatorFunc, AggregatorMode.INITIAL, source.layout.get(avgAggType.field())))
+                            );
+                            layout.put(e.getKey(), 0);
+                        } else {
+                            operatorFactory = () -> new AggregationOperator(
+                                List.of(new Aggregator(aggregatorFunc, AggregatorMode.FINAL, source.layout.get(e.getKey())))
+                            );
+                            layout.put(e.getKey(), 0);
+                        }
+                    } else {
+                        throw new UnsupportedOperationException();
+                    }
                 }
             }
             if (operatorFactory != null) {

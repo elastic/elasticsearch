@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
@@ -224,7 +225,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                                     + "]",
                                 "Check the snapshot lifecycle policy for detailed failure info:\n- /_slm/policy/test-policy?human"
                             ),
-                            List.of("test-policy")
+                            List.of(new Diagnosis.Resource(Type.SLM_POLICY, List.of("test-policy")))
                         )
                     )
                 )

@@ -260,7 +260,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         credentialBuilder.setPrivateKeyId("private_key_id_" + clientName);
         credentialBuilder.setScopes(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
         final String encodedPrivateKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
-        final String serviceAccount = """
+        final String serviceAccount = formatted("""
             {
               "type": "service_account",
               "project_id": "project_id_%s",
@@ -268,7 +268,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
               "private_key": "-----BEGIN PRIVATE KEY-----\\n%s\\n-----END PRIVATE KEY-----\\n",
               "client_email": "%s",
               "client_id": "id_%s"
-            }""".formatted(clientName, clientName, encodedPrivateKey, clientName, clientName);
+            }""", clientName, clientName, encodedPrivateKey, clientName, clientName);
         return Tuple.tuple(credentialBuilder.build(), serviceAccount.getBytes(StandardCharsets.UTF_8));
     }
 

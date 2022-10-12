@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.relevancesearch.xsearch.action.rest;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -21,6 +22,7 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+// TODO consider naming this GET because it isn't updating data, even though we do support POST
 public class RestXSearchSearchAction extends BaseRestHandler {
 
     @Override
@@ -30,17 +32,17 @@ public class RestXSearchSearchAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "xsearch";
+        return "xsearch_action";
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
-        String engine = Strings.splitStringByCommaToArray(restRequest.param("engine"))[0];
-        return channel -> client.execute(
-            XSearchSearchAction.INSTANCE,
-            new XSearchSearchAction.Request(),
-            new RestToXContentListener<>(channel)
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
+        XSearchSearchAction.Request xSearchSearchRequest = new XSearchSearchAction.Request(
+            Strings.splitStringByCommaToArray(request.param("name"))
         );
+        // Do the xsearch request
+        xSearchSearchRequest.indicesOptions(IndicesOptions.fromRequest(request, xSearchSearchRequest.indicesOptions()));
+        return channel -> client.execute(XSearchSearchAction.INSTANCE, xSearchSearchRequest, new RestToXContentListener<>(channel));
     }
 
     private static final Set<String> RESPONSE_PARAMS = Collections.emptySet();

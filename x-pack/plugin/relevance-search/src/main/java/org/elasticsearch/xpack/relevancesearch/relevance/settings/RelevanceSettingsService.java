@@ -109,6 +109,10 @@ public class RelevanceSettingsService implements ClusterStateListener {
             // wait for state recovered
             return;
         }
+        if (event.state().metadata().hasIndex(ENT_SEARCH_INDEX)) {
+            // no need to re-create
+            return;
+        }
 
         ensureInternalIndex(this.client);
         this.clusterService.removeListener(this);

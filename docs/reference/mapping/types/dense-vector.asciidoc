@@ -5,7 +5,8 @@
 <titleabbrev>Dense vector</titleabbrev>
 ++++
 
-The `dense_vector` field type stores dense vectors of float values. Dense
+The `dense_vector` field type stores dense vectors of values defined
+by `element_type` with `float` as a default. Dense
 vector fields can be used in the following ways:
 
 * In <<query-dsl-script-score-query,`script_score`>> queries, to score
@@ -13,7 +14,9 @@ documents matching a filter
 * In the <<knn-search-api, kNN search API>>, to find the _k_ most similar
 vectors to a query vector
 
-The `dense_vector` type does not support aggregations or sorting.
+The `dense_vector` type does not support aggregations or sorting. When
+`element_type` is `byte` <<query-dsl-script-score-query,`script_score`>>
+is not supported.
 
 You add a `dense_vector` field as an array of floats:
 
@@ -103,6 +106,16 @@ Dense vector fields cannot be indexed if they are within
 ==== Parameters for dense vector fields
 
 The following mapping parameters are accepted:
+
+`element_type`::
+(Optional, string)
+The data type used to encode vectors. The supported data types are
+`float` (default) and `byte`. `float` indexes a 4-byte floating-point
+value per dimension. `byte` indexes a 1-byte integer value per dimension.
+`byte` requires `index` to be `true`. Using `byte` can result in a
+substantially smaller index size with the trade off of significantly lower
+precision. Vectors using `byte` require dimensions with integer values
+between -128 to 127, inclusive for both indexing and searching.
 
 `dims`::
 (Required, integer)

@@ -210,15 +210,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 for (int index = 0; index < vector.length; ++index) {
                     float value = vector[index];
-                    int rounded = Math.round(value);
+                    double floor = Math.floor(value);
 
-                    if (value - rounded > 1e-4f || rounded < Byte.MIN_VALUE || rounded > Byte.MAX_VALUE) {
+                    if (value - floor > 1e-4 || value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
                         errorBuilder = new StringBuilder(
                             this
-                                + " element_type vectors only support whole numbers between"
+                                + " element_type vectors only support integers between"
                                 + "["
                                 + Byte.MIN_VALUE
-                                + ","
+                                + ", "
                                 + Byte.MAX_VALUE
                                 + "] but found ["
                                 + value

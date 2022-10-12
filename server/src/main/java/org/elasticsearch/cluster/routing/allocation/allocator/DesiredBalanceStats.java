@@ -22,18 +22,34 @@ public record DesiredBalanceStats(
     long computationSubmitted,
     long computationExecuted,
     long computationConverged,
+    long computationIterations,
     long cumulativeComputationTime,
     long cumulativeReconciliationTime
 ) implements Writeable, ToXContentFragment {
 
     public static DesiredBalanceStats readFrom(StreamInput in) throws IOException {
-        // TODO
-        return null;
+        return new DesiredBalanceStats(
+            in.readVLong(),
+            in.readBoolean(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readVLong()
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO
+        out.writeVLong(lastConvergedIndex);
+        out.writeBoolean(computationActive);
+        out.writeVLong(computationSubmitted);
+        out.writeVLong(computationExecuted);
+        out.writeVLong(computationConverged);
+        out.writeVLong(computationIterations);
+        out.writeVLong(cumulativeComputationTime);
+        out.writeVLong(cumulativeReconciliationTime);
     }
 
     @Override
@@ -43,6 +59,7 @@ public record DesiredBalanceStats(
         builder.field("computation.submitted", computationSubmitted);
         builder.field("computation.executed", computationExecuted);
         builder.field("computation.converged", computationConverged);
+        builder.field("computation.iterations", computationIterations);
         builder.field("computation.converged.index", lastConvergedIndex);
         builder.humanReadableField("computation.time_in_millis", "computation.time", cumulativeComputationTime);
         builder.humanReadableField("reconciliation.time_in_millis", "reconciliation.time", cumulativeReconciliationTime);

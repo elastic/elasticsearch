@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -40,6 +41,8 @@ public class DesiredBalanceComputer {
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
     private final ShardsAllocator delegateAllocator;
+
+    protected final MeanMetric iterations = new MeanMetric();
 
     public DesiredBalanceComputer(ShardsAllocator delegateAllocator) {
         this.delegateAllocator = delegateAllocator;
@@ -201,8 +204,9 @@ public class DesiredBalanceComputer {
             }
         }
 
+        int i = 0;
         boolean hasChanges = false;
-        for (int i = 0; true; i++) {
+        while (true) {
             if (hasChanges) {
                 // Not the first iteration, so every remaining unassigned shard has been ignored, perhaps due to throttling. We must bring
                 // them all back out of the ignored list to give the allocator another go...
@@ -252,7 +256,9 @@ public class DesiredBalanceComputer {
                 // TODO this warning should be time based, iteration count should be proportional to the number of shards
                 logger.debug("Desired balance computation is still not converged after {} iterations", i);
             }
+            i++;
         }
+        iterations.inc(i);
 
         final var assignments = new HashMap<ShardId, ShardAssignment>();
         for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {

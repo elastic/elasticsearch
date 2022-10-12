@@ -226,6 +226,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             computationsSubmitted.count(),
             computationsExecuted.count(),
             computationsConverged.count(),
+            desiredBalanceComputer.iterations.sum(),
             cumulativeComputationTime.count(),
             cumulativeReconciliationTime.count()
         );

@@ -85,11 +85,12 @@ DELETE _index_template/*
 
 * Only indices in a <<tsds,time series data stream>> are supported.
 
-* If the {es} {security-features} are enabled, you must have the `create_index`
+* If the {es} {security-features} are enabled, you must have the `all`
 or `manage` <<privileges-list-indices,index privilege>> for the data stream.
 
-The source index must be read only (`index.blocks.write: true`) or else the
-`downsample` action will fail with an error.
+* Neither <<field-and-document-access-control,field nor document level security>> can be defined on the source index.
+
+* The source index must be read only (`index.blocks.write: true`).
 
 [[downsample-api-path-params]]
 ==== {api-path-parms-title}

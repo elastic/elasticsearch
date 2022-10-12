@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
@@ -19,6 +21,14 @@ import java.util.List;
 
 @Experimental
 public class Optimizer extends RuleExecutor<PhysicalPlan> {
+
+    private static Setting<Boolean> ADD_TASK_PARALLELISM_ABOVE_QUERY = Setting.boolSetting("add_task_parallelism_above_query", false);
+
+    private final EsqlConfiguration configuration;
+
+    public Optimizer(EsqlConfiguration configuration) {
+        this.configuration = configuration;
+    }
 
     public PhysicalPlan optimize(PhysicalPlan verified) {
         PhysicalPlan plan = execute(verified);
@@ -54,20 +64,24 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch fieldExtract = new Batch(
-            "Move FieldExtract upwards",
-            new FieldExtractPastEval(),
-            new FieldExtractPastAggregate(),
-            new EmptyFieldExtractRemoval()
+        List<Batch> batches = new ArrayList<>();
+        batches.add(new Batch("Create topN", new CreateTopN()));
+        batches.add(new Batch("Split nodes", new SplitAggregate(), new SplitTopN()));
+        batches.add(new Batch("Add exchange", new AddExchangeOnSingleNodeSplit()));
+        batches.add(
+            new Batch(
+                "Move FieldExtract upwards",
+                new FieldExtractPastEval(),
+                new FieldExtractPastAggregate(),
+                new EmptyFieldExtractRemoval()
+            )
         );
-        Batch splitNodes = new Batch("Split nodes", new SplitAggregate(), new SplitTopN());
-        Batch addExchange = new Batch("Add exchange", new AddExchangeOnSingleNodeSplit());
-        Batch createTopN = new Batch("Create topN", new CreateTopN());
         // TODO: add rule to prune _doc_id, _segment_id, _shard_id at the top
         // Batch addProject = new Batch("Add project", new AddProjectWhenInternalFieldNoLongerNeeded());
-        // TODO: provide option to further parallelize above QueryNode
-        // (i.e. always add a local exchange(REPARTITION,FIXED_ARBITRARY_DISTRIBUTION))
-        return List.of(createTopN, splitNodes, fieldExtract, addExchange);
+        if (ADD_TASK_PARALLELISM_ABOVE_QUERY.get(configuration.pragmas())) {
+            batches.add(new Batch("Add task parallelization above query", new AddTaskParallelismAboveQuery()));
+        }
+        return batches;
     }
 
     private static class FieldExtractPastEval extends OptimizerRule<EvalExec> {
@@ -215,6 +229,24 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
                 return new TopNExec(limitExec.source(), orderExec.child(), orderExec.order(), limitExec.limit());
             }
             return limitExec;
+        }
+    }
+
+    private static class AddTaskParallelismAboveQuery extends OptimizerRule<UnaryExec> {
+
+        @Override
+        protected PhysicalPlan rule(UnaryExec plan) {
+            if (plan instanceof ExchangeExec == false && plan.child()instanceof EsQueryExec esQueryExec) {
+                return plan.replaceChild(
+                    new ExchangeExec(
+                        esQueryExec.source(),
+                        esQueryExec,
+                        ExchangeExec.Type.REPARTITION,
+                        ExchangeExec.Partitioning.FIXED_ARBITRARY_DISTRIBUTION
+                    )
+                );
+            }
+            return plan;
         }
     }
 }

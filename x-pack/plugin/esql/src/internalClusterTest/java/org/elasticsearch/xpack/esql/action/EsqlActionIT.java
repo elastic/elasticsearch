@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
@@ -95,8 +96,24 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertEquals(50, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "double"))), 1d);
     }
 
+    public void testFromStatsEvalWithPragma() {
+        assumeTrue("pragmas only enabled on snapshot builds", Build.CURRENT.isSnapshot());
+        EsqlQueryResponse results = run(
+            "from test | stats avg_count = avg(count) | eval x = avg_count + 7",
+            Settings.builder().put("add_task_parallelism_above_query", true).build()
+        );
+        logger.info(results);
+        Assert.assertEquals(1, results.values().size());
+        assertEquals(2, results.values().get(0).size());
+        assertEquals(50, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "double"))), 1d);
+    }
+
     private EsqlQueryResponse run(String esqlCommands) {
         return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).get();
+    }
+
+    private EsqlQueryResponse run(String esqlCommands, Settings pragmas) {
+        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(pragmas).get();
     }
 
     @Override

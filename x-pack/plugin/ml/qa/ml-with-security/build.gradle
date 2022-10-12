@@ -234,7 +234,8 @@ tasks.named("yamlRestTest").configure {
     'ml/set_upgrade_mode/Attempt to open job when upgrade_mode is enabled',
     'ml/set_upgrade_mode/Setting upgrade_mode to enabled',
     'ml/set_upgrade_mode/Setting upgrade mode to disabled from enabled',
-    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false'
+    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false',
+    'ml/update_trained_model_deployment/Test with unknown model id'
   ].join(',')
 }
 

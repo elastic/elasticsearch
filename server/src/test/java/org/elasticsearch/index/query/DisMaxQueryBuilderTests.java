@@ -39,6 +39,17 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     @Override
+    protected DisMaxQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        DisMaxQueryBuilder disMaxQueryBuilder = new DisMaxQueryBuilder();
+        disMaxQueryBuilder.add(queryBuilder);
+        int innerQueries = randomIntBetween(0, 2);
+        for (int i = 0; i < innerQueries; i++) {
+            disMaxQueryBuilder.add(randomBoolean() ? queryBuilder : new MatchAllQueryBuilder());
+        }
+        return disMaxQueryBuilder;
+    }
+
+    @Override
     protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context);
         Query expected = new DisjunctionMaxQuery(queries, queryBuilder.tieBreaker());

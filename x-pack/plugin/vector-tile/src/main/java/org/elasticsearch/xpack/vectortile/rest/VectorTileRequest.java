@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.vectortile.rest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -90,7 +89,7 @@ class VectorTileRequest {
         }, SearchSourceBuilder.FETCH_FIELDS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareField(
             VectorTileRequest::setQueryBuilder,
-            (CheckedFunction<XContentParser, QueryBuilder, IOException>) AbstractQueryBuilder::parseInnerQueryBuilder,
+            AbstractQueryBuilder::parseTopLevelQuery,
             SearchSourceBuilder.QUERY_FIELD,
             ObjectParser.ValueType.OBJECT
         );

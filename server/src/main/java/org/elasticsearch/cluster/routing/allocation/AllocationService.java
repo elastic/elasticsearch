@@ -525,7 +525,7 @@ public class AllocationService {
                 continue;
             }
 
-            var nodeShutdownMetadata = allocation.nodeShutdowns().get(node.nodeId());
+            var nodeShutdownMetadata = allocation.metadata().nodeShutdowns().get(node.nodeId());
             var unassignedReason = nodeShutdownMetadata != null && Objects.equals(nodeShutdownMetadata.getType(), Type.RESTART)
                 ? UnassignedInfo.Reason.NODE_RESTARTING
                 : UnassignedInfo.Reason.NODE_LEFT;

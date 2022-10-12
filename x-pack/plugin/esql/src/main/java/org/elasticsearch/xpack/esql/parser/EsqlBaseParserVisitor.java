@@ -245,45 +245,11 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx);
   /**
-   * Visit a parse tree produced by the {@code projectReorderAll}
-   * labeled alternative in {@link EsqlBaseParser#projectClause}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#projectClause}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitProjectReorderAll(EsqlBaseParser.ProjectReorderAllContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code projectAwayOrKeep}
-   * labeled alternative in {@link EsqlBaseParser#projectClause}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitProjectAwayOrKeep(EsqlBaseParser.ProjectAwayOrKeepContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code projectAwayOrKeepStar}
-   * labeled alternative in {@link EsqlBaseParser#projectClause}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitProjectAwayOrKeepStar(EsqlBaseParser.ProjectAwayOrKeepStarContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code projectRename}
-   * labeled alternative in {@link EsqlBaseParser#projectClause}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitProjectRename(EsqlBaseParser.ProjectRenameContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#asteriskIdentifier}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitAsteriskIdentifier(EsqlBaseParser.AsteriskIdentifierContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#dotAsterisk}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitDotAsterisk(EsqlBaseParser.DotAsteriskContext ctx);
+  T visitProjectClause(EsqlBaseParser.ProjectClauseContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#booleanValue}.
    * @param ctx the parse tree

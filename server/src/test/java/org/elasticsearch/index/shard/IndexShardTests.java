@@ -54,7 +54,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -69,13 +68,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -4557,86 +4554,146 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testShardExposesWriteLoadStats() throws Exception {
-        AtomicLong fakeClock = new AtomicLong();
-        AtomicReference<LongSupplier> relativeTimeSupplierRef = new AtomicReference<>(fakeClock::get);
+        final IndexShard primary = newStartedShard(true);
+        for (int i = 0; i < 10; i++) {
+            indexDoc(primary, "_doc", "primary-" + i);
+        }
 
+        final FakeClock fakeClock = new FakeClock();
         final ShardRouting shardRouting = newShardRouting(
-            new ShardId("index", "_na_", 0),
+            primary.shardId(),
             randomAlphaOfLength(10),
-            true,
+            false,
             ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+            RecoverySource.PeerRecoverySource.INSTANCE
         );
-        final IndexMetadata indexMetadata = IndexMetadata.builder(shardRouting.getIndexName())
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build()
-            )
-            .primaryTerm(0, primaryTerm)
-            .putMapping("{ \"properties\": {} }")
-            .build();
-        final EngineFactory engineFactory = config -> new InternalEngine(config) {
-            @Override
-            public long getRelativeTimeInNanos() {
-                return relativeTimeSupplierRef.get().getAsLong();
-            }
-        };
         final ShardId shardId = shardRouting.shardId();
         final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
         final ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
-        final IndexShard shard = newShard(
+        final IndexShard replicaShard = newShard(
             shardRouting,
             shardPath,
-            indexMetadata,
+            primary.indexSettings().getIndexMetadata(),
             null,
             null,
-            engineFactory,
+            config -> new InternalEngine(config) {
+                @Override
+                public long getRelativeTimeInNanos() {
+                    return fakeClock.getAsLong();
+                }
+            },
             () -> {},
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,
-            () -> relativeTimeSupplierRef.get().getAsLong()
+            fakeClock
         );
 
-        // Simulate that the recovery took 10 minutes to ensure that we don't account for that time
-        // when the shard write load is computed
-        fakeClock.set(TimeValue.timeValueMinutes(10).nanos());
-        recoverShardFromStore(shard);
+        // Now simulate that each operation takes 1 minute to complete.
+        // This applies both for replaying translog ops and new indexing ops
+        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.timeValueMinutes(1));
 
-        final IndexingStats indexingStatsBeforeIndexingDocs = shard.indexingStats();
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final CountDownLatch concurrentIndexingFinished = new CountDownLatch(1);
+        // Index some documents concurrently while the shard is replaying the primary
+        // translog operations to ensure that those are not accounted to compute the
+        // shard write load.
+        final Thread indexingThread = new Thread(() -> {
+            try {
+                barrier.await(10, TimeUnit.SECONDS);
+                for (int i = 1; i <= 10; i++) {
+                    long seqNo = primary.seqNoStats().getMaxSeqNo() + i;
+                    replicaShard.applyIndexOperationOnReplica(
+                        seqNo,
+                        primaryTerm,
+                        1,
+                        IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                        false,
+                        new SourceToParse("id-" + seqNo, new BytesArray("{}"), XContentType.JSON)
+                    );
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            } finally {
+                concurrentIndexingFinished.countDown();
+            }
+        });
+        indexingThread.start();
+
+        recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener) {
+            @Override
+            public void indexTranslogOperations(
+                List<Translog.Operation> operations,
+                int totalTranslogOps,
+                long maxSeenAutoIdTimestampOnPrimary,
+                long maxSeqNoOfDeletesOrUpdatesOnPrimary,
+                RetentionLeases retentionLeases,
+                long mappingVersionOnPrimary,
+                ActionListener<Long> listener
+            ) {
+                try {
+                    barrier.await(10, TimeUnit.SECONDS);
+                    assertTrue(concurrentIndexingFinished.await(10, TimeUnit.SECONDS));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                super.indexTranslogOperations(
+                    operations,
+                    totalTranslogOps,
+                    maxSeenAutoIdTimestampOnPrimary,
+                    maxSeqNoOfDeletesOrUpdatesOnPrimary,
+                    retentionLeases,
+                    mappingVersionOnPrimary,
+                    listener
+                );
+            }
+        }, true, true);
+
+        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.ZERO);
+        final IndexingStats indexingStatsBeforeIndexingDocs = replicaShard.indexingStats();
         assertThat(indexingStatsBeforeIndexingDocs.getTotal().getWriteLoadAverage(), is(equalTo(0.0)));
 
         // Now simulate that each operation takes 1 second to complete.
-        // Since the clock is checked at the beginning and at the end of
-        // the indexing op, just increase the current relative time at the
-        // end.
-        final AtomicInteger tick = new AtomicInteger();
-        relativeTimeSupplierRef.set(() -> {
-            if (tick.getAndIncrement() % 2 == 0) {
-                return fakeClock.get();
-            } else {
-                return fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
-            }
-        });
+        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.timeValueSeconds(1));
         final int numberOfDocs = randomIntBetween(5, 10);
         for (int i = 0; i < numberOfDocs; i++) {
-            shard.applyIndexOperationOnPrimary(
-                Versions.MATCH_ANY,
-                VersionType.INTERNAL,
-                new SourceToParse(Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
-                SequenceNumbers.UNASSIGNED_SEQ_NO,
-                0,
+            long seqNo = replicaShard.seqNoStats().getMaxSeqNo() + 1;
+            replicaShard.applyIndexOperationOnReplica(
+                seqNo,
+                primaryTerm,
+                1,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
-                false
+                false,
+                new SourceToParse("id-" + seqNo, new BytesArray("{}"), XContentType.JSON)
             );
         }
 
-        final IndexingStats indexingStatsAfterIndexingDocs = shard.indexingStats();
+        final IndexingStats indexingStatsAfterIndexingDocs = replicaShard.indexingStats();
         assertThat(indexingStatsAfterIndexingDocs.getTotal().getWriteLoadAverage(), is(equalTo(1.0)));
 
-        closeShards(shard);
+        closeShards(primary, replicaShard);
+    }
+
+    static class FakeClock implements LongSupplier {
+        private final AtomicLong currentRelativeTime = new AtomicLong();
+        private final AtomicInteger tick = new AtomicInteger();
+        private volatile TimeValue elapsedTimePerPairOfQueries = TimeValue.ZERO;
+
+        @Override
+        public long getAsLong() {
+            // Since the clock is checked at the beginning and at the end of
+            // the indexing op, just increase the current relative time at the
+            // end.
+            if (tick.getAndIncrement() % 2 == 0) {
+                return currentRelativeTime.get();
+            } else {
+                return currentRelativeTime.addAndGet(elapsedTimePerPairOfQueries.nanos());
+            }
+        }
+
+        void setSimulatedElapsedRelativeTime(TimeValue elapsedTimePerPairOfQueries) {
+            tick.set(0);
+            this.elapsedTimePerPairOfQueries = elapsedTimePerPairOfQueries;
+        }
     }
 
     private static void blockingCallRelocated(

@@ -27,9 +27,23 @@ final class InternalIndexingStats implements IndexingOperationListener {
      * is returned for them. If they are set, then only types provided will be returned, or
      * {@code _all} for all types.
      */
-    IndexingStats stats(boolean isThrottled, long currentThrottleInMillis, long timeSinceShardStartedInNanos) {
-        IndexingStats.Stats total = totalStats.stats(isThrottled, currentThrottleInMillis, timeSinceShardStartedInNanos);
+    IndexingStats stats(
+        boolean isThrottled,
+        long currentThrottleInMillis,
+        long indexingTimeBeforeShardStartedInNanos,
+        long timeSinceShardStartedInNanos
+    ) {
+        IndexingStats.Stats total = totalStats.stats(
+            isThrottled,
+            currentThrottleInMillis,
+            indexingTimeBeforeShardStartedInNanos,
+            timeSinceShardStartedInNanos
+        );
         return new IndexingStats(total);
+    }
+
+    long totalIndexingTimeInNanos() {
+        return totalStats.indexMetric.sum();
     }
 
     @Override
@@ -112,8 +126,14 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
 
-        IndexingStats.Stats stats(boolean isThrottled, long currentThrottleMillis, long timeSinceShardStartedInNanos) {
+        IndexingStats.Stats stats(
+            boolean isThrottled,
+            long currentThrottleMillis,
+            long indexingTimeBeforeShardStartedInNanos,
+            long timeSinceShardStartedInNanos
+        ) {
             final long totalIndexingTimeInNanos = indexMetric.sum();
+            final long totalIndexingTimeSinceShardStarted = totalIndexingTimeInNanos - indexingTimeBeforeShardStartedInNanos;
             return new IndexingStats.Stats(
                 indexMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(totalIndexingTimeInNanos),
@@ -125,7 +145,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 noopUpdates.count(),
                 isThrottled,
                 TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
-                timeSinceShardStartedInNanos > 0 ? (double) totalIndexingTimeInNanos / timeSinceShardStartedInNanos : 0
+                timeSinceShardStartedInNanos > 0 ? (double) totalIndexingTimeSinceShardStarted / timeSinceShardStartedInNanos : 0
             );
         }
     }

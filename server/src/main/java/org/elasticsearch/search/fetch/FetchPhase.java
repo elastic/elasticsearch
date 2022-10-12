@@ -237,6 +237,9 @@ public class FetchPhase {
         for (SearchContext innerContext : context.innerHits().getInnerHits().values()) {
             innerHitsRequiredSource |= sourceRequired(innerContext);
             innerHitsRequiredSource |= innerContext.highlight() != null;
+            // for inner hits, an unconfigured fetch source defaults to sourceRequested = true
+            // TODO this seems backwards?
+            innerHitsRequiredSource |= innerContext.fetchSourceContext() == null;
         }
         return innerHitsRequiredSource || context.sourceRequested() || context.fetchFieldsContext() != null;
     }

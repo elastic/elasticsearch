@@ -4,12 +4,11 @@
 apply plugin: 'elasticsearch.stable-esplugin'
 //TODO guide - mention about testing
 apply plugin: 'elasticsearch.yaml-rest-test'
-
+apply plugin: 'java'
 //TODO guide - mention classname not needed, descriptor, named_components
 esplugin {
   name 'stable-analysis-plugin'
   description 'An example analysis plugin using stable plugin api'
-  // TODO fix plugin.descriptor hasnative controller
 }
 //TODO write module-info
 
@@ -22,7 +21,6 @@ dependencies {
   compileOnly "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
   compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
 
+  testImplementation "junit:junit:5.7.1"
 }
-testClusters.configureEach {
-  numberOfNodes = 1
-}
+

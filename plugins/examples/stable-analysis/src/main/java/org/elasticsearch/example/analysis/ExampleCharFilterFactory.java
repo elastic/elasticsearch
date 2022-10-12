@@ -17,7 +17,7 @@ import java.io.Reader;
 
 @NamedComponent(name = "example_char_filter")
 public class ExampleCharFilterFactory implements CharFilterFactory {
-    @SuppressForbidden(reason = "need a public constructor") //TODO guide - mention about constructor
+    @SuppressForbidden(reason = "need a public constructor") //TODO guide - mention about constructor, it has to have a noarg (so can have none)
     public ExampleCharFilterFactory() {
     }
 

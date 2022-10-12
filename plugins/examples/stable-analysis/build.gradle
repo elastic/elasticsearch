@@ -21,6 +21,6 @@ dependencies {
   compileOnly "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
   compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
 
-  testImplementation "junit:junit:5.7.1"
+//  testImplementation "junit:junit:5.7.1"
 }
 

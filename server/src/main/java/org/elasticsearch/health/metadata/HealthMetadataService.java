@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health.metadata;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -172,7 +174,11 @@ public class HealthMetadataService {
 
         @Override
         public void onFailure(@Nullable Exception e) {
-            logger.error("failure during health metadata update", e);
+            logger.log(
+                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                () -> "failure during health metadata update",
+                e
+            );
         }
 
         abstract ClusterState execute(ClusterState currentState);

@@ -80,7 +80,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
     }
 
     public ModelAliasMetadata(StreamInput in) throws IOException {
-        this.modelAliases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, ModelAliasEntry::new));
+        this.modelAliases = in.readImmutableMap(StreamInput::readString, ModelAliasEntry::new);
     }
 
     public Map<String, ModelAliasEntry> modelAliases() {

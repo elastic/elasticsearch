@@ -726,9 +726,9 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         assertEquals(1, indices.size());
 
         Step.StepKey stepKey = getStepKeyForIndex(client(), indices.get(0).get("index_name"));
-        assertEquals("hot", stepKey.getPhase());
-        assertEquals(RolloverAction.NAME, stepKey.getAction());
-        assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());
+        assertEquals("hot", stepKey.phase());
+        assertEquals(RolloverAction.NAME, stepKey.action());
+        assertEquals(WaitForRolloverReadyStep.NAME, stepKey.name());
     }
 
     private void createSnapshotPolicy(

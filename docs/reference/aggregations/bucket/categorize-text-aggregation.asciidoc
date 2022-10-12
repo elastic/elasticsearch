@@ -142,21 +142,25 @@ Response:
         {
           "doc_count" : 3,
           "key" : "Node shutting down",
+          "regex" : ".*?Node.+?shutting.+?down.*?",
           "max_matching_length" : 49
         },
         {
           "doc_count" : 1,
           "key" : "Node starting up",
+          "regex" : ".*?Node.+?starting.+?up.*?",
           "max_matching_length" : 47
         },
         {
           "doc_count" : 1,
           "key" : "User foo_325 logging on",
+          "regex" : ".*?User.+?foo_325.+?logging.+?on.*?",
           "max_matching_length" : 52
         },
         {
           "doc_count" : 1,
           "key" : "User foo_864 logged off",
+          "regex" : ".*?User.+?foo_864.+?logged.+?off.*?",
           "max_matching_length" : 52
         }
       ]
@@ -198,21 +202,25 @@ category results
         {
           "doc_count" : 3,
           "key" : "Node shutting down",
+          "regex" : ".*?Node.+?shutting.+?down.*?",
           "max_matching_length" : 49
         },
         {
           "doc_count" : 1,
           "key" : "Node starting up",
+          "regex" : ".*?Node.+?starting.+?up.*?",
           "max_matching_length" : 47
         },
         {
           "doc_count" : 1,
           "key" : "User logged off",
+          "regex" : ".*?User.+?logged.+?off.*?",
           "max_matching_length" : 52
         },
         {
           "doc_count" : 1,
           "key" : "User logging on",
+          "regex" : ".*?User.+?logging.+?on.*?",
           "max_matching_length" : 52
         }
       ]
@@ -266,11 +274,13 @@ The resulting categories are now very broad, merging the log groups.
         {
           "doc_count" : 4,
           "key" : "Node",
+          "regex" : ".*?Node.*?",
           "max_matching_length" : 49
         },
         {
           "doc_count" : 2,
           "key" : "User",
+          "regex" : ".*?User.*?",
           "max_matching_length" : 52
         }
       ]
@@ -330,6 +340,7 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 2,
                 "key" : "Node shutting down",
+                "regex" : ".*?Node.+?shutting.+?down.*?",
                 "max_matching_length" : 49,
                 "hit" : {
                   "hits" : {
@@ -357,6 +368,7 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "Node starting up",
+                "regex" : ".*?Node.+?starting.+?up.*?",
                 "max_matching_length" : 47,
                 "hit" : {
                   "hits" : {
@@ -393,6 +405,7 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "Node shutting down",
+                "regex" : ".*?Node.+?shutting.+?down.*?",
                 "max_matching_length" : 49,
                 "hit" : {
                   "hits" : {
@@ -420,6 +433,7 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "User logged off",
+                "regex" : ".*?User.+?logged.+?off.*?",
                 "max_matching_length" : 52,
                 "hit" : {
                   "hits" : {
@@ -447,6 +461,7 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "User logging on",
+                "regex" : ".*?User.+?logging.+?on.*?",
                 "max_matching_length" : 52,
                 "hit" : {
                   "hits" : {

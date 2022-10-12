@@ -24,10 +24,6 @@ restResources {
   }
 }
 
-artifacts {
-  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
-}
-
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals filters implementation", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
@@ -37,4 +33,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/370_doc_count_field/Test filters agg with doc_count", "Uses profiler for assertions which is not backwards compatible")
 
   task.addAllowedWarningRegex("\\[types removal\\].*")
+}
+
+artifacts {
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

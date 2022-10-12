@@ -308,7 +308,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public Response(StreamInput in) throws IOException {
             super(in);
             results = in.readNamedWriteable(InferenceResults.class);
-            tookMillis = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+                tookMillis = in.readVLong();
+            }
         }
 
         @Override
@@ -323,7 +325,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeNamedWriteable(results);
-            out.writeVLong(tookMillis);
+            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+                out.writeVLong(tookMillis);
+            }
         }
 
         public InferenceResults getResults() {

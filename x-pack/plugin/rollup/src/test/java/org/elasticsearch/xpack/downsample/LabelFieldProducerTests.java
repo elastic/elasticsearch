@@ -66,7 +66,7 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
         assertTrue(producer.isEmpty());
         assertEquals("dummy", producer.name());
         assertEquals("last_value", producer.label().name);
-        producer.collect("aaaa");
+        producer.collect("dummy", "aaaa");
         assertFalse(producer.isEmpty());
         assertEquals("aaaa", producer.value());
         producer.reset();

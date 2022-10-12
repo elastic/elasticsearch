@@ -112,6 +112,7 @@ subprojects {
           // Synthetic source needs doc values that runtime fields tests disable
           'search/400_synthetic_source/*',
           'search.highlight/50_synthetic_source/*',
+          'search.aggregation/200_top_hits/synthetic _source',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

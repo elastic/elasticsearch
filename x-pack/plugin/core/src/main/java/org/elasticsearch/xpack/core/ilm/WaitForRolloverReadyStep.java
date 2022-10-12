@@ -196,6 +196,36 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             rolloverTarget = rolloverAlias;
         }
 
+        // if we should only rollover if not empty, *and* if neither an explicit min_docs nor an explicit min_primary_shard_docs
+        // has been specified on this policy, then inject a default min_docs: 1 condition so that we do not rollover empty indices
+        boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
+        RolloverRequest rolloverRequest = createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
+
+        getClient().admin()
+            .indices()
+            .rolloverIndex(
+                rolloverRequest,
+                ActionListener.wrap(
+                    response -> listener.onResponse(rolloverRequest.areConditionsMet(response.getConditionStatus()), EmptyInfo.INSTANCE),
+                    listener::onFailure
+                )
+            );
+    }
+
+    /**
+     * Builds a RolloverRequest that captures the various max_* and min_* conditions of this {@link WaitForRolloverReadyStep}.
+     *
+     * To prevent empty indices from rolling over, a `min_docs: 1` condition will be injected if `rolloverOnlyIfHasDocuments` is true
+     * and the request doesn't already have an associated min_docs or min_primary_shard_docs condition.
+     *
+     * @param rolloverTarget the index to rollover
+     * @param masterTimeout the master timeout to use with the request
+     * @param rolloverOnlyIfHasDocuments whether to inject a min_docs 1 condition if there is not already a min_docs
+     *                                   (or min_primary_shard_docs) condition
+     * @return A RolloverRequest suitable for passing to {@code rolloverIndex(...) }.
+     */
+    // visible for testing
+    RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
         if (maxSize != null) {
@@ -228,15 +258,11 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         if (minPrimaryShardDocs != null) {
             rolloverRequest.addMinPrimaryShardDocsCondition(minPrimaryShardDocs);
         }
-        getClient().admin()
-            .indices()
-            .rolloverIndex(
-                rolloverRequest,
-                ActionListener.wrap(
-                    response -> listener.onResponse(rolloverRequest.areConditionsMet(response.getConditionStatus()), EmptyInfo.INSTANCE),
-                    listener::onFailure
-                )
-            );
+
+        if (rolloverOnlyIfHasDocuments && (minDocs == null && minPrimaryShardDocs == null)) {
+            rolloverRequest.addMinIndexDocsCondition(1L);
+        }
+        return rolloverRequest;
     }
 
     ByteSizeValue getMaxSize() {

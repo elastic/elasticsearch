@@ -18,7 +18,6 @@ import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.search.aggregations.DelayedBucketTests.mockReduce;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,7 +135,7 @@ public class TopBucketBuilderTests extends ESTestCase {
     }
 
     private String bucketKey(int index) {
-        return String.format(Locale.ROOT, "%06d", index);
+        return formatted("%06d", index);
     }
 
     private InternalBucket bucket(int index) {

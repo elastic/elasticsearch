@@ -137,7 +137,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         assertBusy(() -> {
             GetHealthAction.Response healthResponse = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true)).get();
             String debugInformation = xContentToString(healthResponse);
-            assertThat(debugInformation, healthResponse.getStatus(), equalTo(expectedStatus));
+            assertThat(debugInformation, healthResponse.findIndicator("master_is_stable").status(), equalTo(expectedStatus));
             assertThat(debugInformation, healthResponse.findIndicator("master_is_stable").symptom(), expectedMatcher);
         });
     }

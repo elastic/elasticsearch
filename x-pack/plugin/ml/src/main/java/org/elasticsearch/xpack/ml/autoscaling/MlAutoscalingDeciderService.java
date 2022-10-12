@@ -25,8 +25,9 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class MlAutoscalingDeciderService implements AutoscalingDeciderService, LocalNodeMasterListener {
 
@@ -120,9 +121,19 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         }
 
         MlMemoryAutoscalingCapacity memoryCapacity = memoryDecider.scale(configuration, context, mlContext);
+        if (memoryCapacity.isUndetermined()) {
+            // If we cannot determine memory capacity we shouldn't make any autoscaling decision
+            // as it could lead to undesired capacity. For example, it could be that the processor decider decides
+            // to scale down the cluster but as soon as we can determine memory requirements again we need to scale
+            // back up.
+            return new AutoscalingDeciderResult(
+                null,
+                reasonBuilder.setSimpleReason(format("[memory_decider] %s", memoryCapacity.reason())).build()
+            );
+        }
         MlProcessorAutoscalingCapacity processorCapacity = processorDecider.scale(configuration, context, mlContext);
         reasonBuilder.setSimpleReason(
-            String.format(Locale.ROOT, "[memory_decider] %s; [processor_decider] %s", memoryCapacity.reason(), processorCapacity.reason())
+            format("[memory_decider] %s; [processor_decider] %s", memoryCapacity.reason(), processorCapacity.reason())
         );
 
         return new AutoscalingDeciderResult(
@@ -153,8 +164,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             return new AutoscalingDeciderResult(
                 context.currentCapacity(),
                 reasonBuilder.setSimpleReason(
-                    String.format(
-                        Locale.ROOT,
+                    format(
                         "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s] "
                             + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
                         DOWN_SCALE_DELAY.get(configuration).getStringRep(),

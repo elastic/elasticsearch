@@ -12,4 +12,4 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 /**
  * Specialization of {@link IndexFieldData} for geo shapes and shapes.
  */
-public interface IndexShapeFieldData extends IndexFieldData<LeafShapeFieldData> {}
+public interface IndexShapeFieldData<T extends ShapeValues<?>> extends IndexFieldData<LeafShapeFieldData<T>> {}

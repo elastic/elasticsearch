@@ -33,12 +33,12 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -145,8 +145,7 @@ public class PluginsServiceTests extends ESTestCase {
             "false"
         );
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-        final String expected = String.format(
-            Locale.ROOT,
+        final String expected = formatted(
             "found file [%s] from a failed attempt to remove the plugin [fake]; execute [elasticsearch-plugin remove fake]",
             removing
         );
@@ -763,6 +762,21 @@ public class PluginsServiceTests extends ESTestCase {
             );
         } finally {
             closePluginLoaders(pluginService);
+        }
+    }
+
+    public void testCanCreateAClassLoader() {
+        assertEquals(
+            "access denied (\"java.lang.RuntimePermission\" \"createClassLoader\")",
+            expectThrows(AccessControlException.class, () -> new Loader(this.getClass().getClassLoader())).getMessage()
+        );
+        var loader = PrivilegedOperations.supplierWithCreateClassLoader(() -> new Loader(this.getClass().getClassLoader()));
+        assertEquals(this.getClass().getClassLoader(), loader.getParent());
+    }
+
+    static final class Loader extends ClassLoader {
+        Loader(ClassLoader parent) {
+            super(parent);
         }
     }
 

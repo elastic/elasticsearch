@@ -147,11 +147,11 @@ public class TransformAggregationsTests extends ESTestCase {
             .collect(Collectors.toList());
 
         for (String aggregationName : aggregationNames) {
-            String message = """
+            String message = formatted("""
                 The following aggregation is unknown to transform: [%s]. If this is a newly added aggregation, \
                 please open an issue to add transform support for it. Afterwards add "%s" to the list in %s. \
                 Thanks!\
-                """.formatted(aggregationName, aggregationName, TransformAggregations.class.getName());
+                """, aggregationName, aggregationName, TransformAggregations.class.getName());
             assertTrue(
                 message,
                 TransformAggregations.isSupportedByTransform(aggregationName)

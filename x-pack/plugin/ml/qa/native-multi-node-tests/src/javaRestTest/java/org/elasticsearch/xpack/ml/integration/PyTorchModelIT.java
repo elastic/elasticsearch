@@ -946,7 +946,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId, "started", 2, 1);
 
-        assertAllocationCount(modelId, 2);
+        assertBusy(() -> assertAllocationCount(modelId, 2));
 
         updateDeployment(modelId, 1);
 

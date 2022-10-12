@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -17,17 +18,18 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,6 +38,8 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
+import static org.elasticsearch.xpack.ql.util.StringUtils.MINUS;
+import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -123,8 +127,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx) {
-        List<NamedExpression> projections = visitList(this, ctx.projectClause(), NamedExpression.class);
-        return input -> new Project(source(ctx), input, projections);
+        int clauseSize = ctx.projectClause().size();
+        List<NamedExpression> projections = new ArrayList<>(clauseSize);
+        List<NamedExpression> removals = new ArrayList<>(clauseSize);
+
+        for (EsqlBaseParser.ProjectClauseContext clause : ctx.projectClause()) {
+            NamedExpression ne = this.visitProjectClause(clause);
+            if (ne instanceof UnresolvedNamedExpression == false && ne.name().startsWith(MINUS)) {
+                if (ne.name().substring(1).equals(WILDCARD)) {// forbid "-*" kind of expression
+                    throw new ParsingException(ne.source(), "Removing all fields is not allowed [{}]", ne.source().text());
+                }
+                removals.add(ne);
+            } else {
+                projections.add(ne);
+            }
+        }
+        return input -> new EsqlProject(source(ctx), input, projections, removals);
     }
 
     private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {

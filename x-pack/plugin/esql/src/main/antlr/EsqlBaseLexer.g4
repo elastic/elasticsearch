@@ -8,7 +8,7 @@ STATS : 'stats' -> pushMode(EXPRESSION);
 WHERE : 'where' -> pushMode(EXPRESSION);
 SORT : 'sort' -> pushMode(EXPRESSION);
 LIMIT : 'limit' -> pushMode(EXPRESSION);
-PROJECT : 'project' -> pushMode(EXPRESSION);
+PROJECT : 'project' -> pushMode(SOURCE_IDENTIFIERS);
 
 LINE_COMMENT
     : '//' ~[\r\n]* '\r'? '\n'? -> channel(HIDDEN)
@@ -125,9 +125,10 @@ mode SOURCE_IDENTIFIERS;
 SRC_PIPE : '|' -> type(PIPE), popMode;
 SRC_CLOSING_BRACKET : ']' -> popMode, popMode, type(CLOSING_BRACKET);
 SRC_COMMA : ',' -> type(COMMA);
+SRC_ASSIGN : '=' -> type(ASSIGN);
 
 SRC_UNQUOTED_IDENTIFIER
-    : ~[`|., [\]\t\r\n]+
+    : ~[=`|, [\]\t\r\n]+
     ;
 
 SRC_QUOTED_IDENTIFIER

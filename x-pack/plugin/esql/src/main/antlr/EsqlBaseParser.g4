@@ -127,22 +127,12 @@ orderExpression
     ;
 
 projectCommand
-    : PROJECT projectClause (COMMA projectClause)*
+    :  PROJECT projectClause (COMMA projectClause)*
     ;
 
 projectClause
-    : ASTERISK                                                                     #projectReorderAll
-    | MINUS? qualifiedName                                                         #projectAwayOrKeep
-    | MINUS? asteriskIdentifier                                                    #projectAwayOrKeepStar
-    | newName=qualifiedName ASSIGN oldName=qualifiedName                           #projectRename
-    ;
-
-asteriskIdentifier
-    : ((dotAsterisk qualifiedName dotAsterisk?) | (qualifiedName dotAsterisk qualifiedName?))+
-    ;
-
-dotAsterisk
-    : DOT? ASTERISK DOT?
+    : sourceIdentifier
+    | newName=sourceIdentifier ASSIGN oldName=sourceIdentifier
     ;
 
 booleanValue

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -75,7 +76,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    public class ResolveAttributes extends AnalyzerRules.BaseAnalyzerRule {
+    private static class ResolveAttributes extends AnalyzerRules.BaseAnalyzerRule {
 
         @Override
         protected LogicalPlan doRule(LogicalPlan plan) {
@@ -91,7 +92,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (resolved != null) {
                     return resolved;
                 } else {
-                    return ua;
+                    return ua.withUnresolvedMessage(
+                        UnresolvedAttribute.errorMessage(ua.name(), StringUtils.findSimilar(ua.name(), scope.keySet()))
+                    );
                 }
             });
         }

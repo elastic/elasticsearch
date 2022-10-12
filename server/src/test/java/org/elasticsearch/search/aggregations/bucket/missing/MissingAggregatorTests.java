@@ -325,7 +325,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
                 final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
                 final InternalMissing missing = searchAndReduce(
-                    new AggTestConfig(indexSearcher, builder, fieldTypesArray).withQuery(query)
+                    indexSearcher,
+                    new AggTestConfig(builder, fieldTypesArray).withQuery(query)
                 );
                 verify.accept(missing);
             }

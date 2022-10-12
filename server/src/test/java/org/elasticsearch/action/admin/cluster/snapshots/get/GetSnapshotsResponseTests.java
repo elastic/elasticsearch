@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -24,9 +23,8 @@ import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -44,8 +42,7 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_DETAILS_XCONTENT_PARAM;
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.test.AbstractXContentTestCase.chunkedXContentTester;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class GetSnapshotsResponseTests extends ESTestCase {
@@ -167,7 +164,9 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             .asMatchPredicate()
             .or(Pattern.compile("snapshots\\.\\d+\\.index_details").asMatchPredicate())
             .or(Pattern.compile("failures\\.*").asMatchPredicate());
-        xContentTester(this::createParser, this::createTestInstance, params, this::doParseInstance).numberOfTestRuns(1)
+        chunkedXContentTester(this::createParser, (XContentType t) -> createTestInstance(), params, this::doParseInstance).numberOfTestRuns(
+            1
+        )
             .supportsUnknownFields(true)
             .shuffleFieldsExceptions(Strings.EMPTY_ARRAY)
             .randomFieldsExcludeFilter(predicate)
@@ -178,19 +177,15 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             .test();
     }
 
-    public void testToChunkedXContent() throws Exception {
+    public void testToChunkedXContent() {
         final GetSnapshotsResponse response = createTestInstance();
-        final XContentBuilder builder = JsonXContent.contentBuilder();
         final Iterator<ToXContent> serialization = response.toXContentChunked();
-        serialization.next().toXContent(builder, EMPTY_PARAMS);
-        for (int i = 0; i < response.getSnapshots().size(); i++) {
-            serialization.next().toXContent(builder, EMPTY_PARAMS);
-            assertTrue(serialization.hasNext());
+        int chunks = 0;
+        while (serialization.hasNext()) {
+            serialization.next();
+            chunks++;
         }
-        serialization.next().toXContent(builder, EMPTY_PARAMS);
-        assertFalse(serialization.hasNext());
-        final BytesReference bytesReferenceFromChunked = BytesReference.bytes(builder);
-        assertEquals(bytesReferenceFromChunked, BytesReference.bytes(response.toXContent(JsonXContent.contentBuilder(), EMPTY_PARAMS)));
+        assertEquals(chunks, response.getSnapshots().size() + 2);
     }
 
 }

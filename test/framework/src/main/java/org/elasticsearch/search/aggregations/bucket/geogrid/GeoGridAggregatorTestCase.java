@@ -214,7 +214,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             gridBuilder.setGeoBoundingBox(bbox);
         }
         aggregationBuilder.subAggregation(gridBuilder);
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             List<IndexableField> fields = new ArrayList<>();
             Set<String> distinctHashesPerDoc = new HashSet<>();
             String t = randomAlphaOfLength(1);
@@ -254,7 +254,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 actual.put(tb.getKeyAsString(), sub);
             }
             assertThat(actual, equalTo(expectedCountPerTPerGeoHash));
-        }, keywordField("t"), geoPointField(FIELD_NAME));
+        }, new AggTestConfig(aggregationBuilder, keywordField("t"), geoPointField(FIELD_NAME)));
     }
 
     private double[] randomLatLng() {

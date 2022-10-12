@@ -895,6 +895,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         updateDeployment(modelId, 2);
 
         assertBusy(() -> assertAllocationCount(modelId, 2));
+        assertSystemNotificationsContain("Rebalanced trained model allocations because [model deployment updated]");
     }
 
     public void testUpdateDeployment_GivenAllocationsAreIncreasedOverResources_AndScalingIsPossible() throws Exception {

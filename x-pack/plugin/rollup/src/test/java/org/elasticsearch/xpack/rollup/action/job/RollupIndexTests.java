@@ -45,6 +45,7 @@ public class RollupIndexTests extends ESTestCase {
         assertThat(builders.size(), equalTo(1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90661")
     public void testValidateFieldMatchingNotAggregatable() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();

@@ -24,7 +24,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
@@ -220,14 +220,14 @@ public class FetchContext {
      *
      * @param hitContext The context of the hit that's being processed.
      */
-    public SourceLookup getRootSourceLookup(FetchSubPhase.HitContext hitContext) {
+    public Source getRootSource(FetchSubPhase.HitContext hitContext) {
         // Usually the root source simply belongs to the hit we're processing. But if
         // there are multiple layers of inner hits and we're in a nested context, then
         // the root source is found on the inner hits context.
         if (searchContext instanceof InnerHitSubContext innerHitsContext && hitContext.hit().getNestedIdentity() != null) {
             return innerHitsContext.getRootLookup();
         } else {
-            return hitContext.sourceLookup();
+            return hitContext.source();
         }
     }
 }

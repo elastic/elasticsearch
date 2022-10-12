@@ -308,6 +308,7 @@ public class SearchActionTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Rollup search does not support post filtering."));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90661")
     public void testSuggest() {
         String[] normalIndices = new String[] { ESTestCase.randomAlphaOfLength(10) };
         SearchSourceBuilder source = new SearchSourceBuilder();

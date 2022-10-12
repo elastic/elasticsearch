@@ -5,7 +5,7 @@
 <titleabbrev>Get user privileges</titleabbrev>
 ++++
 
-Retrieves the <<security-privileges,security privileges>> for the logged in 
+Retrieves the <<security-privileges,security privileges>> for the logged in
 user.
 
 [[security-api-get-user-privileges-request]]
@@ -16,7 +16,7 @@ user.
 [[security-api-get-user-privileges-prereqs]]
 ==== {api-prereq-title}
 
-* All users can use this API, but only to determine their own privileges. To 
+* All users can use this API, but only to determine their own privileges. To
 check the privileges of other users, you must use the run as feature. For
 more information, see <<run-as-privilege>>.
 
@@ -34,6 +34,7 @@ To check whether a user has a specific list of privileges, use the
 --------------------------------------------------
 GET /_security/user/_privileges
 --------------------------------------------------
+// TEST[skip:part of the API response is behind a feature flag]
 
 [source,console-result]
 --------------------------------------------------

@@ -130,27 +130,13 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     private static String[] splitAndValidatePath(String fieldName) {
-        if (fieldName.isEmpty()) {
-            throw new IllegalArgumentException("field name cannot be an empty string");
-        }
-        if (fieldName.contains(".") == false) {
+        // Empty field name is allowed
+        if (fieldName.isEmpty() || (fieldName.contains(".") == false)) {
             return new String[] { fieldName };
         }
         String[] parts = fieldName.split("\\.");
         if (parts.length == 0) {
             throw new IllegalArgumentException("field name cannot contain only dots");
-        }
-
-        for (String part : parts) {
-            // check if the field name contains only whitespace
-            if (part.isEmpty()) {
-                throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + fieldName + "']");
-            }
-            if (part.isBlank()) {
-                throw new IllegalArgumentException(
-                    "field name starting or ending with a [.] makes object resolution ambiguous: [" + fieldName + "]"
-                );
-            }
         }
         return parts;
     }

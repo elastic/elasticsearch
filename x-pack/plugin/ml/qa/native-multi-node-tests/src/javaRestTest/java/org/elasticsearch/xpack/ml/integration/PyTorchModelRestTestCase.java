@@ -267,7 +267,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
 
         request.setJsonEntity(String.format(Locale.ROOT, """
             {
-              "deployment_id": "%s",
+              "model_id": "%s",
               "query_string": "%s",
               "knn": {
                   "field": "%s",

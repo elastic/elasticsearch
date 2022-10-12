@@ -55,12 +55,12 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
 
     public static class Request extends ActionRequest {
 
-        public static final ParseField QUERY_STRING = new ParseField("query_string"); // TODO a better name.
+        public static final ParseField QUERY_STRING = new ParseField("query_string"); // TODO a better name and update docs when changed
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME);
 
         static {
-            PARSER.declareString(Request.Builder::setDeploymentId, InferTrainedModelDeploymentAction.Request.DEPLOYMENT_ID);
+            PARSER.declareString(Request.Builder::setModelId, InferModelAction.Request.MODEL_ID);
             PARSER.declareString(Request.Builder::setQueryString, QUERY_STRING);
             PARSER.declareString(Request.Builder::setTimeout, SearchSourceBuilder.TIMEOUT_FIELD);
             PARSER.declareObject(
@@ -71,7 +71,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             PARSER.declareObject(Request.Builder::setKnnSearch, (p, c) -> KnnQueryOptions.fromXContent(p), SearchSourceBuilder.KNN_FIELD);
             PARSER.declareFieldArray(
                 Request.Builder::setFilters,
-                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+                (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
                 KnnSearchBuilder.FILTER_FIELD,
                 ObjectParser.ValueType.OBJECT_ARRAY
             );
@@ -114,7 +114,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         private final String[] indices;
         private final String routing;
         private final String queryString;
-        private final String deploymentId;
+        private final String modelId;
         private final TimeValue inferenceTimeout;
         private final KnnQueryOptions knnQueryOptions;
         private final TextEmbeddingConfigUpdate embeddingConfig;
@@ -129,7 +129,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             indices = in.readStringArray();
             routing = in.readOptionalString();
             queryString = in.readString();
-            deploymentId = in.readString();
+            modelId = in.readString();
             inferenceTimeout = in.readOptionalTimeValue();
             knnQueryOptions = new KnnQueryOptions(in);
             embeddingConfig = in.readOptionalWriteable(TextEmbeddingConfigUpdate::new);
@@ -148,7 +148,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             String[] indices,
             String routing,
             String queryString,
-            String deploymentId,
+            String modelId,
             KnnQueryOptions knnQueryOptions,
             TextEmbeddingConfigUpdate embeddingConfig,
             TimeValue inferenceTimeout,
@@ -161,7 +161,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             this.indices = indices;
             this.routing = routing;
             this.queryString = queryString;
-            this.deploymentId = deploymentId;
+            this.modelId = modelId;
             this.knnQueryOptions = knnQueryOptions;
             this.embeddingConfig = embeddingConfig;
             this.inferenceTimeout = inferenceTimeout;
@@ -178,7 +178,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             out.writeStringArray(indices);
             out.writeOptionalString(routing);
             out.writeString(queryString);
-            out.writeString(deploymentId);
+            out.writeString(modelId);
             out.writeOptionalTimeValue(inferenceTimeout);
             knnQueryOptions.writeTo(out);
             out.writeOptionalWriteable(embeddingConfig);
@@ -206,8 +206,8 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             return queryString;
         }
 
-        public String getDeploymentId() {
-            return deploymentId;
+        public String getModelId() {
+            return modelId;
         }
 
         public TimeValue getInferenceTimeout() {
@@ -250,7 +250,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             return Arrays.equals(indices, request.indices)
                 && Objects.equals(routing, request.routing)
                 && Objects.equals(queryString, request.queryString)
-                && Objects.equals(deploymentId, request.deploymentId)
+                && Objects.equals(modelId, request.modelId)
                 && Objects.equals(inferenceTimeout, request.inferenceTimeout)
                 && Objects.equals(knnQueryOptions, request.knnQueryOptions)
                 && Objects.equals(embeddingConfig, request.embeddingConfig)
@@ -266,7 +266,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             int result = Objects.hash(
                 routing,
                 queryString,
-                deploymentId,
+                modelId,
                 inferenceTimeout,
                 knnQueryOptions,
                 embeddingConfig,
@@ -286,8 +286,8 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             if (queryString == null) {
                 error.addValidationError("query_string cannot be null");
             }
-            if (deploymentId == null) {
-                error.addValidationError("deployment_id cannot be null");
+            if (modelId == null) {
+                error.addValidationError("model_id cannot be null");
             }
             if (knnQueryOptions == null) {
                 error.addValidationError("knn cannot be null");
@@ -300,7 +300,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
 
             private final String[] indices;
             private String routing;
-            private String deploymentId;
+            private String modelId;
             private String queryString;
             private TimeValue timeout;
             private TextEmbeddingConfigUpdate update;
@@ -319,8 +319,8 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                 this.routing = routing;
             }
 
-            void setDeploymentId(String deploymentId) {
-                this.deploymentId = deploymentId;
+            void setModelId(String modelId) {
+                this.modelId = modelId;
             }
 
             void setQueryString(String queryString) {
@@ -368,7 +368,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
                     indices,
                     routing,
                     queryString,
-                    deploymentId,
+                    modelId,
                     knnSearchBuilder,
                     update,
                     timeout,
@@ -446,7 +446,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
             PARSER.declareInt(constructorArg(), KnnSearchBuilder.NUM_CANDS_FIELD);
             PARSER.declareFieldArray(
                 KnnQueryOptions::addFilterQueries,
-                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+                (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
                 KnnSearchBuilder.FILTER_FIELD,
                 ObjectParser.ValueType.OBJECT_ARRAY
             );

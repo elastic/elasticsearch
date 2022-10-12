@@ -5,7 +5,7 @@
 ++++
 
 experimental::[]
-Semantic search uses a text embedding NLP model to generate a dense vector from an input query string.
+Semantic search uses a text embedding NLP model to generate a dense vector from the input query string.
 The resulting dense vector is then used in a <Knn Search> against an index containing dense vectors
 created with the same text embedding model. The search results are semantically similar as learned
 by the model.
@@ -34,7 +34,7 @@ PUT my-index
 GET my-index/_semantic_search
 {
   "query_string": "A picture of a snow capped mountain",
-  "deployment_id": "my-text-embedding-model",
+  "model_id": "my-text-embedding-model",
   "knn": {
     "field": "text_embedding",
     "k": 10,
@@ -83,6 +83,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 [role="child_attributes"]
 [[semantic-search-api-request-body]]
 ==== {api-request-body-title}
+
+`model_id`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+`query_string`::
+(Required, string) The input text to embed
 
 `knn`::
 (Required, object) Defines the kNN query to run.

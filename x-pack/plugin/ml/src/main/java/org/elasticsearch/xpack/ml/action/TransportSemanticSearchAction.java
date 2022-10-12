@@ -67,7 +67,7 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
                     listener.onFailure(
                         new IllegalArgumentException(
                             "model ["
-                                + request.getDeploymentId()
+                                + request.getModelId()
                                 + "] must be a text_embedding model; provided ["
                                 + inferenceResults.getResults().getWriteableName()
                                 + "]"
@@ -119,7 +119,7 @@ public class TransportSemanticSearchAction extends HandledTransportAction<Semant
 
     private InferTrainedModelDeploymentAction.Request toInferenceRequest(SemanticSearchAction.Request request) {
         return new InferTrainedModelDeploymentAction.Request(
-            request.getDeploymentId(),
+            request.getModelId(),
             request.getEmbeddingConfig(),
             request.getQueryString(),
             request.getInferenceTimeout()

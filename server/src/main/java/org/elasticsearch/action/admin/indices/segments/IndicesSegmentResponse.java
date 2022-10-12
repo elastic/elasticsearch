@@ -12,9 +12,8 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,14 +27,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class IndicesSegmentResponse extends BroadcastResponse implements ChunkedToXContent {
+public class IndicesSegmentResponse extends BaseBroadcastResponse implements ChunkedToXContent {
 
     private final ShardSegments[] shards;
 
@@ -149,13 +147,6 @@ public class IndicesSegmentResponse extends BroadcastResponse implements Chunked
         }).iterator(), Iterators.single((builder, params) -> builder.endObject().endObject()));
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // override the BroadcastResponse behavior that is not compatible with the toXContentChunked implementation
-        // TODO: make this not a ToXContent to make this unnecessary
-        return ChunkedToXContent.super.toXContent(builder, params);
-    }
-
     private static void toXContent(XContentBuilder builder, Sort sort) throws IOException {
         builder.startArray("sort");
         for (SortField field : sort.getSort()) {
@@ -173,21 +164,6 @@ public class IndicesSegmentResponse extends BroadcastResponse implements Chunked
             builder.endObject();
         }
         builder.endArray();
-    }
-
-    private static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
-        builder.startObject();
-        builder.field(Fields.DESCRIPTION, tree.toString());
-        builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(tree.ramBytesUsed()));
-        Collection<Accountable> children = tree.getChildResources();
-        if (children.isEmpty() == false) {
-            builder.startArray(Fields.CHILDREN);
-            for (Accountable child : children) {
-                toXContent(builder, child);
-            }
-            builder.endArray();
-        }
-        builder.endObject();
     }
 
     static final class Fields {

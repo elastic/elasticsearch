@@ -31,6 +31,7 @@ import java.util.Map;
 
 /**
  * A geo metric aggregator that computes a geo-centroid from a {@code geo_shape} type field
+ * TODO: This can be generalized with the nearly identical class CartesianShapeCentroidAggregator
  */
 public final class GeoShapeCentroidAggregator extends MetricsAggregator {
     private final GeoShapeValuesSource valuesSource;

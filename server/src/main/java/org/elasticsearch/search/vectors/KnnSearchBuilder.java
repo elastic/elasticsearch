@@ -59,7 +59,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
         PARSER.declareFieldArray(
             KnnSearchBuilder::addFilterQueries,
-            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
             FILTER_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
         );

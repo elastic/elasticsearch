@@ -33,7 +33,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -75,7 +74,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final byte[] corruptBytes = new byte[] { randomFrom(set) };
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readBoolean());
-        final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
+        final String message = formatted("unexpected byte [0x%02x]", corruptBytes[0]);
         assertThat(e, hasToString(containsString(message)));
     }
 
@@ -110,7 +109,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final byte[] corruptBytes = new byte[] { randomFrom(set) };
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readOptionalBoolean());
-        final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
+        final String message = formatted("unexpected byte [0x%02x]", corruptBytes[0]);
         assertThat(e, hasToString(containsString(message)));
     }
 

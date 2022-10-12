@@ -71,7 +71,8 @@ public class MovingPercentilesTDigestAggregatorTests extends MovingPercentilesAb
 
                 InternalDateHistogram histogram;
                 histogram = searchAndReduce(
-                    new AggTestConfig(indexSearcher, query, aggBuilder, fieldType, valueFieldType).withMaxBuckets(1000)
+                    indexSearcher,
+                    new AggTestConfig(aggBuilder, fieldType, valueFieldType).withMaxBuckets(1000).withQuery(query)
                 );
                 for (int i = 0; i < histogram.getBuckets().size(); i++) {
                     InternalDateHistogram.Bucket bucket = histogram.getBuckets().get(i);

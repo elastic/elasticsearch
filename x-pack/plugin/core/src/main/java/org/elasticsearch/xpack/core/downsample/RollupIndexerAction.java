@@ -160,7 +160,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         }
     }
 
-    public static class Response extends BroadcastResponse implements Writeable, ToXContentObject {
+    public static class Response extends BroadcastResponse implements Writeable {
         private final boolean created;
 
         private final long numIndexed;

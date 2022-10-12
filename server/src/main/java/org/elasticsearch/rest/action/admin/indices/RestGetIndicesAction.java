@@ -22,12 +22,10 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
@@ -39,10 +37,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get indices requests"
         + " is deprecated. The parameter will be removed in the next major version.";
 
-    private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = Collections.unmodifiableSet(
-        Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())
-            .collect(Collectors.toSet())
-    );
+    private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, INCLUDE_TYPE_NAME_PARAMETER);
 
     private final ThreadPool threadPool;
 

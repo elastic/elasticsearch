@@ -70,14 +70,14 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
             + Base64.getEncoder().encodeToString(("test_admin:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
         try {
             Request putUserRequest = new Request("PUT", "/_security/user/" + nativeUser);
-            putUserRequest.setJsonEntity("""
+            putUserRequest.setJsonEntity(formatted("""
                 {
                    "password" : "l0ng-r4nd0m-p@ssw0rd",
                    "roles" : [ "admin", "other_role1" ],
                    "full_name" : "%s",
                    "email" : "%s@example.com",
                    "enabled": true
-                }""".formatted(randomAlphaOfLength(5), nativeUser));
+                }""", randomAlphaOfLength(5), nativeUser));
             RequestOptions.Builder options = putUserRequest.getOptions().toBuilder();
             options.addHeader("Authorization", adminBasicHeader);
             putUserRequest.setOptions(options);

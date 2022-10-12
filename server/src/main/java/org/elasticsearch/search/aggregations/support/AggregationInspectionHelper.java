@@ -7,13 +7,12 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
@@ -82,7 +81,7 @@ public class AggregationInspectionHelper {
         return false;
     }
 
-    public static boolean hasValue(InternalAdjacencyMatrix agg) {
+    public static boolean hasValue(MultiBucketsAggregation agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 
@@ -107,10 +106,6 @@ public class AggregationInspectionHelper {
     }
 
     public static boolean hasValue(InternalDateHistogram agg) {
-        return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
-    }
-
-    public static boolean hasValue(InternalAutoDateHistogram agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 

@@ -1216,7 +1216,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
         return new WildcardSyntheticSourceSupport();
     }
 

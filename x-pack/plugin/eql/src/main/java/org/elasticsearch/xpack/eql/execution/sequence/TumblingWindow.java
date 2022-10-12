@@ -25,7 +25,9 @@ import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -620,17 +622,70 @@ public class TumblingWindow implements Executable {
 
             return new Iterator<>() {
 
+                SearchHit lastFetchedHit = delegate.hasNext() ? delegate.next() : null;
+                List<Object[]> remainingHitJoinKeys = lastFetchedHit == null ? Collections.emptyList() : extractJoinKeys(lastFetchedHit);
+
+                /**
+                 * extract the join key from a hit. If there are multivalues, the result is the cartesian product.
+                 * eg.
+                 * - if the key is ['a', 'b'], the result is a list containing ['a', 'b']
+                 * - if the key is ['a', ['b', 'c]], the result is a list containing ['a', 'b'] and ['a', 'c']
+                 */
+                private List<Object[]> extractJoinKeys(SearchHit hit) {
+                    if (hit == null) {
+                        return null;
+                    }
+                    Object[] originalKeys = criterion.key(hit);
+
+                    List<Object[]> partial = new ArrayList<>();
+                    if (originalKeys == null) {
+                        partial.add(null);
+                    } else {
+                        int keySize = originalKeys.length;
+                        partial.add(new Object[keySize]);
+                        for (int i = 0; i < keySize; i++) {
+                            if (originalKeys[i]instanceof List<?> possibleValues) {
+                                List<Object[]> newPartial = new ArrayList<>(possibleValues.size() * partial.size());
+                                for (Object possibleValue : possibleValues) {
+                                    for (Object[] partialKey : partial) {
+                                        Object[] newKey = new Object[keySize];
+                                        if (i > 0) {
+                                            System.arraycopy(partialKey, 0, newKey, 0, i);
+                                        }
+                                        newKey[i] = possibleValue;
+                                        newPartial.add(newKey);
+                                    }
+                                }
+                                partial = newPartial;
+                            } else {
+                                for (Object[] key : partial) {
+                                    key[i] = originalKeys[i];
+                                }
+                            }
+                        }
+                    }
+                    return partial;
+                }
+
                 @Override
                 public boolean hasNext() {
-                    return delegate.hasNext();
+                    return CollectionUtils.isEmpty(remainingHitJoinKeys) == false || delegate.hasNext();
                 }
 
                 @Override
                 public Tuple<KeyAndOrdinal, HitReference> next() {
-                    SearchHit hit = delegate.next();
-                    SequenceKey k = key(criterion.key(hit));
-                    Ordinal o = criterion.ordinal(hit);
-                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(qualifiedIndex(hit)), hit.getId()));
+                    if (remainingHitJoinKeys.isEmpty()) {
+                        lastFetchedHit = delegate.next();
+                        remainingHitJoinKeys = extractJoinKeys(lastFetchedHit);
+                    }
+                    Object[] joinKeys = remainingHitJoinKeys.remove(0);
+
+                    SequenceKey k = key(joinKeys);
+                    Ordinal o = criterion.ordinal(lastFetchedHit);
+                    return new Tuple<>(
+                        new KeyAndOrdinal(k, o),
+                        new HitReference(cache(qualifiedIndex(lastFetchedHit)), lastFetchedHit.getId())
+                    );
                 }
             };
         };

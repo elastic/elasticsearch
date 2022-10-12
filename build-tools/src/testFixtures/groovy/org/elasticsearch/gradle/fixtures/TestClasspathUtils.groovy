@@ -21,6 +21,10 @@ import static org.junit.Assert.fail
 
 class TestClasspathUtils {
 
+    static void setupJarHellJar(File projectRoot) {
+        generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JarHell", "current", FixedValue.value(TypeDescription.VOID))
+    }
+
     static void setupJarHellJar(File projectRoot, String version) {
         generateJdkJarHellCheck(projectRoot, "org.elasticsearch.jdk.JarHell", version, FixedValue.value(TypeDescription.VOID))
     }

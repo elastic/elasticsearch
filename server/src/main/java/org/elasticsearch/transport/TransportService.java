@@ -276,9 +276,23 @@ public class TransportService extends AbstractLifecycleComponent
             false,
             false,
             HandshakeRequest::new,
-            (request, channel, task) -> channel.sendResponse(
-                new HandshakeResponse(localNode.getVersion(), Build.CURRENT.hash(), localNode, clusterName)
-            )
+            (request, channel, task) -> {
+                if ((request.version != null) && (request.version.compareTo(this.minAcceptedVersion) < 0)) {
+                    channel.sendResponse(
+                        new IllegalStateException(
+                            "remote node request version ["
+                                + request.version
+                                + "] is not allowed with local node minimum accepted version ["
+                                + this.minAcceptedVersion
+                                + "]"
+                        )
+                    );
+                } else {
+                    channel.sendResponse(
+                        new HandshakeResponse(localNode.getVersion(), Build.CURRENT.hash(), localNode, clusterName)
+                    );
+                }
+            }
         );
     }
 
@@ -588,12 +602,14 @@ public class TransportService extends AbstractLifecycleComponent
     static class HandshakeRequest extends TransportRequest {
 
         public static final HandshakeRequest INSTANCE = new HandshakeRequest();
+        private final Version version;
 
         HandshakeRequest(StreamInput in) throws IOException {
             super(in);
+            this.version = in.getVersion();
         }
 
-        private HandshakeRequest() {}
+        private HandshakeRequest() {this.version = Version.CURRENT;}
 
     }
 

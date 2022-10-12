@@ -233,7 +233,12 @@ public class FetchPhase {
     }
 
     private static boolean sourceRequired(SearchContext context) {
-        return context.sourceRequested() || context.fetchFieldsContext() != null;
+        boolean innerHitsRequiredSource = false;
+        for (SearchContext innerContext : context.innerHits().getInnerHits().values()) {
+            innerHitsRequiredSource |= sourceRequired(innerContext);
+            innerHitsRequiredSource |= innerContext.highlight() != null;
+        }
+        return innerHitsRequiredSource || context.sourceRequested() || context.fetchFieldsContext() != null;
     }
 
     private static HitContext prepareHitContext(

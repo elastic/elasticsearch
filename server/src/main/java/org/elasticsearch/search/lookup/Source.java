@@ -81,6 +81,9 @@ public interface Source {
      * Build a Source from a bytes representation
      */
     static Source fromBytes(BytesReference bytes) {
+        if (bytes == null) {
+            return EMPTY;
+        }
         return new Source() {
 
             Map<String, Object> asMap = null;

@@ -939,6 +939,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertAllocationCount(modelId, 1);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90841")
     public void testUpdateDeployment_GivenAllocationsAreDecreased() throws Exception {
         String modelId = "update_deployment_allocations_decreased";
         createTrainedModel(modelId);

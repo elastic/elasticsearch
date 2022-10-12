@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
+import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
@@ -553,6 +554,150 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             // we might be 32GB off of the maximum ML tier size and someone wants to start a 45GB model.
             // As this code stands we'll scale up to maximum size then find we still cannot start that model.
             || (smallestMLNode.isPresent() && smallestMLNode.getAsLong() < maxMLNodeSize);
+    }
+
+    public void updateNumberOfAllocations(String modelId, int numberOfAllocations, ActionListener<TrainedModelAssignment> listener) {
+        updateNumberOfAllocations(clusterService.state(), modelId, numberOfAllocations, listener);
+    }
+
+    private void updateNumberOfAllocations(
+        ClusterState clusterState,
+        String modelId,
+        int numberOfAllocations,
+        ActionListener<TrainedModelAssignment> listener
+    ) {
+        TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterState);
+        final TrainedModelAssignment existingAssignment = metadata.getModelAssignment(modelId);
+        if (existingAssignment == null) {
+            throw new ResourceNotFoundException("deployment for model with id [{}] not found", modelId);
+        }
+        if (existingAssignment.getTaskParams().getNumberOfAllocations() == numberOfAllocations) {
+            listener.onResponse(existingAssignment);
+            return;
+        }
+        if (existingAssignment.getAssignmentState() != AssignmentState.STARTED) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "cannot update deployment that is not in [{}] state",
+                    RestStatus.CONFLICT,
+                    AssignmentState.STARTED
+                )
+            );
+            return;
+        }
+        if (clusterState.nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "cannot update number_of_allocations for deployment with model id [{}] while there are nodes older than version [{}]",
+                    RestStatus.CONFLICT,
+                    modelId,
+                    DISTRIBUTED_MODEL_ALLOCATION_VERSION
+                )
+            );
+            return;
+        }
+
+        ActionListener<ClusterState> updatedStateListener = ActionListener.wrap(
+            updatedState -> submitUnbatchedTask("update model deployment number_of_allocations", new ClusterStateUpdateTask() {
+
+                private volatile boolean isUpdated;
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
+                        isUpdated = true;
+                        return updatedState;
+                    }
+                    logger.debug(() -> format("[%s] Retrying update as cluster state has been modified", modelId));
+                    updateNumberOfAllocations(currentState, modelId, numberOfAllocations, listener);
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    if (isUpdated) {
+                        listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState).getModelAssignment(modelId));
+                    }
+                }
+            }),
+            listener::onFailure
+        );
+
+        adjustNumberOfAllocations(clusterState, existingAssignment, numberOfAllocations, updatedStateListener);
+    }
+
+    private void adjustNumberOfAllocations(
+        ClusterState clusterState,
+        TrainedModelAssignment assignment,
+        int numberOfAllocations,
+        ActionListener<ClusterState> listener
+    ) {
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+            if (numberOfAllocations > assignment.getTaskParams().getNumberOfAllocations()) {
+                increaseNumberOfAllocations(clusterState, assignment, numberOfAllocations, listener);
+            } else {
+                decreaseNumberOfAllocations(clusterState, assignment, numberOfAllocations, listener);
+            }
+        });
+    }
+
+    private void increaseNumberOfAllocations(
+        ClusterState clusterState,
+        TrainedModelAssignment assignment,
+        int numberOfAllocations,
+        ActionListener<ClusterState> listener
+    ) {
+        try {
+            final ClusterState updatedClusterState = update(
+                clusterState,
+                TrainedModelAssignmentMetadata.builder(clusterState)
+                    .updateAssignment(
+                        assignment.getModelId(),
+                        TrainedModelAssignment.Builder.fromAssignment(assignment).setNumberOfAllocations(numberOfAllocations)
+                    )
+            );
+            TrainedModelAssignmentMetadata.Builder rebalancedMetadata = rebalanceAssignments(updatedClusterState, Optional.empty());
+            if (isScalingPossible(getAssignableNodes(clusterState)) == false
+                && rebalancedMetadata.getAssignment(assignment.getModelId()).build().totalTargetAllocations() < numberOfAllocations) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Could not update deployment because there are not enough resources to provide all requested allocations",
+                        RestStatus.TOO_MANY_REQUESTS
+                    )
+                );
+            } else {
+                listener.onResponse(update(clusterState, rebalancedMetadata));
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private void decreaseNumberOfAllocations(
+        ClusterState clusterState,
+        TrainedModelAssignment assignment,
+        int numberOfAllocations,
+        ActionListener<ClusterState> listener
+    ) {
+        TrainedModelAssignment.Builder updatedAssignment = numberOfAllocations < assignment.totalTargetAllocations()
+            ? new AllocationReducer(assignment, nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(clusterState)).reduceTo(
+                numberOfAllocations
+            )
+            : TrainedModelAssignment.Builder.fromAssignment(assignment).setNumberOfAllocations(numberOfAllocations);
+
+        // We have now reduced allocations to a number we can be sure it is satisfied
+        // and thus we should clear the assignment reason.
+        if (numberOfAllocations <= assignment.totalTargetAllocations()) {
+            updatedAssignment.setReason(null);
+        }
+        TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(clusterState);
+        builder.updateAssignment(assignment.getModelId(), updatedAssignment);
+        listener.onResponse(update(clusterState, builder));
     }
 
     static ClusterState setToStopping(ClusterState clusterState, String modelId, String reason) {

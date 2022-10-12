@@ -463,25 +463,30 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
+            Plugin plugin;
             if (bundle.pluginDescriptor().isStable()) {
                 stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
+                // this is just a shortcut to get things working quickly. FIXME
+                // we don't need to instantiate plugin here
+                plugin = new StablePluginPlaceHolder(bundle.plugin.getName());
+            } else {
+                Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
+                if (pluginClassLoader != pluginClass.getClassLoader()) {
+                    throw new IllegalStateException(
+                        "Plugin ["
+                            + name
+                            + "] must reference a class loader local Plugin class ["
+                            + bundle.plugin.getClassname()
+                            + "] (class loader ["
+                            + pluginClass.getClassLoader()
+                            + "])"
+                    );
+                }
+                plugin = loadPlugin(pluginClass, settings, configPath);
             }
-
-            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
-            if (pluginClassLoader != pluginClass.getClassLoader()) {
-                throw new IllegalStateException(
-                    "Plugin ["
-                        + name
-                        + "] must reference a class loader local Plugin class ["
-                        + bundle.plugin.getClassname()
-                        + "] (class loader ["
-                        + pluginClass.getClassLoader()
-                        + "])"
-                );
-            }
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
             return plugin;
+
         } finally {
             privilegedSetContextClassLoader(cl);
         }

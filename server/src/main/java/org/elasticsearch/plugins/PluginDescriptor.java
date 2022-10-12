@@ -213,7 +213,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         PluginDescriptor descriptor = reader.apply(propsMap, descriptorFile.getFileName().toString());
         name = descriptor.getName();
-
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());
         }

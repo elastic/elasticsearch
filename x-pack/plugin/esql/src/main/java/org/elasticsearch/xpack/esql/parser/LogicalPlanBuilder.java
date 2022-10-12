@@ -37,13 +37,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
-import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
 import static org.elasticsearch.xpack.ql.util.StringUtils.MINUS;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
-
-    private final UnresolvedRelation UNSPECIFIED_RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
 
     protected LogicalPlan plan(ParseTree ctx) {
         return typedParsing(this, ctx, LogicalPlan.class);

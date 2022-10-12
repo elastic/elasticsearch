@@ -475,6 +475,10 @@
     "timestamp" : {
       "type" : "date"
     },
+    "@timestamp" : {
+      "type" : "alias",
+      "path" : "timestamp"
+    },
     "total_by_field_count" : {
       "type" : "long"
     },

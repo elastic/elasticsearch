@@ -23,6 +23,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+
 /**
  * Defines the field names that we use for our results.
  * Fields from the raw data with these names are not added to any result.  Even
@@ -200,6 +202,10 @@ public final class ReservedFieldNames {
         ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),
         ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(),
         ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(),
+
+        // ML results use "timestamp" as their time field, but we add an alias "@timestamp" to be
+        // slightly more ECS-like as a convenience for users of components that only work with ECS
+        DEFAULT_TIMESTAMP_FIELD,
 
         GetResult._ID,
         GetResult._INDEX };

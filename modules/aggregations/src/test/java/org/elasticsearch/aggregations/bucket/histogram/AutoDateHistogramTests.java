@@ -6,12 +6,22 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.elasticsearch.aggregations.bucket.histogram;
 
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
+
+import java.util.Collection;
+import java.util.List;
 
 public class AutoDateHistogramTests extends BaseAggregationTestCase<AutoDateHistogramAggregationBuilder> {
+
+    // TODO: maybe add base class that overwrites getPlugins(...) for all tests that will be added to this module.
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(AggregationsPlugin.class);
+    }
 
     @Override
     protected AutoDateHistogramAggregationBuilder createTestAggregatorBuilder() {

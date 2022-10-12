@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.histogram;
+package org.elasticsearch.aggregations.bucket.histogram;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -25,6 +25,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.network.InetAddresses;
@@ -37,10 +38,15 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.bucket.DateHistogramAggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.range.InternalBinaryRange;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuilder;
@@ -98,6 +104,12 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
     );
 
     private static final Query DEFAULT_QUERY = new MatchAllDocsQuery();
+
+    // TODO: maybe add base class that overwrites getSearchPlugins(...) for all tests that will be added to this module.
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of(new AggregationsPlugin());
+    }
 
     public void testMatchNoDocs() throws IOException {
         testSearchCase(
@@ -907,10 +919,13 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 InternalHistogram histo = (InternalHistogram) bucket.getAggregations().asList().get(0);
                 assertThat(histo.getBuckets().size(), equalTo(10));
                 for (int i = 0; i < 10; i++) {
-                    assertThat(histo.getBuckets().get(i).key, equalTo((double) i));
-                    assertThat(((Max) histo.getBuckets().get(i).aggregations.get("max")).value(), equalTo((double) i));
+                    assertThat(histo.getBuckets().get(i).getKey(), equalTo((double) i));
+                    assertThat(((Max) histo.getBuckets().get(i).getAggregations().get("max")).value(), equalTo((double) i));
                     if (i > 0) {
-                        assertThat(((InternalSimpleValue) histo.getBuckets().get(i).aggregations.get("deriv")).getValue(), equalTo(1.0));
+                        assertThat(
+                            ((InternalSimpleValue) histo.getBuckets().get(i).getAggregations().get("deriv")).getValue(),
+                            equalTo(1.0)
+                        );
                     }
                 }
 

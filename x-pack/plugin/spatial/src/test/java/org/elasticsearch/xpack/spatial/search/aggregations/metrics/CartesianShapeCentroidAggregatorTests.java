@@ -128,6 +128,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90824")
     public void testSingleValuedField() throws Exception {
         int numDocs = scaledRandomIntBetween(64, 256);
         List<Geometry> geometries = new ArrayList<>();

@@ -6,24 +6,33 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.histogram;
+package org.elasticsearch.aggregations.bucket.histogram;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
+import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -49,6 +58,23 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
+
+    // TODO: maybe add base class that overwrites registerPlugin(...) for all tests that will be added to this module.
+    @Override
+    protected SearchPlugin registerPlugin() {
+        return new AggregationsPlugin();
+    }
+
+    // TODO: the base test class should be able to get this from the search plugin? (^)
+    @Override
+    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
+        ContextParser<Object, Aggregation> parser = (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c);
+        return CollectionUtils.appendToCopy(
+            getDefaultNamedXContents(),
+            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(AutoDateHistogramAggregationBuilder.NAME), parser)
+        );
+    }
+
     protected InternalAutoDateHistogram createTestInstance(
         String name,
         Map<String, Object> metadata,

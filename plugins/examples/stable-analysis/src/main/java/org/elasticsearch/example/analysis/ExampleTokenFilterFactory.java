@@ -15,7 +15,7 @@ import org.elasticsearch.example.analysis.lucene.Skip1TokenFilter;
 import org.elasticsearch.plugin.analysis.api.AnalysisMode;
 import org.elasticsearch.plugin.api.NamedComponent;
 
-@NamedComponent(name = "stableTokenFilterFactory")
+@NamedComponent(name = "example_token_filter_factory")
 public class ExampleTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
 
     @SuppressForbidden(reason = "need a public constructor")

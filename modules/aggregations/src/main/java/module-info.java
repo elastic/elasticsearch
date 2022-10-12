@@ -13,7 +13,8 @@ module org.elasticsearch.aggs {
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.core;
 
-    exports org.elasticsearch.aggregations.bucket;
+    exports org.elasticsearch.aggregations.bucket.histogram;
+    exports org.elasticsearch.aggregations.bucket.adjacency;
     exports org.elasticsearch.aggregations.pipeline;
 
     opens org.elasticsearch.aggregations to org.elasticsearch.painless.spi; // whitelist resource access

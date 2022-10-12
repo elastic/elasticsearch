@@ -59,7 +59,7 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
             valueFetcher.setNextReader(context);
-            assertEquals(List.of(index), valueFetcher.fetchValues(lookup.source(), Collections.emptyList()));
+            assertEquals(List.of(index), valueFetcher.fetchValues(lookup.source(), 0, Collections.emptyList()));
         });
     }
 

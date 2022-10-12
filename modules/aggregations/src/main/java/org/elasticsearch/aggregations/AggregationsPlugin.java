@@ -8,8 +8,10 @@
 
 package org.elasticsearch.aggregations;
 
-import org.elasticsearch.aggregations.bucket.AdjacencyMatrixAggregationBuilder;
-import org.elasticsearch.aggregations.bucket.InternalAdjacencyMatrix;
+import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
+import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.aggregations.pipeline.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.plugins.Plugin;
@@ -27,7 +29,13 @@ public class AggregationsPlugin extends Plugin implements SearchPlugin, ScriptPl
                 AdjacencyMatrixAggregationBuilder.NAME,
                 AdjacencyMatrixAggregationBuilder::new,
                 AdjacencyMatrixAggregationBuilder::parse
-            ).addResultReader(InternalAdjacencyMatrix::new)
+            ).addResultReader(InternalAdjacencyMatrix::new),
+            new AggregationSpec(
+                AutoDateHistogramAggregationBuilder.NAME,
+                AutoDateHistogramAggregationBuilder::new,
+                AutoDateHistogramAggregationBuilder.PARSER
+            ).addResultReader(InternalAutoDateHistogram::new)
+                .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators)
         );
     }
 

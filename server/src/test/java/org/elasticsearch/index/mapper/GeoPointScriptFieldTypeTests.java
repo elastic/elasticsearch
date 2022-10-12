@@ -113,12 +113,12 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 ValueFetcher fetcher = simpleMappedFieldType().valueFetcher(searchContext, randomBoolean() ? null : "geojson");
                 fetcher.setNextReader(reader.leaves().get(0));
                 assertThat(
-                    fetcher.fetchValues(searchContext.lookup().source(), null),
+                    fetcher.fetchValues(searchContext.lookup().source(), 0, null),
                     equalTo(List.of(Map.of("type", "Point", "coordinates", List.of(45.0, 45.0))))
                 );
                 fetcher = simpleMappedFieldType().valueFetcher(searchContext, "wkt");
                 fetcher.setNextReader(reader.leaves().get(0));
-                assertThat(fetcher.fetchValues(searchContext.lookup().source(), null), equalTo(List.of("POINT (45.0 45.0)")));
+                assertThat(fetcher.fetchValues(searchContext.lookup().source(), 0, null), equalTo(List.of("POINT (45.0 45.0)")));
             }
         }
     }

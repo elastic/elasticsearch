@@ -8,12 +8,9 @@
 package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.geometry.utils.GeographyValidator;
-import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.text.NumberFormat;
 import java.text.ParseException;
@@ -21,7 +18,6 @@ import java.util.Locale;
 import java.util.Objects;
 
 public class ProximityBoost extends ScriptScoreBoost {
-    private final GeometryValidator geoValidator = GeographyValidator.instance(true);
     private final DateMathParser dateParser = DateFormatter.forPattern("date_optional_time||epoch_millis").toDateMathParser();
 
     private final String center;
@@ -85,27 +81,11 @@ public class ProximityBoost extends ScriptScoreBoost {
 
     public boolean isGeo() {
         try {
-            String[] latLon = center.split(",", 2);
-            getNumberFormat().parse(latLon[0].trim());
-            getNumberFormat().parse(latLon[1].trim());
+            GeoUtils.parseFromString(center);
             return true;
-        } catch (Exception e) {
-            // do nothing
+        } catch (ElasticsearchParseException e) {
+            return false;
         }
-        try {
-            Geohash.decodeLatitude(center);
-            Geohash.decodeLongitude(center);
-            return true;
-        } catch (Exception e) {
-            // do nothing
-        }
-        try {
-            WellKnownText.fromWKT(geoValidator, true, center);
-            return true;
-        } catch (Exception e) {
-            // do nothing
-        }
-        return false;
     }
 
     public boolean isNumber() {

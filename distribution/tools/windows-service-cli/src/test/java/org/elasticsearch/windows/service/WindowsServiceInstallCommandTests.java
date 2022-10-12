@@ -153,13 +153,13 @@ public class WindowsServiceInstallCommandTests extends WindowsServiceCliTestCase
     }
 
     public void testDisplayName() throws Exception {
-        assertServiceArgs(Map.of("DisplayName", "\"Elasticsearch %s (elasticsearch-service-x64)\"".formatted(Version.CURRENT)));
+        assertServiceArgs(Map.of("DisplayName", formatted("\"Elasticsearch %s (elasticsearch-service-x64)\"", Version.CURRENT)));
         envVars.put("SERVICE_DISPLAY_NAME", "my service name");
         assertServiceArgs(Map.of("DisplayName", "\"my service name\""));
     }
 
     public void testDescription() throws Exception {
-        String defaultDescription = "\"Elasticsearch %s Windows Service - https://elastic.co\"".formatted(Version.CURRENT);
+        String defaultDescription = formatted("\"Elasticsearch %s Windows Service - https://elastic.co\"", Version.CURRENT);
         assertServiceArgs(Map.of("Description", defaultDescription));
         envVars.put("SERVICE_DESCRIPTION", "my description");
         assertServiceArgs(Map.of("Description", "\"my description\""));

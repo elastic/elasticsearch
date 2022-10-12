@@ -6,11 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.aggregations.bucket;
+package org.elasticsearch.aggregations.bucket.adjacency;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Version;
-import org.elasticsearch.aggregations.bucket.AdjacencyMatrixAggregator.KeyedFilter;
+import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;

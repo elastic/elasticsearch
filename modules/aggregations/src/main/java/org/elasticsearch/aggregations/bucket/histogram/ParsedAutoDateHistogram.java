@@ -6,9 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.histogram;
+package org.elasticsearch.aggregations.bucket.histogram;
 
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;

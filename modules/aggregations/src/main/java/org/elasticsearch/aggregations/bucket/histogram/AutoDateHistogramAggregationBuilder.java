@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.histogram;
+package org.elasticsearch.aggregations.bucket.histogram;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;

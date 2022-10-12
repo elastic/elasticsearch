@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
@@ -62,13 +63,17 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
             if (request instanceof CreateApiKeyRequest) {
                 return true;
-            } else if (request instanceof UpdateApiKeyRequest) {
+            } else if (request instanceof UpdateApiKeyRequest || request instanceof BulkUpdateApiKeyRequest) {
                 // Note: we return `true` here even if the authenticated entity is an API key. API keys *cannot* update themselves,
                 // however this is a business logic restriction, rather than one driven solely by privileges. We therefore enforce this
-                // limitation at the transport layer, in `TransportUpdateApiKeyAction`.
+                // limitation at the transport layer, in `TransportBaseUpdateApiKeyAction`.
                 // Ownership of an API key, for regular users, is enforced at the service layer.
                 return true;
             } else if (request instanceof final GetApiKeyRequest getApiKeyRequest) {
+                // An API key requires manage_api_key privilege or higher to view any limited-by role descriptors
+                if (authentication.isApiKey() && getApiKeyRequest.withLimitedBy()) {
+                    return false;
+                }
                 return checkIfUserIsOwnerOfApiKeys(
                     authentication,
                     getApiKeyRequest.getApiKeyId(),
@@ -99,6 +104,10 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                         );
                 }
             } else if (request instanceof final QueryApiKeyRequest queryApiKeyRequest) {
+                // An API key requires manage_api_key privilege or higher to view any limited-by role descriptors
+                if (authentication.isApiKey() && queryApiKeyRequest.withLimitedBy()) {
+                    return false;
+                }
                 return queryApiKeyRequest.isFilterForCurrentUser();
             } else if (request instanceof GrantApiKeyRequest) {
                 return false;

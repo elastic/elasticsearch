@@ -31,14 +31,17 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
@@ -62,14 +65,16 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class TransportGrantApiKeyActionTests extends ESTestCase {
 
     private TransportGrantApiKeyAction action;
-    private ApiKeyGenerator apiKeyGenerator;
+    private ApiKeyService apiKeyService;
+    private ApiKeyUserRoleDescriptorResolver resolver;
     private AuthenticationService authenticationService;
     private ThreadPool threadPool;
     private AuthorizationService authorizationService;
 
     @Before
     public void setupMocks() throws Exception {
-        apiKeyGenerator = mock(ApiKeyGenerator.class);
+        apiKeyService = mock(ApiKeyService.class);
+        resolver = mock(ApiKeyUserRoleDescriptorResolver.class);
         authenticationService = mock(AuthenticationService.class);
         authorizationService = mock(AuthorizationService.class);
 
@@ -80,9 +85,10 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             mock(TransportService.class),
             mock(ActionFilters.class),
             threadContext,
-            apiKeyGenerator,
             authenticationService,
-            authorizationService
+            authorizationService,
+            apiKeyService,
+            resolver
         );
     }
 
@@ -91,7 +97,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         threadPool.shutdown();
     }
 
-    public void testGrantApiKeyWithUsernamePassword() throws Exception {
+    public void testGrantApiKeyWithUsernamePassword() {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray());
         final Authentication authentication = buildAuthentication(username);
@@ -123,7 +129,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         }).when(authenticationService)
             .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), anyActionListener());
 
-        setupApiKeyGenerator(authentication, request, response);
+        setupApiKeyServiceWithRoleResolution(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
@@ -132,7 +138,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
     }
 
-    public void testGrantApiKeyWithAccessToken() throws Exception {
+    public void testGrantApiKeyWithAccessToken() {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final Authentication authentication = buildAuthentication(username);
 
@@ -160,7 +166,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             return null;
         }).when(authenticationService).authenticate(eq(GrantApiKeyAction.NAME), same(request), any(BearerToken.class), anyActionListener());
 
-        setupApiKeyGenerator(authentication, request, response);
+        setupApiKeyServiceWithRoleResolution(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
@@ -214,7 +220,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         }).when(authenticationService)
             .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(AuthenticationToken.class), anyActionListener());
 
-        setupApiKeyGenerator(authentication, request, response);
+        setupApiKeyServiceWithRoleResolution(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
@@ -222,7 +228,8 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(exception, throwableWithMessage("authentication failed for testing"));
 
-        verifyNoMoreInteractions(apiKeyGenerator);
+        verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
         verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
     }
 
@@ -251,7 +258,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             .build();
 
         final CreateApiKeyResponse response = mockResponse(request);
-        setupApiKeyGenerator(authentication, request, response);
+        setupApiKeyServiceWithRoleResolution(authentication, request, response);
 
         doAnswer(inv -> {
             assertThat(threadPool.getThreadContext().getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER), equalTo(runAsUsername));
@@ -266,8 +273,6 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             final Object[] args = invocation.getArguments();
             assertThat(args[0], is(authentication));
             assertThat(args[1], is(AuthenticateAction.NAME));
-            final AuthenticateRequest authenticateRequest = (AuthenticateRequest) args[2];
-            assertThat(authenticateRequest.username(), equalTo(runAsUsername));
             @SuppressWarnings("unchecked")
             final ActionListener<Void> listener = (ActionListener<Void>) args[3];
             listener.onResponse(null);
@@ -397,20 +402,37 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         return request;
     }
 
-    private void setupApiKeyGenerator(Authentication authentication, GrantApiKeyRequest request, CreateApiKeyResponse response) {
+    private void setupApiKeyServiceWithRoleResolution(
+        Authentication authentication,
+        GrantApiKeyRequest request,
+        CreateApiKeyResponse response
+    ) {
+        final Set<RoleDescriptor> roleDescriptors = Set.of();
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
-            assertThat(args, arrayWithSize(3));
+            assertThat(args, arrayWithSize(4));
 
             assertThat(args[0], equalTo(authentication));
             assertThat(args[1], sameInstance(request.getApiKeyRequest()));
+            assertThat(args[2], sameInstance(roleDescriptors));
 
             @SuppressWarnings("unchecked")
             ActionListener<CreateApiKeyResponse> listener = (ActionListener<CreateApiKeyResponse>) args[args.length - 1];
             listener.onResponse(response);
 
             return null;
-        }).when(apiKeyGenerator).generateApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), anyActionListener());
-    }
+        }).when(apiKeyService).createApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), any(), anyActionListener());
 
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            assertThat(args, arrayWithSize(2));
+            assertThat(args[0], equalTo(authentication));
+
+            @SuppressWarnings("unchecked")
+            ActionListener<Set<RoleDescriptor>> listener = (ActionListener<Set<RoleDescriptor>>) args[args.length - 1];
+            listener.onResponse(roleDescriptors);
+
+            return null;
+        }).when(resolver).resolveUserRoleDescriptors(any(Authentication.class), anyActionListener());
+    }
 }

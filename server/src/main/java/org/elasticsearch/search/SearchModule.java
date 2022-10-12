@@ -91,8 +91,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -105,10 +103,8 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
@@ -252,6 +248,7 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -462,14 +459,6 @@ public class SearchModule {
         );
         registerAggregation(
             new AggregationSpec(
-                AdjacencyMatrixAggregationBuilder.NAME,
-                AdjacencyMatrixAggregationBuilder::new,
-                AdjacencyMatrixAggregationBuilder::parse
-            ).addResultReader(InternalAdjacencyMatrix::new),
-            builder
-        );
-        registerAggregation(
-            new AggregationSpec(
                 RandomSamplerAggregationBuilder.NAME,
                 RandomSamplerAggregationBuilder::new,
                 RandomSamplerAggregationBuilder.PARSER
@@ -566,15 +555,6 @@ public class SearchModule {
                 DateHistogramAggregationBuilder::new,
                 DateHistogramAggregationBuilder.PARSER
             ).addResultReader(InternalDateHistogram::new).setAggregatorRegistrar(DateHistogramAggregationBuilder::registerAggregators),
-            builder
-        );
-        registerAggregation(
-            new AggregationSpec(
-                AutoDateHistogramAggregationBuilder.NAME,
-                AutoDateHistogramAggregationBuilder::new,
-                AutoDateHistogramAggregationBuilder.PARSER
-            ).addResultReader(InternalAutoDateHistogram::new)
-                .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators),
             builder
         );
         registerAggregation(
@@ -1170,8 +1150,16 @@ public class SearchModule {
                 KnnVectorQueryBuilder.NAME,
                 KnnVectorQueryBuilder::new,
                 parser -> {
-                    throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [_knn_search] endpoint instead");
+                    throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [knn] body parameter instead");
                 }
+            )
+        );
+
+        registerQuery(
+            new QuerySpec<>(
+                KnnScoreDocQueryBuilder.NAME,
+                KnnScoreDocQueryBuilder::new,
+                parser -> { throw new IllegalArgumentException("[score_doc] queries cannot be provided directly"); }
             )
         );
 

@@ -1,0 +1,6 @@
+pr: 86939
+summary: Fix merging with empty results
+area: Aggregations
+type: bug
+issues:
+ - 84622

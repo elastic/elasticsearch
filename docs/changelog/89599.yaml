@@ -1,0 +1,6 @@
+pr: 89599
+summary: "Fleet: Add new mappings for .fleet-agents `last_checkin_message` and components\
+  \ fields"
+area: Mapping
+type: enhancement
+issues: []

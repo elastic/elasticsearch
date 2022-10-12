@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateApiKeyRequestTests extends ESTestCase {
 
-    public void testNullValuesValid() {
+    public void testNullValuesValidForNonIds() {
         final var request = new UpdateApiKeyRequest("id", null, null);
         assertNull(request.validate());
     }

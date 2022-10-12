@@ -59,30 +59,25 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
         double normalizationFactor = instance.getNormalizationFactor();
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
-        switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+        switch (between(0, 3)) {
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 if (Double.isFinite(value)) {
                     value += between(1, 100);
                 } else {
                     value = randomDoubleBetween(0, 100000, true);
                 }
-                break;
-            case 2:
-                normalizationFactor += between(1, 100);
-                break;
-            case 3:
+            }
+            case 2 -> normalizationFactor += between(1, 100);
+            case 3 -> {
                 if (metadata == null) {
                     metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDerivative(name, value, normalizationFactor, formatter, metadata);
     }

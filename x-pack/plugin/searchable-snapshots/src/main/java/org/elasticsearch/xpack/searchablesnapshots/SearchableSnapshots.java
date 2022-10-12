@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -69,6 +70,7 @@ import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -327,7 +329,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry registry,
         final IndexNameExpressionResolver resolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationDeciders allocationDeciders
     ) {
         final List<Object> components = new ArrayList<>();
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;

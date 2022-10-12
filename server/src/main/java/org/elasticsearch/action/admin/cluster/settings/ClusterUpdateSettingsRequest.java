@@ -25,7 +25,6 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * Request for an update cluster settings action
@@ -162,8 +161,8 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeSettingsToStream(transientSettings, out);
-        writeSettingsToStream(persistentSettings, out);
+        transientSettings.writeTo(out);
+        persistentSettings.writeTo(out);
     }
 
     @Override

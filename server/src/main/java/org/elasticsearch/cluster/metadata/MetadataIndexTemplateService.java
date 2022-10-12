@@ -20,8 +20,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
@@ -125,19 +126,18 @@ public class MetadataIndexTemplateService {
     /**
      * This is the cluster state task executor for all template-based actions.
      */
-    private static final ClusterStateTaskExecutor<TemplateClusterStateUpdateTask> TEMPLATE_TASK_EXECUTOR = (currentState, taskContexts) -> {
-        ClusterState state = currentState;
-        for (final var taskContext : taskContexts) {
-            try {
-                final var task = taskContext.getTask();
-                state = task.execute(state);
-                taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
-            } catch (Exception e) {
-                taskContext.onFailure(e);
+    private static final SimpleBatchedExecutor<TemplateClusterStateUpdateTask, Void> TEMPLATE_TASK_EXECUTOR =
+        new SimpleBatchedExecutor<>() {
+            @Override
+            public Tuple<ClusterState, Void> executeTask(TemplateClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+                return Tuple.tuple(task.execute(clusterState), null);
             }
-        }
-        return state;
-    };
+
+            @Override
+            public void taskSucceeded(TemplateClusterStateUpdateTask task, Void unused) {
+                task.listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+        };
 
     /**
      * A specialized cluster state update task that always takes a listener handling an
@@ -155,11 +155,6 @@ public class MetadataIndexTemplateService {
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
         }
     }
 

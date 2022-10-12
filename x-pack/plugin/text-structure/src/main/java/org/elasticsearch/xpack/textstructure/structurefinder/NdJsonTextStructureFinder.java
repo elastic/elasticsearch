@@ -68,6 +68,7 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
                 .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
+                .setEcsCompatibility(overrides.getEcsCompatibility())
                 .setIngestPipeline(
                     TextStructureUtils.makeIngestPipelineDefinition(
                         null,
@@ -79,13 +80,14 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
                         timeField.v1(),
                         timeField.v2().getJavaTimestampFormats(),
                         needClientTimeZone,
-                        timeField.v2().needNanosecondPrecision()
+                        timeField.v2().needNanosecondPrecision(),
+                        overrides.getEcsCompatibility()
                     )
                 );
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
+            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, overrides.getTimestampFormat());
 
         Map<String, Object> fieldMappings = mappingsAndFieldStats.v1();
         if (timeField != null) {

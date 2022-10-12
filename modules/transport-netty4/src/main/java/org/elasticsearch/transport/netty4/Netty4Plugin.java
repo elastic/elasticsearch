@@ -24,6 +24,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -98,7 +99,8 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
         return Collections.singletonMap(
             NETTY_HTTP_TRANSPORT_NAME,
@@ -109,7 +111,8 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                 xContentRegistry,
                 dispatcher,
                 clusterSettings,
-                getSharedGroupFactory(settings)
+                getSharedGroupFactory(settings),
+                tracer
             )
         );
     }

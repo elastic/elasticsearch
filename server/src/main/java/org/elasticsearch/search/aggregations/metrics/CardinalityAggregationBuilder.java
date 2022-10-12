@@ -110,6 +110,11 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected boolean serializeTargetValueType(Version version) {
         return true;
     }

@@ -89,6 +89,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -128,6 +129,8 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1018,7 +1021,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
      */
-    public long randomMillisUpToYear9999() {
+    public static long randomMillisUpToYear9999() {
         return randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
     }
 
@@ -1226,8 +1229,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
-        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
-        return builder;
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
     /**
@@ -1266,6 +1268,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
         return tempList.subList(0, size);
+    }
+
+    public static <T> List<T> shuffledList(List<T> list) {
+        return randomSubsetOf(list.size(), list);
     }
 
     /**
@@ -1648,7 +1654,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings, AnalysisPlugin... analysisPlugins)
         throws IOException {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
+        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         return new TestAnalysis(
             analysisRegistry.build(indexSettings),
@@ -1805,6 +1811,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    protected static String formatted(String string, Object... args) {
+        return String.format(Locale.ROOT, string, args);
+    }
+
     /**
      * Call method at the beginning of a test to disable its execution
      * until a given Lucene version is released and integrated into Elasticsearch
@@ -1815,5 +1825,26 @@ public abstract class ESTestCase extends LuceneTestCase {
         final boolean currentVersionHasFix = Version.CURRENT.luceneVersion.onOrAfter(luceneVersionWithFix);
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
+    }
+
+    /**
+     * Get a deterministic SecureRandom SHA1PRNG instance seeded by deterministic LuceneTestCase.random().
+     * @return SecureRandom SHA1PRNG instance.
+     * @throws NoSuchAlgorithmException SHA1PRNG algorithm not found.
+     */
+    public static SecureRandom secureRandom() throws NoSuchAlgorithmException {
+        return secureRandom(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * Get a deterministic SecureRandom SHA1PRNG instance seeded by the input value.
+     * @param seed Byte array to use for seeding the SecureRandom SHA1PRNG instance.
+     * @return SecureRandom SHA1PRNG instance.
+     * @throws NoSuchAlgorithmException SHA1PRNG algorithm not found.
+     */
+    public static SecureRandom secureRandom(final byte[] seed) throws NoSuchAlgorithmException {
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        secureRandom.setSeed(seed);
+        return secureRandom;
     }
 }

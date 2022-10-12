@@ -225,10 +225,12 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     private void ensureCapacityFromPosition(long newPosition) {
+        // Integer.MAX_VALUE is not a multiple of the page size so we can only allocate the largest multiple of the pagesize that is less
+        // than Integer.MAX_VALUE
+        if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize)) {
+            throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
+        }
         while (newPosition > currentCapacity) {
-            if (newPosition > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
-            }
             Recycler.V<BytesRef> newPage = recycler.obtain();
             assert pageSize == newPage.v().length;
             pages.add(newPage);

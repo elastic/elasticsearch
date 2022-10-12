@@ -182,7 +182,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             enabled = randomBoolean();
             settings.put("xpack.ml.enabled", enabled);
         }
-        boolean expected = enabled || useDefault;
+        boolean expected = enabled;
         MachineLearningInfoTransportAction featureSet = new MachineLearningInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
@@ -381,8 +381,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         new DiscoveryNode("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2), Version.CURRENT),
                                         5,
                                         42.0,
+                                        42.0,
                                         0,
                                         1,
+                                        3L,
                                         2,
                                         3,
                                         Instant.now(),
@@ -391,14 +393,17 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         randomIntBetween(1, 16),
                                         1L,
                                         2L,
-                                        33.0
+                                        33.0,
+                                        1L
                                     ),
                                     AssignmentStats.NodeStats.forStartedState(
                                         new DiscoveryNode("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3), Version.CURRENT),
                                         4,
                                         50.0,
+                                        50.0,
                                         0,
                                         1,
+                                        1L,
                                         2,
                                         3,
                                         Instant.now(),
@@ -407,7 +412,8 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         randomIntBetween(1, 16),
                                         2L,
                                         4L,
-                                        34.0
+                                        34.0,
+                                        1L
                                     )
                                 )
                             ).setState(AssignmentState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))

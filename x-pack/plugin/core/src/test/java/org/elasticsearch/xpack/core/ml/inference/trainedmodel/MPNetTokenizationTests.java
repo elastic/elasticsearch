@@ -19,6 +19,19 @@ public class MPNetTokenizationTests extends AbstractBWCSerializationTestCase<MPN
 
     private boolean lenient;
 
+    static MPNetTokenization mutateForVersion(MPNetTokenization instance, Version version) {
+        if (version.before(Version.V_8_2_0)) {
+            return new MPNetTokenization(
+                instance.doLowerCase,
+                instance.withSpecialTokens,
+                instance.maxSequenceLength,
+                instance.truncate,
+                null
+            );
+        }
+        return instance;
+    }
+
     @Before
     public void chooseStrictOrLenient() {
         lenient = randomBoolean();
@@ -41,7 +54,7 @@ public class MPNetTokenizationTests extends AbstractBWCSerializationTestCase<MPN
 
     @Override
     protected MPNetTokenization mutateInstanceForVersion(MPNetTokenization instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static MPNetTokenization createRandom() {

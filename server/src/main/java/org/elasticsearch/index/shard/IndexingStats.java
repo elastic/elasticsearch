@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class IndexingStats implements Writeable, ToXContentFragment {
 
@@ -192,6 +193,39 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, getThrottleTime());
             return builder;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Stats that = (Stats) o;
+            return indexCount == that.indexCount
+                && indexTimeInMillis == that.indexTimeInMillis
+                && indexCurrent == that.indexCurrent
+                && indexFailedCount == that.indexFailedCount
+                && deleteCount == that.deleteCount
+                && deleteTimeInMillis == that.deleteTimeInMillis
+                && deleteCurrent == that.deleteCurrent
+                && noopUpdateCount == that.noopUpdateCount
+                && isThrottled == that.isThrottled
+                && throttleTimeInMillis == that.throttleTimeInMillis;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                indexCount,
+                indexTimeInMillis,
+                indexCurrent,
+                indexFailedCount,
+                deleteCount,
+                deleteTimeInMillis,
+                deleteCurrent,
+                noopUpdateCount,
+                isThrottled,
+                throttleTimeInMillis
+            );
+        }
     }
 
     private final Stats totalStats;
@@ -246,6 +280,19 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IndexingStats that = (IndexingStats) o;
+        return Objects.equals(totalStats, that.totalStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(totalStats);
     }
 
     static final class Fields {

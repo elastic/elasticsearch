@@ -22,7 +22,7 @@ public class UpdateDesiredNodesRequestSerializationTests extends AbstractWireSer
 
     @Override
     protected UpdateDesiredNodesRequest mutateInstance(UpdateDesiredNodesRequest request) throws IOException {
-        return new UpdateDesiredNodesRequest(request.getHistoryID(), request.getVersion() + 1, request.getNodes());
+        return new UpdateDesiredNodesRequest(request.getHistoryID(), request.getVersion() + 1, request.getNodes(), request.isDryRun());
     }
 
     @Override

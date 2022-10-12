@@ -47,6 +47,7 @@ import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.NetUtils;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
@@ -56,7 +57,6 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.net.InetSocketAddress;
-import java.net.SocketOption;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
@@ -145,10 +145,20 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        SharedGroupFactory sharedGroupFactory
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer
     ) {
-        super(settings, networkService, Netty4Utils.createRecycler(settings), threadPool, xContentRegistry, dispatcher, clusterSettings);
-        Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
+        super(
+            settings,
+            networkService,
+            Netty4Utils.createRecycler(settings),
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            tracer
+        );
+        Netty4Utils.setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
 
@@ -204,25 +214,22 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 // Netty logs a warning if it can't set the option, so try this only on supported platforms
                 if (IOUtils.LINUX || IOUtils.MAC_OS_X) {
                     if (SETTING_HTTP_TCP_KEEP_IDLE.get(settings) >= 0) {
-                        final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
-                        if (keepIdleOption != null) {
-                            serverBootstrap.childOption(NioChannelOption.of(keepIdleOption), SETTING_HTTP_TCP_KEEP_IDLE.get(settings));
-                        }
+                        serverBootstrap.childOption(
+                            NioChannelOption.of(NetUtils.getTcpKeepIdleSocketOption()),
+                            SETTING_HTTP_TCP_KEEP_IDLE.get(settings)
+                        );
                     }
                     if (SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings) >= 0) {
-                        final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
-                        if (keepIntervalOption != null) {
-                            serverBootstrap.childOption(
-                                NioChannelOption.of(keepIntervalOption),
-                                SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings)
-                            );
-                        }
+                        serverBootstrap.childOption(
+                            NioChannelOption.of(NetUtils.getTcpKeepIntervalSocketOption()),
+                            SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings)
+                        );
                     }
                     if (SETTING_HTTP_TCP_KEEP_COUNT.get(settings) >= 0) {
-                        final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
-                        if (keepCountOption != null) {
-                            serverBootstrap.childOption(NioChannelOption.of(keepCountOption), SETTING_HTTP_TCP_KEEP_COUNT.get(settings));
-                        }
+                        serverBootstrap.childOption(
+                            NioChannelOption.of(NetUtils.getTcpKeepCountSocketOption()),
+                            SETTING_HTTP_TCP_KEEP_COUNT.get(settings)
+                        );
                     }
                 }
             }

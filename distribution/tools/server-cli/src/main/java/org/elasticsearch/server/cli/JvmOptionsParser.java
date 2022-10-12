@@ -8,8 +8,10 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -68,17 +70,17 @@ final class JvmOptionsParser {
      * files in the {@code jvm.options.d} directory, and the options given by the {@code ES_JAVA_OPTS} environment
      * variable.
      *
-     * @param configDir the ES config dir
-     * @param pluginsDir the ES plugins dir
-     * @param tmpDir the directory that should be passed to {@code -Djava.io.tmpdir}
-     * @param envOptions the options passed through the ES_JAVA_OPTS env var
+     * @param keystore        the installation's keystore
+     * @param configDir       the ES config dir
+     * @param tmpDir          the directory that should be passed to {@code -Djava.io.tmpdir}
+     * @param envOptions      the options passed through the ES_JAVA_OPTS env var
      * @return the list of options to put on the Java command line
      * @throws InterruptedException if the java subprocess is interrupted
-     * @throws IOException if there is a problem reading any of the files
-     * @throws UserException if there is a problem parsing the jvm.options file or jvm.options.d files
+     * @throws IOException          if there is a problem reading any of the files
+     * @throws UserException        if there is a problem parsing the `jvm.options` file or `jvm.options.d` files
      */
-    static List<String> determineJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
-        IOException, UserException {
+    static List<String> determineJvmOptions(ServerArgs args, KeyStoreWrapper keystore, Path configDir, Path tmpDir, String envOptions)
+        throws InterruptedException, IOException, UserException {
 
         final JvmOptionsParser parser = new JvmOptionsParser();
 
@@ -87,7 +89,7 @@ final class JvmOptionsParser {
         substitutions.put("ES_PATH_CONF", configDir.toString());
 
         try {
-            return parser.jvmOptions(configDir, pluginsDir, envOptions, substitutions);
+            return parser.jvmOptions(args, keystore, configDir, tmpDir, envOptions, substitutions);
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -116,8 +118,14 @@ final class JvmOptionsParser {
         }
     }
 
-    private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)
-        throws InterruptedException, IOException, JvmOptionsFileParserException {
+    private List<String> jvmOptions(
+        ServerArgs args,
+        KeyStoreWrapper keystore,
+        final Path config,
+        Path tmpDir,
+        final String esJavaOpts,
+        final Map<String, String> substitutions
+    ) throws InterruptedException, IOException, JvmOptionsFileParserException, UserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
 
@@ -133,12 +141,15 @@ final class JvmOptionsParser {
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
 
+        final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), keystore, tmpDir);
+
         final List<String> finalJvmOptions = new ArrayList<>(
-            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size()
+            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + apmOptions.size()
         );
         finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
         finalJvmOptions.addAll(substitutedJvmOptions);
         finalJvmOptions.addAll(ergonomicJvmOptions);
+        finalJvmOptions.addAll(apmOptions);
 
         return finalJvmOptions;
     }

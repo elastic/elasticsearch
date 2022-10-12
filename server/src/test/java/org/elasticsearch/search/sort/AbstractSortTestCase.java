@@ -12,13 +12,13 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -38,7 +38,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -55,8 +54,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -189,11 +188,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
-            fieldType,
-            fieldIndexName,
-            searchLookup) -> {
-            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
+            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
         NestedLookup nestedLookup = NestedLookup.build(

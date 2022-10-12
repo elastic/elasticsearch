@@ -66,8 +66,8 @@ import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
+import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
-import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -735,7 +735,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         int fileChunkSizeInBytes = Math.toIntExact(
             randomBoolean() ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes() : randomIntBetween(1, 10 * 1024 * 1024)
         );
-        final RecoveryPlannerService recoveryPlannerService = SourceOnlyRecoveryPlannerService.INSTANCE;
+        final RecoveryPlannerService recoveryPlannerService = PeerOnlyRecoveryPlannerService.INSTANCE;
         final RecoverySourceHandler recovery = new RecoverySourceHandler(
             primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
@@ -791,7 +791,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             newRoutingTable
         );
         replica.updateShardState(
-            replica.routingEntry().moveToStarted(),
+            replica.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
             replica.getPendingPrimaryTerm(),
             null,
             currentClusterStateVersion.get(),
@@ -1010,6 +1010,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     snapshotStatus,
                     Version.CURRENT,
                     Collections.emptyMap(),
+                    randomMillisUpToYear9999(),
                     future
                 )
             );

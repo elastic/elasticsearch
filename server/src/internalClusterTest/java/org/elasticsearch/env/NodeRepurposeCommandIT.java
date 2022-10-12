@@ -85,8 +85,8 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
 
         logger.info("--> Restarting and repurposing other node");
 
-        internalCluster().stopRandomNode(s -> true);
-        internalCluster().stopRandomNode(s -> true);
+        internalCluster().stopNode(internalCluster().getRandomNodeName());
+        internalCluster().stopNode(internalCluster().getRandomNodeName());
 
         executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, 1, 0);
 

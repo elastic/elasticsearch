@@ -44,7 +44,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             scriptService,
             indexAnalyzers,
             indexSettings,
-            indexSettings.getMode().buildNoFieldDataIdFieldMapper()
+            indexSettings.getMode().idFieldMapperWithoutFieldData()
         );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
@@ -142,5 +142,68 @@ public class MappingParserTests extends MapperServiceTestCase {
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
         assertEquals("[_routing] config must be an object", e.getMessage());
+    }
+
+    public void testMergeSubfieldWhileParsing() throws Exception {
+        /*
+        If we are parsing mappings that hold the definition of the same field twice, the two are merged together. This can happen when
+        mappings have the same field specified using the object notation as well as the dot notation, as well as when applying index
+        templates, in which case the two definitions may come from separate index templates that end up in the same map (through
+        XContentHelper#mergeDefaults, see MetadataCreateIndexService#parseV1Mappings).
+        We had a bug (https://github.com/elastic/elasticsearch/issues/88573) triggered by this scenario that caused the merged leaf fields
+        to get the wrong path (missing the first portion).
+         */
+        String mappingAsString = """
+            {
+               "_doc": {
+                 "properties": {
+                   "obj": {
+                     "properties": {
+                       "source": {
+                         "properties": {
+                           "geo": {
+                             "properties": {
+                               "location": {
+                                 "type": "geo_point"
+                               }
+                             }
+                           }
+                         }
+                       }
+                     }
+                   },
+                   "obj.source.geo.location" : {
+                     "type": "geo_point"
+                   }
+                 }
+               }
+            }
+            """;
+        Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(mappingAsString));
+        assertEquals(1, mapping.getRoot().mappers.size());
+        Mapper object = mapping.getRoot().getMapper("obj");
+        assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
+        assertEquals("obj", object.simpleName());
+        assertEquals("obj", object.name());
+        ObjectMapper objectMapper = (ObjectMapper) object;
+        assertEquals(1, objectMapper.mappers.size());
+        object = objectMapper.getMapper("source");
+        assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
+        assertEquals("source", object.simpleName());
+        assertEquals("obj.source", object.name());
+        objectMapper = (ObjectMapper) object;
+        assertEquals(1, objectMapper.mappers.size());
+        object = objectMapper.getMapper("geo");
+        assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
+        assertEquals("geo", object.simpleName());
+        assertEquals("obj.source.geo", object.name());
+        objectMapper = (ObjectMapper) object;
+        assertEquals(1, objectMapper.mappers.size());
+        Mapper location = objectMapper.getMapper("location");
+        assertThat(location, CoreMatchers.instanceOf(GeoPointFieldMapper.class));
+        GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) location;
+        assertEquals("obj.source.geo.location", geoPointFieldMapper.name());
+        assertEquals("location", geoPointFieldMapper.simpleName());
+        assertEquals("obj.source.geo.location", geoPointFieldMapper.mappedFieldType.name());
     }
 }

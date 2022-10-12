@@ -31,13 +31,14 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.randomSearchLongSortValues;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.randomSearchSortValues;
 import static org.elasticsearch.xpack.eql.execution.search.OrdinalTests.randomTimestamp;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.FULL;
 
 public class CriterionOrdinalExtractionTests extends ESTestCase {
     private String tsField = "timestamp";
     private String tbField = "tiebreaker";
 
-    private HitExtractor tsExtractor = new FieldHitExtractor(tsField, DataTypes.LONG, null, null, false);
-    private HitExtractor tbExtractor = new FieldHitExtractor(tbField, DataTypes.LONG, null, null, false);
+    private HitExtractor tsExtractor = new FieldHitExtractor(tsField, DataTypes.LONG, null, null, FULL);
+    private HitExtractor tbExtractor = new FieldHitExtractor(tbField, DataTypes.LONG, null, null, FULL);
     private HitExtractor implicitTbExtractor = ImplicitTiebreakerHitExtractor.INSTANCE;
 
     public void testTimeOnly() throws Exception {
@@ -67,7 +68,7 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
     }
 
     public void testTimeNotComparable() throws Exception {
-        HitExtractor badExtractor = new FieldHitExtractor(tsField, DataTypes.BINARY, null, null, false);
+        HitExtractor badExtractor = new FieldHitExtractor(tsField, DataTypes.BINARY, null, null, FULL);
         SearchHit hit = searchHit(randomAlphaOfLength(10), null);
         Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(0, null, emptyList(), badExtractor, null, null, false);
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));

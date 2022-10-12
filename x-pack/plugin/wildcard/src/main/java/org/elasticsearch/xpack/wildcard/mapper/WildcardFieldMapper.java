@@ -38,19 +38,19 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
-import org.apache.lucene.util.automaton.RegExp.Kind;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
@@ -65,7 +65,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.wildcard.WildcardDocValuesField;
 
@@ -79,7 +78,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -393,7 +391,7 @@ public class WildcardFieldMapper extends FieldMapper {
         // * Anything else is a concrete query that should be run on the ngram index.
         public static Query toApproximationQuery(RegExp r) throws IllegalArgumentException {
             Query result = null;
-            switch (r.kind) {
+            switch (r.kind()) {
                 case REGEXP_UNION:
                     result = createUnionQuery(r);
                     break;
@@ -401,11 +399,11 @@ public class WildcardFieldMapper extends FieldMapper {
                     result = createConcatenationQuery(r);
                     break;
                 case REGEXP_STRING:
-                    String normalizedString = toLowerCase(r.s);
+                    String normalizedString = toLowerCase(r.s());
                     result = new TermQuery(new Term("", normalizedString));
                     break;
                 case REGEXP_CHAR:
-                    String cs = Character.toString(r.c);
+                    String cs = Character.toString(r.c());
                     String normalizedChar = toLowerCase(cs);
                     result = new TermQuery(new Term("", normalizedChar));
                     break;
@@ -416,8 +414,8 @@ public class WildcardFieldMapper extends FieldMapper {
 
                 case REGEXP_REPEAT_MIN:
                 case REGEXP_REPEAT_MINMAX:
-                    if (r.min > 0) {
-                        result = toApproximationQuery(r.exp1);
+                    if (r.min() > 0) {
+                        result = toApproximationQuery(r.exp1());
                         if (result instanceof TermQuery) {
                             // Wrap the repeating expression so that it is not concatenated by a parent which concatenates
                             // plain TermQuery objects together. Boolean queries are interpreted as a black box and not
@@ -445,6 +443,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 case REGEXP_INTERVAL:
                 case REGEXP_EMPTY:
                 case REGEXP_AUTOMATON:
+                case REGEXP_PRE_CLASS:
                     result = new MatchAllDocsQuery();
                     break;
             }
@@ -455,8 +454,8 @@ public class WildcardFieldMapper extends FieldMapper {
         private static Query createConcatenationQuery(RegExp r) {
             // Create ANDs of expressions plus collapse consecutive TermQuerys into single longer ones
             ArrayList<Query> queries = new ArrayList<>();
-            findLeaves(r.exp1, Kind.REGEXP_CONCATENATION, queries);
-            findLeaves(r.exp2, Kind.REGEXP_CONCATENATION, queries);
+            findLeaves(r.exp1(), org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, queries);
+            findLeaves(r.exp2(), org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, queries);
             BooleanQuery.Builder bAnd = new BooleanQuery.Builder();
             StringBuilder sequence = new StringBuilder();
             for (Query query : queries) {
@@ -485,8 +484,8 @@ public class WildcardFieldMapper extends FieldMapper {
         private static Query createUnionQuery(RegExp r) {
             // Create an OR of clauses
             ArrayList<Query> queries = new ArrayList<>();
-            findLeaves(r.exp1, Kind.REGEXP_UNION, queries);
-            findLeaves(r.exp2, Kind.REGEXP_UNION, queries);
+            findLeaves(r.exp1(), org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
+            findLeaves(r.exp2(), org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
             BooleanQuery.Builder bOr = new BooleanQuery.Builder();
             HashSet<Query> uniqueClauses = new HashSet<>();
             for (Query query : queries) {
@@ -509,10 +508,10 @@ public class WildcardFieldMapper extends FieldMapper {
             return new MatchAllDocsQuery();
         }
 
-        private static void findLeaves(RegExp exp, Kind kind, List<Query> queries) {
-            if (exp.kind == kind) {
-                findLeaves(exp.exp1, kind, queries);
-                findLeaves(exp.exp2, kind, queries);
+        private static void findLeaves(RegExp exp, org.apache.lucene.util.automaton.RegExp.Kind kind, List<Query> queries) {
+            if (exp.kind() == kind) {
+                findLeaves(exp.exp1(), kind, queries);
+                findLeaves(exp.exp2(), kind, queries);
             } else {
                 queries.add(toApproximationQuery(exp));
             }
@@ -832,7 +831,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return (cache, breakerService) -> new StringBinaryIndexFieldData(
                 name(),

@@ -19,8 +19,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
@@ -30,6 +28,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
@@ -45,22 +44,20 @@ import java.util.concurrent.Executors;
 import static org.hamcrest.Matchers.contains;
 
 /**
- * This test just tests, if he pipelining works in general with out any connection the Elasticsearch handler
+ * This test just tests whether the pipelining works in general without any connection to the Elasticsearch handler
  */
 public class Netty4HttpServerPipeliningTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private PageCacheRecycler recycler;
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        recycler = new MockPageCacheRecycler(Settings.EMPTY);
     }
 
     @After
-    public void shutdown() throws Exception {
+    public void shutdown() {
         if (threadPool != null) {
             threadPool.shutdownNow();
         }
@@ -106,7 +103,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 xContentRegistry(),
                 new NullDispatcher(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                Tracer.NOOP
             );
         }
 

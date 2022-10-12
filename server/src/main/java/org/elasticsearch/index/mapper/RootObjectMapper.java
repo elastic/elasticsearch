@@ -107,7 +107,7 @@ public class RootObjectMapper extends ObjectMapper {
                 enabled,
                 subobjects,
                 dynamic,
-                buildMappers(true, context),
+                buildMappers(context),
                 runtimeFields,
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -322,13 +322,19 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
-        return (RootObjectMapper) super.merge(mergeWith, reason, mapperBuilderContext);
+    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
+        assert mapperBuilderContext == MapperBuilderContext.ROOT;
+        return mapperBuilderContext;
     }
 
     @Override
-    protected void doMerge(ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
-        super.doMerge(mergeWith, reason, mapperBuilderContext);
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
+        return (RootObjectMapper) super.merge(mergeWith, reason, parentBuilderContext);
+    }
+
+    @Override
+    protected void doMerge(ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
+        super.doMerge(mergeWith, reason, parentBuilderContext);
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {
             this.numericDetection = mergeWithObject.numericDetection;

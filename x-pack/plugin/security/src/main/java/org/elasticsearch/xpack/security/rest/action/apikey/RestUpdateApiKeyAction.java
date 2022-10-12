@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,7 +25,7 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
+public final class RestUpdateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(

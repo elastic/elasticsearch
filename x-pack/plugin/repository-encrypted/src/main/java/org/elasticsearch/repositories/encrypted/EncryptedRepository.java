@@ -238,7 +238,8 @@ public class EncryptedRepository extends BlobStoreRepository {
                 finalizeSnapshotContext.clusterMetadata(),
                 updatedSnapshotInfo,
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                finalizeSnapshotContext
+                finalizeSnapshotContext,
+                finalizeSnapshotContext::onDone
             )
         );
     }
@@ -635,7 +636,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
 
         @Override
-        public void writeBlob(
+        public void writeMetadataBlob(
             String blobName,
             boolean failIfAlreadyExists,
             boolean atomic,

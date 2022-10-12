@@ -1,0 +1,45 @@
+---
+- job:
+    name: "elastic+elasticsearch+pull-request+part-3-windows"
+    display-name: "elastic / elasticsearch - pull request part-3 windows"
+    description: "Testing of Elasticsearch pull requests - part-3 windows"
+    node: "windows-immutable"
+    workspace: "C:\\Users\\jenkins\\workspace\\pr-part-2\\${BUILD_NUMBER}"
+    scm:
+      - git:
+          refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
+          branches:
+            - "${ghprbActualCommit}"
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+elasticsearch-ci/part-3-windows.*'
+          github-hooks: true
+          status-context: elasticsearch-ci/part-3-windows
+          cancel-builds-on-update: true
+          black-list-target-branches:
+            - 6.8
+            - 7.17
+          excluded-regions:
+            - ^docs/.*
+          white-list-labels:
+            - 'test-windows'
+          black-list-labels:
+            - '>test-mute'
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$USERPROFILE\\.java\\$ES_RUNTIME_JAVA
+            JAVA16_HOME=$USERPROFILE\\.java\\openjdk16
+            GRADLE_TASK=checkPart3
+      - batch: |
+          del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
+          mkdir %USERPROFILE%\.gradle\init.d
+          copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
+          (
+            echo call %GRADLEW_BAT% --max-workers=4 -Dbwc.checkout.align=true %GRADLE_TASK% ^|^| exit /b 1
+          ) | java -jar "C:\Program Files\infra\bin\runbld" --redirect-stderr -

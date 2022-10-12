@@ -125,6 +125,11 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     int getInt(int index);
 
     /**
+     * Returns the integer read from the 4 bytes (LE) starting at the given index.
+     */
+    int getIntLE(int index);
+
+    /**
      * Finds the index of the first occurrence of the given marker between within the given bounds.
      * @param marker marker byte to search
      * @param from lower bound for the index to check (inclusive)

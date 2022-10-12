@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal;
 import groovy.lang.Closure;
 
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
@@ -48,18 +49,21 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
             .getExtraProperties()
             .set("addQaCheckDependencies", new Closure<Project>(BaseInternalPluginBuildPlugin.this, BaseInternalPluginBuildPlugin.this) {
                 public void doCall(Project proj) {
-                    proj.afterEvaluate(project1 -> {
-                        // let check depend on check tasks of qa sub-projects
-                        final var checkTaskProvider = project1.getTasks().named("check");
-                        Optional<Project> qaSubproject = project1.getSubprojects()
-                            .stream()
-                            .filter(p -> p.getPath().equals(project1.getPath() + ":qa"))
-                            .findFirst();
-                        qaSubproject.ifPresent(
-                            qa -> qa.getSubprojects()
-                                .forEach(p -> checkTaskProvider.configure(task -> task.dependsOn(p.getPath() + ":check")))
-                        );
-                    });
+                    // This is only a convenience for local developers so make this a noop when running in CI
+                    if (BuildParams.isCi() == false) {
+                        proj.afterEvaluate(project1 -> {
+                            // let check depend on check tasks of qa sub-projects
+                            final var checkTaskProvider = project1.getTasks().named("check");
+                            Optional<Project> qaSubproject = project1.getSubprojects()
+                                .stream()
+                                .filter(p -> p.getPath().equals(project1.getPath() + ":qa"))
+                                .findFirst();
+                            qaSubproject.ifPresent(
+                                qa -> qa.getSubprojects()
+                                    .forEach(p -> checkTaskProvider.configure(task -> task.dependsOn(p.getPath() + ":check")))
+                            );
+                        });
+                    }
                 }
 
                 public void doCall() {

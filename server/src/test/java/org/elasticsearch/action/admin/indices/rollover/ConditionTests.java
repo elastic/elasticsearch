@@ -147,6 +147,136 @@ public class ConditionTests extends ESTestCase {
         assertThat(evaluate.matched(), equalTo(false));
     }
 
+    public void testMinAge() {
+        final MinAgeCondition minAgeCondition = new MinAgeCondition(TimeValue.timeValueHours(1));
+
+        long indexCreatedMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(61).getMillis();
+        Condition.Result evaluate = minAgeCondition.evaluate(
+            new Condition.Stats(0, indexCreatedMatch, randomByteSize(), randomByteSize(), randomNonNegativeLong())
+        );
+        assertThat(evaluate.condition(), equalTo(minAgeCondition));
+        assertThat(evaluate.matched(), equalTo(true));
+
+        long indexCreatedNotMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(59).getMillis();
+        evaluate = minAgeCondition.evaluate(
+            new Condition.Stats(0, indexCreatedNotMatch, randomByteSize(), randomByteSize(), randomNonNegativeLong())
+        );
+        assertThat(evaluate.condition(), equalTo(minAgeCondition));
+        assertThat(evaluate.matched(), equalTo(false));
+    }
+
+    public void testMinDocs() {
+        final MinDocsCondition minDocsCondition = new MinDocsCondition(100L);
+
+        long minDocsMatch = randomIntBetween(100, 1000);
+        Condition.Result evaluate = minDocsCondition.evaluate(
+            new Condition.Stats(minDocsMatch, 0, randomByteSize(), randomByteSize(), randomNonNegativeLong())
+        );
+        assertThat(evaluate.condition(), equalTo(minDocsCondition));
+        assertThat(evaluate.matched(), equalTo(true));
+
+        long minDocsNotMatch = randomIntBetween(0, 99);
+        evaluate = minDocsCondition.evaluate(
+            new Condition.Stats(minDocsNotMatch, 0, randomByteSize(), randomByteSize(), randomNonNegativeLong())
+        );
+        assertThat(evaluate.condition(), equalTo(minDocsCondition));
+        assertThat(evaluate.matched(), equalTo(false));
+    }
+
+    public void testMinSize() {
+        MinSizeCondition minSizeCondition = new MinSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 20)));
+
+        Condition.Result result = minSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                ByteSizeValue.ofMb(0),
+                randomByteSize(),
+                randomNonNegativeLong()
+            )
+        );
+        assertThat(result.matched(), equalTo(false));
+
+        result = minSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                ByteSizeValue.ofMb(randomIntBetween(0, 9)),
+                randomByteSize(),
+                randomNonNegativeLong()
+            )
+        );
+        assertThat(result.matched(), equalTo(false));
+
+        result = minSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                ByteSizeValue.ofMb(randomIntBetween(20, 1000)),
+                randomByteSize(),
+                randomNonNegativeLong()
+            )
+        );
+        assertThat(result.matched(), equalTo(true));
+    }
+
+    public void testMinPrimaryShardSize() {
+        MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(
+            ByteSizeValue.ofMb(randomIntBetween(10, 20))
+        );
+
+        Condition.Result result = minPrimaryShardSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomByteSize(),
+                ByteSizeValue.ofMb(0),
+                randomNonNegativeLong()
+            )
+        );
+        assertThat(result.matched(), equalTo(false));
+
+        result = minPrimaryShardSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomByteSize(),
+                ByteSizeValue.ofMb(randomIntBetween(0, 9)),
+                randomNonNegativeLong()
+            )
+        );
+        assertThat(result.matched(), equalTo(false));
+
+        result = minPrimaryShardSizeCondition.evaluate(
+            new Condition.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomByteSize(),
+                ByteSizeValue.ofMb(randomIntBetween(20, 1000)),
+                randomNonNegativeLong()
+            )
+        );
+        assertThat(result.matched(), equalTo(true));
+    }
+
+    public void testMinPrimaryShardDocs() {
+        final MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(100L);
+
+        long minPrimaryShardDocsMatch = randomIntBetween(100, 1000);
+        Condition.Result evaluate = minPrimaryShardDocsCondition.evaluate(
+            new Condition.Stats(randomNonNegativeLong(), 0, randomByteSize(), randomByteSize(), minPrimaryShardDocsMatch)
+        );
+        assertThat(evaluate.condition(), equalTo(minPrimaryShardDocsCondition));
+        assertThat(evaluate.matched(), equalTo(true));
+
+        long minPrimaryShardDocsNotMatch = randomIntBetween(0, 99);
+        evaluate = minPrimaryShardDocsCondition.evaluate(
+            new Condition.Stats(randomNonNegativeLong(), 0, randomByteSize(), randomByteSize(), minPrimaryShardDocsNotMatch)
+        );
+        assertThat(evaluate.condition(), equalTo(minPrimaryShardDocsCondition));
+        assertThat(evaluate.matched(), equalTo(false));
+    }
+
     public void testEqualsAndHashCode() {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -181,6 +311,41 @@ public class ConditionTests extends ESTestCase {
             maxPrimaryShardDocsCondition,
             condition -> new MaxPrimaryShardDocsCondition(condition.value),
             condition -> new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
+        );
+
+        MinAgeCondition minAgeCondition = new MinAgeCondition(new TimeValue(randomNonNegativeLong()));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            minAgeCondition,
+            condition -> new MinAgeCondition(condition.value),
+            condition -> new MinAgeCondition(new TimeValue(randomNonNegativeLong()))
+        );
+
+        MinDocsCondition minDocsCondition = new MinDocsCondition(randomLong());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            minDocsCondition,
+            condition -> new MinDocsCondition(condition.value),
+            condition -> new MinDocsCondition(randomLong())
+        );
+
+        MinSizeCondition minSizeCondition = new MinSizeCondition(randomByteSize());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            minSizeCondition,
+            condition -> new MinSizeCondition(condition.value),
+            condition -> new MinSizeCondition(randomByteSize())
+        );
+
+        MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(randomByteSize());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            minPrimaryShardSizeCondition,
+            condition -> new MinPrimaryShardSizeCondition(condition.value),
+            condition -> new MinPrimaryShardSizeCondition(randomByteSize())
+        );
+
+        MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(randomNonNegativeLong());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            minPrimaryShardDocsCondition,
+            condition -> new MinPrimaryShardDocsCondition(condition.value),
+            condition -> new MinPrimaryShardDocsCondition(randomNonNegativeLong())
         );
     }
 

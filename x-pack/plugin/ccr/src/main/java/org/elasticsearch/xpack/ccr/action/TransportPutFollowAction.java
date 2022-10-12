@@ -46,11 +46,14 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
 
 public final class TransportPutFollowAction extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
@@ -358,8 +361,16 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 // When following an older backing index it should be positioned before the newer backing indices.
                 // Currently the assumption is that the newest index (highest generation) is the write index.
                 // (just appending an older backing index to the list of backing indices would break that assumption)
-                // (string sorting works because of the naming backing index naming scheme)
-                backingIndices.sort(Index.COMPARE_BY_NAME);
+                // Not all backing indices follow the data stream backing indices naming convention (e.g. some might start with
+                // "restored-" if they're mounted indices, "shrink-" if they were shrunk, or miscellaneously named indices could be added
+                // to the data stream using the modify data stream API) so we check to see if the backing index prefix is present and
+                // when present we sort by the backing index name by trimming (for sorting purposes only) everything before the {@link
+                // BACKING_INDEX_PREFIX}. If the index name doesn't contain the {@link BACKING_INDEX_PREFIX} we use the full index name as
+                // is for sorting.
+                backingIndices.sort(Comparator.comparing(o -> {
+                    int backingPrefixPosition = o.getName().indexOf(BACKING_INDEX_PREFIX);
+                    return backingPrefixPosition > -1 ? o.getName().substring(backingPrefixPosition) : o.getName();
+                }));
             } else {
                 // edge case where the index was closed on the follower and was already in the datastream's index list
                 backingIndices = localDataStream.getIndices();

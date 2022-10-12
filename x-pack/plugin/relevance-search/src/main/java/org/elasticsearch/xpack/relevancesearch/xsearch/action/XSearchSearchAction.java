@@ -13,12 +13,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -28,7 +30,8 @@ public class XSearchSearchAction extends ActionType<XSearchSearchAction.Response
 
     public static final XSearchSearchAction INSTANCE = new XSearchSearchAction();
 
-    static final String NAME = "indices:admin/search_engine/xsearch";
+    // TODO - Should there be more fine-tuned permissions here?
+    static final String NAME = "indices:data/xsearch";
 
     private XSearchSearchAction() {
         super(NAME, Response::new);
@@ -37,16 +40,28 @@ public class XSearchSearchAction extends ActionType<XSearchSearchAction.Response
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
         private String[] names;
-        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
 
-        public Request(String[] names) {
+        private final String query;
+        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false, false, true, false, false);
+
+        public Request(String[] names, String query) {
             this.names = names;
+            this.query = query;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.names = in.readOptionalStringArray();
+            this.names = in.readStringArray();
+            this.query = in.readString();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+        }
+
+        public static Request parseRequest(String indexNames, XContentParser bodyParser) throws IOException {
+
+            String[] indices = Strings.splitStringByCommaToArray(indexNames);
+            String query = (String) bodyParser.map().get("query");
+
+            return new Request(indices, query);
         }
 
         @Override
@@ -67,13 +82,13 @@ public class XSearchSearchAction extends ActionType<XSearchSearchAction.Response
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             XSearchSearchAction.Request request = (XSearchSearchAction.Request) o;
-            return Arrays.equals(names, request.names) && indicesOptions.equals(request.indicesOptions);
+            return Arrays.equals(names, request.names) && indicesOptions.equals(request.indicesOptions) && query.equals(request.query);
         }
 
         @Override
         public int hashCode() {
             int result = Objects.hash(indicesOptions);
-            result = 31 * result + Arrays.hashCode(names);
+            result = 31 * result + Arrays.hashCode(names) + Objects.hash(query);
             return result;
         }
 
@@ -84,6 +99,10 @@ public class XSearchSearchAction extends ActionType<XSearchSearchAction.Response
 
         public String[] getNames() {
             return names;
+        }
+
+        public String getQuery() {
+            return query;
         }
 
         @Override
@@ -128,6 +147,7 @@ public class XSearchSearchAction extends ActionType<XSearchSearchAction.Response
             out.writeString(response);
         }
 
+        // TODO return real content
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();

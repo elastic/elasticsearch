@@ -89,6 +89,18 @@ public class AnomalyRecordTests extends AbstractXContentSerializingTestCase<Anom
             }
             anomalyRecord.setCauses(causes);
         }
+        if (randomBoolean()) {
+            AnomalyScoreExplanation anomalyScoreExplanation = new AnomalyScoreExplanation();
+            anomalyScoreExplanation.setAnomalyType(randomAlphaOfLength(12));
+            anomalyScoreExplanation.setAnomalyLength(randomInt());
+            anomalyScoreExplanation.setSingleBucketImpact(randomInt());
+            anomalyScoreExplanation.setMultiBucketImpact(randomInt());
+            anomalyScoreExplanation.setLowerConfidenceBound(randomDouble());
+            anomalyScoreExplanation.setTypicalValue(randomDouble());
+            anomalyScoreExplanation.setUpperConfidenceBound(randomDouble());
+            anomalyScoreExplanation.setHighVariancePenalty(randomBoolean());
+            anomalyScoreExplanation.setIncompleteBucketPenalty(randomBoolean());
+        }
 
         return anomalyRecord;
     }

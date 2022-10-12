@@ -45,10 +45,19 @@ public class ModuleSupport {
         throw new AssertionError("Utility class, should not be instantiated");
     }
 
-    static ModuleFinder ofSyntheticPluginModule(String name, Path[] jarPaths, Set<String> requires, Set<String> uses) {
+    static ModuleFinder ofSyntheticPluginModule(
+        String name,
+        Path[] jarPaths,
+        Set<String> requires,
+        Set<String> uses,
+        Predicate<String> packageInParentLayers
+    ) {
         try {
             return new InMemoryModuleFinder(
-                new InMemoryModuleReference(createModuleDescriptor(name, jarPaths, requires, uses), URI.create("module:/" + name))
+                new InMemoryModuleReference(
+                    createModuleDescriptor(name, jarPaths, requires, uses, packageInParentLayers),
+                    URI.create("module:/" + name)
+                )
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -56,8 +65,13 @@ public class ModuleSupport {
     }
 
     @SuppressForbidden(reason = "need access to the jar file")
-    static ModuleDescriptor createModuleDescriptor(String name, Path[] jarPaths, Set<String> requires, Set<String> uses)
-        throws IOException {
+    static ModuleDescriptor createModuleDescriptor(
+        String name,
+        Path[] jarPaths,
+        Set<String> requires,
+        Set<String> uses,
+        Predicate<String> packageInParentLayers
+    ) throws IOException {
         var builder = ModuleDescriptor.newOpenModule(name); // open module, for now
         requires.stream().forEach(builder::requires);
         uses.stream().forEach(builder::uses);
@@ -90,7 +104,10 @@ public class ModuleSupport {
                     for (String serviceFileName : scan.serviceFiles()) {
                         String serviceName = getServiceName(serviceFileName);
                         if (uses.contains(serviceName) == false) {
-                            pkgs.add(toPackageName(serviceName, ".").orElseThrow());
+                            String packageName = toPackageName(serviceName, ".").orElseThrow();
+                            if (packageInParentLayers.test(packageName) == false) {
+                                pkgs.add(toPackageName(serviceName, ".").orElseThrow());
+                            }
                         }
                         List<String> providersInJar = getProvidersFromServiceFile(jf, serviceFileName);
 

@@ -14,6 +14,8 @@ import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
 import java.io.IOException;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -302,6 +304,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         try (
             UberModuleClassLoader denyListLoader = UberModuleClassLoader.getInstance(
                 UberModuleClassLoaderTests.class.getClassLoader(),
+                ModuleLayer.boot(),
                 "synthetic",
                 Set.of(toUrl(jar)),
                 Set.of("java.sql", "java.sql.rowset") // if present, java.sql.rowset requires java.sql transitively
@@ -511,19 +514,30 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Path parentJar = createRequiredJarForParentLayer(libDir);
         Path optionalJar = createOptionalJarForParentLayer(libDir);
 
+        Set<String> moduleNames = includeOptionalDeps ? Set.of("p.required", "p.optional") : Set.of("p.required");
+        ModuleFinder parentModuleFinder = includeOptionalDeps ? ModuleFinder.of(parentJar, optionalJar) : ModuleFinder.of(parentJar);
+        Configuration parentLayerConfiguration = ModuleLayer.boot()
+            .configuration()
+            .resolve(parentModuleFinder, ModuleFinder.of(), moduleNames);
+
+        ModuleLayer parentLayer = ModuleLayer.defineModulesWithOneLoader(
+            parentLayerConfiguration,
+            List.of(ModuleLayer.boot()),
+            UberModuleClassLoaderTests.class.getClassLoader()
+        ).layer();
+
         // jars for the ubermodule
         Path modularJar = createModularizedJarForBundle(libDir);
         Path nonModularJar = createNonModularizedJarForBundle(libDir, parentJar, optionalJar, modularJar);
         Path serviceCallerJar = createServiceCallingJarForBundle(libDir, parentJar, optionalJar, modularJar, nonModularJar);
 
-        Set<Path> jarPaths = new HashSet<>(Set.of(parentJar, modularJar, nonModularJar, serviceCallerJar));
-        if (includeOptionalDeps) {
-            jarPaths.add(optionalJar);
-        }
+        Set<Path> jarPaths = new HashSet<>(Set.of(modularJar, nonModularJar, serviceCallerJar));
         return UberModuleClassLoader.getInstance(
-            UberModuleClassLoaderTests.class.getClassLoader(),
+            parentLayer.findLoader("p.required"),
+            parentLayer,
             "synthetic",
-            jarPaths.stream().map(UberModuleClassLoaderTests::pathToUrlUnchecked).collect(Collectors.toSet())
+            jarPaths.stream().map(UberModuleClassLoaderTests::pathToUrlUnchecked).collect(Collectors.toSet()),
+            Set.of()
         );
     }
 
@@ -692,7 +706,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             module q.jar.one {
                 exports q.jar.one;
 
-                requires p.parent;
+                requires p.required;
                 requires static p.optional;
 
                 provides p.optional.AnimalService with q.jar.one.JarOneOptionalProvider;
@@ -754,7 +768,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
             }
             """;
         String requiredParentModuleInfo = """
-            module p.parent { exports p.required; }
+            module p.required { exports p.required; }
             """;
         Map<String, CharSequence> requiredModuleSources = new HashMap<>();
         requiredModuleSources.put("p.required.LetterService", serviceFromRequiredParent);

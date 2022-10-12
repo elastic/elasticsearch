@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -23,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
 
@@ -62,7 +62,7 @@ public class RelevanceSettingsService implements ClusterStateListener {
         Map<String, Object> settingsContent = null;
         try {
             settingsContent = client.prepareGet(ENT_SEARCH_INDEX, RELEVANCE_SETTINGS_PREFIX + settingsId).get().getSource();
-        } catch (IndexNotFoundException e) {
+        } catch (ResourceNotFoundException e) {
             ensureInternalIndex(client);
         }
 
@@ -109,7 +109,7 @@ public class RelevanceSettingsService implements ClusterStateListener {
             // wait for state recovered
             return;
         }
-        if (event.state().metadata().hasIndex(ENT_SEARCH_INDEX)) {
+        if (this.clusterService.state().metadata().hasIndex(ENT_SEARCH_INDEX)) {
             // no need to re-create
             return;
         }

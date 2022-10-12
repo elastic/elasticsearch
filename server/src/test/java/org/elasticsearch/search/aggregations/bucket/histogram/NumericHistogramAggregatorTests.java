@@ -442,6 +442,6 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 }
             }
         };
-        testCase(buildIndex, verify, new AggTestConfig(request, longField("outer"), longField("inner"), longField("n")));
+        testCase(buildIndex, new AggTestConfig(request, verify, longField("outer"), longField("inner"), longField("n")));
     }
 }

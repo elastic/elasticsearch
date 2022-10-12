@@ -553,8 +553,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             .reduceScript(REDUCE_SCRIPT);
         testCase(
             iw -> { iw.addDocument(new Document()); },
-            r -> assertEquals(1, ((InternalScriptedMetric) r).aggregation()),
-            new AggTestConfig(aggregationBuilder)
+            new AggTestConfig(aggregationBuilder, r -> assertEquals(1, ((InternalScriptedMetric) r).aggregation()))
         );
     }
 
@@ -583,6 +582,6 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             ScriptedMetric oddMetric = odd.getAggregations().get("scripted");
             assertThat(oddMetric.aggregation(), equalTo(49));
         };
-        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, keywordField("t"), longField("number")));
+        testCase(buildIndex, new AggTestConfig(aggregationBuilder, verify, keywordField("t"), longField("number")));
     }
 }

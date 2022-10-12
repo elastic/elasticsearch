@@ -519,7 +519,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
                 iw.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
             }
-        }, topLevelAgg -> {
+        }, new AggTestConfig(aggregationBuilder, topLevelAgg -> {
             final Global global = (Global) topLevelAgg;
             assertNotNull(global);
             assertEquals("global", global.getName());
@@ -534,7 +534,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(cardinality, ((InternalAggregation) global).getProperty("cardinality"));
             assertEquals(numDocs, (double) ((InternalAggregation) global).getProperty("cardinality.value"), 0);
             assertEquals(numDocs, (double) ((InternalAggregation) cardinality).getProperty("value"), 0);
-        }, new AggTestConfig(aggregationBuilder, fieldType));
+        }, fieldType));
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
@@ -571,7 +571,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                     )
                 );
             }
-        }, topLevelAgg -> {
+        }, new AggTestConfig(aggregationBuilder, topLevelAgg -> {
             int expectedTermBucketsCount = 2; // ("even", "odd")
             final Terms terms = (StringTerms) topLevelAgg;
             assertNotNull(terms);
@@ -590,7 +590,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 assertEquals("cardinality", cardinality.getName());
                 assertEquals(5, cardinality.getValue());
             }
-        }, new AggTestConfig(aggregationBuilder, mappedFieldTypes));
+        }, mappedFieldTypes));
     }
 
     private void testAggregation(
@@ -612,15 +612,13 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         testCase(
             buildIndex,
-            agg -> verify.accept((InternalCardinality) agg),
-            new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query)
+            new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalCardinality) agg), fieldTypes).withQuery(query)
         );
         for (CardinalityAggregatorFactory.ExecutionMode mode : CardinalityAggregatorFactory.ExecutionMode.values()) {
             aggregationBuilder.executionHint(mode.toString().toLowerCase(Locale.ROOT));
             testCase(
                 buildIndex,
-                agg -> verify.accept((InternalCardinality) agg),
-                new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query)
+                new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalCardinality) agg), fieldTypes).withQuery(query)
             );
         }
     }

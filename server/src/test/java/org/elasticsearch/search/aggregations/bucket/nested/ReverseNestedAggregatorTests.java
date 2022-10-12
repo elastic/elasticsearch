@@ -226,7 +226,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     )
                 )
         );
-        testCase(NestedAggregatorTests.buildResellerData(numProducts, numResellers), result -> {
+        testCase(NestedAggregatorTests.buildResellerData(numProducts, numResellers), new AggTestConfig(b, result -> {
             InternalNested nested = (InternalNested) result;
             assertThat(nested.getDocCount(), equalTo((long) numProducts * numResellers));
             LongTerms resellers = nested.getAggregations().get("resellers");
@@ -245,7 +245,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     equalTo(LongStream.range(0, numProducts).mapToObj(Long::valueOf).collect(toList()))
                 );
             }
-        }, new AggTestConfig(b, NestedAggregatorTests.resellersMappedFields()));
+        }, NestedAggregatorTests.resellersMappedFields()));
     }
 
     @Override

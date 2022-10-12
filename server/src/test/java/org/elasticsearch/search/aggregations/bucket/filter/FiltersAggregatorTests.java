@@ -153,17 +153,16 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FiltersAggregationBuilder aggregationBuilder = new FiltersAggregationBuilder("test", new KeyedFilter[0]);
         testCase(
             iw -> { iw.addDocument(List.of()); },
-            result -> assertThat(((InternalFilters) result).getBuckets(), hasSize(0)),
-            new AggTestConfig(aggregationBuilder)
+            new AggTestConfig(aggregationBuilder, result -> assertThat(((InternalFilters) result).getBuckets(), hasSize(0)))
         );
     }
 
     public void testNoFiltersWithSubAggs() throws IOException {
         testCase(
             iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); },
-            result -> assertThat(((InternalFilters) result).getBuckets(), hasSize(0)),
             new AggTestConfig(
                 new FiltersAggregationBuilder("test", new KeyedFilter[0]).subAggregation(new MaxAggregationBuilder("m").field("i")),
+                result -> assertThat(((InternalFilters) result).getBuckets(), hasSize(0)),
                 new NumberFieldMapper.NumberFieldType("m", NumberType.INTEGER)
             )
         );
@@ -342,11 +341,11 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))));
             iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))));
-        }, result -> {
+        }, new AggTestConfig(builder, result -> {
             InternalFilters filters = (InternalFilters) result;
             assertThat(filters.getBuckets(), hasSize(1));
             assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
-        }, new AggTestConfig(builder, ft).withQuery(query));
+        }, ft).withQuery(query));
     }
 
     public void testWithEmptyMergedPointRangeQueries() throws IOException {
@@ -363,11 +362,11 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))));
             iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))));
-        }, result -> {
+        }, new AggTestConfig(builder, result -> {
             InternalFilters filters = (InternalFilters) result;
             assertThat(filters.getBuckets(), hasSize(1));
             assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(0L));
-        }, new AggTestConfig(builder, ft).withQuery(query));
+        }, ft).withQuery(query));
     }
 
     public void testRangeFilter() throws IOException {
@@ -495,22 +494,25 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> iw.addDocuments(
             NestedAggregatorTests.generateBook("test", new String[] { "foo", "bar" }, new int[] { 5, 10, 15, 20 })
         );
-        testCase(buildIndex, result1 -> {
-            InternalFilters filters1 = (InternalFilters) result1;
-            assertThat(filters1.getBuckets(), hasSize(1));
-            assertThat(filters1.getBucketByKey("q1").getDocCount(), equalTo(1L));
-        },
-            new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("author", "foo"))), ft)
-                .withQuery(Queries.newNonNestedFilter())
+        testCase(
+            buildIndex,
+            new AggTestConfig(
+                new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("author", "foo"))),
+                result -> {
+                    InternalFilters filters = (InternalFilters) result;
+                    assertThat(filters.getBuckets(), hasSize(1));
+                    assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
+                },
+                ft
+            ).withQuery(Queries.newNonNestedFilter())
         );
-        testCase(buildIndex, result -> {
-            InternalFilters filters = (InternalFilters) result;
-            assertThat(filters.getBuckets(), hasSize(1));
-            assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
-        },
-            new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder())), ft).withQuery(
-                Queries.newNonNestedFilter()
-            )
+        testCase(
+            buildIndex,
+            new AggTestConfig(new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder())), result -> {
+                InternalFilters filters = (InternalFilters) result;
+                assertThat(filters.getBuckets(), hasSize(1));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
+            }, ft).withQuery(Queries.newNonNestedFilter())
         );
     }
 
@@ -1578,11 +1580,11 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
             assertMap(debug, matchesMap().extraOk().entry("segments_counted_in_constant_time", greaterThan(0)));
         }, fieldType, fnft);
-        testCase(buildIndex, agg -> {
+        testCase(buildIndex, new AggTestConfig(builder, agg -> {
             InternalFilters result = (InternalFilters) agg;
             assertThat(result.getBuckets(), hasSize(1));
             assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(0L));
-        }, new AggTestConfig(builder, fieldType, fnft));
+        }, fieldType, fnft));
     }
 
     @Override

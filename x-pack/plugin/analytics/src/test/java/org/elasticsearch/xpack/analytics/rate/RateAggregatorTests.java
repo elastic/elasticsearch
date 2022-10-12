@@ -173,12 +173,12 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 doc("2010-04-27T03:43:34", new SortedNumericDocValuesField("val", 4), new SortedNumericDocValuesField("val", 5))
             );
-        }, agg -> {
+        }, new AggTestConfig(dateHistogramAggregationBuilder, agg -> {
             InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(1.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
-        }, new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType));
+        }, dateType, numType));
     }
 
     public void testDocValuesMonthToMonthDefaultRate() throws IOException {
@@ -288,7 +288,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
-        }, h -> { fail("Shouldn't be here"); }, new AggTestConfig(rateAggregationBuilder, dateType, numType)));
+        }, new AggTestConfig(rateAggregationBuilder, h -> { fail("Shouldn't be here"); }, dateType, numType)));
         assertEquals(
             "The rate aggregation can only be used inside a date histogram aggregation or "
                 + "composite aggregation with one date histogram value source",
@@ -314,7 +314,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 1)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
-        }, h -> fail("Shouldn't be here"), new AggTestConfig(compositeAggregationBuilder, dateType, numType)));
+        }, new AggTestConfig(compositeAggregationBuilder, h -> fail("Shouldn't be here"), dateType, numType)));
         assertEquals(
             ex.getMessage(),
             "aggregation [my_buckets] does not have exactly one date_histogram value source; "
@@ -342,7 +342,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 2)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
-        }, agg -> {
+        }, new AggTestConfig(topDateHistogramAggregationBuilder, agg -> {
             InternalDateHistogram tdh = (InternalDateHistogram) agg;
             assertThat(tdh.getBuckets(), hasSize(2));
             InternalDateHistogram dh1 = (InternalDateHistogram) tdh.getBuckets().get(0).getAggregations().asList().get(0);
@@ -353,7 +353,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             assertThat(dh2.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh2.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(2.0, 0.000001));
             assertThat(((InternalRate) dh2.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(7.0, 0.000001));
-        }, new AggTestConfig(topDateHistogramAggregationBuilder, dateType, numType));
+        }, dateType, numType));
     }
 
     public void testKeywordSandwich() throws IOException {
@@ -403,7 +403,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField("term", new BytesRef("b"))
                 )
             );
-        }, agg -> {
+        }, new AggTestConfig(dateHistogramAggregationBuilder, agg -> {
             InternalDateHistogram dh = (InternalDateHistogram) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             StringTerms st1 = (StringTerms) dh.getBuckets().get(0).getAggregations().asList().get(0);
@@ -414,7 +414,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             assertThat(st2.getBuckets(), hasSize(2));
             assertThat(((InternalRate) st2.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
             assertThat(((InternalRate) st2.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(4.0, 0.000001));
-        }, new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType, keywordType));
+        }, dateType, numType, keywordType));
     }
 
     public void testWithComposite() throws IOException {
@@ -469,7 +469,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField("term", new BytesRef("b"))
                 )
             );
-        }, agg -> {
+        }, new AggTestConfig(compositeAggregationBuilder, agg -> {
             InternalComposite composite = (InternalComposite) agg;
             assertThat(composite.getBuckets(), hasSize(3));
             // Monthly rate of term a in the first month
@@ -487,7 +487,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                 ((InternalRate) composite.getBuckets().get(2).getAggregations().asList().get(0)).getValue(),
                 closeTo(4.0, 0.0000001)
             );
-        }, new AggTestConfig(compositeAggregationBuilder, dateType, numType, keywordType));
+        }, dateType, numType, keywordType));
     }
 
     public void testUnsupportedKeywordSandwich() throws IOException {
@@ -548,7 +548,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField("term", new BytesRef("b"))
                 )
             );
-        }, dh -> fail("Shouldn't be here"), new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType, keywordType)));
+        }, new AggTestConfig(dateHistogramAggregationBuilder, dh -> fail("Shouldn't be here"), dateType, numType, keywordType)));
         if (millisecondBasedRate) {
             assertEquals(
                 "Cannot use non month-based rate unit ["
@@ -609,7 +609,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 doc("2020-11-11T03:43:34", new NumericDocValuesField("val", 4), new SortedSetDocValuesField("term", new BytesRef("b")))
             );
-        }, agg -> {
+        }, new AggTestConfig(dateHistogramAggregationBuilder, agg -> {
             InternalDateHistogram dh = (InternalDateHistogram) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             if (useSum) {
@@ -642,7 +642,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
                 assertThat(((InternalRate) st2.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(1.0, 0.000001));
 
             }
-        }, new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType, keywordType));
+        }, dateType, numType, keywordType));
     }
 
     public void testScriptMonthToDay() throws IOException {
@@ -683,16 +683,12 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 2), new StringField("term", "a", Field.Store.NO)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3), new StringField("term", "a", Field.Store.NO)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4), new StringField("term", "b", Field.Store.NO)));
-        }, agg -> {
+        }, new AggTestConfig(dateHistogramAggregationBuilder, agg -> {
             InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
-        },
-            new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType, keywordType).withQuery(
-                new TermQuery(new Term("term", "a"))
-            )
-        );
+        }, dateType, numType, keywordType).withQuery(new TermQuery(new Term("term", "a"))));
     }
 
     public void testFormatter() throws IOException {
@@ -715,12 +711,12 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(doc("2010-03-12T01:07:45", new NumericDocValuesField("val", 2)));
             iw.addDocument(doc("2010-04-01T03:43:34", new NumericDocValuesField("val", 3)));
             iw.addDocument(doc("2010-04-27T03:43:34", new NumericDocValuesField("val", 4)));
-        }, agg -> {
+        }, new AggTestConfig(dateHistogramAggregationBuilder, agg -> {
             InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValueAsString(), equalTo("03.0/M"));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).getValueAsString(), equalTo("07.0/M"));
-        }, new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType));
+        }, dateType, numType));
     }
 
     public void testHistogramFieldMonthToMonth() throws IOException {
@@ -739,12 +735,12 @@ public class RateAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(doc("2010-03-01T00:00:00", histogramFieldDocValues("val", new double[] { 1, 2 })));
             iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3, 4 })));
-        }, agg -> {
+        }, new AggTestConfig(dateHistogramAggregationBuilder, agg -> {
             InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValue(), closeTo(3.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).getValue(), closeTo(7.0, 0.000001));
-        }, new AggTestConfig(dateHistogramAggregationBuilder, dateType, histType));
+        }, dateType, histType));
     }
 
     public void testHistogramFieldMonthToYear() throws IOException {
@@ -761,11 +757,11 @@ public class RateAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(doc("2010-03-01T00:00:00", histogramFieldDocValues("val", new double[] { 1, 2 })));
             iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3, 4 })));
-        }, agg -> {
+        }, new AggTestConfig(dateHistogramAggregationBuilder, agg -> {
             InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(1));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValue(), closeTo(10.0 / 12, 0.000001));
-        }, new AggTestConfig(dateHistogramAggregationBuilder, dateType, histType));
+        }, dateType, histType));
     }
 
     public void testHistogramFieldMonthToMonthValueCount() throws IOException {
@@ -783,12 +779,12 @@ public class RateAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(doc("2010-03-01T00:00:00", histogramFieldDocValues("val", new double[] { 1, 2 })));
             iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3, 4, 5 })));
-        }, agg -> {
+        }, new AggTestConfig(dateHistogramAggregationBuilder, agg -> {
             InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValue(), closeTo(2.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).getValue(), closeTo(3.0, 0.000001));
-        }, new AggTestConfig(dateHistogramAggregationBuilder, dateType, histType));
+        }, dateType, histType));
     }
 
     public void testHistogramFieldMonthToYearValueCount() throws IOException {
@@ -806,11 +802,11 @@ public class RateAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(doc("2010-03-01T00:00:00", histogramFieldDocValues("val", new double[] { 1, 2 })));
             iw.addDocument(doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 3, 4, 5 })));
-        }, agg -> {
+        }, new AggTestConfig(dateHistogramAggregationBuilder, agg -> {
             InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(1));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).getValue(), closeTo(5.0 / 12, 0.000001));
-        }, new AggTestConfig(dateHistogramAggregationBuilder, dateType, histType));
+        }, dateType, histType));
     }
 
     public void testFilterWithHistogramField() throws IOException {
@@ -838,16 +834,12 @@ public class RateAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 doc("2010-04-01T00:00:00", histogramFieldDocValues("val", new double[] { 4 }), new StringField("term", "b", Field.Store.NO))
             );
-        }, agg -> {
+        }, new AggTestConfig(dateHistogramAggregationBuilder, agg -> {
             InternalMultiBucketAggregation<?, ?> dh = (InternalMultiBucketAggregation<?, ?>) agg;
             assertThat(dh.getBuckets(), hasSize(2));
             assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
             assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(3.0, 0.000001));
-        },
-            new AggTestConfig(dateHistogramAggregationBuilder, dateType, histType, keywordType).withQuery(
-                new TermQuery(new Term("term", "a"))
-            )
-        );
+        }, dateType, histType, keywordType).withQuery(new TermQuery(new Term("term", "a"))));
     }
 
     public void testModeWithoutField() {
@@ -864,8 +856,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             IllegalArgumentException.class,
             () -> testCase(
                 iw -> { iw.addDocument(doc("2010-03-12T01:07:45", new SortedNumericDocValuesField("val", 1))); },
-                h -> { fail("Shouldn't be here"); },
-                new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType)
+                new AggTestConfig(dateHistogramAggregationBuilder, h -> { fail("Shouldn't be here"); }, dateType, numType)
             )
         );
         assertEquals("The mode parameter is only supported with field or script", ex.getMessage());
@@ -928,8 +919,8 @@ public class RateAggregatorTests extends AggregatorTestCase {
         dateHistogramAggregationBuilder.subAggregation(rateAggregationBuilder);
         testCase(
             buildIndex,
-            agg -> verify.accept((InternalDateHistogram) agg),
-            new AggTestConfig(dateHistogramAggregationBuilder, dateType, numType).withQuery(query)
+            new AggTestConfig(dateHistogramAggregationBuilder, agg -> verify.accept((InternalDateHistogram) agg), dateType, numType)
+                .withQuery(query)
         );
     }
 

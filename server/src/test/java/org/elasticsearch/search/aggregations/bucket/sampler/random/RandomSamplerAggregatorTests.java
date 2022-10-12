@@ -55,18 +55,20 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         long[] counts = new long[5];
         AtomicInteger integer = new AtomicInteger();
         do {
-            testCase(RandomSamplerAggregatorTests::writeTestDocs, r -> {
-                InternalRandomSampler result = (InternalRandomSampler) r;
-                counts[integer.get()] = result.getDocCount();
-                if (result.getDocCount() > 0) {
-                    Avg agg = result.getAggregations().get("avg");
-                    assertThat(Strings.toString(result), agg.getValue(), allOf(not(notANumber()), IsFinite.isFinite()));
-                    avgs[integer.get()] = agg.getValue();
-                }
-            },
+            testCase(
+                RandomSamplerAggregatorTests::writeTestDocs,
                 new AggTestConfig(
                     new RandomSamplerAggregationBuilder("my_agg").subAggregation(AggregationBuilders.avg("avg").field(NUMERIC_FIELD_NAME))
                         .setProbability(0.25),
+                    r -> {
+                        InternalRandomSampler result = (InternalRandomSampler) r;
+                        counts[integer.get()] = result.getDocCount();
+                        if (result.getDocCount() > 0) {
+                            Avg agg = result.getAggregations().get("avg");
+                            assertThat(Strings.toString(result), agg.getValue(), allOf(not(notANumber()), IsFinite.isFinite()));
+                            avgs[integer.get()] = agg.getValue();
+                        }
+                    },
                     longField(NUMERIC_FIELD_NAME)
                 )
             );
@@ -82,26 +84,8 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         // in case the test index has many segments.
         // subaggs should be scaled along with upper level aggs
         // sampled doc count is NOT scaled, and thus should be lower
-        testCase(RandomSamplerAggregatorTests::writeTestDocs, r -> {
-                InternalRandomSampler result = (InternalRandomSampler) r;
-                long sampledDocCount = result.getDocCount();
-            Filter agg = result.getAggregations().get("filter_outer");
-            long outerFilterDocCount = agg.getDocCount();
-            Filter innerAgg = agg.getAggregations().get("filter_inner");
-            long innerFilterDocCount = innerAgg.getDocCount();
-            if (sampledDocCount == 0) {
-                // in case 0 docs get sampled, which can rarely happen
-                // in case the test index has many segments.
-                assertThat(sampledDocCount, equalTo(0L));
-                assertThat(innerFilterDocCount, equalTo(0L));
-                assertThat(outerFilterDocCount, equalTo(0L));
-            } else {
-                // subaggs should be scaled along with upper level aggs
-                assertThat(outerFilterDocCount, equalTo(innerFilterDocCount));
-                // sampled doc count is NOT scaled, and thus should be lower
-                assertThat(outerFilterDocCount, greaterThan(sampledDocCount));
-            }
-        },
+        testCase(
+            RandomSamplerAggregatorTests::writeTestDocs,
             new AggTestConfig(
                 new RandomSamplerAggregationBuilder("my_agg").subAggregation(
                     AggregationBuilders.filter("filter_outer", QueryBuilders.termsQuery(KEYWORD_FIELD_NAME, KEYWORD_FIELD_VALUE))
@@ -109,6 +93,26 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                             AggregationBuilders.filter("filter_inner", QueryBuilders.termsQuery(KEYWORD_FIELD_NAME, KEYWORD_FIELD_VALUE))
                         )
                 ).setProbability(0.25),
+                r -> {
+                    InternalRandomSampler result = (InternalRandomSampler) r;
+                    long sampledDocCount = result.getDocCount();
+                    Filter agg = result.getAggregations().get("filter_outer");
+                    long outerFilterDocCount = agg.getDocCount();
+                    Filter innerAgg = agg.getAggregations().get("filter_inner");
+                    long innerFilterDocCount = innerAgg.getDocCount();
+                    if (sampledDocCount == 0) {
+                        // in case 0 docs get sampled, which can rarely happen
+                        // in case the test index has many segments.
+                        assertThat(sampledDocCount, equalTo(0L));
+                        assertThat(innerFilterDocCount, equalTo(0L));
+                        assertThat(outerFilterDocCount, equalTo(0L));
+                    } else {
+                        // subaggs should be scaled along with upper level aggs
+                        assertThat(outerFilterDocCount, equalTo(innerFilterDocCount));
+                        // sampled doc count is NOT scaled, and thus should be lower
+                        assertThat(outerFilterDocCount, greaterThan(sampledDocCount));
+                    }
+                },
                 longField(NUMERIC_FIELD_NAME),
                 keywordField(KEYWORD_FIELD_NAME)
             )
@@ -116,17 +120,19 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
     }
 
     public void testAggregationSamplingOptimizedMinAndMax() throws IOException {
-        testCase(RandomSamplerAggregatorTests::writeTestDocsWithTrueMinMax, r -> {
-                InternalRandomSampler result = (InternalRandomSampler) r;
-            Min min = result.getAggregations().get("min");
-            Max max = result.getAggregations().get("max");
-            assertThat(min.value(), equalTo((double) TRUE_MIN));
-            assertThat(max.value(), equalTo((double) TRUE_MAX));
-        },
+        testCase(
+            RandomSamplerAggregatorTests::writeTestDocsWithTrueMinMax,
             new AggTestConfig(
                 new RandomSamplerAggregationBuilder("my_agg").subAggregation(
                     AggregationBuilders.max("max").field(RANDOM_NUMERIC_FIELD_NAME)
                 ).subAggregation(AggregationBuilders.min("min").field(RANDOM_NUMERIC_FIELD_NAME)).setProbability(0.25),
+                r -> {
+                    InternalRandomSampler result = (InternalRandomSampler) r;
+                    Min min = result.getAggregations().get("min");
+                    Max max = result.getAggregations().get("max");
+                    assertThat(min.value(), equalTo((double) TRUE_MIN));
+                    assertThat(max.value(), equalTo((double) TRUE_MAX));
+                },
                 longField(RANDOM_NUMERIC_FIELD_NAME)
             )
         );

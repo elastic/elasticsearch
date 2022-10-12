@@ -384,8 +384,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         testCase(
             buildIndex,
-            agg -> verify.accept((InternalValueCount) agg),
-            new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query)
+            new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalValueCount) agg), fieldTypes).withQuery(query)
         );
     }
 

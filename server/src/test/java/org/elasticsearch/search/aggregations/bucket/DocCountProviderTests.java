@@ -86,8 +86,7 @@ public class DocCountProviderTests extends AggregatorTestCase {
         MappedFieldType docCountFieldType = new DocCountFieldMapper.DocCountFieldType();
         testCase(
             indexer,
-            agg -> verify.accept((InternalFilter) agg),
-            new AggTestConfig(builder, fieldType, docCountFieldType).withQuery(query)
+            new AggTestConfig(builder, agg -> verify.accept((InternalFilter) agg), fieldType, docCountFieldType).withQuery(query)
         );
     }
 }

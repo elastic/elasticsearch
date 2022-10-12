@@ -60,29 +60,26 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
     private static final String NUMERIC_FIELD_NAME = "value";
 
     public void testCategorizationWithoutSubAggs() throws Exception {
-        testCase(CategorizeTextAggregatorTests::writeTestDocs, agg -> {
-            InternalCategorizationAggregation result = (InternalCategorizationAggregation) agg;
-            assertThat(result.getBuckets(), hasSize(2));
-            assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
-            assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
-            assertThat(result.getBuckets().get(0).getSerializableCategory().maxMatchingStringLen(), equalTo(15));
-            assertThat(result.getBuckets().get(0).getSerializableCategory().getRegex(), equalTo(".*?Node.+?started.*?"));
-            assertThat(result.getBuckets().get(1).getDocCount(), equalTo(2L));
-            assertThat(
-                result.getBuckets().get(1).getKeyAsString(),
-                equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
-            );
-            assertThat(result.getBuckets().get(1).getSerializableCategory().maxMatchingStringLen(), equalTo(84));
-            assertThat(
-                result.getBuckets().get(1).getSerializableCategory().getRegex(),
-                equalTo(".*?Failed.+?to.+?shutdown.+?error.+?org\\.aaaa\\.bbbb\\.Cccc.+?line.+?caused.+?by.+?foo.+?exception.*?")
-            );
-        },
-            new AggTestConfig(
-                new CategorizeTextAggregationBuilder("my_agg", TEXT_FIELD_NAME),
-                new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME),
-                longField(NUMERIC_FIELD_NAME)
-            )
+        testCase(
+            CategorizeTextAggregatorTests::writeTestDocs,
+            new AggTestConfig(new CategorizeTextAggregationBuilder("my_agg", TEXT_FIELD_NAME), agg -> {
+                InternalCategorizationAggregation result = (InternalCategorizationAggregation) agg;
+                assertThat(result.getBuckets(), hasSize(2));
+                assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
+                assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("Node started"));
+                assertThat(result.getBuckets().get(0).getSerializableCategory().maxMatchingStringLen(), equalTo(15));
+                assertThat(result.getBuckets().get(0).getSerializableCategory().getRegex(), equalTo(".*?Node.+?started.*?"));
+                assertThat(result.getBuckets().get(1).getDocCount(), equalTo(2L));
+                assertThat(
+                    result.getBuckets().get(1).getKeyAsString(),
+                    equalTo("Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception")
+                );
+                assertThat(result.getBuckets().get(1).getSerializableCategory().maxMatchingStringLen(), equalTo(84));
+                assertThat(
+                    result.getBuckets().get(1).getSerializableCategory().getRegex(),
+                    equalTo(".*?Failed.+?to.+?shutdown.+?error.+?org\\.aaaa\\.bbbb\\.Cccc.+?line.+?caused.+?by.+?foo.+?exception.*?")
+                );
+            }, new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME), longField(NUMERIC_FIELD_NAME))
         );
     }
 
@@ -92,7 +89,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
         )
             .subAggregation(new AvgAggregationBuilder("avg").field(NUMERIC_FIELD_NAME))
             .subAggregation(new MinAggregationBuilder("min").field(NUMERIC_FIELD_NAME));
-        testCase(CategorizeTextAggregatorTests::writeTestDocs, agg -> {
+        testCase(CategorizeTextAggregatorTests::writeTestDocs, new AggTestConfig(aggBuilder, agg -> {
             InternalCategorizationAggregation result = (InternalCategorizationAggregation) agg;
             assertThat(result.getBuckets(), hasSize(2));
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
@@ -116,7 +113,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(((Max) result.getBuckets().get(1).getAggregations().get("max")).value(), equalTo(4.0));
             assertThat(((Min) result.getBuckets().get(1).getAggregations().get("min")).value(), equalTo(0.0));
             assertThat(((Avg) result.getBuckets().get(1).getAggregations().get("avg")).getValue(), equalTo(2.0));
-        }, new AggTestConfig(aggBuilder, new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME), longField(NUMERIC_FIELD_NAME)));
+        }, new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME), longField(NUMERIC_FIELD_NAME)));
     }
 
     public void testCategorizationWithMultiBucketSubAggs() throws Exception {
@@ -127,7 +124,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                 .subAggregation(new AvgAggregationBuilder("avg").field(NUMERIC_FIELD_NAME))
                 .subAggregation(new MinAggregationBuilder("min").field(NUMERIC_FIELD_NAME))
         );
-        testCase(CategorizeTextAggregatorTests::writeTestDocs, agg -> {
+        testCase(CategorizeTextAggregatorTests::writeTestDocs, new AggTestConfig(aggBuilder, agg -> {
             InternalCategorizationAggregation result = (InternalCategorizationAggregation) agg;
             assertThat(result.getBuckets(), hasSize(2));
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(6L));
@@ -166,7 +163,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(histo.getBuckets().get(2).getDocCount(), equalTo(1L));
             assertThat(((Avg) histo.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(0.0));
             assertThat(((Avg) histo.getBuckets().get(2).getAggregations().get("avg")).getValue(), equalTo(4.0));
-        }, new AggTestConfig(aggBuilder, new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME), longField(NUMERIC_FIELD_NAME)));
+        }, new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME), longField(NUMERIC_FIELD_NAME)));
     }
 
     public void testCategorizationAsSubAgg() throws Exception {
@@ -179,10 +176,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                     .subAggregation(new AvgAggregationBuilder("avg").field(NUMERIC_FIELD_NAME))
                     .subAggregation(new MinAggregationBuilder("min").field(NUMERIC_FIELD_NAME))
             );
-        // First histo bucket
-        // Second histo bucket
-        // Third histo bucket
-        testCase(CategorizeTextAggregatorTests::writeTestDocs, agg -> {
+        testCase(CategorizeTextAggregatorTests::writeTestDocs, new AggTestConfig(aggBuilder, agg -> {
             InternalHistogram result = (InternalHistogram) agg;
             assertThat(result.getBuckets(), hasSize(3));
 
@@ -249,7 +243,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(((Max) categorizationAggregation.getBuckets().get(1).getAggregations().get("max")).value(), equalTo(4.0));
             assertThat(((Min) categorizationAggregation.getBuckets().get(1).getAggregations().get("min")).value(), equalTo(4.0));
             assertThat(((Avg) categorizationAggregation.getBuckets().get(1).getAggregations().get("avg")).getValue(), equalTo(4.0));
-        }, new AggTestConfig(aggBuilder, new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME), longField(NUMERIC_FIELD_NAME)));
+        }, new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME), longField(NUMERIC_FIELD_NAME)));
     }
 
     public void testCategorizationWithSubAggsManyDocs() throws Exception {
@@ -260,7 +254,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
                 .subAggregation(new AvgAggregationBuilder("avg").field(NUMERIC_FIELD_NAME))
                 .subAggregation(new MinAggregationBuilder("min").field(NUMERIC_FIELD_NAME))
         );
-        testCase(CategorizeTextAggregatorTests::writeManyTestDocs, agg -> {
+        testCase(CategorizeTextAggregatorTests::writeManyTestDocs, new AggTestConfig(aggBuilder, agg -> {
             InternalCategorizationAggregation result = (InternalCategorizationAggregation) agg;
             assertThat(result.getBuckets(), hasSize(2));
             assertThat(result.getBuckets().get(0).getDocCount(), equalTo(30000L));
@@ -299,7 +293,7 @@ public class CategorizeTextAggregatorTests extends AggregatorTestCase {
             assertThat(histo.getBuckets().get(2).getDocCount(), equalTo(5000L));
             assertThat(((Avg) histo.getBuckets().get(0).getAggregations().get("avg")).getValue(), equalTo(0.0));
             assertThat(((Avg) histo.getBuckets().get(2).getAggregations().get("avg")).getValue(), equalTo(4.0));
-        }, new AggTestConfig(aggBuilder, new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME), longField(NUMERIC_FIELD_NAME)));
+        }, new TextFieldMapper.TextFieldType(TEXT_FIELD_NAME), longField(NUMERIC_FIELD_NAME)));
     }
 
     private static void writeTestDocs(RandomIndexWriter w) throws IOException {

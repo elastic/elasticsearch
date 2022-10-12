@@ -737,7 +737,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
                 id++;
             }
-        }, agg -> {
+        }, new AggTestConfig(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), agg -> {
             InternalComposite result = (InternalComposite) agg;
             assertEquals(3, result.getBuckets().size());
             assertEquals("{keyword=d}", result.afterKey().toString());
@@ -747,7 +747,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, new AggTestConfig(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), FIELD_TYPES));
+        }, FIELD_TYPES));
     }
 
     /**
@@ -784,7 +784,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             sequenceIDFields.addFields(root);
             documents.add(root);
             iw.addDocuments(documents);
-        }, agg -> {
+        }, new AggTestConfig(builder, agg -> {
             InternalSingleBucketAggregation parent = (InternalSingleBucketAggregation) agg;
             assertEquals(1, parent.getAggregations().asList().size());
             InternalComposite result = (InternalComposite) parent.getProperty("compositeAggName");
@@ -797,12 +797,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals("{keyword=Stationary}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
         },
-            new AggTestConfig(
-                builder,
-                new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
-                new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-            )
-        );
+            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+        ));
     }
 
     /**
@@ -821,8 +818,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 createAfterKey("keyword", "Pens and Stuff")
             )
         );
-        // Sub-Docs
-        // Root docs
         testCase(iw -> {
             // Sub-Docs
             List<Iterable<IndexableField>> documents = new ArrayList<>();
@@ -844,21 +839,18 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             sequenceIDFields.addFields(root);
             documents.add(root);
             iw.addDocuments(documents);
-        }, agg -> {
-                InternalSingleBucketAggregation parent = (InternalSingleBucketAggregation) agg;
-                assertEquals(1, parent.getAggregations().asList().size());
+        }, new AggTestConfig(builder, agg -> {
+            InternalSingleBucketAggregation parent = (InternalSingleBucketAggregation) agg;
+            assertEquals(1, parent.getAggregations().asList().size());
             InternalComposite result = (InternalComposite) parent.getProperty("compositeAggName");
             assertEquals(1, result.getBuckets().size());
             assertEquals("{keyword=Stationary}", result.afterKey().toString());
             assertEquals("{keyword=Stationary}", result.getBuckets().get(0).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(0).getDocCount());
         },
-            new AggTestConfig(
-                builder,
-                new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
-                new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-            )
-        );
+            new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
+            new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
+        ));
     }
 
     public void testWithKeywordAndMissingBucket() throws Exception {

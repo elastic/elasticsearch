@@ -393,8 +393,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         testCase(
             buildIndex,
-            agg -> verify.accept((InternalStringStats) agg),
-            new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query)
+            new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalStringStats) agg), fieldTypes).withQuery(query)
         );
     }
 

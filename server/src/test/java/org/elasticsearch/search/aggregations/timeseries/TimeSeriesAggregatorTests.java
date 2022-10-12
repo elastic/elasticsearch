@@ -111,7 +111,7 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
         newFieldTypes[1] = new DateFieldMapper.DateFieldType("@timestamp");
         System.arraycopy(fieldTypes, 0, newFieldTypes, 2, fieldTypes.length);
 
-        testCase(buildIndex, agg -> verify.accept((InternalTimeSeries) agg), new AggTestConfig(builder, newFieldTypes).withQuery(query));
+        testCase(buildIndex, new AggTestConfig(builder, agg -> verify.accept((InternalTimeSeries) agg), newFieldTypes).withQuery(query));
     }
 
 }

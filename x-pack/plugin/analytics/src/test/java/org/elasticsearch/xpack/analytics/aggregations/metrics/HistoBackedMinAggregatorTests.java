@@ -112,8 +112,7 @@ public class HistoBackedMinAggregatorTests extends AggregatorTestCase {
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Min> verify) throws IOException {
         testCase(
             indexer,
-            agg -> verify.accept((Min) agg),
-            new AggTestConfig(min("_name").field(FIELD_NAME), defaultFieldType()).withQuery(query)
+            new AggTestConfig(min("_name").field(FIELD_NAME), agg -> verify.accept((Min) agg), defaultFieldType()).withQuery(query)
         );
     }
 

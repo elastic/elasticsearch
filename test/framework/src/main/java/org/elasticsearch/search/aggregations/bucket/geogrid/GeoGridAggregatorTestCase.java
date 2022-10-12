@@ -238,7 +238,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 fields.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
                 iw.addDocument(fields);
             }
-        }, terms -> {
+        }, new AggTestConfig(aggregationBuilder, terms -> {
             Map<String, Map<String, Long>> actual = new TreeMap<>();
             for (StringTerms.Bucket tb : ((StringTerms) terms).getBuckets()) {
                 InternalGeoGrid<?> gg = tb.getAggregations().get("gg");
@@ -249,7 +249,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 actual.put(tb.getKeyAsString(), sub);
             }
             assertThat(actual, equalTo(expectedCountPerTPerGeoHash));
-        }, new AggTestConfig(aggregationBuilder, keywordField("t"), geoPointField(FIELD_NAME)));
+        }, keywordField("t"), geoPointField(FIELD_NAME)));
     }
 
     private double[] randomLatLng() {
@@ -328,8 +328,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType(aggregationBuilder.field());
         testCase(
             buildIndex,
-            agg -> verify.accept((InternalGeoGrid<T>) agg),
-            new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
+            new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalGeoGrid<T>) agg), fieldType).withQuery(query)
         );
     }
 

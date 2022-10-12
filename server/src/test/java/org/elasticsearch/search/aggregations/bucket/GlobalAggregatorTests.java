@@ -65,10 +65,10 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_global").field("number"));
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
 
-        testCase(buildIndex, agg -> {
+        testCase(buildIndex, new AggTestConfig(aggregationBuilder, agg -> {
             InternalGlobal result = (InternalGlobal) agg;
             Min min = result.getAggregations().get("in_global");
             verify.accept(result, min);
-        }, new AggTestConfig(aggregationBuilder, fieldType).withQuery(topLevelQuery));
+        }, fieldType).withQuery(topLevelQuery));
     }
 }

@@ -196,7 +196,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 List.of(new NumericDocValuesField(DATE_FIELD_NAME, Long.MAX_VALUE), new LongPoint(DATE_FIELD_NAME, Long.MAX_VALUE))
             );
-        }, result -> {
+        }, new AggTestConfig(new RangeAggregationBuilder("name").field(DATE_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5), result -> {
             InternalRange<?, ?> range = (InternalRange<?, ?>) result;
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertThat(ranges, hasSize(2));
@@ -208,21 +208,18 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             assertThat(ranges.get(1).getDocCount(), equalTo(2L));
             assertTrue(AggregationInspectionHelper.hasValue(range));
         },
-            new AggTestConfig(
-                new RangeAggregationBuilder("name").field(DATE_FIELD_NAME).addUnboundedTo(5).addUnboundedFrom(5),
-                new DateFieldMapper.DateFieldType(
-                    DATE_FIELD_NAME,
-                    randomBoolean(),
-                    randomBoolean(),
-                    true,
-                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-                    Resolution.MILLISECONDS,
-                    null,
-                    null,
-                    emptyMap()
-                )
+            new DateFieldMapper.DateFieldType(
+                DATE_FIELD_NAME,
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                Resolution.MILLISECONDS,
+                null,
+                null,
+                emptyMap()
             )
-        );
+        ));
     }
 
     public void testNumberFieldDateRanges() throws IOException {
@@ -283,13 +280,13 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             testCase(iw -> {
                 iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 7)));
                 iw.addDocument(singleton(new NumericDocValuesField(NUMBER_FIELD_NAME, 1)));
-            }, agg -> {
+            }, new AggTestConfig(aggregationBuilder, agg -> {
                 InternalDateRange range = (InternalDateRange) agg;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();
                 assertEquals(1, ranges.size());
                 assertEquals(0, ranges.get(0).getDocCount());
                 assertFalse(AggregationInspectionHelper.hasValue(range));
-            }, new AggTestConfig(aggregationBuilder));
+            }));
         }
     }
 
@@ -385,7 +382,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             for (List<Instant> values : DATE_FIELD_VALUES) {
                 iw.addDocument(List.of(new SortedNumericDocValuesField(DATE_FIELD_NAME, values.get(0).toEpochMilli())));
             }
-        }, agg -> {
+        }, new AggTestConfig(aggregationBuilder, agg -> {
             InternalDateRange range = (InternalDateRange) agg;
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertThat(ranges, hasSize(3));
@@ -419,7 +416,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getToAsString(), nullValue());
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
-        }, new AggTestConfig(aggregationBuilder, new DateFieldMapper.DateFieldType(DATE_FIELD_NAME)));
+        }, new DateFieldMapper.DateFieldType(DATE_FIELD_NAME)));
     }
 
     public void testValueScriptMultiValuedField() throws IOException {
@@ -435,7 +432,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                     values.stream().map(value -> new SortedNumericDocValuesField(DATE_FIELD_NAME, value.toEpochMilli())).toList()
                 );
             }
-        }, agg -> {
+        }, new AggTestConfig(aggregationBuilder, agg -> {
             InternalDateRange range = (InternalDateRange) agg;
             List<? extends InternalRange.Bucket> ranges = range.getBuckets();
             assertThat(ranges, hasSize(3));
@@ -469,7 +466,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getToAsString(), nullValue());
                 assertThat(bucket.getDocCount(), equalTo(3L));
             }
-        }, new AggTestConfig(aggregationBuilder, new DateFieldMapper.DateFieldType(DATE_FIELD_NAME)));
+        }, new DateFieldMapper.DateFieldType(DATE_FIELD_NAME)));
     }
 
     private void testBothResolutions(

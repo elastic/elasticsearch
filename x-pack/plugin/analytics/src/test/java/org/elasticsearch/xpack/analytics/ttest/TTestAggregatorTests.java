@@ -209,7 +209,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("field", 102)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("field", 99)));
-        }, tTest -> fail("Should have thrown exception"), new AggTestConfig(aggregationBuilder, fieldType)));
+        }, new AggTestConfig(aggregationBuilder, tTest -> fail("Should have thrown exception"), fieldType)));
         assertEquals("The same field [field] is used for both population but no filters are specified.", ex.getMessage());
     }
 
@@ -272,7 +272,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         testCase(iw -> {
             iw.addDocument(asList(new NumericDocValuesField("a", 102), new NumericDocValuesField("b", 89)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 93)));
-        }, agg -> {
+        }, new AggTestConfig(aggregationBuilder, agg -> {
             InternalTTest tTest = (InternalTTest) agg;
             if (missA && missB) {
                 assertEquals(Double.NaN, tTest.getValue(), 0);
@@ -293,7 +293,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                     }
                 }
             }
-        }, new AggTestConfig(aggregationBuilder, fieldType1, fieldType2));
+        }, fieldType1, fieldType2));
     }
 
     public void testUnsupportedType() {
@@ -325,7 +325,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                 )
             );
             iw.addDocument(asList(new SortedNumericDocValuesField("a", 99), new SortedNumericDocValuesField("b", 93)));
-        }, tTest -> fail("Should have thrown exception"), new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)));
+        }, new AggTestConfig(aggregationBuilder, tTest -> fail("Should have thrown exception"), fieldType1, fieldType2)));
         assertEquals("Expected numeric type on field [" + (wrongA ? "a" : "b") + "], but got [keyword]", ex.getMessage());
     }
 
@@ -348,7 +348,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         NumberFormatException ex = expectThrows(NumberFormatException.class, () -> testCase(iw -> {
             iw.addDocument(asList(new SortedNumericDocValuesField("a", 102), new SortedNumericDocValuesField("b", 89)));
             iw.addDocument(asList(new SortedNumericDocValuesField("a", 99), new SortedNumericDocValuesField("b", 93)));
-        }, tTest -> fail("Should have thrown exception"), new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)));
+        }, new AggTestConfig(aggregationBuilder, tTest -> fail("Should have thrown exception"), fieldType1, fieldType2)));
         assertEquals("For input string: \"bad_number\"", ex.getMessage());
     }
 
@@ -376,7 +376,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         NumberFormatException ex = expectThrows(NumberFormatException.class, () -> testCase(iw -> {
             iw.addDocument(asList(new SortedNumericDocValuesField("a", 102), new SortedNumericDocValuesField("b", 89)));
             iw.addDocument(asList(new SortedNumericDocValuesField("a", 99), new SortedNumericDocValuesField("b", 93)));
-        }, tTest -> fail("Should have thrown exception"), new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)));
+        }, new AggTestConfig(aggregationBuilder, tTest -> fail("Should have thrown exception"), fieldType1, fieldType2)));
         assertEquals("For input string: \"bad_number\"", ex.getMessage());
     }
 
@@ -413,7 +413,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(
                 asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 98), new NumericDocValuesField("part", 21))
             );
-        }, agg -> {
+        }, new AggTestConfig(histogram, agg -> {
             InternalHistogram histo = (InternalHistogram) agg;
             assertEquals(3, histo.getBuckets().size());
             assertNotNull(histo.getBuckets().get(0).getAggregations().asMap().get("t_test"));
@@ -436,7 +436,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                 0.000001
             );
 
-        }, new AggTestConfig(histogram, fieldType1, fieldType2, fieldTypePart));
+        }, fieldType1, fieldType2, fieldTypePart));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54365")
@@ -452,7 +452,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 102), new NumericDocValuesField("b", 89)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 93)));
             iw.addDocument(asList(new NumericDocValuesField("a", 111), new NumericDocValuesField("b", 72)));
-        }, agg -> {
+        }, new AggTestConfig(aggregationBuilder, agg -> {
             InternalTTest tTest = (InternalTTest) agg;
             assertEquals(
                 tTestType == TTestType.PAIRED ? 0.1939778614 : tTestType == TTestType.HOMOSCEDASTIC ? 0.05878871029 : 0.07529006595,
@@ -463,7 +463,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                 tTestType == TTestType.PAIRED ? "19.40%" : tTestType == TTestType.HOMOSCEDASTIC ? "5.88%" : "7.53%",
                 tTest.getValueAsString()
             );
-        }, new AggTestConfig(aggregationBuilder, fieldType1, fieldType2));
+        }, fieldType1, fieldType2));
     }
 
     public void testGetProperty() throws IOException {
@@ -479,7 +479,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 102), new NumericDocValuesField("b", 89)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 93)));
             iw.addDocument(asList(new NumericDocValuesField("a", 111), new NumericDocValuesField("b", 72)));
-        }, agg -> {
+        }, new AggTestConfig(globalBuilder, agg -> {
             InternalGlobal global = (InternalGlobal) agg;
             assertEquals(3, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
@@ -487,7 +487,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             InternalTTest tTest = (InternalTTest) global.getAggregations().asMap().get("t_test");
             assertEquals(tTest, global.getProperty("t_test"));
             assertEquals(0.1939778614, (Double) global.getProperty("t_test.value"), 0.000001);
-        }, new AggTestConfig(globalBuilder, fieldType1, fieldType2));
+        }, fieldType1, fieldType2));
     }
 
     public void testScript() throws IOException {
@@ -509,8 +509,11 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("field", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("field", 3)));
         },
-            tTest -> assertEquals(tTestType == TTestType.PAIRED ? 0 : 0.5733922538, ((InternalTTest) tTest).getValue(), 0.000001),
-            new AggTestConfig(aggregationBuilder, fieldType)
+            new AggTestConfig(
+                aggregationBuilder,
+                tTest -> assertEquals(tTestType == TTestType.PAIRED ? 0 : 0.5733922538, ((InternalTTest) tTest).getValue(), 0.000001),
+                fieldType
+            )
         );
     }
 
@@ -532,8 +535,12 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 101), new NumericDocValuesField("b", 102)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 98)));
         },
-            ttest -> assertEquals(0.09571844217 * tails, ((InternalTTest) ttest).getValue(), 0.00001),
-            new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)
+            new AggTestConfig(
+                aggregationBuilder,
+                ttest -> assertEquals(0.09571844217 * tails, ((InternalTTest) ttest).getValue(), 0.00001),
+                fieldType1,
+                fieldType2
+            )
         );
     }
 
@@ -555,8 +562,12 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 101), new NumericDocValuesField("b", 102)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 98)));
         },
-            ttest -> assertEquals(0.03928288693 * tails, ((InternalTTest) ttest).getValue(), 0.00001),
-            new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)
+            new AggTestConfig(
+                aggregationBuilder,
+                ttest -> assertEquals(0.03928288693 * tails, ((InternalTTest) ttest).getValue(), 0.00001),
+                fieldType1,
+                fieldType2
+            )
         );
     }
 
@@ -581,8 +592,12 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("a", 101), new NumericDocValuesField("b", 102)));
             iw.addDocument(asList(new NumericDocValuesField("a", 99), new NumericDocValuesField("b", 98)));
         },
-            ttest -> assertEquals(0.04538666214 * tails, ((InternalTTest) ttest).getValue(), 0.00001),
-            new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)
+            new AggTestConfig(
+                aggregationBuilder,
+                ttest -> assertEquals(0.04538666214 * tails, ((InternalTTest) ttest).getValue(), 0.00001),
+                fieldType1,
+                fieldType2
+            )
         );
     }
 
@@ -626,20 +641,19 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                 IllegalArgumentException.class,
                 () -> testCase(
                     buildIndex,
-                    tTest -> fail("Should have thrown exception"),
-                    new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)
+                    new AggTestConfig(aggregationBuilder, tTest -> fail("Should have thrown exception"), fieldType1, fieldType2)
                 )
             );
             assertEquals("Paired t-test doesn't support filters", ex.getMessage());
         } else {
-            testCase(buildIndex, agg -> {
+            testCase(buildIndex, new AggTestConfig(aggregationBuilder, agg -> {
                 InternalTTest ttest = (InternalTTest) agg;
                 if (tTestType == TTestType.HOMOSCEDASTIC) {
                     assertEquals(0.03928288693 * tails, ttest.getValue(), 0.00001);
                 } else {
                     assertEquals(0.04538666214 * tails, ttest.getValue(), 0.00001);
                 }
-            }, new AggTestConfig(aggregationBuilder, fieldType1, fieldType2));
+            }, fieldType1, fieldType2));
         }
     }
 
@@ -671,8 +685,12 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             iw.addDocument(asList(new NumericDocValuesField("field", 5), new IntPoint("term", 2), new NumericDocValuesField("term", 2)));
             iw.addDocument(asList(new NumericDocValuesField("field", 6), new IntPoint("term", 2), new NumericDocValuesField("term", 2)));
         },
-            tTest -> assertEquals(0.02131164113, ((InternalTTest) tTest).getValue(), 0.000001),
-            new AggTestConfig(aggregationBuilder, fieldType1, fieldType2)
+            new AggTestConfig(
+                aggregationBuilder,
+                tTest -> assertEquals(0.02131164113, ((InternalTTest) tTest).getValue(), 0.000001),
+                fieldType1,
+                fieldType2
+            )
         );
     }
 
@@ -693,8 +711,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         }
         testCase(
             buildIndex,
-            agg -> verify.accept((InternalTTest) agg),
-            new AggTestConfig(aggregationBuilder, fieldType1, fieldType2).withQuery(query)
+            new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalTTest) agg), fieldType1, fieldType2).withQuery(query)
         );
     }
 

@@ -467,8 +467,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
         };
         testCase(
             buildIndex,
-            verify,
-            new AggTestConfig(request, rangeField("outer", RangeType.LONG), rangeField("inner", RangeType.LONG), longField("n"))
+            new AggTestConfig(request, verify, rangeField("outer", RangeType.LONG), rangeField("inner", RangeType.LONG), longField("n"))
         );
     }
 }

@@ -454,8 +454,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
      * in order to mak sure the implementation does not leak.
      */
-    protected <A extends InternalAggregation> A searchAndReduce(IndexSearcher searcher, AggTestConfig aggTestConfig)
-        throws IOException {
+    protected <A extends InternalAggregation> A searchAndReduce(IndexSearcher searcher, AggTestConfig aggTestConfig) throws IOException {
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
@@ -646,11 +645,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
 
-    protected <V extends InternalAggregation> void testCase(
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalAggregation> verify,
-        AggTestConfig aggTestConfig
-    ) throws IOException {
+    protected void testCase(CheckedConsumer<RandomIndexWriter, IOException> buildIndex, AggTestConfig aggTestConfig) throws IOException {
         boolean timeSeries = aggTestConfig.requireSortedIndex();
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
@@ -669,7 +664,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 InternalAggregation agg = searchAndReduce(indexSearcher, aggTestConfig);
-                verify.accept(agg);
+                aggTestConfig.verifiers().get(0).accept(agg);
 
                 if (aggTestConfig.builders().size() == 1) {
                     verifyOutputFieldNames(aggTestConfig.builders().get(0), agg);
@@ -1527,6 +1522,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     public record AggTestConfig(
         Query query,
         List<AggregationBuilder> builders,
+        List<Consumer<InternalAggregation>> verifiers,
         int maxBuckets,
         boolean splitLeavesIntoSeparateAggregators,
         boolean shouldBeCached,
@@ -1538,6 +1534,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
             this(
                 new MatchAllDocsQuery(),
                 List.of(builder),
+                List.of(agg -> {}),
+                DEFAULT_MAX_BUCKETS,
+                randomBoolean(),
+                true,
+                builder.isInSortOrderExecutionRequired(),
+                fieldTypes
+            );
+        }
+
+        public AggTestConfig(AggregationBuilder builder, Consumer<InternalAggregation> verify, MappedFieldType... fieldTypes) {
+            this(
+                new MatchAllDocsQuery(),
+                List.of(builder),
+                List.of(verify),
                 DEFAULT_MAX_BUCKETS,
                 randomBoolean(),
                 true,
@@ -1550,6 +1560,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return new AggTestConfig(
                 query,
                 builders,
+                verifiers,
                 maxBuckets,
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
@@ -1562,6 +1573,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return new AggTestConfig(
                 query,
                 builders,
+                verifiers,
                 maxBuckets,
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
@@ -1574,6 +1586,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return new AggTestConfig(
                 query,
                 builders,
+                verifiers,
                 maxBuckets,
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,
@@ -1586,6 +1599,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return new AggTestConfig(
                 query,
                 builders,
+                verifiers,
                 maxBuckets,
                 splitLeavesIntoSeparateAggregators,
                 shouldBeCached,

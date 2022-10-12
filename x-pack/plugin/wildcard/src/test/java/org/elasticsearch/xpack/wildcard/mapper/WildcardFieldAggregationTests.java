@@ -81,7 +81,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             indexStrings(iw, "b");
             indexStrings(iw, "b");
             indexStrings(iw, "c");
-        }, agg -> {
+        }, new AggTestConfig(aggregationBuilder, agg -> {
             StringTerms result = (StringTerms) agg;
             assertTrue(AggregationInspectionHelper.hasValue(result));
 
@@ -92,7 +92,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             assertEquals(3L, result.getBuckets().get(1).getDocCount());
             assertEquals("c", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, new AggTestConfig(aggregationBuilder, wildcardFieldType));
+        }, wildcardFieldType));
     }
 
     public void testCompositeTermsAggregation() throws IOException {
@@ -107,7 +107,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             indexStrings(iw, "a");
             indexStrings(iw, "d");
             indexStrings(iw, "c");
-        }, agg -> {
+        }, new AggTestConfig(aggregationBuilder, agg -> {
             InternalComposite result = (InternalComposite) agg;
             assertTrue(AggregationInspectionHelper.hasValue(result));
 
@@ -119,7 +119,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{terms_key=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, new AggTestConfig(aggregationBuilder, wildcardFieldType));
+        }, wildcardFieldType));
     }
 
     public void testCompositeTermsSearchAfter() throws IOException {
@@ -134,7 +134,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             indexStrings(iw, "a");
             indexStrings(iw, "d");
             indexStrings(iw, "c");
-        }, agg -> {
+        }, new AggTestConfig(aggregationBuilder, agg -> {
             InternalComposite result = (InternalComposite) agg;
             assertEquals(2, result.getBuckets().size());
             assertEquals("{terms_key=d}", result.afterKey().toString());
@@ -142,6 +142,6 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(0).getDocCount());
             assertEquals("{terms_key=d}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(1).getDocCount());
-        }, new AggTestConfig(aggregationBuilder, wildcardFieldType));
+        }, wildcardFieldType));
     }
 }

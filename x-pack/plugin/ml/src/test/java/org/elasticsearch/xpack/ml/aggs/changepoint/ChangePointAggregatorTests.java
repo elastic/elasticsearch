@@ -207,11 +207,11 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
                     .subAggregation(AggregationBuilders.max("max").field(NUMERIC_FIELD_NAME))
             )
             .subAggregation(new ChangePointAggregationBuilder("changes", "time>max"));
-        testCase(w -> writeTestDocs(w, bucketValues), r -> {
+        testCase(w -> writeTestDocs(w, bucketValues), new AggTestConfig(dummy, r -> {
             InternalFilter result = (InternalFilter) r;
             InternalChangePointAggregation agg = result.getAggregations().get("changes");
             changeTypeAssertions.accept(agg.getChangeType());
-        }, new AggTestConfig(dummy, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME)));
+        }, longField(TIME_FIELD_NAME), doubleField(NUMERIC_FIELD_NAME)));
     }
 
     private static void writeTestDocs(RandomIndexWriter w, double[] bucketValues) throws IOException {

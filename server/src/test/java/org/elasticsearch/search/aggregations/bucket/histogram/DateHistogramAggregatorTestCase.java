@@ -104,7 +104,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         KeywordFieldMapper.KeywordFieldType k2ft = new KeywordFieldMapper.KeywordFieldType("k2");
         NumberFieldMapper.NumberFieldType nft = new NumberFieldMapper.NumberFieldType("n", NumberType.LONG);
         DateFieldMapper.DateFieldType dft = aggregableDateFieldType(false, randomBoolean());
-        testCase(iw -> buildIndex.accept(iw, dft), agg -> verify.accept((R) agg), new AggTestConfig(builder, k1ft, k2ft, nft, dft));
+        testCase(iw -> buildIndex.accept(iw, dft), new AggTestConfig(builder, agg -> verify.accept((R) agg), k1ft, k2ft, nft, dft));
     }
 
     protected final DateFieldMapper.DateFieldType aggregableDateFieldType(boolean useNanosecondResolution, boolean isSearchable) {

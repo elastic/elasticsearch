@@ -112,8 +112,7 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Sum> verify) throws IOException {
         testCase(
             indexer,
-            agg -> verify.accept((Sum) agg),
-            new AggTestConfig(sum("_name").field(FIELD_NAME), defaultFieldType()).withQuery(query)
+            new AggTestConfig(sum("_name").field(FIELD_NAME), agg -> verify.accept((Sum) agg), defaultFieldType()).withQuery(query)
         );
     }
 

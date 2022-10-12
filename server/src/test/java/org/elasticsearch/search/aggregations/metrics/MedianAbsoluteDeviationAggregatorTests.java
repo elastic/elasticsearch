@@ -230,8 +230,7 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         testCase(
             indexer,
-            agg -> verify.accept((InternalMedianAbsoluteDeviation) agg),
-            new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query)
+            new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalMedianAbsoluteDeviation) agg), fieldTypes).withQuery(query)
         );
     }
 

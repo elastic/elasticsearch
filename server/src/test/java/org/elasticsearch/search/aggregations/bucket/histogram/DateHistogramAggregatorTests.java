@@ -87,9 +87,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             d.add(new SortedNumericDocValuesField(fieldName, 0));
             iw.addDocument(d);
         },
-            a -> {},
             new AggTestConfig(
                 new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
+                a -> {},
                 new BooleanFieldMapper.BooleanFieldType(fieldName)
             )
         );

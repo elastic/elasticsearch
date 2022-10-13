@@ -29,7 +29,7 @@ policy.
 ==== Options
 
 `fixed_interval`:: (Required, string) The
-<<rollup-understanding-group-intervals,fixed time interval>> into which the data
+<<calendar_and_fixed_intervals,fixed time interval>> into which the data
 will be downsampled.
 
 [[ilm-downsample-ex]]

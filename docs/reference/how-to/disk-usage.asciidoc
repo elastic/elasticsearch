@@ -133,9 +133,10 @@ it is more likely to find longer duplicate strings in those `_source` documents
 if fields always occur in the same order.
 
 [discrete]
-[[roll-up-historical-data]]
-=== Roll up historical data
+[[downsample-time-series-data]]
+=== Downsample time series data
 
 Keeping older data can be useful for later analysis but is often avoided due to
-storage costs. You can use data rollups to summarize and store historical data
-at a fraction of the raw data's storage cost. See <<xpack-rollup>>.
+storage costs. For <<tsds-index-settings,time series (TSDS) indices>>, you can
+use <<downsampling,downsampling>> to summarize and store historical data
+at a fraction of the raw data's storage cost.

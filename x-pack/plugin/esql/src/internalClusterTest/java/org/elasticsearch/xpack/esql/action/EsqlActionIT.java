@@ -9,8 +9,14 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.Experimental;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -23,8 +29,10 @@ import org.junit.Before;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.hamcrest.Matchers.greaterThan;
 
 @Experimental
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
@@ -93,6 +101,48 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(1, results.values().size());
         assertEquals(2, results.values().get(0).size());
         assertEquals(50, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "double"))), 1d);
+    }
+
+    public void testRefreshSearchIdleShards() throws Exception {
+        String indexName = "test_refresh";
+        ElasticsearchAssertions.assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), 0)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .get()
+        );
+        ensureYellow(indexName);
+        Index index = resolveIndex(indexName);
+        for (int i = 0; i < 10; i++) {
+            client().prepareBulk()
+                .add(new IndexRequest(indexName).id("1" + i).source("data", 1, "count", 42))
+                .add(new IndexRequest(indexName).id("2" + i).source("data", 2, "count", 44))
+                .get();
+        }
+        logger.info("--> waiting for shards to have pending refresh");
+        assertBusy(() -> {
+            int pendingRefreshes = 0;
+            for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
+                IndexService indexService = indicesService.indexService(index);
+                if (indexService != null) {
+                    for (IndexShard shard : indexService) {
+                        if (shard.hasRefreshPending()) {
+                            pendingRefreshes++;
+                        }
+                    }
+                }
+            }
+            assertThat("shards don't have any pending refresh", pendingRefreshes, greaterThan(0));
+        }, 30, TimeUnit.SECONDS);
+        EsqlQueryResponse results = run("from test_refresh");
+        logger.info(results);
+        Assert.assertEquals(20, results.values().size());
     }
 
     private EsqlQueryResponse run(String esqlCommands) {

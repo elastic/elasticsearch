@@ -71,6 +71,19 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
         this.queryRewriter = queryRewriter;
     }
 
+    public RelevanceMatchQueryBuilder(
+        RelevanceMatchQueryRewriter queryRewriter,
+        String query,
+        String relevanceSettingsId,
+        String curationsSettingsId
+    ) {
+        super();
+        this.queryRewriter = queryRewriter;
+        this.query = query;
+        this.relevanceSettingsId = relevanceSettingsId;
+        this.curationsSettingsId = curationsSettingsId;
+    }
+
     public static RelevanceMatchQueryBuilder fromXContent(final XContentParser parser, RelevanceMatchQueryRewriter queryRewriter) {
 
         final RelevanceMatchQueryBuilder builder;

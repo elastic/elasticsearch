@@ -414,6 +414,41 @@ public class RoleDescriptorTests extends ESTestCase {
         }
     }
 
+    public void testCannotSerializeRoleDescriptorWithRemoteIndicesTowardsOldVersions() throws IOException {
+        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
+        final Version version = VersionUtils.randomVersionBetween(
+            random(),
+            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
+            versionBeforeRemoteIndices
+        );
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(version);
+
+        final RoleDescriptor descriptor = randomRoleDescriptor(true, true);
+        if (descriptor.hasRemoteIndicesPrivileges()) {
+            final var ex = expectThrows(IllegalArgumentException.class, () -> descriptor.writeTo(output));
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "versions of Elasticsearch before 8.6.0 can't handle remote indices privileges and attempted to send to ["
+                        + version
+                        + "]"
+                )
+            );
+        } else {
+            descriptor.writeTo(output);
+            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+            StreamInput streamInput = new NamedWriteableAwareStreamInput(
+                ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
+                registry
+            );
+            streamInput.setVersion(version);
+            final RoleDescriptor serialized = new RoleDescriptor(streamInput);
+            assertRoleDescriptorsEqualExcludingRemoteIndices(descriptor, serialized);
+            assertThat(serialized.getRemoteIndicesPrivileges(), emptyArray());
+        }
+    }
+
     public static void assertRoleDescriptorsEqualExcludingRemoteIndices(RoleDescriptor actual, RoleDescriptor expected) {
         assertThat(expected.getName(), equalTo(actual.getName()));
         assertThat(expected.getIndicesPrivileges(), equalTo(actual.getIndicesPrivileges()));

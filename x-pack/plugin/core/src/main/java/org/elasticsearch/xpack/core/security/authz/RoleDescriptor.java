@@ -341,7 +341,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             out.writeArray(remoteIndicesPrivileges);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
-                "versions of Elasticsearch before 8.6.0 can't remote indices privileges and attempted to send to [" + out.getVersion() + "]"
+                "versions of Elasticsearch before 8.6.0 can't handle remote indices privileges and attempted to send to ["
+                    + out.getVersion()
+                    + "]"
             );
         }
     }

@@ -81,6 +81,7 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
  */
 public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
+    public static final Version VERSION_REMOTE_INDICES = Version.V_8_6_0;
     private static final Logger logger = LogManager.getLogger(NativeRolesStore.class);
 
     private final Settings settings;
@@ -223,10 +224,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
         } else if (request.roleDescriptor().hasRemoteIndicesPrivileges()
-            && clusterService.state().nodes().getMinNodeVersion().before(Version.V_8_6_0)) {
+            && clusterService.state().nodes().getMinNodeVersion().before(VERSION_REMOTE_INDICES)) {
                 listener.onFailure(
                     new IllegalStateException(
-                        "remote indices privileges only supported on clusters with all nodes on version [" + Version.V_8_6_0 + "] or higher"
+                        "remote indices privileges only supported on clusters with all nodes on version ["
+                            + VERSION_REMOTE_INDICES
+                            + "] or higher"
                     )
                 );
             } else {

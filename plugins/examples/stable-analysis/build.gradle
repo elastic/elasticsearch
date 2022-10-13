@@ -13,14 +13,14 @@ esplugin {
 //TODO write module-info
 
 dependencies {
-  //TODO we should try configure this in jarhell
-  jarHell "org.elasticsearch:elasticsearch-core:${elasticsearchVersion}"
 
   //TODO guide - mention about api dependencies, mention about compileOnly,
   //TODO transitive dependency off and plugin-api dependency?
-  compileOnly "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
-  compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+  implementation "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
+  implementation "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
 
-//  testImplementation "junit:junit:5.7.1"
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.hamcrest:hamcrest:2.2'
+
 }
 

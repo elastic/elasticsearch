@@ -15,28 +15,26 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 
 public class XSearchSearchTransportAction extends HandledTransportAction<XSearchSearchAction.Request, XSearchSearchAction.Response> {
 
     private static final Logger LOGGER = LogManager.getLogger(XSearchSearchTransportAction.class);
 
-    private final RelevanceSettingsService relevanceSettingsService;
-    private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
+    // private final RelevanceSettingsService relevanceSettingsService;
+    // private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
 
     @Inject
     public XSearchSearchTransportAction(
         String actionName,
         TransportService transportService,
         ActionFilters actionFilters,
-        String executor,
-        RelevanceSettingsService relevanceSettingsService,
-        RelevanceMatchQueryRewriter relevanceMatchQueryRewriter
+        String executor
+        // RelevanceSettingsService relevanceSettingsService,
+        // RelevanceMatchQueryRewriter relevanceMatchQueryRewriter
     ) {
         super(actionName, false, transportService, actionFilters, XSearchSearchAction.Request::new, executor);
-        this.relevanceSettingsService = relevanceSettingsService;
-        this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
+        // this.relevanceSettingsService = relevanceSettingsService;
+        // this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
     }
 
     @Override

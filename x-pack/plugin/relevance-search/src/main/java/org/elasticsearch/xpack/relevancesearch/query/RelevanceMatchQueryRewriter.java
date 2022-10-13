@@ -15,14 +15,14 @@ import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.xpack.relevancesearch.settings.SettingsService.SettingsServiceException;
+import org.elasticsearch.xpack.relevancesearch.settings.Settings;
 import org.elasticsearch.xpack.relevancesearch.settings.SettingsService;
+import org.elasticsearch.xpack.relevancesearch.settings.SettingsService.SettingsServiceException;
 import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationSettings;
 import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsService;
 import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettings;
 import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettingsService;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
-import org.elasticsearch.xpack.relevancesearch.settings.Settings;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -59,7 +59,7 @@ public class RelevanceMatchQueryRewriter {
         QueryBuilder rewriteQuery(QueryBuilder baseQuery, RelevanceMatchQueryBuilder relevanceMatchQuery, SearchExecutionContext context);
     }
 
-    private static abstract class AbstractQueryRewriter<S extends Settings> implements  QueryRewriter {
+    private static abstract class AbstractQueryRewriter<S extends Settings> implements QueryRewriter {
         private final ClusterService clusterService;
         private final SettingsService<S> settingsService;
 
@@ -76,7 +76,7 @@ public class RelevanceMatchQueryRewriter {
                 settingsId = getSettingsId(searchEngine);
             }
 
-            if (settingsId !=  null) {
+            if (settingsId != null) {
                 try {
                     return settingsService.getSettings(settingsId);
                 } catch (SettingsServiceException e) {
@@ -106,13 +106,21 @@ public class RelevanceMatchQueryRewriter {
 
         private final QueryFieldsResolver queryFieldsResolver;
 
-        public OrganicQueryRewriter(ClusterService clusterService, RelevanceSettingsService settingsService, QueryFieldsResolver queryFieldsResolver) {
+        public OrganicQueryRewriter(
+            ClusterService clusterService,
+            RelevanceSettingsService settingsService,
+            QueryFieldsResolver queryFieldsResolver
+        ) {
             super(clusterService, settingsService);
             this.queryFieldsResolver = queryFieldsResolver;
         }
 
         @Override
-        public QueryBuilder rewriteQuery(QueryBuilder baseQuery, RelevanceMatchQueryBuilder relevanceMatchQuery, SearchExecutionContext context) {
+        public QueryBuilder rewriteQuery(
+            QueryBuilder baseQuery,
+            RelevanceMatchQueryBuilder relevanceMatchQuery,
+            SearchExecutionContext context
+        ) {
             return rewriteQuery(relevanceMatchQuery, context);
         }
 
@@ -162,7 +170,11 @@ public class RelevanceMatchQueryRewriter {
         }
 
         @Override
-        public QueryBuilder rewriteQuery(QueryBuilder baseQuery, RelevanceMatchQueryBuilder relevanceMatchQuery, SearchExecutionContext context) {
+        public QueryBuilder rewriteQuery(
+            QueryBuilder baseQuery,
+            RelevanceMatchQueryBuilder relevanceMatchQuery,
+            SearchExecutionContext context
+        ) {
             CurationSettings curationSettings = getSettings(relevanceMatchQuery, context);
 
             if (curationSettings == null || curationSettings.conditions().stream().noneMatch(c -> c.match(relevanceMatchQuery))) {

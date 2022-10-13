@@ -480,16 +480,32 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
         }
     }
-
     @SuppressWarnings("unchecked")
-    private <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
+    private <A extends InternalAggregation> A searchAndReduce(
         IndexSettings indexSettings,
         IndexSearcher searcher,
         CircuitBreakerService breakerService,
         AggTestConfig aggTestConfig
     ) throws IOException {
-        assert aggTestConfig.builders().size() == 1;
-        AggregationBuilder builder = aggTestConfig.builders().get(0);
+        assert aggTestConfig.builders().size() == aggTestConfig.verifiers().size();
+        InternalAggregation result = null;
+        for (int i = 0; i < aggTestConfig.builders().size(); i++) {
+            result = searchAndReduceSingleAggregator(i, indexSettings, searcher, breakerService, aggTestConfig);
+            aggTestConfig.verifiers().get(i).accept(result);
+        }
+        // Once all the callers pass in a verifier, we can stop returning anything (which won't work in the parallel agg case anyway)
+        return (A) result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <A extends InternalAggregation> A searchAndReduceSingleAggregator(
+        int index,
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        CircuitBreakerService breakerService,
+        AggTestConfig aggTestConfig
+    ) throws IOException {
+        AggregationBuilder builder = aggTestConfig.builders().get(index);
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
@@ -497,7 +513,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         if (aggTestConfig.splitLeavesIntoSeparateAggregators()
             && searcher.getIndexReader().leaves().size() > 0
-            && builder.isInSortOrderExecutionRequired() == false) {
+            && aggTestConfig.requireSortedIndex() == false) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
             final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
             final int size = compCTX.leaves().size();
@@ -545,7 +561,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 aggTestConfig.fieldTypes()
             );
             try {
-                C root = createAggregator(builder, context);
+                Aggregator root = createAggregator(builder, context);
                 root.preCollection();
                 if (context.isInSortOrderExecutionRequired()) {
                     new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));

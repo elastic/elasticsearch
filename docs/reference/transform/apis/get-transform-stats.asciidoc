@@ -172,17 +172,19 @@ that the {transform} is failing to keep up.
 .Properties of `issues`
 [%collapsible%open]
 ========
-`issue`::
+`issue`:::
     (string) A description of the issue.
 
-`details`::
+`details`:::
     (Optional, string) Details about the issue.
 
-`count`::
+`count`:::
     (integer) Number of times the issue has occured since it started.
 
-`first_occurrence`::
+`first_occurrence`:::
     (Optional, date) The timestamp this issue occured for the first time.
+========
+//End issues
 
 ====
 //End health

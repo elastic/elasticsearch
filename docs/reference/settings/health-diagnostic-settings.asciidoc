@@ -34,4 +34,4 @@ cluster wide health aspects such as disk space.
 
 `health.reporting.local.monitor.interval`::
 (<<cluster-update-settings,Dynamic>>) Determines the interval in which each node of the cluster monitors aspects that
-comrpise its local health such as its disk usage.
+comprise its local health such as its disk usage.

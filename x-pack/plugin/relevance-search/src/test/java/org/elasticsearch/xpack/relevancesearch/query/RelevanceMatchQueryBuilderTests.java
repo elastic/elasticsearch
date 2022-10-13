@@ -96,12 +96,7 @@ public class RelevanceMatchQueryBuilderTests extends AbstractQueryTestCase<Relev
     @Override
     protected RelevanceMatchQueryBuilder doCreateTestQueryBuilder() {
 
-        Query resultQuery = null;
-        try {
-            resultQuery = new CombinedFieldsQueryBuilder("test", "field 1", "field2").toQuery(createSearchExecutionContext());
-        } catch (IOException e) {
-            // Will not happen
-        }
+        QueryBuilder resultQuery = new CombinedFieldsQueryBuilder("test", "field 1", "field2");
         RelevanceMatchQueryRewriter queryRewriter = mock(RelevanceMatchQueryRewriter.class);
 
         try {

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.relevancesearch.settings.index.IndexCreationServi
 
 import java.util.Map;
 
-public abstract class AbstractSettingsService<S extends Settings> {
+public abstract class AbstractSettingsService<S extends Settings> implements SettingsService<S> {
     public static final String ENT_SEARCH_INDEX = ".ent-search";
 
     protected final Client client;
@@ -22,8 +22,7 @@ public abstract class AbstractSettingsService<S extends Settings> {
         this.client = client;
     }
 
-    protected abstract String getName();
-
+    @Override
     public S getSettings(String settingsId) throws SettingsNotFoundException, InvalidSettingsException {
         // TODO cache relevance settings, including cache invalidation
         Map<String, Object> settingsContent = null;
@@ -40,25 +39,10 @@ public abstract class AbstractSettingsService<S extends Settings> {
         return parseSettings(settingsContent);
     }
 
+    protected abstract String getName();
+
     protected abstract S parseSettings(Map<String, Object> source) throws InvalidSettingsException;
 
     protected abstract String getSettingsPrefix();
 
-    public static class SettingsServiceException extends Exception {
-        public SettingsServiceException(String message) {
-            super(message);
-        }
-    }
-
-    public static class SettingsNotFoundException extends SettingsServiceException {
-        public SettingsNotFoundException(String message) {
-            super(message);
-        }
-    }
-
-    public static class InvalidSettingsException extends SettingsServiceException {
-        public InvalidSettingsException(String message) {
-            super(message);
-        }
-    }
 }

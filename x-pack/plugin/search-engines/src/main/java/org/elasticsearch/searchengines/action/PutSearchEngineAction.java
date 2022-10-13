@@ -60,7 +60,7 @@ public class PutSearchEngineAction extends ActionType<AcknowledgedResponse> {
                 }
                 return indices;
             }, new ParseField("indices"), ObjectParser.ValueType.OBJECT_ARRAY);
-            PARSER.declareString(Request::setRelevanceSettingsId, new ParseField("relevance_settings_id"));
+            PARSER.declareString(Request::setRelevanceSettingsId, new ParseField("relevance_settings"));
         }
 
         public Request(String name) {

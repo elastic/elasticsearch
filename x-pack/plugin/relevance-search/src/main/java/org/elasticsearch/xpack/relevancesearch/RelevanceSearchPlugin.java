@@ -47,6 +47,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyList;
+
 public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, SearchPlugin {
 
     private static final Logger logger = LogManager.getLogger(RelevanceSearchPlugin.class);
@@ -112,7 +114,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         CurationsService curationsService = new CurationsService(client);
         QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
 
-        relevanceMatchQueryRewriter.set(new RelevanceMatchQueryRewriter(relevanceSettingsService, curationsService, queryFieldsResolver));
+        relevanceMatchQueryRewriter.set(new RelevanceMatchQueryRewriter(clusterService, relevanceSettingsService, curationsService, queryFieldsResolver));
 
         return List.of(relevanceMatchQueryRewriter.get(), indexCreationService.get());
     }

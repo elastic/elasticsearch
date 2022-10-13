@@ -103,6 +103,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private TimeValue waitForCheckpointsTimeout = TimeValue.timeValueSeconds(30);
 
+    @Nullable
+    private String searchEngineName = null;
+
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
      * Use this to test if the mapping supports synthetic _source and to get a sense
@@ -222,6 +225,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.waitForCheckpoints = searchRequest.waitForCheckpoints;
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
+        this.searchEngineName = searchRequest.searchEngineName;
     }
 
     /**
@@ -276,6 +280,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         } else {
             forceSyntheticSource = false;
         }
+
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            searchEngineName = in.readOptionalString();
+        }
     }
 
     @Override
@@ -329,6 +337,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (forceSyntheticSource) {
                 throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
             }
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            out.writeOptionalString(searchEngineName);
         }
     }
 
@@ -526,6 +538,18 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     public String preference() {
         return this.preference;
+    }
+
+    /**
+     * Set the engine to be used to execute the search request.
+     */
+    public SearchRequest searchEngineName(String searchEngineName) {
+        this.searchEngineName = searchEngineName;
+        return this;
+    }
+
+    public String searchEngineName() {
+        return this.searchEngineName;
     }
 
     /**
@@ -832,6 +856,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (preference != null) {
             sb.append(", preference[").append(preference).append("]");
         }
+        if (searchEngineName != null) {
+            sb.append(", search_engine[").append(searchEngineName).append("]");
+        }
         return sb.toString();
     }
 
@@ -860,7 +887,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode)
-            && forceSyntheticSource == that.forceSyntheticSource;
+            && forceSyntheticSource == that.forceSyntheticSource
+            && searchEngineName == that.searchEngineName;
     }
 
     @Override
@@ -882,7 +910,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
             minCompatibleShardNode,
-            forceSyntheticSource
+            forceSyntheticSource,
+            searchEngineName
         );
     }
 
@@ -921,6 +950,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + ccsMinimizeRoundtrips
             + ", source="
             + source
+            + ", searchEngineName="
+            + searchEngineName
             + '}';
     }
 }

@@ -1518,6 +1518,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 SearchExecutionContext context = indexService.newSearchExecutionContext(
                     request.shardId().id(),
                     0,
+                    request.getSearchEngineName(),
                     canMatchSearcher,
                     request::nowInMillis,
                     request.getClusterAlias(),

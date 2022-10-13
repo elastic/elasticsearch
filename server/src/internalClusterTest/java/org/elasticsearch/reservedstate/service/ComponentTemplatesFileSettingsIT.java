@@ -549,7 +549,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2());
 
         savedClusterState = setupClusterStateListenerForOtherDelete(internalCluster().getMasterName());
-        logger.info("--> write the the reduced JSON, so we delete template_other and other_component_template");
+        logger.info("--> write the reduced JSON, so we delete template_other and other_component_template");
         writeJSONFile(internalCluster().getMasterName(), testJSONLess);
 
         assertComponentAndIndexTemplateDelete(savedClusterState.v1(), savedClusterState.v2());

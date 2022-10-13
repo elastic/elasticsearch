@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -54,6 +55,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
+    private final CrossClusterSecurity crossClusterSecurity; // handles load/reload of remote cluster API Keys
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -62,7 +64,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         AuthorizationService authzService,
         SSLService sslService,
         SecurityContext securityContext,
-        DestructiveOperations destructiveOperations
+        DestructiveOperations destructiveOperations,
+        CrossClusterSecurity crossClusterSecurity
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -71,6 +74,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
+        this.crossClusterSecurity = crossClusterSecurity;
     }
 
     @Override
@@ -87,6 +91,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
+
+                if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+                    // TODO Use these values to create the RCS 2.0 TransportRequest header
+                    if (logger.isTraceEnabled()) {
+                        final String clusterAlias = connection.getNode().getId();
+                        final String ccxApiKey = crossClusterSecurity.getApiKey(clusterAlias);
+                        // TODO Remove API Key from log message
+                        logger.trace("clusterAlias: [{}], ccxApiKey: [{}]", clusterAlias, ccxApiKey);
+                    }
+                }
 
                 // Sometimes a system action gets executed like a internal create index request or update mappings request
                 // which means that the user is copied over to system actions so we need to change the user

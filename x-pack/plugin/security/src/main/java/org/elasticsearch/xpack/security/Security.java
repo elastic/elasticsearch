@@ -334,6 +334,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
+import org.elasticsearch.xpack.security.transport.CrossClusterSecurity;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -488,6 +489,7 @@ public class Security extends Plugin
      * an instance of TransportInterceptor way earlier before createComponents is called. */
     private final SetOnce<TransportInterceptor> securityInterceptor = new SetOnce<>();
     private final SetOnce<IPFilter> ipFilter = new SetOnce<>();
+    private final SetOnce<CrossClusterSecurity> crossClusterSecurity = new SetOnce<>();
     private final SetOnce<AuthenticationService> authcService = new SetOnce<>();
     private final SetOnce<SecondaryAuthenticator> secondayAuthc = new SetOnce<>();
     private final SetOnce<AuditTrailService> auditTrailService = new SetOnce<>();
@@ -896,6 +898,10 @@ public class Security extends Plugin
 
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
+
+        this.crossClusterSecurity.set(new CrossClusterSecurity(settings, clusterService.getClusterSettings()));
+        components.add(this.crossClusterSecurity.get());
+
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
@@ -905,7 +911,8 @@ public class Security extends Plugin
                 authzService,
                 getSslService(),
                 securityContext.get(),
-                destructiveOperations
+                destructiveOperations,
+                this.crossClusterSecurity.get()
             )
         );
 

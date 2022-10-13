@@ -443,8 +443,8 @@ public class CompositeRolesStore {
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), true, restrictedIndicesPrivilegesMap);
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
 
-            final RemoteIndicesPrivileges[] remoteIndicesPrivileges = descriptor.getRemoteIndicesPrivileges();
-            if (remoteIndicesPrivileges != null) {
+            if (descriptor.hasRemoteIndicesPrivileges()) {
+                final RemoteIndicesPrivileges[] remoteIndicesPrivileges = descriptor.getRemoteIndicesPrivileges();
                 MergeableIndicesPrivilege.collatePrivilegesByRemoteIndices(
                     remoteIndicesPrivileges,
                     true,

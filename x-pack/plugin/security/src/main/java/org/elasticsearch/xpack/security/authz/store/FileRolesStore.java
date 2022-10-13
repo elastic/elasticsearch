@@ -210,7 +210,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                                 "role [{}] is reserved. the relevant role definition in the mapping file will be ignored",
                                 descriptor.getName()
                             );
-                        } else if (descriptor.getRemoteIndicesPrivileges() != null) {
+                        } else if (descriptor.hasRemoteIndicesPrivileges()) {
                             // TODO follow up PR to support remote indices privileges in file-based roles
                             assert false : "role [" + descriptor.getName() + "] has remote indices privileges. this is not supported";
                             logger.warn(

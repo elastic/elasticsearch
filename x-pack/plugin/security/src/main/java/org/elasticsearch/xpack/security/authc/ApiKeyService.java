@@ -307,8 +307,8 @@ public class ApiKeyService {
         final Version version = clusterService.state().nodes().getMinNodeVersion();
 
         if (TcpTransport.isUntrustedRemoteClusterEnabled()
-            && (userRoleDescriptors.stream().anyMatch(rd -> rd.getRemoteIndicesPrivileges() != null)
-                || request.getRoleDescriptors().stream().anyMatch(rd -> rd.getRemoteIndicesPrivileges() != null))) {
+            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
+                || request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges))) {
             throw new IllegalArgumentException("remote indices not supported for API keys");
         }
 
@@ -387,9 +387,9 @@ public class ApiKeyService {
         }
 
         if (TcpTransport.isUntrustedRemoteClusterEnabled()
-            && (userRoleDescriptors.stream().anyMatch(rd -> rd.getRemoteIndicesPrivileges() != null)
+            && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
                 || (request.getRoleDescriptors() != null
-                    && request.getRoleDescriptors().stream().anyMatch(rd -> rd.getRemoteIndicesPrivileges() != null)))) {
+                    && request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)))) {
             throw new IllegalArgumentException("remote indices not supported for API keys");
         }
 

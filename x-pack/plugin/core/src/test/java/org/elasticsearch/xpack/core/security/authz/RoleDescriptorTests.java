@@ -135,7 +135,7 @@ public class RoleDescriptorTests extends ESTestCase {
                     + ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], privileges=[read]"
                     + ", field_security=[grant=[body,title], except=null], query={\"match_all\": {}}],]"
                     + ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]"
-                    + ", runAs=[sudo], metadata=[{}]]"
+                    + ", runAs=[sudo], metadata=[{}], remoteIndicesPrivileges=[]]"
             )
         );
     }
@@ -410,7 +410,7 @@ public class RoleDescriptorTests extends ESTestCase {
             assertThat(serialized, equalTo(descriptor));
         } else {
             assertRoleDescriptorsEqualExcludingRemoteIndices(descriptor, serialized);
-            assertThat(serialized.getRemoteIndicesPrivileges(), nullValue());
+            assertThat(serialized.getRemoteIndicesPrivileges(), emptyArray());
         }
     }
 

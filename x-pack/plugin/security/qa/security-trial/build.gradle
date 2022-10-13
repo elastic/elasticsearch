@@ -25,4 +25,6 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   user username: "security_test_user", password: "security-test-password", role: "security_test_role"
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   user username: "cat_test_user", password: "cat-test-password", role: "cat_test_role"
+
+  requiresFeature 'es.untrusted_remote_cluster_feature_flag_registered', Version.fromString("8.6.0")
 }

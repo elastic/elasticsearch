@@ -944,6 +944,10 @@ public class PersistedClusterStateService {
             assert previouslyWrittenMetadata.coordinationMetadata().term() == metadata.coordinationMetadata().term();
             logger.trace("currentTerm [{}] matches previous currentTerm, writing changes only", metadata.coordinationMetadata().term());
 
+            if (previouslyWrittenMetadata == metadata) {
+                // breakout early if nothing changed
+                return new WriterStats(false, false, metadata.getMappingsByHash().size(), 0, 0, metadata.size(), 0, 0, 0);
+            }
             final boolean updateGlobalMeta = Metadata.isGlobalStateEquals(previouslyWrittenMetadata, metadata) == false;
             if (updateGlobalMeta) {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {

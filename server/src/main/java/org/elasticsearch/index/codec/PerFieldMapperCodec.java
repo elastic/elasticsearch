@@ -39,7 +39,7 @@ public class PerFieldMapperCodec extends Lucene94Codec {
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
-            : "PerFieldMapperCodec must subclass the latest " + "lucene codec: " + Lucene.LATEST_CODEC;
+            : "PerFieldMapperCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
     public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {

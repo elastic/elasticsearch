@@ -36,6 +36,7 @@ fix problems that an {es} deployment might encounter.
 === Snapshot and restore
 * <<restore-from-snapshot,Restore data from snapshot>>
 * <<add-repository,Multiple deployments writing to the same snapshot repository>>
+* <<repeated-snapshot-failures,Troubleshooting repeated snapshot failures>>
 
 [discrete]
 [[troubleshooting-others]]
@@ -96,6 +97,8 @@ include::troubleshooting/data/start-slm.asciidoc[]
 include::troubleshooting/data/restore-from-snapshot.asciidoc[]
 
 include::troubleshooting/snapshot/add-repository.asciidoc[]
+
+include::troubleshooting/snapshot/repeated-snapshot-failures.asciidoc[]
 
 include::troubleshooting/discovery-issues.asciidoc[]
 

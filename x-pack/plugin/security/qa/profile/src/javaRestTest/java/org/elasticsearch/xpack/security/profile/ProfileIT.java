@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -83,7 +84,7 @@ public class ProfileIT extends ESRestTestCase {
         return Settings.builder()
             .put(
                 ThreadContext.PREFIX + ".Authorization",
-                basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()))
+                basicAuthHeaderValue("test-admin", new SecureString("x-pack-test-password".toCharArray()))
             )
             .build();
     }
@@ -101,7 +102,7 @@ public class ProfileIT extends ESRestTestCase {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String profileUid = (String) activateProfileMap.get("uid");
         final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
-        profileHasPrivilegesRequest.setJsonEntity("""
+        profileHasPrivilegesRequest.setJsonEntity(formatted("""
             {
               "uids": ["some_missing_profile", "%s"],
               "privileges": {
@@ -115,7 +116,7 @@ public class ProfileIT extends ESRestTestCase {
                   "cluster:monitor/health"
                 ]
               }
-            }""".formatted(profileUid));
+            }""", profileUid));
 
         final Response profileHasPrivilegesResponse = adminClient().performRequest(profileHasPrivilegesRequest);
         assertOK(profileHasPrivilegesResponse);
@@ -151,7 +152,7 @@ public class ProfileIT extends ESRestTestCase {
 
         // Create the profile documents
         for (String uid : uids) {
-            final String source = SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, uid, Instant.now().toEpochMilli());
+            final String source = String.format(Locale.ROOT, SAMPLE_PROFILE_DOCUMENT_TEMPLATE, uid, uid, Instant.now().toEpochMilli());
             final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
             indexRequest.setJsonEntity(source);
             indexRequest.addParameter("refresh", "wait_for");
@@ -263,17 +264,17 @@ public class ProfileIT extends ESRestTestCase {
         final String payload;
         switch (randomIntBetween(0, 2)) {
             case 0 -> {
-                payload = """
+                payload = formatted("""
                     {
                       "name": "rac",
                       "hint": {
                         "uids": ["%s"]
                       }
                     }
-                    """.formatted("not-" + uid);
+                    """, "not-" + uid);
             }
             case 1 -> {
-                payload = """
+                payload = formatted("""
                     {
                       "name": "rac",
                       "hint": {
@@ -282,10 +283,10 @@ public class ProfileIT extends ESRestTestCase {
                         }
                       }
                     }
-                    """.formatted(randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+                    """, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
             }
             default -> {
-                payload = """
+                payload = String.format(Locale.ROOT, """
                     {
                       "name": "rac",
                       "hint": {
@@ -294,7 +295,7 @@ public class ProfileIT extends ESRestTestCase {
                           "kibana.spaces": %s
                         }
                       }
-                    }""".formatted("not-" + uid, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
+                    }""", "not-" + uid, randomBoolean() ? "\"demo\"" : "[\"demo\"]");
             }
         }
         suggestProfilesRequest1.setJsonEntity(payload);
@@ -338,6 +339,33 @@ public class ProfileIT extends ESRestTestCase {
     }
 
     public void testXpackUsageOutput() throws IOException {
+        // Profile 1 that has not activated for more than 30 days
+        final String uid = randomAlphaOfLength(20);
+        final String source = String.format(
+            Locale.ROOT,
+            SAMPLE_PROFILE_DOCUMENT_TEMPLATE,
+            uid,
+            uid,
+            Instant.now().minus(31, ChronoUnit.DAYS).toEpochMilli()
+        );
+        final Request indexRequest = new Request("PUT", ".security-profile/_doc/profile_" + uid);
+        indexRequest.setJsonEntity(source);
+        indexRequest.addParameter("refresh", "wait_for");
+        indexRequest.setOptions(
+            expectWarnings(
+                "this request accesses system indices: [.security-profile-8], but in a future major version, "
+                    + "direct access to system indices will be prevented by default"
+            )
+        );
+        assertOK(adminClient().performRequest(indexRequest));
+
+        // Profile 2 is disabled
+        final Map<String, Object> racUserProfile = doActivateProfile();
+        doSetEnabled((String) racUserProfile.get("uid"), false);
+
+        // Profile 3 is enabled and recently activated
+        doActivateProfile("test-admin", "x-pack-test-password");
+
         final Request xpackUsageRequest = new Request("GET", "_xpack/usage");
         xpackUsageRequest.addParameter("filter_path", "security");
         final Response xpackUsageResponse = adminClient().performRequest(xpackUsageRequest);
@@ -354,6 +382,8 @@ public class ProfileIT extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         final List<String> otherDomainRealms = (List<String>) castToMap(domainsUsage.get("other_domain")).get("realms");
         assertThat(otherDomainRealms, containsInAnyOrder("saml1", "ad1"));
+
+        assertThat(castToMap(xpackUsageView.get("security.user_profile")), equalTo(Map.of("total", 3, "enabled", 2, "recent", 1)));
     }
 
     public void testActivateGracePeriodIsPerNode() throws IOException {
@@ -433,12 +463,12 @@ public class ProfileIT extends ESRestTestCase {
 
     private Map<String, Object> doActivateProfile(String username, String password) throws IOException {
         final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
-        activateProfileRequest.setJsonEntity("""
+        activateProfileRequest.setJsonEntity(String.format(Locale.ROOT, """
             {
               "grant_type": "password",
               "username": "%s",
               "password": "%s"
-            }""".formatted(username, password));
+            }""", username, password));
 
         final Response activateProfileResponse = adminClient().performRequest(activateProfileRequest);
         assertOK(activateProfileResponse);

@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.A_
 import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.B_FIELD;
 
 public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
-    private TTestStatsBuilder statsBuilder;
+    private final TTestStatsBuilder statsBuilder;
 
     PairedTTestAggregator(
         String name,

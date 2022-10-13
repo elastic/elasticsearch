@@ -16,7 +16,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
-import org.elasticsearch.health.node.selection.HealthNode;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -38,6 +37,8 @@ public class HealthService {
     // Visible for testing
     static final String UNKNOWN_RESULT_SUMMARY_PREFLIGHT_FAILED = "Could not determine health status. Check details on critical issues "
         + "preventing the health status from reporting.";
+
+    public static final String HEALTH_API_ID_PREFIX = "elasticsearch:health:";
 
     /**
      * Detail map key that contains the reasons a result was marked as UNKNOWN
@@ -99,43 +100,32 @@ public class HealthService {
             .filter(result -> indicatorName == null || result.name().equals(indicatorName));
 
         if (clusterHealthIsObtainable) {
-            if (HealthNode.isEnabled()) {
-                client.execute(FetchHealthInfoCacheAction.INSTANCE, new FetchHealthInfoCacheAction.Request(), new ActionListener<>() {
-                    @Override
-                    public void onResponse(FetchHealthInfoCacheAction.Response response) {
-                        HealthInfo healthInfo = response.getHealthInfo();
-                        validateResultsAndNotifyListener(
-                            indicatorName,
-                            Stream.concat(
-                                filteredPreflightResults,
-                                filteredIndicators.map(service -> service.calculate(explain, healthInfo))
-                            ).toList(),
-                            listener
-                        );
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        validateResultsAndNotifyListener(
-                            indicatorName,
-                            Stream.concat(
-                                filteredPreflightResults,
-                                filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
-                            ).toList(),
-                            listener
-                        );
-                    }
-                });
-            } else {
-                validateResultsAndNotifyListener(
-                    indicatorName,
-                    Stream.concat(
-                        filteredPreflightResults,
-                        filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
-                    ).toList(),
-                    listener
-                );
-            }
+            client.execute(FetchHealthInfoCacheAction.INSTANCE, new FetchHealthInfoCacheAction.Request(), new ActionListener<>() {
+                @Override
+                public void onResponse(FetchHealthInfoCacheAction.Response response) {
+                    HealthInfo healthInfo = response.getHealthInfo();
+                    validateResultsAndNotifyListener(
+                        indicatorName,
+                        Stream.concat(filteredPreflightResults, filteredIndicators.map(service -> service.calculate(explain, healthInfo)))
+                            .toList(),
+                        listener
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    validateResultsAndNotifyListener(
+                        indicatorName,
+                        Stream.concat(
+                            filteredPreflightResults,
+                            filteredIndicators.map(service -> service.calculate(explain, HealthInfo.EMPTY_HEALTH_INFO))
+                        ).toList(),
+                        listener
+                    );
+                }
+            });
+
         } else {
             // Mark remaining indicators as UNKNOWN
             HealthIndicatorDetails unknownDetails = healthUnknownReason(preflightResults, explain);

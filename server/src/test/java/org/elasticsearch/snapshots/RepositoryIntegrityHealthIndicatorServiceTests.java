@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -82,12 +83,14 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
+                            NAME,
+                            RepositoryIntegrityHealthIndicatorService.REPOSITORY_CORRUPTED_IMPACT_ID,
                             1,
                             "Data in corrupted snapshot repository [corrupted-repo] may be lost and cannot be restored.",
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    List.of(new Diagnosis(CORRUPTED_REPOSITORY, corruptedRepos))
+                    List.of(new Diagnosis(CORRUPTED_REPOSITORY, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedRepos))))
                 )
             )
         );

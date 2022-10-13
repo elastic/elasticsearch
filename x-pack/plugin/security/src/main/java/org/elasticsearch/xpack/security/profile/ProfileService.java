@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -326,6 +327,78 @@ public class ProfileService {
                 }
             }).toList(), resultsAndErrors.errors()));
         }, listener::onFailure));
+    }
+
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        tryFreezeAndCheckIndex(listener.map(response -> { // index does not exist
+            assert response == null : "only null response can reach here";
+            return Map.of("total", 0L, "enabled", 0L, "recent", 0L);
+        })).ifPresent(frozenProfileIndex -> {
+            final MultiSearchRequest multiSearchRequest = client.prepareMultiSearch()
+                .add(
+                    client.prepareSearch(SECURITY_PROFILE_ALIAS)
+                        .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.existsQuery("user_profile.uid")))
+                        .setSize(0)
+                        .setTrackTotalHits(true)
+                        .request()
+                )
+                .add(
+                    client.prepareSearch(SECURITY_PROFILE_ALIAS)
+                        .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true)))
+                        .setSize(0)
+                        .setTrackTotalHits(true)
+                        .request()
+                )
+                .add(
+                    client.prepareSearch(SECURITY_PROFILE_ALIAS)
+                        .setQuery(
+                            QueryBuilders.boolQuery()
+                                .filter(QueryBuilders.termQuery("user_profile.enabled", true))
+                                .filter(
+                                    QueryBuilders.rangeQuery("user_profile.last_synchronized")
+                                        .gt(Instant.now().minus(30, ChronoUnit.DAYS).toEpochMilli())
+                                )
+                        )
+                        .setSize(0)
+                        .setTrackTotalHits(true)
+                        .request()
+                )
+                .request();
+
+            frozenProfileIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    getActionOrigin(),
+                    MultiSearchAction.INSTANCE,
+                    multiSearchRequest,
+                    ActionListener.wrap(multiSearchResponse -> {
+                        final MultiSearchResponse.Item[] items = multiSearchResponse.getResponses();
+                        assert items.length == 3;
+                        final Map<String, Object> usage = new HashMap<>();
+                        if (items[0].isFailure()) {
+                            logger.debug("error on counting total profiles", items[0].getFailure());
+                            usage.put("total", 0L);
+                        } else {
+                            usage.put("total", items[0].getResponse().getHits().getTotalHits().value);
+                        }
+                        if (items[1].isFailure()) {
+                            logger.debug("error on counting enabled profiles", items[0].getFailure());
+                            usage.put("enabled", 0L);
+                        } else {
+                            usage.put("enabled", items[1].getResponse().getHits().getTotalHits().value);
+                        }
+                        if (items[2].isFailure()) {
+                            logger.debug("error on counting recent profiles", items[0].getFailure());
+                            usage.put("recent", 0L);
+                        } else {
+                            usage.put("recent", items[2].getResponse().getHits().getTotalHits().value);
+                        }
+                        listener.onResponse(usage);
+                    }, listener::onFailure)
+                )
+            );
+        });
     }
 
     // package private for testing

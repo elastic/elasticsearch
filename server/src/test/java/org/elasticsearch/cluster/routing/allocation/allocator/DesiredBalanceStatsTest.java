@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,6 +49,7 @@ public class DesiredBalanceStatsTest extends AbstractWireSerializingTestCase<Des
             Strings.toString(instance, true, false),
             equalTo(
                 String.format(
+                    Locale.ROOT,
                     """
                         {
                           "computation_active" : %b,

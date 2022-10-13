@@ -32,7 +32,6 @@ public class CurationsService extends AbstractSettingsService<CurationSettings> 
         super(client);
     }
 
-
     protected CurationSettings parseSettings(Map<String, Object> source) throws IllegalArgumentException {
         // TODO Probably worth to take a look into document mappers in case they can be used for parsing
         // see org/elasticsearch/index/mapper/DocumentParser.java

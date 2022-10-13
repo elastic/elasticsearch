@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,9 +44,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class SemanticSearchAction extends ActionType<SemanticSearchAction.Response> {
 
-    // TODO what should this be called? If this becomes an indices action
-    // change the transport code to run _infer as ML_ORIGIN
-    public static final String NAME = "cluster:monitor/xpack/ml/semantic_search";
+    public static final String NAME = "indices:data/read/semantic_search";
 
     public static final SemanticSearchAction INSTANCE = new SemanticSearchAction(NAME);
 
@@ -53,7 +52,7 @@ public class SemanticSearchAction extends ActionType<SemanticSearchAction.Respon
         super(name, SemanticSearchAction.Response::new);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements CompositeIndicesRequest {
 
         public static final ParseField QUERY_STRING = new ParseField("query_string"); // TODO a better name and update docs when changed
 

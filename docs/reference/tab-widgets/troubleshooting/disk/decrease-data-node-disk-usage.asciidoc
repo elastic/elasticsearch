@@ -22,8 +22,8 @@ least importance and higher number of replicas.
 +
 WARNING: Reducing the replicas of an index can potentially reduce search throughput and data redundancy.
 +
-. For each index you chose, click on its name, then on the panel that appears click `Edit settings` and reduce the
-value of the `index.number_of_replicas` to the desired value.
+. For each index you chose, click on its name, then on the panel that appears click `Edit settings`, reduce the
+value of the `index.number_of_replicas` to the desired value and then click `Save`.
 +
 [role="screenshot"]
 image::images/troubleshooting/disk/reduce_replicas.png[Reducing replicas,align="center"]
@@ -72,7 +72,7 @@ The response will look like this:
 The above means that in order to resolve the disk shortage we need to either drop our disk usage below the 90% or have
 more than 150GB available, read more on how this threshold works <<cluster-routing-watermark-high, here>>.
 
-. The next step is to find out the current disk usage, this will indicate how much space should be freed. For simplicity,
+. The next step is to find out the current disk usage; this will indicate how much space should be freed. For simplicity,
 our example has one node, but you can apply the same for every node over the relevant threshold.
 +
 [source,console]

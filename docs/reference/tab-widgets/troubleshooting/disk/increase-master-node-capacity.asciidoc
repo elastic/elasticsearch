@@ -73,7 +73,7 @@ instance-0000000002 *      m                    50.02    1.9gb     2.1gb       4
 
 . The desired situation is to drop the disk usages below the relevant threshold, in our example 90%. Consider adding
 some padding, so it will not go over the threshold soon. If you have multiple master nodes you need to ensure that *all*
-master nodes will have this capacity. Assuming you have the new nodes ready. Follow the next three steps for every
+master nodes will have this capacity. Assuming you have the new nodes ready, follow the next three steps for every
 master node.
 
 . Bring down one of the master nodes.

@@ -15,7 +15,7 @@ include::{es-repo-dir}/tab-widgets/troubleshooting/disk/increase-data-node-capac
 
 [[decrease-disk-usage-data-node]]
 === Decrease the disk usage of data nodes
-In order to decrease the disk usage in your cluster without losing any data is to reduce the replicas of indices.
+In order to decrease the disk usage in your cluster without losing any data, you can try reducing the replicas of indices.
 
 NOTE: Reducing the replicas of an index can potentially reduce search throughput and data redundancy. However, it
 can quickly give the cluster breathing room until a more permanent solution is in place.

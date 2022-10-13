@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -77,6 +78,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
@@ -1209,17 +1211,75 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
     protected boolean supportsIgnoreMalformed() {
         return false;
     }
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        assertFalse("ignore_malformed is not supported by [wildcard] field", ignoreMalformed);
+        return new WildcardSyntheticSourceSupport();
     }
 
-    @Override
-    protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
+    static class WildcardSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
+        private final boolean allIgnored = ignoreAbove != null && rarely();
+        private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+
+        @Override
+        public SyntheticSourceExample example(int maxValues) {
+            if (randomBoolean()) {
+                Tuple<String, String> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
+            List<String> in = values.stream().map(Tuple::v1).toList();
+            List<String> outList = new ArrayList<>();
+            List<String> outExtraValues = new ArrayList<>();
+            values.stream().map(Tuple::v2).forEach(v -> {
+                if (ignoreAbove != null && v.length() > ignoreAbove) {
+                    outExtraValues.add(v);
+                } else {
+                    outList.add(v);
+                }
+            });
+            Collections.sort(outList);
+            outList.addAll(outExtraValues);
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<String, String> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            int length = 5;
+            if (ignoreAbove != null && (allIgnored || randomBoolean())) {
+                length = ignoreAbove + 5;
+            }
+            String v = randomAlphaOfLength(length);
+            return Tuple.tuple(v, v);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "wildcard");
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+            if (ignoreAbove != null) {
+                b.field("ignore_above", ignoreAbove);
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of();
+        }
     }
+
 }

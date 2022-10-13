@@ -20,7 +20,7 @@ import org.elasticsearch.xcontent.ParseField;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xcontent.ObjectParser.fromList;
@@ -77,7 +77,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     private static final ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
 
     static {
-        PARSER.declareObject(FieldCapabilitiesRequest::indexFilter, (p, c) -> parseInnerQueryBuilder(p), INDEX_FILTER_FIELD);
+        PARSER.declareObject(FieldCapabilitiesRequest::indexFilter, (p, c) -> parseTopLevelQuery(p), INDEX_FILTER_FIELD);
         PARSER.declareObject(FieldCapabilitiesRequest::runtimeFields, (p, c) -> p.map(), RUNTIME_MAPPINGS_FIELD);
         PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), FIELDS_FIELD);
     }

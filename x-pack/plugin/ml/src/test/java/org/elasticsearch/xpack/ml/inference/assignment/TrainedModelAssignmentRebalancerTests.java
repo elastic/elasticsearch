@@ -41,6 +41,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
             TrainedModelAssignmentMetadata.Builder.empty().build(),
             Map.of(),
+            Map.of(),
             Optional.empty()
         ).rebalance().build();
         assertThat(result.modelAssignments().isEmpty(), is(true));
@@ -68,7 +69,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         nodeLoads.put(buildNode("node-1", oneGbBytes, 4), NodeLoad.builder("node-1").setMaxMemory(oneGbBytes).build());
         nodeLoads.put(buildNode("node-2", oneGbBytes, 4), NodeLoad.builder("node-2").setMaxMemory(oneGbBytes).build());
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.empty())
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Map.of(), Optional.empty())
             .rebalance()
             .build();
 
@@ -76,6 +77,10 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     public void testRebalance_GivenAllAssignmentsAreSatisfied_GivenOutdatedRoutingEntry_ShouldRebalance() throws Exception {
+        long oneGbBytes = ByteSizeValue.ofGb(1).getBytes();
+        DiscoveryNode node1 = buildNode("node-1", oneGbBytes, 4);
+        DiscoveryNode node2 = buildNode("node-2", oneGbBytes, 4);
+
         String modelId1 = "model-1";
         String modelId2 = "model-2";
         StartTrainedModelDeploymentAction.TaskParams taskParams1 = newParams(modelId1, 1024L, 1, 2);
@@ -93,13 +98,15 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             )
             .build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
-        long oneGbBytes = ByteSizeValue.ofGb(1).getBytes();
-        nodeLoads.put(buildNode("node-1", oneGbBytes, 4), NodeLoad.builder("node-1").setMaxMemory(oneGbBytes).build());
-        nodeLoads.put(buildNode("node-2", oneGbBytes, 4), NodeLoad.builder("node-2").setMaxMemory(oneGbBytes).build());
+        nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(oneGbBytes).build());
+        nodeLoads.put(node2, NodeLoad.builder("node-2").setMaxMemory(oneGbBytes).build());
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.empty())
-            .rebalance()
-            .build();
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node1, node2)),
+            Optional.empty()
+        ).rebalance().build();
 
         assertThat(result.modelAssignments(), is(aMapWithSize(2)));
 
@@ -122,7 +129,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             .build();
         expectThrows(
             ResourceAlreadyExistsException.class,
-            () -> new TrainedModelAssignmentRebalancer(currentMetadata, Map.of(), Optional.of(taskParams)).rebalance()
+            () -> new TrainedModelAssignmentRebalancer(currentMetadata, Map.of(), Map.of(), Optional.of(taskParams)).rebalance()
         );
     }
 
@@ -131,9 +138,12 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, 1024L, 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, Map.of(), Optional.of(taskParams))
-            .rebalance()
-            .build();
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            Map.of(),
+            Map.of(),
+            Optional.of(taskParams)
+        ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getModelAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
@@ -144,16 +154,22 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     public void testRebalance_GivenFirstModelToAdd_NotEnoughProcessors() throws Exception {
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        DiscoveryNode node = buildNode("node-1", nodeMemoryBytes, 3);
+
         String modelId = "model-to-add";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, 1024L, 1, 4);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
-        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
-        nodeLoads.put(buildNode("node-1", nodeMemoryBytes, 3), NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.of(taskParams))
-            .rebalance()
-            .build();
+        nodeLoads.put(node, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node)),
+            Optional.of(taskParams)
+        ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getModelAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
@@ -177,9 +193,12 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
         nodeLoads.put(buildNode("node-1", nodeMemoryBytes, 3), NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.of(taskParams))
-            .rebalance()
-            .build();
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(),
+            Optional.of(taskParams)
+        ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getModelAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
@@ -203,9 +222,12 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).setError("error detecting load").build()
         );
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.of(taskParams))
-            .rebalance()
-            .build();
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(),
+            Optional.of(taskParams)
+        ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getModelAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
@@ -219,22 +241,22 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     public void testRebalance_GivenProblemsOnMultipleNodes() throws Exception {
+        DiscoveryNode node1 = buildNode("node-1", ByteSizeValue.ofGb(1).getBytes(), 8);
+        DiscoveryNode node2 = buildNode("node-2", ByteSizeValue.ofGb(10).getBytes(), 3);
+
         String modelId = "model-to-add";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, ByteSizeValue.ofGb(2).getBytes(), 1, 4);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
-        nodeLoads.put(
-            buildNode("node-1", ByteSizeValue.ofGb(1).getBytes(), 8),
-            NodeLoad.builder("node-1").setMaxMemory(ByteSizeValue.ofGb(1).getBytes()).build()
-        );
-        nodeLoads.put(
-            buildNode("node-2", ByteSizeValue.ofGb(10).getBytes(), 3),
-            NodeLoad.builder("node-2").setMaxMemory(ByteSizeValue.ofGb(10).getBytes()).build()
-        );
+        nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(ByteSizeValue.ofGb(1).getBytes()).build());
+        nodeLoads.put(node2, NodeLoad.builder("node-2").setMaxMemory(ByteSizeValue.ofGb(10).getBytes()).build());
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.of(taskParams))
-            .rebalance()
-            .build();
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node1, node2)),
+            Optional.of(taskParams)
+        ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getModelAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
@@ -252,16 +274,21 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     public void testRebalance_GivenFirstModelToAdd_FitsFully() throws Exception {
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 4);
+
         String modelId = "model-to-add";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelId, 1024L, 1, 1);
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty().build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
-        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
-        nodeLoads.put(buildNode("node-1", nodeMemoryBytes, 4), NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+        nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.of(taskParams))
-            .rebalance()
-            .build();
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node1)),
+            Optional.of(taskParams)
+        ).rebalance().build();
 
         TrainedModelAssignment assignment = result.getModelAssignment(modelId);
         assertThat(assignment, is(notNullValue()));
@@ -275,6 +302,10 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     public void testRebalance_GivenModelToAdd_AndPreviousAssignments_AndTwoNodes_AllFit() throws Exception {
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 4);
+        DiscoveryNode node2 = buildNode("node-2", nodeMemoryBytes, 4);
+
         String modelToAddId = "model-to-add";
         String previousModelId = "previous-model";
         StartTrainedModelDeploymentAction.TaskParams taskParams = newParams(modelToAddId, 1024L, 1, 2);
@@ -287,13 +318,15 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             )
             .build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
-        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
-        nodeLoads.put(buildNode("node-1", nodeMemoryBytes, 4), NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
-        nodeLoads.put(buildNode("node-2", nodeMemoryBytes, 4), NodeLoad.builder("node-2").setMaxMemory(nodeMemoryBytes).build());
+        nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+        nodeLoads.put(node2, NodeLoad.builder("node-2").setMaxMemory(nodeMemoryBytes).build());
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.of(taskParams))
-            .rebalance()
-            .build();
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node1, node2)),
+            Optional.of(taskParams)
+        ).rebalance().build();
 
         assertThat(result.modelAssignments(), is(aMapWithSize(2)));
 
@@ -326,6 +359,11 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     public void testRebalance_GivenPreviousAssignments_AndNewNode() throws Exception {
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 4);
+        DiscoveryNode node2 = buildNode("node-2", nodeMemoryBytes, 4);
+        DiscoveryNode node3 = buildNode("node-3", nodeMemoryBytes, 4);
+
         String previousModel1Id = "previous-model-1";
         String previousModel2Id = "previous-model-2";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
@@ -342,14 +380,16 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             )
             .build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
-        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
-        nodeLoads.put(buildNode("node-1", nodeMemoryBytes, 4), NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
-        nodeLoads.put(buildNode("node-2", nodeMemoryBytes, 4), NodeLoad.builder("node-2").setMaxMemory(nodeMemoryBytes).build());
-        nodeLoads.put(buildNode("node-3", nodeMemoryBytes, 4), NodeLoad.builder("node-3").setMaxMemory(nodeMemoryBytes).build());
+        nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+        nodeLoads.put(node2, NodeLoad.builder("node-2").setMaxMemory(nodeMemoryBytes).build());
+        nodeLoads.put(node3, NodeLoad.builder("node-3").setMaxMemory(nodeMemoryBytes).build());
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.empty())
-            .rebalance()
-            .build();
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node1, node2, node3)),
+            Optional.empty()
+        ).rebalance().build();
 
         assertThat(result.modelAssignments(), is(aMapWithSize(2)));
 
@@ -386,6 +426,9 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     public void testRebalance_GivenPreviousAssignments_AndRemovedNode_AndRemainingNodeNotLargeEnough() throws Exception {
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 4);
+
         String previousModel1Id = "previous-model-1";
         String previousModel2Id = "previous-model-2";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
@@ -402,12 +445,14 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             )
             .build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
-        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
-        nodeLoads.put(buildNode("node-1", nodeMemoryBytes, 4), NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+        nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.empty())
-            .rebalance()
-            .build();
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node1)),
+            Optional.empty()
+        ).rebalance().build();
 
         assertThat(result.modelAssignments(), is(aMapWithSize(2)));
 
@@ -418,7 +463,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
             assertThat(assignment.getNodeRoutingTable(), hasKey("node-1"));
             assertThat(assignment.getNodeRoutingTable().get("node-1").getCurrentAllocations(), equalTo(2));
-            assertThat(assignment.getNodeRoutingTable().get("node-1").getTargetAllocations(), equalTo(2));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getTargetAllocations(), equalTo(1));
             assertThat(assignment.getNodeRoutingTable().get("node-1").getState(), equalTo(RoutingState.STARTED));
             assertThat(assignment.getReason().isPresent(), is(true));
             assertThat(
@@ -433,7 +478,11 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             TrainedModelAssignment assignment = result.getModelAssignment(previousModel2Id);
             assertThat(assignment, is(notNullValue()));
             assertThat(assignment.getAssignmentState(), equalTo(AssignmentState.STARTING));
-            assertThat(assignment.getNodeRoutingTable(), is(anEmptyMap()));
+            assertThat(assignment.getNodeRoutingTable(), is(aMapWithSize(1)));
+            assertThat(assignment.getNodeRoutingTable(), hasKey("node-1"));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getCurrentAllocations(), equalTo(2));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getTargetAllocations(), equalTo(2));
+            assertThat(assignment.getNodeRoutingTable().get("node-1").getState(), equalTo(RoutingState.STARTING));
             assertThat(assignment.getReason().isPresent(), is(true));
             assertThat(
                 assignment.getReason().get(),
@@ -446,6 +495,9 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     public void testRebalance_GivenPreviousAssignments_AndRemovedNode_AndRemainingNodeLargeEnough() throws Exception {
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 7);
+
         String previousModel1Id = "previous-model-1";
         String previousModel2Id = "previous-model-2";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
@@ -462,12 +514,14 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             )
             .build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
-        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
-        nodeLoads.put(buildNode("node-1", nodeMemoryBytes, 7), NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+        nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.empty())
-            .rebalance()
-            .build();
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node1)),
+            Optional.empty()
+        ).rebalance().build();
 
         assertThat(result.modelAssignments(), is(aMapWithSize(2)));
 
@@ -496,6 +550,9 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
     }
 
     public void testRebalance_GivenFailedAssignment_RestartsAssignment() throws Exception {
+        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 4);
+
         String modelId = "model-1";
         TrainedModelAssignmentMetadata currentMetadata = TrainedModelAssignmentMetadata.Builder.empty()
             .addNewAssignment(
@@ -505,12 +562,14 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             )
             .build();
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
-        long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
-        nodeLoads.put(buildNode("node-1", nodeMemoryBytes, 4), NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
+        nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());
 
-        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(currentMetadata, nodeLoads, Optional.empty())
-            .rebalance()
-            .build();
+        TrainedModelAssignmentMetadata result = new TrainedModelAssignmentRebalancer(
+            currentMetadata,
+            nodeLoads,
+            Map.of(List.of(), List.of(node1)),
+            Optional.empty()
+        ).rebalance().build();
 
         assertThat(result.modelAssignments(), is(aMapWithSize(1)));
 

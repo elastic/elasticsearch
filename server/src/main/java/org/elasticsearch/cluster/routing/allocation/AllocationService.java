@@ -353,33 +353,6 @@ public class AllocationService {
     }
 
     /**
-     * Reset failed allocation counter for unassigned shards
-     */
-    private void resetFailedAllocationCounter(RoutingAllocation allocation) {
-        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
-        while (unassignedIterator.hasNext()) {
-            ShardRouting shardRouting = unassignedIterator.next();
-            UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-            unassignedIterator.updateUnassigned(
-                new UnassignedInfo(
-                    unassignedInfo.getNumFailedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(),
-                    unassignedInfo.getMessage(),
-                    unassignedInfo.getFailure(),
-                    0,
-                    unassignedInfo.getUnassignedTimeInNanos(),
-                    unassignedInfo.getUnassignedTimeInMillis(),
-                    unassignedInfo.isDelayed(),
-                    unassignedInfo.getLastAllocationStatus(),
-                    Collections.emptySet(),
-                    unassignedInfo.getLastAllocatedNodeId()
-                ),
-                shardRouting.recoverySource(),
-                allocation.changes()
-            );
-        }
-    }
-
-    /**
      * Internal helper to cap the number of elements in a potentially long list for logging.
      *
      * @param elements  The elements to log. May be any non-null list. Must not be null.
@@ -414,7 +387,7 @@ public class AllocationService {
         allocation.ignoreDisable(true);
 
         if (retryFailed) {
-            resetFailedAllocationCounter(allocation);
+            allocation.routingNodes().resetFailedCounter(allocation.changes());
         }
 
         RoutingExplanations explanations = commands.execute(allocation, explain);
@@ -598,8 +571,10 @@ public class AllocationService {
                     + startedShard
                     + " but was: "
                     + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
-
-            routingNodes.startShard(logger, startedShard, routingAllocation.changes());
+            long expectedShardSize = routingAllocation.metadata().getIndexSafe(startedShard.index()).isSearchableSnapshot()
+                ? startedShard.getExpectedShardSize()
+                : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
+            routingNodes.startShard(logger, startedShard, routingAllocation.changes(), expectedShardSize);
         }
     }
 
@@ -735,7 +710,14 @@ public class AllocationService {
      * {@link org.elasticsearch.cluster.routing.allocation.command.AllocationCommand}
      */
     public record CommandsResult(
-        RoutingExplanations explanations, // Explanation for the reroute actions
-        ClusterState clusterState         // Resulting cluster state
+        /**
+         * Explanation for the reroute actions
+         */
+        RoutingExplanations explanations,
+        /**
+         * Resulting cluster state, to be removed when REST compatibility with
+         * {@link org.elasticsearch.Version#V_8_6_0} / {@link RestApiVersion#V_8} no longer needed
+         */
+        ClusterState clusterState
     ) {}
 }

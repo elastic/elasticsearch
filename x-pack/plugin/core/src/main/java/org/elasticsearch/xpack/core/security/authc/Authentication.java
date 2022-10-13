@@ -796,7 +796,7 @@ public final class Authentication implements ToXContentObject {
             return realmRef;
         }
 
-        static RealmRef newAnonymousRealmRef(String nodeName) {
+        public static RealmRef newAnonymousRealmRef(String nodeName) {
             // the "anonymous" internal realm is not part of any realm domain
             return new Authentication.RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName, null);
         }

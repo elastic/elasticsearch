@@ -16,7 +16,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -54,10 +54,9 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 hitExecute(fetchSourceContext, hitContext);
             }
 
-            @SuppressWarnings("unchecked")
             private void hitExecute(FetchSourceContext fetchSourceContext, HitContext hitContext) {
                 final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
-                SourceLookup source = hitContext.sourceLookup();
+                Source source = hitContext.source();
 
                 // If this is a parent document and there are no source filters, then add the source as-is.
                 if (nestedHit == false && containsFilters(fetchSourceContext) == false) {
@@ -67,9 +66,9 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 }
 
                 // Otherwise, filter the source and add it to the hit.
-                Object value = source.filter(fetchSourceContext);
+                Map<String, Object> value = source.filter(fetchSourceContext);
                 if (nestedHit) {
-                    value = getNestedSource((Map<String, Object>) value, hitContext);
+                    value = getNestedSource(value, hitContext);
                 }
 
                 try {

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
@@ -70,26 +72,24 @@ public class MetadataUpdateSettingsService {
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
-        this.executor = (currentState, taskContexts) -> {
-            ClusterState state = currentState;
-            for (final var taskContext : taskContexts) {
-                try {
-                    final var task = taskContext.getTask();
-                    state = task.execute(state);
-                    taskContext.success(task);
-                } catch (Exception e) {
-                    taskContext.onFailure(e);
+        this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateSettingsTask task, ClusterState clusterState) {
+                return Tuple.tuple(task.execute(clusterState), task.getAckListener());
+            }
+
+            @Override
+            public ClusterState afterBatchExecution(ClusterState clusterState, boolean clusterStateChanged) {
+                if (clusterStateChanged) {
+                    // reroute in case things change that require it (like number of replicas)
+                    return allocationService.reroute(clusterState, "settings update");
                 }
+                return clusterState;
             }
-            if (state != currentState) {
-                // reroute in case things change that require it (like number of replicas)
-                state = allocationService.reroute(state, "settings update");
-            }
-            return state;
         };
     }
 
-    private final class UpdateSettingsTask implements ClusterStateAckListener, ClusterStateTaskListener {
+    private final class UpdateSettingsTask implements ClusterStateTaskListener {
         private final UpdateSettingsClusterStateUpdateRequest request;
         private final ActionListener<AcknowledgedResponse> listener;
 
@@ -98,39 +98,38 @@ public class MetadataUpdateSettingsService {
             this.listener = listener;
         }
 
-        @Override
-        public boolean mustAck(DiscoveryNode discoveryNode) {
-            return true;
-        }
+        private ClusterStateAckListener getAckListener() {
+            return new ClusterStateAckListener() {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
 
-        @Override
-        public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.of(true));
-        }
+                @Override
+                public void onAllNodesAcked() {
+                    listener.onResponse(AcknowledgedResponse.of(true));
+                }
 
-        @Override
-        public void onAckFailure(Exception e) {
-            listener.onFailure(e);
-        }
+                @Override
+                public void onAckFailure(Exception e) {
+                    listener.onFailure(e);
+                }
 
-        @Override
-        public void onAckTimeout() {
-            listener.onResponse(AcknowledgedResponse.of(false));
-        }
+                @Override
+                public void onAckTimeout() {
+                    listener.onResponse(AcknowledgedResponse.of(false));
+                }
 
-        @Override
-        public TimeValue ackTimeout() {
-            return request.ackTimeout();
+                @Override
+                public TimeValue ackTimeout() {
+                    return request.ackTimeout();
+                }
+            };
         }
 
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "should not be called";
         }
 
         ClusterState execute(ClusterState currentState) {

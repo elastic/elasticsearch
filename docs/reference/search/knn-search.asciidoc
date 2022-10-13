@@ -4,8 +4,8 @@
 <titleabbrev>kNN search</titleabbrev>
 ++++
 
+deprecated::[8.4.0,"The kNN search API has been replaced by the <<<<search-api-knn, `knn` option>> in the search API."]
 experimental::[]
-
 Performs a k-nearest neighbor (kNN) search and returns the matching documents.
 
 ////
@@ -46,6 +46,7 @@ GET my-index/_knn_search
 }
 ----
 // TEST[continued]
+// TEST[warning:The kNN search API has been replaced by the `knn` option in the search API.]
 
 [[knn-search-api-request]]
 ==== {api-request-title}
@@ -85,10 +86,6 @@ will return the top `k` documents that also match the filter query.
 (Optional, string) Comma-separated list of data streams, indices, and aliases
 to search. Supports wildcards (`*`). To search all data streams and indices,
 use `*` or `_all`.
-
-WARNING: kNN search does not yet work with <<filter-alias,filtered aliases>>.
-Running a kNN search against a filtered alias may incorrectly result in fewer
-than _k_ hits.
 
 [role="child_attributes"]
 [[knn-search-api-query-params]]

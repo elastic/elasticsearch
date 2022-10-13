@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.hamcrest.Matchers;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -337,6 +338,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90661")
     public void testStateChangeMidTrigger() {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
 
@@ -567,6 +569,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90661")
     public void testAbortStarted() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -621,7 +624,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             final CountDownLatch latch = indexer.newLatch();
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.stop(), equalTo(IndexerState.STOPPING));
-            assertThat(indexer.getState(), equalTo(IndexerState.STOPPING));
+            assertThat(indexer.getState(), Matchers.either(Matchers.is(IndexerState.STOPPING)).or(Matchers.is(IndexerState.STOPPED)));
             latch.countDown();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
             assertTrue(indexer.abort());

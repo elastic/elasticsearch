@@ -743,7 +743,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // authenticate should work
         AuthenticateResponse authenticateResponse = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
-        ).execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(username)).get();
+        ).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).get();
         assertThat(authenticateResponse.authentication().getUser().principal(), is(username));
         assertThat(authenticateResponse.authentication().getAuthenticatedBy().getName(), equalTo("reserved"));
         assertThat(authenticateResponse.authentication().getAuthenticatedBy().getType(), equalTo("reserved"));

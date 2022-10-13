@@ -241,15 +241,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         RolloverResponse trialRolloverResponse,
         ActionListener<RolloverResponse> listener
     ) implements ClusterStateTaskListener {
-
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
-        }
-
-        @Override
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            assert false : "not called";
         }
     }
 
@@ -259,18 +253,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         ActiveShardsObserver activeShardsObserver
     ) implements ClusterStateTaskExecutor<RolloverTask> {
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<RolloverTask>> taskContexts) throws Exception {
-            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(taskContexts.size());
-            var state = currentState;
-            for (final var taskContext : taskContexts) {
-                try {
+        public ClusterState execute(BatchExecutionContext<RolloverTask> batchExecutionContext) throws Exception {
+            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(batchExecutionContext.taskContexts().size());
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try (var ignored = taskContext.captureResponseHeaders()) {
                     state = executeTask(state, results, taskContext);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
             }
 
-            if (state != currentState) {
+            if (state != batchExecutionContext.initialState()) {
                 var reason = new StringBuilder();
                 Strings.collectionToDelimitedStringWithLimit(
                     (Iterable<String>) () -> results.stream().map(t -> t.sourceIndexName() + "->" + t.rolloverIndexName()).iterator(),
@@ -280,7 +274,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     1024,
                     reason
                 );
-                state = allocationService.reroute(state, reason.toString());
+                try (var ignored = batchExecutionContext.dropHeadersContext()) {
+                    state = allocationService.reroute(state, reason.toString());
+                }
             }
             return state;
         }
@@ -300,12 +296,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest()
             );
-            final String sourceIndexName = rolloverNames.sourceName();
 
             // Re-evaluate the conditions, now with our final source index name
             final Map<String, Boolean> postConditionResults = evaluateConditions(
                 rolloverRequest.getConditions().values(),
-                buildStats(currentState.metadata().index(sourceIndexName), rolloverTask.statsResponse())
+                buildStats(currentState.metadata().index(rolloverNames.sourceName()), rolloverTask.statsResponse())
             );
 
             if (rolloverRequest.areConditionsMet(postConditionResults)) {
@@ -329,11 +324,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);
 
+                final var rolloverIndexName = rolloverResult.rolloverIndexName();
+                final var sourceIndexName = rolloverResult.sourceIndexName();
+
                 rolloverTaskContext.success(() -> {
                     // Now assuming we have a new state and the name of the rolled over index, we need to wait for the configured number of
                     // active shards, as well as return the names of the indices that were rolled/created
                     activeShardsObserver.waitForActiveShards(
-                        new String[] { rolloverResult.rolloverIndexName() },
+                        new String[] { rolloverIndexName },
                         rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                         rolloverRequest.masterNodeTimeout(),
                         isShardsAcknowledged -> rolloverTask.listener()
@@ -342,8 +340,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     // Note that we use the actual rollover result for these, because even though we're single threaded,
                                     // it's possible for the rollover names generated before the actual rollover to be different due to
                                     // things like date resolution
-                                    rolloverResult.sourceIndexName(),
-                                    rolloverResult.rolloverIndexName(),
+                                    sourceIndexName,
+                                    rolloverIndexName,
                                     postConditionResults,
                                     false,
                                     true,

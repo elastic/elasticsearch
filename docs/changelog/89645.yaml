@@ -1,0 +1,5 @@
+pr: 89645
+summary: Add processor autoscaling decider
+area: Machine Learning
+type: enhancement
+issues: []

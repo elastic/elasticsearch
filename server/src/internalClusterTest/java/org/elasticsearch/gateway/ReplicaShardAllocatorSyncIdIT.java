@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -50,10 +51,11 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -148,6 +150,16 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
     public void testPreferCopyCanPerformNoopRecovery() throws Exception {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                )
+        );
+
         assertAcked(
             client().admin()
                 .indices()
@@ -196,6 +208,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
                     blockRecovery.await();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
                 }
             }
             connection.sendRequest(requestId, action, request, options);
@@ -203,10 +216,10 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNode();
         recoveryStarted.await();
         nodeWithReplica = internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
-        // AllocationService only calls GatewayAllocator if there're unassigned shards
+        // AllocationService only calls GatewayAllocator if there are unassigned shards
         assertAcked(client().admin().indices().prepareCreate("dummy-index").setWaitForActiveShards(0));
         ensureGreen(indexName);
-        assertThat(internalCluster().nodesInclude(indexName), hasItem(nodeWithReplica));
+        assertThat(internalCluster().nodesInclude(indexName), containsInAnyOrder(nodeWithPrimary, nodeWithReplica));
         assertNoOpRecoveries(indexName);
         blockRecovery.countDown();
         transportServiceOnPrimary.clearAllRules();

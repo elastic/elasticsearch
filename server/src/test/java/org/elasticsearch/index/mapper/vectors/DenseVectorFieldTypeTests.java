@@ -11,12 +11,14 @@ package org.elasticsearch.index.mapper.vectors;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -53,7 +55,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testFielddataBuilder() {
         DenseVectorFieldType ft = createFieldType();
-        assertNotNull(ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test")));
+        FieldDataContext fdc = new FieldDataContext("test", () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        assertNotNull(ft.fielddataBuilder(fdc));
     }
 
     public void testDocValueFormat() {

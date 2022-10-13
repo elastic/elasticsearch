@@ -35,7 +35,7 @@ class WindowsServiceDaemon extends EnvironmentAwareCommand {
     @Override
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         var args = new ServerArgs(false, true, null, new SecureString(""), env.settings(), env.configFile());
-        this.server = ServerProcess.start(terminal, processInfo, args);
+        this.server = ServerProcess.start(terminal, processInfo, args, null);
         // start does not return until the server is ready, and we do not wait for the process
     }
 

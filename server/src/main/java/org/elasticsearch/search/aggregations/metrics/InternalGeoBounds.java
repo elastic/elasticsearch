@@ -165,7 +165,7 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         GeoBoundingBox bbox = resolveGeoBoundingBox();
         if (bbox != null) {
             builder.startObject(GeoBoundingBox.BOUNDS_FIELD.getPreferredName());
-            bbox.toXContentFragment(builder, true);
+            bbox.toXContentFragment(builder);
             builder.endObject();
         }
         return builder;

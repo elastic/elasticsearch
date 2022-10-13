@@ -54,11 +54,9 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
         if (user == null) {
             return restChannel -> { throw new IllegalStateException("we should never have a null user and invoke this consumer"); };
         }
-        final String username = user.principal();
-
         return channel -> client.execute(
             AuthenticateAction.INSTANCE,
-            new AuthenticateRequest(username),
+            AuthenticateRequest.INSTANCE,
             new RestBuilderListener<AuthenticateResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(AuthenticateResponse authenticateResponse, XContentBuilder builder) throws Exception {

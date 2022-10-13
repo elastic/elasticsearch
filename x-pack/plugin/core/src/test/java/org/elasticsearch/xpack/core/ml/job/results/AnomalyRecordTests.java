@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.results;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -30,7 +30,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecord> {
+public class AnomalyRecordTests extends AbstractXContentSerializingTestCase<AnomalyRecord> {
 
     @Override
     protected AnomalyRecord createTestInstance() {
@@ -88,6 +88,18 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
                 causes.add(new AnomalyCauseTests().createTestInstance());
             }
             anomalyRecord.setCauses(causes);
+        }
+        if (randomBoolean()) {
+            AnomalyScoreExplanation anomalyScoreExplanation = new AnomalyScoreExplanation();
+            anomalyScoreExplanation.setAnomalyType(randomAlphaOfLength(12));
+            anomalyScoreExplanation.setAnomalyLength(randomInt());
+            anomalyScoreExplanation.setSingleBucketImpact(randomInt());
+            anomalyScoreExplanation.setMultiBucketImpact(randomInt());
+            anomalyScoreExplanation.setLowerConfidenceBound(randomDouble());
+            anomalyScoreExplanation.setTypicalValue(randomDouble());
+            anomalyScoreExplanation.setUpperConfidenceBound(randomDouble());
+            anomalyScoreExplanation.setHighVariancePenalty(randomBoolean());
+            anomalyScoreExplanation.setIncompleteBucketPenalty(randomBoolean());
         }
 
         return anomalyRecord;

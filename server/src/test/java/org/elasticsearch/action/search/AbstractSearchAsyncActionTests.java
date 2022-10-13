@@ -77,7 +77,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             logger,
             null,
             nodeIdToConnection,
-            Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())),
+            Collections.singletonMap("foo", AliasFilter.of(new MatchAllQueryBuilder())),
             Collections.singletonMap("foo", 2.0f),
             null,
             request,

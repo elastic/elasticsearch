@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
 
@@ -65,6 +66,7 @@ public class TimeSeriesIndexSearcher {
         int seen = 0;
         query = searcher.rewrite(query);
         Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
+        int[] tsidOrd = new int[1];
 
         // Create LeafWalker for each subreader
         List<LeafWalker> leafWalkers = new ArrayList<>();
@@ -74,7 +76,7 @@ public class TimeSeriesIndexSearcher {
             }
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
-                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, leaf);
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0]);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
@@ -83,7 +85,7 @@ public class TimeSeriesIndexSearcher {
                 // this is needed to trigger actions in some bucketCollectors that bypass the normal iteration logic
                 // for example, global aggregator triggers a separate iterator that ignores the query but still needs
                 // to know all leaves
-                bucketCollector.getLeafCollector(new AggregationExecutionContext(leaf, null, null));
+                bucketCollector.getLeafCollector(new AggregationExecutionContext(leaf, null, null, null));
             }
         }
 
@@ -115,6 +117,7 @@ public class TimeSeriesIndexSearcher {
                     queue.updateTop();
                 }
             } while (queue.size() > 0);
+            tsidOrd[0]++;
         }
     }
 
@@ -178,8 +181,9 @@ public class TimeSeriesIndexSearcher {
         int tsidOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, LeafReaderContext leaf) throws IOException {
-            AggregationExecutionContext aggCtx = new AggregationExecutionContext(leaf, scratch::get, () -> timestamp);
+        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, IntSupplier tsidOrdSupplier)
+            throws IOException {
+            AggregationExecutionContext aggCtx = new AggregationExecutionContext(context, scratch::get, () -> timestamp, tsidOrdSupplier);
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);

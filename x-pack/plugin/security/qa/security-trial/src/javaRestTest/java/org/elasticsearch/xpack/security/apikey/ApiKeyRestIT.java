@@ -12,14 +12,17 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -31,7 +34,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
+import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -77,6 +83,148 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         deleteRole("manage_own_api_key_role");
         invalidateApiKeysForUser(END_USER);
         invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetApiKeyRoleDescriptors() throws IOException {
+        // First key without assigned role descriptors, i.e. it inherits owner user's permission
+        // This can be achieved by either omitting the role_descriptors field in the request or
+        // explicitly set it to an empty object
+        final Request createApiKeyRequest1 = new Request("POST", "_security/api_key");
+        if (randomBoolean()) {
+            createApiKeyRequest1.setJsonEntity("""
+                {
+                  "name": "k1"
+                }""");
+        } else {
+            createApiKeyRequest1.setJsonEntity("""
+                {
+                  "name": "k1",
+                  "role_descriptors": { }
+                }""");
+        }
+        assertOK(adminClient().performRequest(createApiKeyRequest1));
+
+        // Second key with a single assigned role descriptor
+        final Request createApiKeyRequest2 = new Request("POST", "_security/api_key");
+        createApiKeyRequest2.setJsonEntity("""
+            {
+              "name": "k2",
+                "role_descriptors": {
+                  "x": {
+                    "cluster": [
+                      "monitor"
+                    ]
+                  }
+                }
+            }""");
+        assertOK(adminClient().performRequest(createApiKeyRequest2));
+
+        // Third key with two assigned role descriptors
+        final Request createApiKeyRequest3 = new Request("POST", "_security/api_key");
+        createApiKeyRequest3.setJsonEntity("""
+            {
+              "name": "k3",
+                "role_descriptors": {
+                  "x": {
+                    "cluster": [
+                      "monitor"
+                    ]
+                  },
+                  "y": {
+                    "indices": [
+                      {
+                        "names": [
+                          "index"
+                        ],
+                        "privileges": [
+                          "read"
+                        ]
+                      }
+                    ]
+                  }
+                }
+            }""");
+        assertOK(adminClient().performRequest(createApiKeyRequest3));
+
+        // Role descriptors are returned by both get and query api key calls
+        final boolean withLimitedBy = randomBoolean();
+        final List<Map<String, Object>> apiKeyMaps;
+        if (randomBoolean()) {
+            final Request getApiKeyRequest = new Request("GET", "_security/api_key");
+            if (withLimitedBy) {
+                getApiKeyRequest.addParameter("with_limited_by", "true");
+            } else if (randomBoolean()) {
+                getApiKeyRequest.addParameter("with_limited_by", "false");
+            }
+            final Response getApiKeyResponse = adminClient().performRequest(getApiKeyRequest);
+            assertOK(getApiKeyResponse);
+            apiKeyMaps = (List<Map<String, Object>>) responseAsMap(getApiKeyResponse).get("api_keys");
+        } else {
+            final Request queryApiKeyRequest = new Request("POST", "_security/_query/api_key");
+            if (withLimitedBy) {
+                queryApiKeyRequest.addParameter("with_limited_by", "true");
+            } else if (randomBoolean()) {
+                queryApiKeyRequest.addParameter("with_limited_by", "false");
+            }
+            final Response queryApiKeyResponse = adminClient().performRequest(queryApiKeyRequest);
+            assertOK(queryApiKeyResponse);
+            apiKeyMaps = (List<Map<String, Object>>) responseAsMap(queryApiKeyResponse).get("api_keys");
+        }
+        assertThat(apiKeyMaps.size(), equalTo(3));
+
+        for (Map<String, Object> apiKeyMap : apiKeyMaps) {
+            final String name = (String) apiKeyMap.get("name");
+            @SuppressWarnings("unchecked")
+            final var roleDescriptors = (Map<String, Object>) apiKeyMap.get("role_descriptors");
+
+            if (withLimitedBy) {
+                final List<Map<String, Object>> limitedBy = (List<Map<String, Object>>) apiKeyMap.get("limited_by");
+                assertThat(limitedBy.size(), equalTo(1));
+                assertThat(
+                    limitedBy.get(0),
+                    equalTo(Map.of(ES_TEST_ROOT_ROLE, XContentTestUtils.convertToMap(ES_TEST_ROOT_ROLE_DESCRIPTOR)))
+                );
+            } else {
+                assertThat(apiKeyMap, not(hasKey("limited_by")));
+            }
+
+            switch (name) {
+                case "k1" -> {
+                    assertThat(roleDescriptors, anEmptyMap());
+                }
+                case "k2" -> {
+                    assertThat(
+                        roleDescriptors,
+                        equalTo(
+                            Map.of("x", XContentTestUtils.convertToMap(new RoleDescriptor("x", new String[] { "monitor" }, null, null)))
+                        )
+                    );
+                }
+                case "k3" -> {
+                    assertThat(
+                        roleDescriptors,
+                        equalTo(
+                            Map.of(
+                                "x",
+                                XContentTestUtils.convertToMap(new RoleDescriptor("x", new String[] { "monitor" }, null, null)),
+                                "y",
+                                XContentTestUtils.convertToMap(
+                                    new RoleDescriptor(
+                                        "y",
+                                        null,
+                                        new RoleDescriptor.IndicesPrivileges[] {
+                                            RoleDescriptor.IndicesPrivileges.builder().indices("index").privileges("read").build() },
+                                        null
+                                    )
+                                )
+                            )
+                        )
+                    );
+                }
+                default -> throw new IllegalStateException("unknown api key name [" + name + "]");
+            }
+        }
     }
 
     @SuppressWarnings({ "unchecked" })
@@ -341,6 +489,87 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             "resource_not_found_exception",
             "no API key owned by requesting user found for ID [" + apiKeyId + "]",
             errorDetails.get(apiKeyId)
+        );
+    }
+
+    public void testGetPrivilegesForApiKeyWorksIfItDoesNotHaveAssignedPrivileges() throws IOException {
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        if (randomBoolean()) {
+            createApiKeyRequest.setJsonEntity("""
+                { "name": "k1" }""");
+        } else {
+            createApiKeyRequest.setJsonEntity("""
+                {
+                  "name": "k1",
+                  "role_descriptors": { }
+                }""");
+        }
+        final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+        assertOK(createApiKeyResponse);
+
+        final Request getPrivilegesRequest = new Request("GET", "_security/user/_privileges");
+        getPrivilegesRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + responseAsMap(createApiKeyResponse).get("encoded"))
+        );
+        final Response getPrivilegesResponse = client().performRequest(getPrivilegesRequest);
+        assertOK(getPrivilegesResponse);
+
+        assertThat(responseAsMap(getPrivilegesResponse), equalTo(XContentHelper.convertToMap(JsonXContent.jsonXContent, """
+            {
+              "cluster": [
+                "all"
+              ],
+              "global": [],
+              "indices": [
+                {
+                  "names": [
+                    "*"
+                  ],
+                  "privileges": [
+                    "all"
+                  ],
+                  "allow_restricted_indices": true
+                }
+              ],
+              "applications": [
+                {
+                  "application": "*",
+                  "privileges": [
+                    "*"
+                  ],
+                  "resources": [
+                    "*"
+                  ]
+                }
+              ],
+              "run_as": [
+                "*"
+              ]
+            }""", false)));
+    }
+
+    public void testGetPrivilegesForApiKeyThrows400IfItHasAssignedPrivileges() throws IOException {
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity("""
+            {
+              "name": "k1",
+              "role_descriptors": { "a": { "cluster": ["monitor"] } }
+            }""");
+        final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+        assertOK(createApiKeyResponse);
+
+        final Request getPrivilegesRequest = new Request("GET", "_security/user/_privileges");
+        getPrivilegesRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + responseAsMap(createApiKeyResponse).get("encoded"))
+        );
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getPrivilegesRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Cannot retrieve privileges for API keys with assigned role descriptors. "
+                    + "Please use the Get API key information API https://ela.st/es-api-get-api-key"
+            )
         );
     }
 

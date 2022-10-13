@@ -50,7 +50,7 @@ public class UpdateDesiredNodesRequestTests extends ESTestCase {
         } else {
             return new DesiredNode(
                 settings,
-                new DesiredNode.ProcessorsRange(1, randomBoolean() ? null : (float) 1),
+                new DesiredNode.ProcessorsRange(1, randomBoolean() ? null : (double) 1),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT

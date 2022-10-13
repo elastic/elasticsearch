@@ -16,7 +16,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
@@ -98,44 +97,6 @@ import static org.hamcrest.Matchers.startsWith;
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
-    /**
-     * This test was added to verify that state recovery is properly reset on a node after it has become master and successfully
-     * recovered a state (see {@link GatewayService}). The situation which triggers this with a decent likelihood is as follows:
-     * 3 master-eligible nodes (leader, follower1, follower2), the followers are shut down (leader remains), when followers come back
-     * one of them becomes leader and publishes first state (with STATE_NOT_RECOVERED_BLOCK) to old leader, which accepts it.
-     * Old leader is initiating an election at the same time, and wins election. It becomes leader again, but as it previously
-     * successfully completed state recovery, is never reset to a state where state recovery can be retried.
-     */
-    public void testStateRecoveryResetAfterPreviousLeadership() {
-        try (Cluster cluster = new Cluster(3)) {
-            cluster.runRandomly();
-            cluster.stabilise();
-
-            final ClusterNode leader = cluster.getAnyLeader();
-            final ClusterNode follower1 = cluster.getAnyNodeExcept(leader);
-            final ClusterNode follower2 = cluster.getAnyNodeExcept(leader, follower1);
-
-            // restart follower1 and follower2
-            for (ClusterNode clusterNode : Arrays.asList(follower1, follower2)) {
-                clusterNode.close();
-                cluster.clusterNodes.forEach(cn -> cluster.deterministicTaskQueue.scheduleNow(cn.onNode(new Runnable() {
-                    @Override
-                    public void run() {
-                        cn.transportService.disconnectFromNode(clusterNode.getLocalNode());
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "disconnect from " + clusterNode.getLocalNode() + " after shutdown";
-                    }
-                })));
-                cluster.clusterNodes.replaceAll(cn -> cn == clusterNode ? cn.restartedNode() : cn);
-            }
-
-            cluster.stabilise();
-        }
-    }
-
     public void testCanUpdateClusterStateAfterStabilisation() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             cluster.runRandomly();
@@ -156,6 +117,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89860")
     public void testDoesNotElectNonMasterNode() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
             cluster.runRandomly();
@@ -605,6 +567,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90158")
     public void testUnhealthyLeaderIsReplaced() {
         final AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(HEALTHY, "healthy-info"));
         final int initialClusterSize = between(1, 3);
@@ -750,6 +713,44 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 )
             );
             assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
+        }
+    }
+
+    /**
+     * This test was added to verify that state recovery is properly reset on a node after it has become master and successfully
+     * recovered a state (see {@link GatewayService}). The situation which triggers this with a decent likelihood is as follows:
+     * 3 master-eligible nodes (leader, follower1, follower2), the followers are shut down (leader remains), when followers come back
+     * one of them becomes leader and publishes first state (with STATE_NOT_RECOVERED_BLOCK) to old leader, which accepts it.
+     * Old leader is initiating an election at the same time, and wins election. It becomes leader again, but as it previously
+     * successfully completed state recovery, is never reset to a state where state recovery can be retried.
+     */
+    public void testStateRecoveryResetAfterPreviousLeadership() {
+        try (Cluster cluster = new Cluster(3)) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final ClusterNode leader = cluster.getAnyLeader();
+            final ClusterNode follower1 = cluster.getAnyNodeExcept(leader);
+            final ClusterNode follower2 = cluster.getAnyNodeExcept(leader, follower1);
+
+            // restart follower1 and follower2
+            for (ClusterNode clusterNode : Arrays.asList(follower1, follower2)) {
+                clusterNode.close();
+                cluster.clusterNodes.forEach(cn -> cluster.deterministicTaskQueue.scheduleNow(cn.onNode(new Runnable() {
+                    @Override
+                    public void run() {
+                        cn.transportService.disconnectFromNode(clusterNode.getLocalNode());
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "disconnect from " + clusterNode.getLocalNode() + " after shutdown";
+                    }
+                })));
+                cluster.clusterNodes.replaceAll(cn -> cn == clusterNode ? cn.restartedNode() : cn);
+            }
+
+            cluster.stabilise();
         }
     }
 
@@ -1133,7 +1134,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("unchanged", cs -> {
                 computeAdvancer.advanceTime();
                 return cs;
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
@@ -1220,7 +1221,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("update", cs -> {
                 computeAdvancer.advanceTime();
                 return ClusterState.builder(cs).putCustom(customName, new DelayedCustom(contextAdvancer)).build();
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
@@ -1281,7 +1282,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             leader.submitUpdateTask("update", cs -> {
                 computeAdvancer.advanceTime();
                 return ClusterState.builder(cs).build();
-            }, new ClusterStateTaskListener() {
+            }, new CoordinatorTestClusterStateUpdateTask() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     fail("shouldn't have processed cluster state");
@@ -1927,7 +1928,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             final ClusterNode clusterNode = cluster.getAnyNode();
 
-            final long clusterStateUpdateDelay = 7 * delayVariabilityMillis; // see definition of DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            final long clusterStateUpdateDelay = CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS * delayVariabilityMillis;
 
             // cf. DEFAULT_STABILISATION_TIME, but stabilisation is quicker when there's a single node - there's no meaningful fault
             // detection and ongoing publications do not time out
@@ -2162,6 +2163,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     mockLogAppender.stop();
                 }
             }
+        }
+    }
+
+    public void testInvariantWhenTwoNodeClusterBecomesSingleNodeCluster() {
+        try (Cluster cluster = new Cluster(2)) {
+            cluster.stabilise();
+            assertTrue(cluster.getAnyNodeExcept(cluster.getAnyLeader()).disconnect()); // Remove non-leader node
+            cluster.stabilise();
         }
     }
 

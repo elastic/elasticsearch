@@ -107,13 +107,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             script = mockScript("['key3' : ctx.payload.key1 + ctx.payload.key2]");
         } else {
             logger.info("testing script transform with an indexed script");
-            assertAcked(client().admin().cluster().preparePutStoredScript().setId("my-script").setContent(new BytesArray("""
+            assertAcked(client().admin().cluster().preparePutStoredScript().setId("my-script").setContent(new BytesArray(formatted("""
                 {
                   "script": {
                     "lang": "%s",
                     "source": "['key3' : ctx.payload.key1 + ctx.payload.key2]"
                   }
-                }""".formatted(MockScriptPlugin.NAME)), XContentType.JSON).get());
+                }""", MockScriptPlugin.NAME)), XContentType.JSON).get());
             script = new Script(ScriptType.STORED, null, "my-script", Collections.emptyMap());
         }
 

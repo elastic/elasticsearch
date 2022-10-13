@@ -205,7 +205,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             if (hasBlockedIndices()) {
                 symptom = String.format(
                     Locale.ROOT,
-                    "%d %s %s not allowed to be updated because ",
+                    "%d %s %s not allowed to be updated.",
                     blockedIndices.size(),
                     indices(blockedIndices.size()),
                     are(blockedIndices.size())
@@ -213,7 +213,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 if (hasUnhealthyDataNodes()) {
                     symptom += String.format(
                         Locale.ROOT,
-                        "%d %s %s out of disk or running low on disk space.",
+                        " %d %s %s out of disk or running low on disk space.",
                         dataNodes.size(),
                         regularNoun("node", dataNodes.size()),
                         are(dataNodes.size())
@@ -221,9 +221,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 } else {
                     // In this case the disk issue has been resolved but the index block has not been removed yet or the
                     // cluster is still moving shards away from data nodes that are over the high watermark.
-                    symptom +=
-                        ("the cluster was running out of disk space. The cluster is recovering and ingest capabilities should be restored "
-                            + "within a few minutes.");
+                    symptom += " The cluster is recovering and ingest capabilities should be restored within a few minutes.";
                 }
                 if (hasUnhealthyMasterNodes() || hasUnhealthyOtherNodes()) {
                     String roles = Stream.concat(masterNodes.values().stream(), otherNodes.values().stream())
@@ -237,11 +235,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     int unhealthyNodesCount = getUnhealthyNodeSize(masterNodes) + getUnhealthyNodeSize(otherNodes);
                     symptom += String.format(
                         Locale.ROOT,
-                        " Furthermore %d node%s with roles: [%s] %s out of disk or running low on disk space.",
+                        " %d %s with roles: [%s] %s out of disk or running low on disk space.",
                         unhealthyNodesCount,
-                        unhealthyNodesCount == 1 ? "" : "s",
+                        regularNoun("node", unhealthyNodesCount),
                         roles,
-                        unhealthyNodesCount == 1 ? "is" : "are"
+                        are(unhealthyNodesCount)
                     );
                 }
             } else {

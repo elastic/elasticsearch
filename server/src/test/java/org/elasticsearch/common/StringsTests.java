@@ -32,14 +32,12 @@ import static org.elasticsearch.common.Strings.isAllOrWildcard;
 import static org.elasticsearch.common.Strings.isEmpty;
 import static org.elasticsearch.common.Strings.padStart;
 import static org.elasticsearch.common.Strings.spaceify;
-import static org.elasticsearch.common.Strings.splitSmart;
 import static org.elasticsearch.common.Strings.substring;
 import static org.elasticsearch.common.Strings.toLowercaseAscii;
 import static org.elasticsearch.common.Strings.tokenizeByCommaToSet;
 import static org.elasticsearch.common.Strings.trimLeadingCharacter;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.endsWith;
@@ -61,13 +59,6 @@ public class StringsTests extends ESTestCase {
         sb = new StringBuilder();
         spaceify(0, String.join("\n", lines), sb);
         assertThat(sb.toString(), equalTo(Arrays.stream(lines).collect(Collectors.joining("\n", "", "\n"))));
-    }
-
-    public void testSplitSmart() {
-        String testStr;
-        assertThat(splitSmart("foobar", "", false), contains("foobar"));
-        assertThat(splitSmart(testStr = "a\nb\r\nc\td\be\f", "", false), contains(testStr));
-        assertThat(splitSmart(testStr = "a\nb\r\nc\td\be\f", "", true), contains(testStr));
     }
 
     public void testHasLength() {

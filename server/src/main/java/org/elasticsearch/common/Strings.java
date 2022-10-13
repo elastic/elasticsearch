@@ -53,63 +53,6 @@ public class Strings {
         }
     }
 
-    /**
-     * Splits a backslash escaped string on the separator.
-     * <p>
-     * Current backslash escaping supported:
-     * <br> \n \t \r \b \f are escaped the same as a Java String
-     * <br> Other characters following a backslash are produced verbatim (\c =&gt; c)
-     *
-     * @param s         the string to split
-     * @param separator the separator to split on
-     * @param decode    decode backslash escaping
-     */
-    @Deprecated // this method is too complicated for its own good
-    public static List<String> splitSmart(String s, String separator, boolean decode) {
-        ArrayList<String> lst = new ArrayList<>(2);
-        StringBuilder sb = new StringBuilder();
-        int pos = 0, end = s.length();
-        while (pos < end) {
-            if (separator.isEmpty() == false && s.startsWith(separator, pos)) {
-                if (sb.length() > 0) {
-                    lst.add(sb.toString());
-                    sb.setLength(0);
-                }
-                pos += separator.length();
-                continue;
-            }
-
-            char ch = s.charAt(pos++);
-            if (ch == '\\') {
-                if (decode == false) {
-                    sb.append(ch);
-                }
-                if (pos >= end) {
-                    break;  // ERROR, or let it go?
-                }
-                ch = s.charAt(pos++);
-                if (decode) {
-                    ch = switch (ch) {
-                        case 'n' -> '\n';
-                        case 't' -> '\t';
-                        case 'r' -> '\r';
-                        case 'b' -> '\b';
-                        case 'f' -> '\f';
-                        default -> ch;
-                    };
-                }
-            }
-
-            sb.append(ch);
-        }
-
-        if (sb.length() > 0) {
-            lst.add(sb.toString());
-        }
-
-        return lst;
-    }
-
     // ---------------------------------------------------------------------
     // General convenience methods for working with Strings
     // ---------------------------------------------------------------------

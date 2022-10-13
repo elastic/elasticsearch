@@ -30,8 +30,8 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
         this.configuration = configuration;
     }
 
-    public PhysicalPlan optimize(PhysicalPlan verified) {
-        PhysicalPlan plan = execute(verified);
+    public PhysicalPlan optimize(PhysicalPlan plan) {
+        plan = execute(plan);
         // ensure we always have single node at the end
         if (plan.singleNode() == false) {
             return new ExchangeExec(plan.source(), plan, ExchangeExec.Type.GATHER, ExchangeExec.Partitioning.SINGLE_DISTRIBUTION);
@@ -39,11 +39,11 @@ public class Optimizer extends RuleExecutor<PhysicalPlan> {
         return plan;
     }
 
-    public abstract static class OptimizerRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
+    protected abstract static class OptimizerRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
 
         private final OptimizerRules.TransformDirection direction;
 
-        public OptimizerRule() {
+        protected OptimizerRule() {
             this(OptimizerRules.TransformDirection.DOWN);
         }
 

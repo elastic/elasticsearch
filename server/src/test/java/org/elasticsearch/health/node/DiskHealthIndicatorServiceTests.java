@@ -324,8 +324,8 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             result.symptom(),
             equalTo(
-                "1 index is not allowed to be updated because the cluster was running out of "
-                    + "disk space. The cluster is recovering and ingest capabilities should be restored within a few minutes."
+                "1 index is not allowed to be updated. The cluster is recovering and ingest capabilities should be restored within a "
+                    + "few minutes."
             )
         );
         assertThat(result.impacts().size(), equalTo(1));
@@ -369,7 +369,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             result.symptom(),
             equalTo(
-                "1 index is not allowed to be updated because "
+                "1 index is not allowed to be updated. "
                     + (numberOfYellowNodes == 1 ? "1 node is" : numberOfYellowNodes + " nodes are")
                     + " out of disk or running low on disk space."
             )
@@ -446,7 +446,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             result.symptom(),
             equalTo(
                 (numberOfBlockedIndices == 1 ? "1 index is" : numberOfBlockedIndices + " indices are")
-                    + " not allowed to be updated because "
+                    + " not allowed to be updated. "
                     + (numberOfRedNodes == 1 ? "1 node is" : numberOfRedNodes + " nodes are")
                     + " out of disk or running low on disk space."
             )
@@ -632,9 +632,9 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             result.symptom(),
             equalTo(
-                "1 index is not allowed to be updated because "
+                "1 index is not allowed to be updated. "
                     + (numberOfYellowDataNodes + (numberOfYellowDataNodes == 1 ? " node is" : " nodes are"))
-                    + " out of disk or running low on disk space. Furthermore "
+                    + " out of disk or running low on disk space. "
                     + (numberOfRedMasterNodes + numberOfRedOtherNodes)
                     + " nodes with roles: "
                     + Stream.concat(masterRole.stream(), otherRoles.stream()).map(DiscoveryNodeRole::roleName).sorted().toList()

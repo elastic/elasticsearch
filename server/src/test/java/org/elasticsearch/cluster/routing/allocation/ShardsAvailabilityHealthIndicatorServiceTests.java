@@ -143,8 +143,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     YELLOW,
                     unavailableReplicas.size() > 1
-                        ? "This cluster has " + unavailableReplicas.size() + " unavailable replicas."
-                        : "This cluster has 1 unavailable replica.",
+                        ? "This cluster has " + unavailableReplicas.size() + " unavailable replica shards."
+                        : "This cluster has 1 unavailable replica shard.",
                     Map.of(
                         "started_primaries",
                         1,
@@ -182,7 +182,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     RED,
-                    "This cluster has 1 unavailable primary.",
+                    "This cluster has 1 unavailable primary shard.",
                     Map.of("unassigned_primaries", 1, "started_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -210,7 +210,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     RED,
-                    "This cluster has 1 unavailable primary.",
+                    "This cluster has 1 unavailable primary shard.",
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -238,7 +238,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(RED, result.status());
-        assertEquals("This cluster has 1 unavailable primary, 1 unavailable replica.", result.symptom());
+        assertEquals("This cluster has 1 unavailable primary shard, 1 unavailable replica shard.", result.symptom());
         assertEquals(1, result.impacts().size());
         assertEquals(
             result.impacts().get(0),
@@ -270,7 +270,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(RED, result.status());
-        assertEquals("This cluster has 1 unavailable primary, 2 unavailable replicas.", result.symptom());
+        assertEquals("This cluster has 1 unavailable primary shard, 2 unavailable replica shards.", result.symptom());
         assertEquals(2, result.impacts().size());
         assertEquals(
             result.impacts().get(0),
@@ -351,7 +351,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has 1 restarting replica.",
+                    "This cluster has 1 restarting replica shard.",
                     Map.of("started_primaries", 1, "restarting_replicas", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -399,7 +399,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     YELLOW,
-                    "This cluster has 1 unavailable replica.",
+                    "This cluster has 1 unavailable replica shard.",
                     Map.of("started_primaries", 1, "unassigned_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -434,7 +434,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has 1 creating primary.",
+                    "This cluster has 1 creating primary shard.",
                     Map.of("creating_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -455,7 +455,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has 1 restarting primary.",
+                    "This cluster has 1 restarting primary shard.",
                     Map.of("restarting_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -481,7 +481,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     RED,
-                    "This cluster has 1 unavailable primary.",
+                    "This cluster has 1 unavailable primary shard.",
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -526,7 +526,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedTruncatedResult(
                     RED,
-                    "This cluster has 1 unavailable primary.",
+                    "This cluster has 1 unavailable primary shard.",
                     List.of(
                         new HealthIndicatorImpact(
                             NAME,

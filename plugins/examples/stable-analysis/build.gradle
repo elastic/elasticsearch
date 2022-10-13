@@ -19,7 +19,9 @@ dependencies {
   implementation "org.elasticsearch:elasticsearch-plugin-analysis-api:${elasticsearchVersion}"
   implementation "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
 
-  testImplementation 'junit:junit:4.13.2'
+  testImplementation ('junit:junit:4.13.2'){
+    exclude group: 'org.hamcrest'
+  }
   testImplementation 'org.hamcrest:hamcrest:2.2'
 
 }

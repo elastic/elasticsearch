@@ -318,7 +318,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         } else {
             builder.field(Fields.TRANSIENT_METADATA.getPreferredName(), transientMetadata);
         }
-        builder.xContentList(Fields.REMOTE_INDICES.getPreferredName(), remoteIndicesPrivileges);
+        if (hasRemoteIndicesPrivileges()) {
+            builder.xContentList(Fields.REMOTE_INDICES.getPreferredName(), remoteIndicesPrivileges);
+        }
         return builder.endObject();
     }
 

@@ -68,20 +68,54 @@ public class ReservedComposableIndexTemplateAction
         return NAME;
     }
 
-    public static String componentName(String name) {
+    // Since we can't split the reserved state handler into two separate handlers, because of the
+    // circular dependency on create and delete, we must store both the component template keys and
+    // the composable index template keys in the same reserved state handler. To be able to correctly
+    // distinguish between the component names and the composable names, we prefix the reserved keys
+    // when they are stored in the cluster state. Similarly, we remove the prefix when we need to perform
+    // the REST API validation in the corresponding transport actions.
+
+    /**
+     * Prefixes the component template name with a prefix for storage in the cluster state
+     * @param name component template name
+     * @return prefixed component template name for storage in the reserved cluster state
+     */
+    public static String reservedComponentName(String name) {
         return COMPONENT_PREFIX + name;
     }
 
-    public static String nameFromComponentName(String name) {
+    /**
+     * Removes the reserved cluster state prefix from the component template name
+     * <p>
+     * Once the prefix is removed we can use the name for conflict validation in {@link TransportPutComponentTemplateAction} and
+     * {@link org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction}
+     * @param name the prefixed reserved component template name
+     * @return the un-prefixed component template name used for conflict validation at REST
+     */
+    public static String componentNameFromReservedName(String name) {
         assert name.startsWith(COMPONENT_PREFIX);
         return name.substring(COMPONENT_PREFIX.length());
     }
 
-    public static String composableIndexName(String name) {
+    /**
+     * Prefixes the composable index template name with a prefix for storage in the cluster state
+     * @param name composable index template name
+     * @return prefixed composable index template name for storage in the reserved cluster state
+     */
+    public static String reservedComposableIndexName(String name) {
         return COMPOSABLE_PREFIX + name;
     }
 
-    public static String nameFromComposableIndexName(String name) {
+    /**
+     * Removes the reserved cluster state prefix from the composable index template name
+     * <p>
+     * Once the prefix is removed we can use the name for conflict validation in
+     * {@link org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction} and
+     * {@link org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction}
+     * @param name the prefixed reserved composable index template name
+     * @return the un-prefixed composable index template name used for conflict validation at REST
+     */
+    public static String composableIndexNameFromReservedName(String name) {
         assert name.startsWith(COMPOSABLE_PREFIX);
         return name.substring(COMPOSABLE_PREFIX.length());
     }
@@ -131,7 +165,7 @@ public class ReservedComposableIndexTemplateAction
             state = indexTemplateService.addIndexTemplateV2(state, false, request.name(), request.indexTemplate(), false);
         }
 
-        Set<String> composableEntities = composables.stream().map(r -> composableIndexName(r.name())).collect(Collectors.toSet());
+        Set<String> composableEntities = composables.stream().map(r -> reservedComposableIndexName(r.name())).collect(Collectors.toSet());
         Set<String> composablesToDelete = new HashSet<>(
             prevState.keys().stream().filter(k -> k.startsWith(COMPOSABLE_PREFIX)).collect(Collectors.toSet())
         );
@@ -139,7 +173,7 @@ public class ReservedComposableIndexTemplateAction
 
         // 3. delete composable index templates (this will fail on attached data streams, unless we added a higher priority one)
         if (composablesToDelete.isEmpty() == false) {
-            var composableNames = composablesToDelete.stream().map(c -> nameFromComposableIndexName(c)).toArray(String[]::new);
+            var composableNames = composablesToDelete.stream().map(c -> composableIndexNameFromReservedName(c)).toArray(String[]::new);
             state = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, composableNames);
         }
 
@@ -148,7 +182,7 @@ public class ReservedComposableIndexTemplateAction
             indexTemplateService.v2TemplateOverlaps(state, request.name(), request.indexTemplate(), true);
         }
 
-        Set<String> componentEntities = components.stream().map(r -> componentName(r.name())).collect(Collectors.toSet());
+        Set<String> componentEntities = components.stream().map(r -> reservedComponentName(r.name())).collect(Collectors.toSet());
         Set<String> componentsToDelete = new HashSet<>(
             prevState.keys().stream().filter(k -> k.startsWith(COMPONENT_PREFIX)).collect(Collectors.toSet())
         );
@@ -156,7 +190,7 @@ public class ReservedComposableIndexTemplateAction
 
         // 5. delete component templates (this will check if there are any related composable index templates and fail)
         if (componentsToDelete.isEmpty() == false) {
-            var componentNames = componentsToDelete.stream().map(c -> nameFromComponentName(c)).toArray(String[]::new);
+            var componentNames = componentsToDelete.stream().map(c -> componentNameFromReservedName(c)).toArray(String[]::new);
             state = MetadataIndexTemplateService.innerRemoveComponentTemplate(state, componentNames);
         }
 

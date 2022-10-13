@@ -79,7 +79,7 @@ public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTr
     @Override
     public Set<String> modifiedKeys(DeleteComposableIndexTemplateAction.Request request) {
         return Arrays.stream(request.names())
-            .map(n -> ReservedComposableIndexTemplateAction.composableIndexName(n))
+            .map(n -> ReservedComposableIndexTemplateAction.reservedComposableIndexName(n))
             .collect(Collectors.toSet());
     }
 }

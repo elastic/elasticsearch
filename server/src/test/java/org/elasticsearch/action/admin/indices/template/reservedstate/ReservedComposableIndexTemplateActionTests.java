@@ -50,8 +50,8 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.componentName;
-import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.composableIndexName;
+import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.reservedComponentName;
+import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.reservedComposableIndexName;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -267,7 +267,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, settingsJSON);
-        assertThat(updatedState.keys(), containsInAnyOrder(componentName("template_1"), componentName("template_2")));
+        assertThat(updatedState.keys(), containsInAnyOrder(reservedComponentName("template_1"), reservedComponentName("template_2")));
 
         String lessJSON = """
             {
@@ -291,7 +291,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, lessJSON);
-        assertThat(updatedState.keys(), containsInAnyOrder(componentName("template_2")));
+        assertThat(updatedState.keys(), containsInAnyOrder(reservedComponentName("template_2")));
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, emptyJSON);
@@ -406,10 +406,10 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         assertThat(
             updatedState.keys(),
             containsInAnyOrder(
-                composableIndexName("template_1"),
-                composableIndexName("template_2"),
-                componentName("component_template1"),
-                componentName("runtime_component_template")
+                reservedComposableIndexName("template_1"),
+                reservedComposableIndexName("template_2"),
+                reservedComponentName("component_template1"),
+                reservedComponentName("runtime_component_template")
             )
         );
 
@@ -479,9 +479,9 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         assertThat(
             updatedState.keys(),
             containsInAnyOrder(
-                composableIndexName("template_2"),
-                componentName("component_template1"),
-                componentName("runtime_component_template")
+                reservedComposableIndexName("template_2"),
+                reservedComponentName("component_template1"),
+                reservedComponentName("runtime_component_template")
             )
         );
 
@@ -616,7 +616,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         // We add one only to see if we can replace it subsequently, inserts happen before deletes in ReservedComposableIndexTemplateAction
         prevState = updatedState;
         updatedState = processJSON(action, prevState, newSettingsJSON);
-        assertThat(updatedState.keys(), containsInAnyOrder(composableIndexName("template_1")));
+        assertThat(updatedState.keys(), containsInAnyOrder(reservedComposableIndexName("template_1")));
 
         String lessJSON = """
             {
@@ -657,7 +657,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         // We are replacing template_1 with template_2, same index pattern, no validation should be thrown
         prevState = updatedState;
         updatedState = processJSON(action, prevState, lessJSON);
-        assertThat(updatedState.keys(), containsInAnyOrder(composableIndexName("template_2")));
+        assertThat(updatedState.keys(), containsInAnyOrder(reservedComposableIndexName("template_2")));
 
         prevState = updatedState;
         updatedState = processJSON(action, prevState, emptyJSON);
@@ -676,7 +676,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         assertEquals(ReservedComposableIndexTemplateAction.NAME, putIndexAction.reservedStateHandlerName().get());
         assertThat(
             putIndexAction.modifiedKeys(new PutComposableIndexTemplateAction.Request("aaa")),
-            containsInAnyOrder(composableIndexName("aaa"))
+            containsInAnyOrder(reservedComposableIndexName("aaa"))
         );
         var delIndexAction = new TransportDeleteComposableIndexTemplateAction(
             mock(TransportService.class),
@@ -689,7 +689,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         assertEquals(ReservedComposableIndexTemplateAction.NAME, delIndexAction.reservedStateHandlerName().get());
         assertThat(
             delIndexAction.modifiedKeys(new DeleteComposableIndexTemplateAction.Request("a", "b")),
-            containsInAnyOrder(composableIndexName("a"), composableIndexName("b"))
+            containsInAnyOrder(reservedComposableIndexName("a"), reservedComposableIndexName("b"))
         );
 
         var putComponentAction = new TransportPutComponentTemplateAction(
@@ -704,7 +704,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         assertEquals(ReservedComposableIndexTemplateAction.NAME, putComponentAction.reservedStateHandlerName().get());
         assertThat(
             putComponentAction.modifiedKeys(new PutComponentTemplateAction.Request("aaa")),
-            containsInAnyOrder(componentName("aaa"))
+            containsInAnyOrder(reservedComponentName("aaa"))
         );
 
         var delComponentAction = new TransportDeleteComponentTemplateAction(
@@ -718,7 +718,7 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
         assertEquals(ReservedComposableIndexTemplateAction.NAME, delComponentAction.reservedStateHandlerName().get());
         assertThat(
             delComponentAction.modifiedKeys(new DeleteComponentTemplateAction.Request("a", "b")),
-            containsInAnyOrder(componentName("a"), componentName("b"))
+            containsInAnyOrder(reservedComponentName("a"), reservedComponentName("b"))
         );
     }
 

@@ -77,6 +77,6 @@ public class TransportDeleteComponentTemplateAction extends AcknowledgedTranspor
 
     @Override
     public Set<String> modifiedKeys(DeleteComponentTemplateAction.Request request) {
-        return Arrays.stream(request.names()).map(n -> ReservedComposableIndexTemplateAction.componentName(n)).collect(Collectors.toSet());
+        return Arrays.stream(request.names()).map(n -> ReservedComposableIndexTemplateAction.reservedComponentName(n)).collect(Collectors.toSet());
     }
 }

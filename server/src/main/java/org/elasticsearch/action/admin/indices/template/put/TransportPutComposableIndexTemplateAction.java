@@ -92,7 +92,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
         Set<String> composedOfKeys = indexTemplate.composedOf()
             .stream()
-            .map(c -> ReservedComposableIndexTemplateAction.componentName(c))
+            .map(c -> ReservedComposableIndexTemplateAction.reservedComponentName(c))
             .collect(Collectors.toSet());
 
         List<String> errors = new ArrayList<>();
@@ -118,6 +118,6 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
 
     @Override
     public Set<String> modifiedKeys(PutComposableIndexTemplateAction.Request request) {
-        return Set.of(ReservedComposableIndexTemplateAction.composableIndexName(request.name()));
+        return Set.of(ReservedComposableIndexTemplateAction.reservedComposableIndexName(request.name()));
     }
 }

@@ -108,6 +108,6 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
 
     @Override
     public Set<String> modifiedKeys(PutComponentTemplateAction.Request request) {
-        return Set.of(ReservedComposableIndexTemplateAction.componentName(request.name()));
+        return Set.of(ReservedComposableIndexTemplateAction.reservedComponentName(request.name()));
     }
 }

@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.composableIndexName;
+import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.reservedComposableIndexName;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.hamcrest.Matchers.allOf;
@@ -379,7 +379,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
                 if (reservedState != null) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedComposableIndexTemplateAction.NAME);
-                    if (handlerMetadata != null && handlerMetadata.keys().contains(composableIndexName("template_1"))) {
+                    if (handlerMetadata != null && handlerMetadata.keys().contains(reservedComposableIndexName("template_1"))) {
                         clusterService.removeListener(this);
                         metadataVersion.set(event.state().metadata().version());
                         savedClusterState.countDown();
@@ -436,7 +436,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedComposableIndexTemplateAction.NAME);
                     if (handlerMetadata != null
                         && handlerMetadata.keys().isEmpty() == false
-                        && handlerMetadata.keys().contains(composableIndexName("template_other")) == false) {
+                        && handlerMetadata.keys().contains(reservedComposableIndexName("template_other")) == false) {
                         clusterService.removeListener(this);
                         metadataVersion.set(event.state().metadata().version());
                         savedClusterState.countDown();

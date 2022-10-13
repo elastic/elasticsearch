@@ -32,7 +32,7 @@ Ranking::
 * Avoid negative scores with `cross_fields` type {es-pull}89016[#89016] (issue: {es-issue}44700[#44700])
 
 Rollup::
-* Fork `TransportRollupCapsAction` to MANAGEMENT POOL {es-pull}89803[#89803]
+* Fork `TransportRollupCapsAction` to management threadpool {es-pull}89803[#89803]
 
 Search::
 * Safeguard `RegExp` use against `StackOverflowError` {es-pull}84624[#84624] (issue: {es-issue}82923[#82923])
@@ -46,7 +46,7 @@ Watcher::
 === Upgrades
 
 Packaging::
-* Update openjdk to 18.0.2.1 {es-pull}89535[#89535] (issue: {es-issue}89531[#89531])
+* Update OpenJDK to 18.0.2.1 {es-pull}89535[#89535] (issue: {es-issue}89531[#89531])
 * Upgrade bundled JDK to Java 19 {es-pull}90571[#90571]
 
 

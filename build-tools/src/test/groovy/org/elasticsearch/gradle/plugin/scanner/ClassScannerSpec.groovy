@@ -38,7 +38,6 @@ class ClassScannerSpec extends Specification {
         reader.visit(classReaderStream);
         Map<String, String> extensibleClasses = reader.getFoundClasses()
 
-
         then:
         assertThat(
             extensibleClasses,

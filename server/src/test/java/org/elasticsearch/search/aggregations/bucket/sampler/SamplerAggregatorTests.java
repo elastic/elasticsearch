@@ -65,7 +65,8 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalSampler sampler = searchAndReduce(
-                    new AggTestConfig(searcher, new TermQuery(new Term("text", "good")), aggBuilder, textFieldType, numericFieldType)
+                    searcher,
+                    new AggTestConfig(aggBuilder, textFieldType, numericFieldType).withQuery(new TermQuery(new Term("text", "good")))
                 );
                 Min min = sampler.getAggregations().get("min");
                 assertEquals(5.0, min.value(), 0);
@@ -100,7 +101,8 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalSampler sampler = searchAndReduce(
-                    new AggTestConfig(searcher, new TermQuery(new Term("text", "good")), aggBuilder, textFieldType, numericFieldType)
+                    searcher,
+                    new AggTestConfig(aggBuilder, textFieldType, numericFieldType).withQuery(new TermQuery(new Term("text", "good")))
                 );
                 Min min = sampler.getAggregations().get("min");
                 assertEquals(3.0, min.value(), 0);
@@ -127,7 +129,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                 SamplerAggregationBuilder sampler = new SamplerAggregationBuilder("sampler").subAggregation(samplerChild);
                 samplerParent.subAggregation(sampler);
 
-                InternalFilters response = searchAndReduce(new AggTestConfig(searcher, samplerParent));
+                InternalFilters response = searchAndReduce(searcher, new AggTestConfig(samplerParent));
                 assertEquals(response.getBuckets().size(), 2);
                 assertEquals(response.getBuckets().get(0).getDocCount(), 1);
                 assertEquals(response.getBuckets().get(1).getDocCount(), 0);

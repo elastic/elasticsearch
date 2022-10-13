@@ -191,7 +191,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        subSearchContext.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
+        subSearchContext.docIdsToLoad(docIdsToLoad);
         subSearchContext.fetchPhase().execute(subSearchContext);
         FetchSearchResult fetchResult = subSearchContext.fetchResult();
         if (fetchProfiles != null) {

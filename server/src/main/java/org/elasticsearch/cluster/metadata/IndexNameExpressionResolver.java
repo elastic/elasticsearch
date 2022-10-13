@@ -1135,9 +1135,7 @@ public class IndexNameExpressionResolver {
          */
         public static Collection<String> resolve(Context context, List<String> expressions) {
             Objects.requireNonNull(expressions);
-            // only check open/closed since if we do not expand to open or closed it doesn't make sense to
-            // expand to hidden
-            if (context.getOptions().expandWildcardsClosed() == false && context.getOptions().expandWildcardsOpen() == false) {
+            if (context.getOptions().expandWildcardExpressions() == false) {
                 return expressions;
             } else if (isEmptyOrTrivialWildcard(expressions)) {
                 return innerResolveAll(context);
@@ -1474,8 +1472,17 @@ public class IndexNameExpressionResolver {
 
         public static List<String> resolve(final Context context, List<String> expressions) {
             List<String> result = new ArrayList<>(expressions.size());
+            boolean wildcardSeen = false;
             for (String expression : expressions) {
-                result.add(resolveExpression(expression, context::getStartTime));
+                // accepts date-math exclusions that are of the form "-<...{}>", i.e. the "-" is outside the "<>" date-math template
+                if (Strings.hasLength(expression) && expression.charAt(0) == '-' && wildcardSeen) {
+                    result.add("-" + resolveExpression(expression.substring(1), context::getStartTime));
+                } else {
+                    result.add(resolveExpression(expression, context::getStartTime));
+                }
+                if (Regex.isSimpleMatchPattern(expression)) {
+                    wildcardSeen = true;
+                }
             }
             return result;
         }

@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -349,7 +348,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 indexShard.shardId(),
                                 0,
                                 1,
-                                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                                AliasFilter.EMPTY,
                                 1.0f,
                                 -1,
                                 null
@@ -424,7 +423,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 new ShardId(resolveIndex("index"), 0),
                 0,
                 1,
-                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                AliasFilter.EMPTY,
                 1.0f,
                 -1,
                 null
@@ -495,7 +494,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             -1,
             null
@@ -522,7 +521,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             -1,
             null
@@ -560,7 +559,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             -1,
             null
@@ -623,7 +622,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 indexShard.shardId(),
                 0,
                 1,
-                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                AliasFilter.EMPTY,
                 1.0f,
                 -1,
                 null
@@ -662,7 +661,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             -1,
             null
@@ -712,7 +711,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             -1,
             null
@@ -870,7 +869,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 shardId,
                 0,
                 1,
-                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                AliasFilter.EMPTY,
                 1f,
                 -1,
                 null
@@ -893,51 +892,21 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
         assertTrue(
             service.canMatch(
-                new ShardSearchRequest(
-                    OriginalIndices.NONE,
-                    searchRequest,
-                    indexShard.shardId(),
-                    0,
-                    1,
-                    new AliasFilter(null, Strings.EMPTY_ARRAY),
-                    1f,
-                    -1,
-                    null
-                )
+                new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1f, -1, null)
             ).canMatch()
         );
 
         searchRequest.source(new SearchSourceBuilder());
         assertTrue(
             service.canMatch(
-                new ShardSearchRequest(
-                    OriginalIndices.NONE,
-                    searchRequest,
-                    indexShard.shardId(),
-                    0,
-                    1,
-                    new AliasFilter(null, Strings.EMPTY_ARRAY),
-                    1f,
-                    -1,
-                    null
-                )
+                new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1f, -1, null)
             ).canMatch()
         );
 
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
         assertTrue(
             service.canMatch(
-                new ShardSearchRequest(
-                    OriginalIndices.NONE,
-                    searchRequest,
-                    indexShard.shardId(),
-                    0,
-                    1,
-                    new AliasFilter(null, Strings.EMPTY_ARRAY),
-                    1f,
-                    -1,
-                    null
-                )
+                new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1f, -1, null)
             ).canMatch()
         );
 
@@ -947,17 +916,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         assertTrue(
             service.canMatch(
-                new ShardSearchRequest(
-                    OriginalIndices.NONE,
-                    searchRequest,
-                    indexShard.shardId(),
-                    0,
-                    1,
-                    new AliasFilter(null, Strings.EMPTY_ARRAY),
-                    1f,
-                    -1,
-                    null
-                )
+                new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1f, -1, null)
             ).canMatch()
         );
         searchRequest.source(
@@ -965,34 +924,14 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
         assertTrue(
             service.canMatch(
-                new ShardSearchRequest(
-                    OriginalIndices.NONE,
-                    searchRequest,
-                    indexShard.shardId(),
-                    0,
-                    1,
-                    new AliasFilter(null, Strings.EMPTY_ARRAY),
-                    1f,
-                    -1,
-                    null
-                )
+                new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1f, -1, null)
             ).canMatch()
         );
 
         searchRequest.source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder()));
         assertFalse(
             service.canMatch(
-                new ShardSearchRequest(
-                    OriginalIndices.NONE,
-                    searchRequest,
-                    indexShard.shardId(),
-                    0,
-                    1,
-                    new AliasFilter(null, Strings.EMPTY_ARRAY),
-                    1f,
-                    -1,
-                    null
-                )
+                new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1, AliasFilter.EMPTY, 1f, -1, null)
             ).canMatch()
         );
         assertEquals(6, numWrapInvocations.get());
@@ -1003,7 +942,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             -1,
             null
@@ -1022,7 +961,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     indexShard.shardId(),
                     0,
                     1,
-                    new AliasFilter(new TermQueryBuilder("foo", "bar"), "alias"),
+                    AliasFilter.of(new TermQueryBuilder("foo", "bar"), "alias"),
                     1f,
                     -1,
                     null
@@ -1041,7 +980,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     indexShard.shardId(),
                     0,
                     1,
-                    new AliasFilter(new TermQueryBuilder("foo", "bar"), "alias"),
+                    AliasFilter.of(new TermQueryBuilder("foo", "bar"), "alias"),
                     1f,
                     -1,
                     null
@@ -1156,7 +1095,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             new ShardId(index, 0),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1f,
             -1,
             null
@@ -1488,7 +1427,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         indexShard.shardId(),
                         0,
                         1,
-                        new AliasFilter(null, Strings.EMPTY_ARRAY),
+                        AliasFilter.EMPTY,
                         1.0f,
                         -1,
                         null
@@ -1550,7 +1489,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             -1,
             null
@@ -1723,7 +1662,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             -1,
             null,
@@ -1756,7 +1695,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             -1,
             null,
@@ -1792,7 +1731,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             -1,
             null,
@@ -1829,7 +1768,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             indexShard.shardId(),
             0,
             1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            AliasFilter.EMPTY,
             1.0f,
             -1,
             null,

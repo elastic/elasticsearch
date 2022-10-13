@@ -24,18 +24,33 @@ import java.util.stream.Stream;
 public abstract class SortedNumericDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String name;
     private final String simpleName;
+
+    /**
+     * Optionally loads malformed values from stored fields.
+     */
+    private final IgnoreMalformedStoredValues ignoreMalformedValues;
+
     private Values values = NO_VALUES;
 
-    protected SortedNumericDocValuesSyntheticFieldLoader(String name, String simpleName) {
+    /**
+     * Build a loader from doc values and, optionally, a stored field.
+     * @param name the name of the field to load from doc values
+     * @param simpleName the name to give the field in the rendered {@code _source}
+     * @param loadIgnoreMalformedValues should we load values skipped by {@code ignore_malformed}
+     */
+    protected SortedNumericDocValuesSyntheticFieldLoader(String name, String simpleName, boolean loadIgnoreMalformedValues) {
         this.name = name;
         this.simpleName = simpleName;
+        this.ignoreMalformedValues = loadIgnoreMalformedValues
+            ? IgnoreMalformedStoredValues.stored(name)
+            : IgnoreMalformedStoredValues.empty();
     }
 
     protected abstract void writeValue(XContentBuilder b, long value) throws IOException;
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-        return Stream.of();
+        return ignoreMalformedValues.storedFieldLoaders();
     }
 
     @Override
@@ -65,21 +80,29 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
 
     @Override
     public boolean hasValue() {
-        return values.count() > 0;
+        return values.count() > 0 || ignoreMalformedValues.count() > 0;
     }
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        switch (values.count()) {
+        switch (values.count() + ignoreMalformedValues.count()) {
             case 0:
                 return;
             case 1:
                 b.field(simpleName);
-                values.write(b);
+                if (values.count() > 0) {
+                    assert values.count() == 1;
+                    assert ignoreMalformedValues.count() == 0;
+                    values.write(b);
+                } else {
+                    assert ignoreMalformedValues.count() == 1;
+                    ignoreMalformedValues.write(b);
+                }
                 return;
             default:
                 b.startArray(simpleName);
                 values.write(b);
+                ignoreMalformedValues.write(b);
                 b.endArray();
                 return;
         }
@@ -98,7 +121,7 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
         }
 
         @Override
-        public void write(XContentBuilder b) throws IOException {}
+        public void write(XContentBuilder b) {}
     };
 
     private class ImmediateDocValuesLoader implements DocValuesLoader, Values {
@@ -121,6 +144,9 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
 
         @Override
         public void write(XContentBuilder b) throws IOException {
+            if (hasValue == false) {
+                return;
+            }
             for (int i = 0; i < dv.docValueCount(); i++) {
                 writeValue(b, dv.nextValue());
             }
@@ -182,7 +208,9 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            assert hasValue[idx];
+            if (hasValue[idx] == false) {
+                return;
+            }
             writeValue(b, values[idx]);
         }
     }

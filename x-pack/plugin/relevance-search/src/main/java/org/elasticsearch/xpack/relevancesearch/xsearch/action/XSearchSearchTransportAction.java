@@ -24,15 +24,15 @@ public class XSearchSearchTransportAction extends HandledTransportAction<XSearch
     // private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
 
     @Inject
+    @Inject
     public XSearchSearchTransportAction(
-        String actionName,
         TransportService transportService,
         ActionFilters actionFilters,
         String executor
         // RelevanceSettingsService relevanceSettingsService,
         // RelevanceMatchQueryRewriter relevanceMatchQueryRewriter
     ) {
-        super(actionName, false, transportService, actionFilters, XSearchSearchAction.Request::new, executor);
+        super(XSearchSearchAction.NAME, false, transportService, actionFilters, XSearchSearchAction.Request::new, executor);
         // this.relevanceSettingsService = relevanceSettingsService;
         // this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
     }

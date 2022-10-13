@@ -25,11 +25,7 @@ class OrganicQueryRewriter extends AbstractQueryRewriter<RelevanceSettings> {
 
     private final QueryFieldsResolver queryFieldsResolver;
 
-    public OrganicQueryRewriter(
-        ClusterService clusterService,
-        RelevanceSettingsService settingsService,
-        QueryFieldsResolver queryFieldsResolver
-    ) {
+    OrganicQueryRewriter(ClusterService clusterService, RelevanceSettingsService settingsService, QueryFieldsResolver queryFieldsResolver) {
         super(clusterService, settingsService);
         this.queryFieldsResolver = queryFieldsResolver;
     }

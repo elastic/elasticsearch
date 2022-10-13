@@ -38,6 +38,29 @@ public class CurationsService extends AbstractSettingsService<CurationsGroup> {
         super(client);
     }
 
+    @Override
+    public CurationsGroup getSettings(String settingsId) throws SettingsNotFoundException, InvalidSettingsException {
+        // TODO cache relevance settings, including cache invalidation
+        List<CurationSettings> curationsSettingsList;
+        try {
+            final SearchHits searchHits = client.prepareSearch(ENT_SEARCH_INDEX)
+                .setQuery(new TermQueryBuilder(CURATIONS_GROUP_NAME, settingsId))
+                .get()
+                .getHits();
+            if (searchHits.getTotalHits().value == 0) {
+                throw new SettingsNotFoundException("Curation group " + settingsId + " not found");
+            }
+            curationsSettingsList = Arrays.stream(searchHits.getHits())
+                .map(hit -> parseCurationsSettings(hit.getSourceAsMap()))
+                .collect(Collectors.toList());
+        } catch (IndexNotFoundException e) {
+            IndexCreationService.ensureInternalIndex(client);
+            curationsSettingsList = Collections.emptyList();
+        }
+
+        return new CurationsGroup(curationsSettingsList);
+    }
+
     private static CurationSettings parseCurationsSettings(Map<String, Object> source) throws IllegalArgumentException {
         // TODO Probably worth to take a look into document mappers in case they can be used for parsing
         // see org/elasticsearch/index/mapper/DocumentParser.java
@@ -76,28 +99,5 @@ public class CurationsService extends AbstractSettingsService<CurationsGroup> {
 
     private static Condition parseCondition(Map<String, Object> sourceCondition) throws IllegalArgumentException {
         return Condition.buildCondition((String) sourceCondition.get(CONTEXT_ATTR), (String) sourceCondition.get(VALUE_ATTR));
-    }
-
-    @Override
-    public CurationsGroup getSettings(String settingsId) throws SettingsNotFoundException, InvalidSettingsException {
-        // TODO cache relevance settings, including cache invalidation
-        List<CurationSettings> curationsSettingsList;
-        try {
-            final SearchHits searchHits = client.prepareSearch(ENT_SEARCH_INDEX)
-                .setQuery(new TermQueryBuilder(CURATIONS_GROUP_NAME, settingsId))
-                .get()
-                .getHits();
-            if (searchHits.getTotalHits().value == 0) {
-                throw new SettingsNotFoundException("Curation group " + settingsId + " not found");
-            }
-            curationsSettingsList = Arrays.stream(searchHits.getHits())
-                .map(hit -> parseCurationsSettings(hit.getSourceAsMap()))
-                .collect(Collectors.toList());
-        } catch (IndexNotFoundException e) {
-            IndexCreationService.ensureInternalIndex(client);
-            curationsSettingsList = Collections.emptyList();
-        }
-
-        return new CurationsGroup(curationsSettingsList);
     }
 }

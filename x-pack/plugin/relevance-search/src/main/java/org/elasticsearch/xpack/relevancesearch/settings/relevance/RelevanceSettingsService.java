@@ -26,6 +26,25 @@ public class RelevanceSettingsService extends AbstractSettingsService<RelevanceS
         super(client);
     }
 
+    @Override
+    public RelevanceSettings getSettings(String settingsId) throws SettingsNotFoundException, InvalidSettingsException {
+        {
+            // TODO cache relevance settings, including cache invalidation
+            Map<String, Object> settingsContent = null;
+            try {
+                settingsContent = client.prepareGet(ENT_SEARCH_INDEX, RELEVANCE_SETTINGS_PREFIX + settingsId).get().getSource();
+            } catch (IndexNotFoundException e) {
+                IndexCreationService.ensureInternalIndex(client);
+            }
+
+            if (settingsContent == null) {
+                throw new SettingsNotFoundException("Relevance settings " + settingsId + " not found");
+            }
+
+            return parseSettings(settingsContent);
+        }
+    }
+
     private static RelevanceSettings parseSettings(Map<String, Object> source) throws InvalidSettingsException {
 
         RelevanceSettings relevanceSettings = new RelevanceSettings();
@@ -48,24 +67,5 @@ public class RelevanceSettingsService extends AbstractSettingsService<RelevanceS
         relevanceSettings.setQueryConfiguration(relevanceSettingsQueryConfiguration);
 
         return relevanceSettings;
-    }
-
-    @Override
-    public RelevanceSettings getSettings(String settingsId) throws SettingsNotFoundException, InvalidSettingsException {
-        {
-            // TODO cache relevance settings, including cache invalidation
-            Map<String, Object> settingsContent = null;
-            try {
-                settingsContent = client.prepareGet(ENT_SEARCH_INDEX, RELEVANCE_SETTINGS_PREFIX + settingsId).get().getSource();
-            } catch (IndexNotFoundException e) {
-                IndexCreationService.ensureInternalIndex(client);
-            }
-
-            if (settingsContent == null) {
-                throw new SettingsNotFoundException("Relevance settings " + settingsId + " not found");
-            }
-
-            return parseSettings(settingsContent);
-        }
     }
 }

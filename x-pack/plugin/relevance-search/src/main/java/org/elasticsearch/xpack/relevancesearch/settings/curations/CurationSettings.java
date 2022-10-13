@@ -9,16 +9,13 @@ package org.elasticsearch.xpack.relevancesearch.settings.curations;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
-import org.elasticsearch.xpack.relevancesearch.settings.Settings;
 
 import java.util.List;
 
 /**
  * Holds curation settings, including the conditions needed to execute the curation, the pinned documents and the excluded documents.
  */
-public record CurationSettings(List<DocumentReference> pinnedDocs, List<DocumentReference> excludedDocs, List<Condition> conditions)
-    implements
-        Settings {
+public record CurationSettings(List<DocumentReference> pinnedDocs, List<DocumentReference> excludedDocs, List<Condition> conditions) {
 
     public record DocumentReference(String id, String index) {
         public DocumentReference(String id, String index) {

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.relevancesearch.settings.curations;
 
+import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.settings.Settings;
 
 import java.util.List;
+import java.util.Optional;
 
 public class CurationsGroup implements Settings {
 
@@ -22,4 +24,9 @@ public class CurationsGroup implements Settings {
     public List<CurationSettings> getCurationSettings() {
         return curationSettings;
     }
+
+    public Optional<CurationSettings> findMatching(RelevanceMatchQueryBuilder relevanceMatchQueryBuilder) {
+        return getCurationSettings().stream().filter(settings -> settings.match(relevanceMatchQueryBuilder)).findFirst();
+    }
+
 }

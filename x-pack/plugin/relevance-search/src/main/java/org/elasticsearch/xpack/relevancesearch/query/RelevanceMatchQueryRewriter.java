@@ -59,11 +59,11 @@ public class RelevanceMatchQueryRewriter {
         QueryBuilder rewriteQuery(QueryBuilder baseQuery, RelevanceMatchQueryBuilder relevanceMatchQuery, SearchExecutionContext context);
     }
 
-    private static abstract class AbstractQueryRewriter<S extends Settings> implements QueryRewriter {
+    private abstract static class AbstractQueryRewriter<S extends Settings> implements QueryRewriter {
         private final ClusterService clusterService;
         private final SettingsService<S> settingsService;
 
-        public AbstractQueryRewriter(ClusterService clusterService, SettingsService<S> settingsService) {
+        AbstractQueryRewriter(ClusterService clusterService, SettingsService<S> settingsService) {
             this.clusterService = clusterService;
             this.settingsService = settingsService;
         }
@@ -106,7 +106,7 @@ public class RelevanceMatchQueryRewriter {
 
         private final QueryFieldsResolver queryFieldsResolver;
 
-        public OrganicQueryRewriter(
+        OrganicQueryRewriter(
             ClusterService clusterService,
             RelevanceSettingsService settingsService,
             QueryFieldsResolver queryFieldsResolver
@@ -154,7 +154,7 @@ public class RelevanceMatchQueryRewriter {
     }
 
     private static class CurationQueryRewriter extends AbstractQueryRewriter<CurationSettings> {
-        public CurationQueryRewriter(ClusterService clusterService, CurationsService settingsService) {
+        CurationQueryRewriter(ClusterService clusterService, CurationsService settingsService) {
             super(clusterService, settingsService);
         }
 

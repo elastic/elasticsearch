@@ -13,7 +13,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.relevancesearch.RelevanceSearchPlugin;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchSearchAction;
 
 import java.io.IOException;
@@ -27,12 +26,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 // TODO Suggestion from Aurelian: consider naming this GET because it isn't updating data, even though we do support POST
 public class RestXSearchSearchAction extends BaseRestHandler {
 
+    public static final String REST_BASE_PATH = "/{index}/_xsearch";
+
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, RelevanceSearchPlugin.REST_BASE_PATH + "/{index}/_xsearch"),
-            new Route(POST, RelevanceSearchPlugin.REST_BASE_PATH + "/{index}/_xsearch")
-        );
+        return List.of(new Route(GET, REST_BASE_PATH), new Route(POST, REST_BASE_PATH));
     }
 
     @Override

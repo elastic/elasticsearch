@@ -18,11 +18,11 @@ class WindowsServiceStartCommand extends ProcrunCommand {
 
     @Override
     protected String getSuccessMessage(String serviceId) {
-        return "The service '%s' has been started".formatted(serviceId);
+        return String.format(java.util.Locale.ROOT, "The service '%s' has been started", serviceId);
     }
 
     @Override
     protected String getFailureMessage(String serviceId) {
-        return "Failed starting '%s' service".formatted(serviceId);
+        return String.format(java.util.Locale.ROOT, "Failed starting '%s' service", serviceId);
     }
 }

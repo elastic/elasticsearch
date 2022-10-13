@@ -1126,6 +1126,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<String> INDEX_RESIZE_SOURCE_UUID = Setting.simpleString(INDEX_RESIZE_SOURCE_UUID_KEY);
     public static final Setting<String> INDEX_RESIZE_SOURCE_NAME = Setting.simpleString(INDEX_RESIZE_SOURCE_NAME_KEY);
 
+    /**
+     * we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
+     * once we are allocated.
+     */
+    public static final String INDEX_SHRINK_INITIAL_RECOVERY_KEY = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id";
+
     public Index getResizeSourceIndex() {
         return INDEX_RESIZE_SOURCE_UUID.exists(settings)
             ? new Index(INDEX_RESIZE_SOURCE_NAME.get(settings), INDEX_RESIZE_SOURCE_UUID.get(settings))
@@ -1995,9 +2001,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             final String indexMode = settings.get(IndexSettings.MODE.getKey());
-            final boolean isTsdb = IndexSettings.isTimeSeriesModeEnabled()
-                && indexMode != null
-                && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
+            final boolean isTsdb = indexMode != null && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,

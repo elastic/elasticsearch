@@ -176,10 +176,11 @@ public class FetchSourcePhaseTests extends ESTestCase {
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
         HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1);
-        hitContext.sourceLookup()
-            .setSourceProvider(
+        hitContext.setSourceLookup(
+            new SourceLookup(
                 source == null ? new SourceLookup.NullSourceProvider() : new SourceLookup.BytesSourceProvider(BytesReference.bytes(source))
-            );
+            )
+        );
 
         FetchSourcePhase phase = new FetchSourcePhase();
         FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);

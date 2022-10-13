@@ -387,7 +387,7 @@ public class AllocationService {
         allocation.ignoreDisable(true);
 
         if (retryFailed) {
-            allocation.routingNodes().unassigned().resetFailedAllocationCounter(allocation.changes());
+            allocation.routingNodes().resetFailedCounter(allocation.changes());
         }
 
         RoutingExplanations explanations = commands.execute(allocation, explain);
@@ -571,8 +571,10 @@ public class AllocationService {
                     + startedShard
                     + " but was: "
                     + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
-
-            routingNodes.startShard(logger, startedShard, routingAllocation.changes());
+            long expectedShardSize = routingAllocation.metadata().getIndexSafe(startedShard.index()).isSearchableSnapshot()
+                ? startedShard.getExpectedShardSize()
+                : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
+            routingNodes.startShard(logger, startedShard, routingAllocation.changes(), expectedShardSize);
         }
     }
 
@@ -708,7 +710,14 @@ public class AllocationService {
      * {@link org.elasticsearch.cluster.routing.allocation.command.AllocationCommand}
      */
     public record CommandsResult(
-        RoutingExplanations explanations, // Explanation for the reroute actions
-        ClusterState clusterState         // Resulting cluster state
+        /**
+         * Explanation for the reroute actions
+         */
+        RoutingExplanations explanations,
+        /**
+         * Resulting cluster state, to be removed when REST compatibility with
+         * {@link org.elasticsearch.Version#V_8_6_0} / {@link RestApiVersion#V_8} no longer needed
+         */
+        ClusterState clusterState
     ) {}
 }

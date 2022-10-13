@@ -142,8 +142,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void startTask(ClusterChangedEvent event) {
-        // Wait until every node in the cluster is upgraded to 8.4.0 or later
-        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
+        // Wait until every node in the cluster is upgraded to 8.5.0 or later
+        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
             boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
             boolean isElectedMaster = event.localNodeMaster();
             if (isElectedMaster || healthNodeTaskExists) {

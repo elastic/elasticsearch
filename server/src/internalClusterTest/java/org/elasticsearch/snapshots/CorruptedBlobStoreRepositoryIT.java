@@ -829,10 +829,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             RepositoryException.class,
             () -> clusterAdmin().prepareCreateSnapshot(repo, existingSnapshot).execute().actionGet()
         );
-        assertThat(
-            ex2.getMessage(),
-            containsString("Could not read repository data because the contents of the repository do not match its expected state.")
-        );
+        assertThat(ex2.getMessage(), containsString("The repository has been disabled to prevent data corruption"));
 
         logger.info("--> confirm corrupt flag in cluster state");
         assertEquals(RepositoryData.CORRUPTED_REPO_GEN, getRepositoryMetadata(repo).generation());

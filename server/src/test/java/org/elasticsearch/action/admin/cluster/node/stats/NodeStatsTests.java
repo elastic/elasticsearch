@@ -37,6 +37,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -549,7 +550,13 @@ public class NodeStatsTests extends ESTestCase {
         }
     }
 
-    private static CommonStats createCommonStats() {
+    private static CommonStats createIndexLevelCommonStats() {
+        CommonStats stats = new CommonStats(new CommonStatsFlags().clear().set(CommonStatsFlags.Flag.Mappings, true));
+        stats.nodeMappings = new NodeMappingStats(randomNonNegativeLong(), randomNonNegativeLong());
+        return stats;
+    }
+
+    private static CommonStats createShardLevelCommonStats() {
         int iota = 0;
 
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
@@ -633,7 +640,7 @@ public class NodeStatsTests extends ESTestCase {
             .resolve(shardRouting.shardId().getIndex().getUUID())
             .resolve(String.valueOf(shardRouting.shardId().id()));
         ShardPath shardPath = new ShardPath(false, path, path, shardRouting.shardId());
-        return new ShardStats(shardRouting, shardPath, createCommonStats(), null, null, null);
+        return new ShardStats(shardRouting, shardPath, createShardLevelCommonStats(), null, null, null);
     }
 
     public static NodeStats createNodeStats() {
@@ -647,6 +654,9 @@ public class NodeStatsTests extends ESTestCase {
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {
             final Index indexTest = new Index("test", "_na_");
+            Map<Index, CommonStats> statsByIndex = new HashMap<>();
+            statsByIndex.put(indexTest, createIndexLevelCommonStats());
+
             ShardId shardId = new ShardId(indexTest, 0);
             ShardStats shardStat = createShardStats(shardId);
             IndexShardStats shardStats = new IndexShardStats(shardId, new ShardStats[] { shardStat });
@@ -656,7 +666,7 @@ public class NodeStatsTests extends ESTestCase {
             statsByShard.put(indexTest, indexShardStats);
 
             CommonStats oldStats = new CommonStats(CommonStatsFlags.ALL);
-            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByShard);
+            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard);
         }
         OsStats osStats = null;
         if (frequently()) {

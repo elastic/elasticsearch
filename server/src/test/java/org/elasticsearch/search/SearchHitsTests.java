@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Predicate;
 
-public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
+public class SearchHitsTests extends AbstractXContentSerializingTestCase<SearchHits> {
 
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
         return createTestItem(randomFrom(XContentType.values()).canonical(), withOptionalInnerHits, withShardTarget);

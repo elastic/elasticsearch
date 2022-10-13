@@ -66,19 +66,8 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         when(discoveryNodes.getMinNodeVersion()).thenReturn(version);
     }
 
-    public void testRequestCacheWillBeDisabledWhenMinNodeVersionIsBeforeShardSearchInterceptor() {
-        configureMinMondeVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_11_1));
-        final SearchRequest searchRequest = mock(SearchRequest.class);
-        when(searchRequest.indices()).thenReturn(randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
-        when(searchRequest.source()).thenReturn(SearchSourceBuilder.searchSource());
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        interceptor.disableFeatures(searchRequest, Map.of(), future);
-        future.actionGet();
-        verify(searchRequest).requestCache(false);
-    }
-
     public void testRequestCacheWillBeDisabledWhenSearchRemoteIndices() {
-        configureMinMondeVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_11_2, Version.CURRENT));
+        configureMinMondeVersion(VersionUtils.randomVersion(random()));
         final SearchRequest searchRequest = mock(SearchRequest.class);
         when(searchRequest.source()).thenReturn(SearchSourceBuilder.searchSource());
         final String[] localIndices = randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8));

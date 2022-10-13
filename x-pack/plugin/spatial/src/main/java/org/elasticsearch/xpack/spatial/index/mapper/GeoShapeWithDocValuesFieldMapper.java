@@ -46,8 +46,6 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -295,6 +293,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     @Override
     protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
+        // TODO: Make common with the index method ShapeFieldMapper
         if (geometry == null) {
             return;
         }
@@ -346,13 +345,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         super.checkIncomingMergeType(mergeWith);
     }
 
-    public static class GeoShapeDocValuesField extends AbstractScriptFieldFactory<ShapeValues.ShapeValue>
+    public static class GeoShapeDocValuesField extends AbstractScriptFieldFactory<GeoShapeValues.GeoShapeValue>
         implements
-            Field<ShapeValues.ShapeValue>,
+            Field<GeoShapeValues.GeoShapeValue>,
             DocValuesScriptFieldFactory,
-            ScriptDocValues.GeometrySupplier<GeoPoint, ShapeValues.ShapeValue> {
+            ScriptDocValues.GeometrySupplier<GeoPoint, GeoShapeValues.GeoShapeValue> {
 
-        private final ShapeValues in;
+        private final GeoShapeValues in;
         protected final String name;
 
         private GeoShapeValues.GeoShapeValue value;
@@ -360,9 +359,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         // maintain bwc by making bounding box and centroid available to GeoShapeValues (ScriptDocValues)
         private final GeoPoint centroid = new GeoPoint();
         private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
-        private LeafShapeFieldData.ShapeScriptValues<GeoPoint> geoShapeScriptValues;
+        private ScriptDocValues<GeoShapeValues.GeoShapeValue> geoShapeScriptValues;
 
-        public GeoShapeDocValuesField(ShapeValues in, String name) {
+        public GeoShapeDocValuesField(GeoShapeValues in, String name) {
             this.in = in;
             this.name = name;
         }
@@ -370,7 +369,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public void setNextDocId(int docId) throws IOException {
             if (in.advanceExact(docId)) {
-                value = (GeoShapeValues.GeoShapeValue) in.value();
+                value = in.value();
                 centroid.reset(value.getY(), value.getX());
                 boundingBox.topLeft().reset(value.boundingBox().maxY(), value.boundingBox().minX());
                 boundingBox.bottomRight().reset(value.boundingBox().minY(), value.boundingBox().maxX());
@@ -380,7 +379,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public ScriptDocValues<ShapeValues.ShapeValue> toScriptDocValues() {
+        public ScriptDocValues<GeoShapeValues.GeoShapeValue> toScriptDocValues() {
             if (geoShapeScriptValues == null) {
                 geoShapeScriptValues = new AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues(this);
             }
@@ -389,7 +388,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public ShapeValues.ShapeValue getInternal(int index) {
+        public GeoShapeValues.GeoShapeValue getInternal(int index) {
             if (index != 0) {
                 throw new UnsupportedOperationException();
             }
@@ -446,7 +445,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public Iterator<ShapeValues.ShapeValue> iterator() {
+        public Iterator<GeoShapeValues.GeoShapeValue> iterator() {
             return new Iterator<>() {
                 private int index = 0;
 
@@ -456,7 +455,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 }
 
                 @Override
-                public ShapeValues.ShapeValue next() {
+                public GeoShapeValues.GeoShapeValue next() {
                     if (hasNext() == false) {
                         throw new NoSuchElementException();
                     }

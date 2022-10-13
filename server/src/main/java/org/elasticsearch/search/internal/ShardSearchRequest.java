@@ -283,7 +283,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                 );
             }
         }
-        aliasFilter = new AliasFilter(in);
+        aliasFilter = AliasFilter.readFrom(in);
         indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
         requestCache = in.readOptionalBoolean();

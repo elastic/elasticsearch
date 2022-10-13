@@ -508,7 +508,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);
                 valueFetcher.setNextReader(context);
-                result.set(valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+                result.set(valueFetcher.fetchValues(lookup.source(), 0, new ArrayList<>()));
             }
         );
         return result.get();
@@ -791,8 +791,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
             nativeFetcher.setNextReader(ir.leaves().get(0));
-            List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup, new ArrayList<>());
-            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup, new ArrayList<>());
+            List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup, 0, new ArrayList<>());
+            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup, 0, new ArrayList<>());
             /*
              * The native fetcher uses byte, short, etc but doc values always
              * uses long or double. This difference is fine because on the outside

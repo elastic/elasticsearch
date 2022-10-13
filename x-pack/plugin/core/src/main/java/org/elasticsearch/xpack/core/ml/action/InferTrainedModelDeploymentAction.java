@@ -60,7 +60,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
      */
     public static class Request extends BaseTasksRequest<Request> {
 
-        public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
         public static final ParseField DOCS = new ParseField("docs");
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
@@ -69,7 +68,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
-            PARSER.declareString(Request.Builder::setDeploymentId, DEPLOYMENT_ID);
+            PARSER.declareString(Request.Builder::setModelId, InferModelAction.Request.MODEL_ID);
             PARSER.declareObjectArray(Request.Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
             PARSER.declareString(Request.Builder::setInferenceTimeout, TIMEOUT);
             PARSER.declareNamedObject(
@@ -79,22 +78,22 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             );
         }
 
-        public static Request.Builder parseRequest(String deploymentId, XContentParser parser) {
+        public static Request.Builder parseRequest(String modelId, XContentParser parser) {
             Request.Builder builder = PARSER.apply(parser, null);
-            if (deploymentId != null) {
-                builder.setDeploymentId(deploymentId);
+            if (modelId != null) {
+                builder.setModelId(modelId);
             }
             return builder;
         }
 
-        private final String deploymentId;
+        private final String modelId;
         private final List<Map<String, Object>> docs;
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
         private boolean skipQueue = false;
 
-        public Request(String deploymentId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
-            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
+        public Request(String modelId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
+            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
             this.docs = ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS);
             this.update = update;
             this.inferenceTimeout = inferenceTimeout;
@@ -102,7 +101,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            deploymentId = in.readString();
+            modelId = in.readString();
             docs = in.readImmutableList(StreamInput::readMap);
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
@@ -111,8 +110,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             }
         }
 
-        public String getDeploymentId() {
-            return deploymentId;
+        public String getModelId() {
+            return modelId;
         }
 
         public List<Map<String, Object>> getDocs() {
@@ -165,7 +164,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(deploymentId);
+            out.writeString(modelId);
             out.writeCollection(docs, StreamOutput::writeGenericMap);
             out.writeOptionalNamedWriteable(update);
             out.writeOptionalTimeValue(inferenceTimeout);
@@ -176,7 +175,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         @Override
         public boolean match(Task task) {
-            return StartTrainedModelDeploymentAction.TaskMatcher.match(task, deploymentId);
+            return StartTrainedModelDeploymentAction.TaskMatcher.match(task, modelId);
         }
 
         @Override
@@ -184,7 +183,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             InferTrainedModelDeploymentAction.Request that = (InferTrainedModelDeploymentAction.Request) o;
-            return Objects.equals(deploymentId, that.deploymentId)
+            return Objects.equals(modelId, that.modelId)
                 && Objects.equals(docs, that.docs)
                 && Objects.equals(update, that.update)
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout);
@@ -192,25 +191,25 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, update, docs, inferenceTimeout);
+            return Objects.hash(modelId, update, docs, inferenceTimeout);
         }
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, format("infer_trained_model_deployment[%s]", deploymentId), parentTaskId, headers);
+            return new CancellableTask(id, type, action, format("infer_trained_model_deployment[%s]", modelId), parentTaskId, headers);
         }
 
         public static class Builder {
 
-            private String deploymentId;
+            private String modelId;
             private List<Map<String, Object>> docs;
             private TimeValue timeout;
             private InferenceConfigUpdate update;
 
             private Builder() {}
 
-            public Builder setDeploymentId(String deploymentId) {
-                this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, DEPLOYMENT_ID);
+            public Builder setModelId(String modelId) {
+                this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
                 return this;
             }
 
@@ -234,7 +233,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             }
 
             public Request build() {
-                return new Request(deploymentId, update, docs, timeout);
+                return new Request(modelId, update, docs, timeout);
             }
         }
     }

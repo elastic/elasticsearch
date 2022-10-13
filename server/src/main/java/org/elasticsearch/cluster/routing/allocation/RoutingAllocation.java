@@ -77,8 +77,6 @@ public class RoutingAllocation {
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
-    private final Map<String, SingleNodeShutdownMetadata> nodeShutdowns;
-
     @Nullable
     private final DesiredNodes desiredNodes;
 
@@ -118,16 +116,19 @@ public class RoutingAllocation {
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
-        this.nodeShutdowns = clusterState.metadata().nodeShutdowns();
-        Map<String, SingleNodeShutdownMetadata> targetNameToShutdown = new HashMap<>();
-        for (SingleNodeShutdownMetadata shutdown : nodeShutdowns.values()) {
+        this.nodeReplacementTargets = nodeReplacementTargets(clusterState);
+        this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+        this.unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
+    }
+
+    private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {
+        Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets = new HashMap<>();
+        for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
             if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
-                targetNameToShutdown.put(shutdown.getTargetNodeName(), shutdown);
+                nodeReplacementTargets.put(shutdown.getTargetNodeName(), shutdown);
             }
         }
-        this.nodeReplacementTargets = Map.copyOf(targetNameToShutdown);
-        this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
-        unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
+        return Map.copyOf(nodeReplacementTargets);
     }
 
     private static Map<String, Long> unaccountedSearchableSnapshotSizes(ClusterState clusterState, ClusterInfo clusterInfo) {
@@ -212,13 +213,6 @@ public class RoutingAllocation {
     @Nullable
     public DesiredNodes desiredNodes() {
         return desiredNodes;
-    }
-
-    /**
-     * Returns the map of node id to shutdown metadata currently in the cluster
-     */
-    public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
-        return nodeShutdowns;
     }
 
     /**

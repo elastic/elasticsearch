@@ -65,7 +65,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -770,7 +770,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         builder.endObject();
 
-        QueryBuilder queryBuilder = parseInnerQueryBuilder(createParser(builder));
+        QueryBuilder queryBuilder = parseTopLevelQuery(createParser(builder));
         TooComplexToDeterminizeException e = expectThrows(
             TooComplexToDeterminizeException.class,
             () -> queryBuilder.toQuery(createSearchExecutionContext())

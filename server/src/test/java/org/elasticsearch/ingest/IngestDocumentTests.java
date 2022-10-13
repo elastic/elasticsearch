@@ -985,7 +985,10 @@ public class IngestDocumentTests extends ESTestCase {
         if (randomBoolean()) {
             numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
+                Tuple<String, Object> metadata;
+                do {
+                    metadata = TestIngestDocument.randomMetadata();
+                } while (metadata.v2().equals(sourceAndMetadata.get(metadata.v1()))); // must actually be a change
                 otherSourceAndMetadata.put(metadata.v1(), metadata.v2());
             }
             changed = true;

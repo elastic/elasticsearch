@@ -1,5 +1,5 @@
 [role="xpack"]
-[[rollup-agg-limitations]]
+[role="exclude",id="rollup-agg-limitations"]
 === {rollup-cap} aggregation limitations
 
 experimental[]

@@ -1,5 +1,5 @@
 [role="xpack"]
-[[rollup-api-quickref]]
+[role="exclude",id="rollup-api-quickref"]
 === {rollup-cap} API quick reference
 ++++
 <titleabbrev>API quick reference</titleabbrev>

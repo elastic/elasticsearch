@@ -17,6 +17,7 @@ step-by-step example, see <<ecommerce-transforms>>.
 * <<example-bytes>> 
 * <<example-customer-names>>
 
+[discrete]
 [[example-best-customers]]
 == Finding your best customers
 
@@ -113,7 +114,7 @@ enables us to analyze data at scale and gives more flexibility to explore and
 navigate data from a customer centric perspective. In some cases, it can even 
 make creating visualizations much simpler.
 
-
+[discrete]
 [[example-airline]]
 == Finding air carriers with the most delays
 
@@ -199,7 +200,7 @@ This {transform} makes it easier to answer questions such as:
 NOTE: This data is fictional and does not reflect actual delays or flight stats 
 for any of the featured destination or origin airports.
 
-
+[discrete]
 [[example-clientips]]
 == Finding suspicious client IPs
 
@@ -351,7 +352,7 @@ This {transform} makes it easier to answer questions such as:
 
 * Which client IPs are interacting with a high number of destination countries?
 
-
+[discrete]
 [[example-last-log]]
 == Finding the last log event for each IP address
 
@@ -513,7 +514,7 @@ This {transform} makes it easier to answer questions such as:
 
 * What was the most recent log event associated with a specific IP address?
 
-
+[discrete]
 [[example-bytes]]
 == Finding client IPs that sent the most bytes to the server
 
@@ -624,6 +625,7 @@ The API call above returns a response similar to this:
 ----------------------------------
 // NOTCONSOLE
 
+[discrete]
 [[example-customer-names]]
 == Getting customer name and email address by customer ID
 

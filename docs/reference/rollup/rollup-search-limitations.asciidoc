@@ -1,5 +1,5 @@
 [role="xpack"]
-[[rollup-search-limitations]]
+[role="exclude",id="rollup-search-limitations"]
 === {rollup-cap} search limitations
 
 experimental[]

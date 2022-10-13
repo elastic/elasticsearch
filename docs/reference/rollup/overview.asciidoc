@@ -1,5 +1,5 @@
 [role="xpack"]
-[[rollup-overview]]
+[role="exclude",id="rollup-overview"]
 === {rollup-cap} overview
 ++++
 <titleabbrev>Overview</titleabbrev>

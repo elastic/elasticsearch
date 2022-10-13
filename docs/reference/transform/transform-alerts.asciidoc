@@ -17,7 +17,7 @@ The following {transform} rules are available:
 {transform-cap} health:: 
   Monitors {transforms} health and alerts if an operational issue occurred.
 
-
+[discrete]
 [[creating-transform-rules]]
 == Creating a rule
 
@@ -37,7 +37,7 @@ Select the {transform-cap} health rule type under the Stack Monitoring section.
 [role="screenshot"]
 image::images/transform-rule.png["Creating a transform health rule"]
 
-
+[discrete]
 [[creating-transform-health-rules]]
 === {transform-cap} health
 
@@ -59,7 +59,7 @@ As the last step in the rule creation process,
 <<defining-actions, define the actions>> that occur when the conditions
 are met.
   
-
+[discrete]
 [[defining-actions]]
 == Defining actions
 

@@ -51,7 +51,7 @@ include::autoscaling/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
 
-include::data-rollup-transform.asciidoc[]
+include::transform/index.asciidoc[]
 
 include::high-availability.asciidoc[]
 
@@ -76,3 +76,7 @@ include::release-notes.asciidoc[]
 include::dependencies-versions.asciidoc[]
 
 include::redirects.asciidoc[]
+
+include::rollup/index.asciidoc[]
+
+include::{es-repo-dir}/rollup/rollup-apis.asciidoc[]

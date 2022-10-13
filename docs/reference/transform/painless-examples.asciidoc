@@ -29,6 +29,7 @@ get dynamically mapped. Create the destination index prior to starting the
 {transform} in case you want explicit mappings.
 --
 
+[discrete]
 [[painless-top-hits]]
 == Getting top hits by using scripted metric aggregation
 
@@ -107,6 +108,7 @@ You can retrieve the last value in a similar way:
 --------------------------------------------------
 // NOTCONSOLE
 
+[discrete]
 [[painless-time-features]]
 == Getting time features by using aggregations
 
@@ -289,7 +291,7 @@ them. The table below shows how normalization modifies the output of the
 |===
 ////
 
-
+[discrete]
 [[painless-bucket-script]]
 == Getting duration by using bucket script
 
@@ -346,6 +348,7 @@ the buckets you want to use for the variable. In this particular case, `min` and
 <3> Finally, the script substracts the start date of the session from the end 
 date which results in the duration of the session.
 
+[discrete]
 [[painless-count-http]]
 == Counting HTTP responses by using scripted metric aggregation
 
@@ -408,6 +411,7 @@ properties of the `counts` object; error responses to the error counts, success
 responses to the success counts, and other responses to the other counts. 
 Finally, returns the `counts` array with the response counts.
 
+[discrete]
 [[painless-compare]]
 == Comparing indices by using scripted metric aggregations
 
@@ -475,6 +479,7 @@ not equal, than it reports back a `count_mismatch`. Then it iterates through all
 the values of the two indices and compare them. If the values are equal, then it 
 returns a `match`, otherwise returns a `mismatch`.
 
+[discrete]
 [[painless-web-session]]
 == Getting web session details by using scripted metric aggregation
 

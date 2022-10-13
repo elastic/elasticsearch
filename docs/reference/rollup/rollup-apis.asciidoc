@@ -1,5 +1,5 @@
 [role="xpack"]
-[[rollup-apis]]
+[role="exclude",id="rollup-apis"]
 == Rollup APIs
 
 [discrete]

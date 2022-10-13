@@ -1,5 +1,5 @@
 [role="xpack"]
-[[rollup-understanding-groups]]
+[role="exclude",id="rollup-understanding-groups"]
 === Understanding groups
 
 experimental[]

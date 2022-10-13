@@ -1,5 +1,5 @@
 [role="xpack"]
-[[rollup-getting-started]]
+[role="exclude",id="rollup-getting-started"]
 === Getting started with {rollups}
 ++++
 <titleabbrev>Getting started</titleabbrev>

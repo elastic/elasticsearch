@@ -22,7 +22,7 @@ makes them resilient for node failures. Refer to <<transform-checkpoints>> and
 <<ml-transform-checkpoint-errors>> to learn more about the machinery behind 
 {transforms}.
 
-
+[discrete]
 [[pivot-transform-overview]]
 == Pivot {transforms}
 
@@ -78,6 +78,7 @@ items in every product category in the last year.
 [role="screenshot"]
 image::images/pivot-preview.png["Example of a pivot {transform} preview in {kib}"]
 
+[discrete]
 [[latest-transform-overview]]
 == Latest {transforms}
 
@@ -96,6 +97,7 @@ output in the destination index. If the {transform} runs continuously, new uniqu
 key values are automatically added to the destination index and the most recent
 documents for existing key values are automatically updated at each checkpoint.
 
+[discrete]
 [[transform-performance]]
 == Performance considerations
 

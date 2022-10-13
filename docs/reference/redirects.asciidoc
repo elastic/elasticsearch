@@ -1868,3 +1868,10 @@ For more information about reindexing from a remote cluster, refer to
 === Infer trained model deployment API
 
 See <<infer-trained-model>>.
+
+[role="exclude",id="data-rollup-transform"]
+=== Roll up or transform your data
+
+For information about transforming your data, refer to <<transforms>>.
+
+To reduce storage volumes for time series data, refer to <<downsampling>>.

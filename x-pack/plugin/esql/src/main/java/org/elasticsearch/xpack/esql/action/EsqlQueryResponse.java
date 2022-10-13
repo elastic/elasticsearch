@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
@@ -131,5 +132,10 @@ public class EsqlQueryResponse extends ActionResponse implements ToXContentObjec
     @Override
     public int hashCode() {
         return Objects.hash(columns, values);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

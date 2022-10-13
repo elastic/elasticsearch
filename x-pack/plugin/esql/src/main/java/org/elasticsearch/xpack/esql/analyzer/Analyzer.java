@@ -7,17 +7,23 @@
 
 package org.elasticsearch.xpack.esql.analyzer;
 
+import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.Collection;
@@ -29,9 +35,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     private final IndexResolution indexResolution;
     private final Verifier verifier;
 
-    public Analyzer(IndexResolution indexResolution) {
+    private final FunctionRegistry functionRegistry;
+    private final Configuration configuration;
+
+    public Analyzer(IndexResolution indexResolution, FunctionRegistry functionRegistry, Configuration configuration) {
         assert indexResolution != null;
         this.indexResolution = indexResolution;
+        this.functionRegistry = functionRegistry;
+        this.configuration = configuration;
         this.verifier = new Verifier();
     }
 
@@ -49,7 +60,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch resolution = new Batch("Resolution", new ResolveTable(), new ResolveAttributes());
+        Batch resolution = new Batch("Resolution", new ResolveTable(), new ResolveAttributes(), new ResolveFunctions());
         return List.of(resolution);
     }
 
@@ -96,6 +107,33 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         UnresolvedAttribute.errorMessage(ua.name(), StringUtils.findSimilar(ua.name(), scope.keySet()))
                     );
                 }
+            });
+        }
+    }
+
+    @Experimental
+    private class ResolveFunctions extends AnalyzerRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            return plan.transformExpressionsUp(UnresolvedFunction.class, uf -> {
+                if (uf.analyzed()) {
+                    return uf;
+                }
+
+                String name = uf.name();
+
+                if (uf.childrenResolved() == false) {
+                    return uf;
+                }
+
+                String functionName = functionRegistry.resolveAlias(name);
+                if (functionRegistry.functionExists(functionName) == false) {
+                    return uf.missing(functionName, functionRegistry.listFunctions());
+                }
+                FunctionDefinition def = functionRegistry.resolveFunction(functionName);
+                Function f = uf.buildResolved(configuration, def);
+                return f;
             });
         }
     }

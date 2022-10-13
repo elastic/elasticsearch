@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.physical;
+package org.elasticsearch.xpack.esql.plan.physical.old;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -24,9 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.plan.physical.old.OldLocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.plan.physical.old.OldLocalExecutionPlanner.IndexReaderReference;
-import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
 import org.junit.After;
 import org.junit.Before;
 

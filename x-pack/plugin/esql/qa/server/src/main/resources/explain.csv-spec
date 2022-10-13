@@ -1,4 +1,4 @@
-explainFrom
+explainFrom-Ignore
 explain [ from foo ];
 
 plan:keyword | type:keyword
@@ -8,7 +8,7 @@ plan:keyword | type:keyword
 ;
 
 
-explainCompositeQuery
+explainCompositeQuery-Ignore
 explain [ row a = 1 | where b > 0 ];
 
 plan:keyword | type:keyword

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.relevancesearch.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -50,6 +51,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
     private RelevanceSettingsService relevanceSettingsService;
     private CurationsService curationsService;
     private QueryFieldsResolver queryFieldsResolver;
+    private ClusterService clusterService;
 
     private RelevanceMatchQueryBuilder queryBuilder;
 
@@ -64,8 +66,9 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         relevanceSettingsService = mock(RelevanceSettingsService.class);
         curationsService = mock(CurationsService.class);
         queryFieldsResolver = mock(QueryFieldsResolver.class);
+        clusterService = mock(ClusterService.class);
 
-        queryRewriter = new RelevanceMatchQueryRewriter(relevanceSettingsService, curationsService, queryFieldsResolver);
+        queryRewriter = new RelevanceMatchQueryRewriter(clusterService, relevanceSettingsService, curationsService, queryFieldsResolver);
     }
 
     public void testQueryWithoutRelevanceSettings() throws IOException {
@@ -76,7 +79,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         SearchExecutionContext context = createSearchExecutionContext();
         when(queryFieldsResolver.getQueryFields(context)).thenReturn(Set.of(AVAILABLE_FIELDS));
 
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = QueryBuilders.combinedFieldsQuery(queryText, AVAILABLE_FIELDS).toQuery(context);
 
@@ -91,7 +94,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         setRelevanceSettings();
 
         SearchExecutionContext context = createSearchExecutionContext();
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = QueryBuilders.combinedFieldsQuery(queryText, RELEVANCE_SETTINGS_FIELDS).toQuery(context);
 
@@ -108,7 +111,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         setCurationsSettings(true, true, queryText);
 
         SearchExecutionContext context = createSearchExecutionContext();
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = new BoolQueryBuilder().should(
             new PinnedQueryBuilder(
@@ -142,7 +145,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         setCurationsSettings(true, false, queryText);
 
         SearchExecutionContext context = createSearchExecutionContext();
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = new PinnedQueryBuilder(
             new CombinedFieldsQueryBuilder(queryText, RELEVANCE_SETTINGS_FIELDS),
@@ -163,7 +166,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         setCurationsSettings(false, true, queryText);
 
         SearchExecutionContext context = createSearchExecutionContext();
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = new BoolQueryBuilder().should(new CombinedFieldsQueryBuilder(queryText, RELEVANCE_SETTINGS_FIELDS))
             .filter(
@@ -191,7 +194,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         setCurationsSettings(true, true, "query that will not match");
 
         SearchExecutionContext context = createSearchExecutionContext();
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = QueryBuilders.combinedFieldsQuery(queryText, RELEVANCE_SETTINGS_FIELDS).toQuery(context);
 

@@ -112,7 +112,9 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         CurationsService curationsService = new CurationsService(client);
         QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
 
-        relevanceMatchQueryRewriter.set(new RelevanceMatchQueryRewriter(relevanceSettingsService, curationsService, queryFieldsResolver));
+        relevanceMatchQueryRewriter.set(
+            new RelevanceMatchQueryRewriter(clusterService, relevanceSettingsService, curationsService, queryFieldsResolver)
+        );
 
         return List.of(relevanceMatchQueryRewriter.get(), indexCreationService.get());
     }

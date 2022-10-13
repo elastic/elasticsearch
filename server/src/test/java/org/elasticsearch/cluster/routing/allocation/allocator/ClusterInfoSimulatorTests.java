@@ -146,7 +146,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
             equalTo(
                 new ClusterInfoTestBuilder() //
                     .withNode(fromNodeId, new DiskUsageBuilder("/data-1", 1000, 500), new DiskUsageBuilder("/data-2", 1000, 850))
-                    .withNode(toNodeId, new DiskUsageBuilder("/data-1", 1000, 650), new DiskUsageBuilder("/data-2", 1000, 900))
+                    .withNode(toNodeId, new DiskUsageBuilder("/data-1", 1000, 750), new DiskUsageBuilder("/data-2", 1000, 800))
                     .withShard(shard, 100)
                     .build()
             )
@@ -274,7 +274,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
             simulator.getClusterInfo(),
             equalTo(
                 new ClusterInfoTestBuilder() //
-                    .withNode("node-0", new DiskUsageBuilder("/data-1", 1000, 0), new DiskUsageBuilder("/data-2", 1000, 500))
+                    .withNode("node-0", new DiskUsageBuilder("/data-1", 1000, 100), new DiskUsageBuilder("/data-2", 1000, 100))
                     .withNode("node-1", new DiskUsageBuilder("/data-1", 1000, 100), new DiskUsageBuilder("/data-2", 1000, 700))
                     .withShard(shard1, 500)
                     .withShard(shard2, 400)
@@ -373,7 +373,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
         }
 
         public DiskUsage toDiskUsage(String name) {
-            return new DiskUsage(name, name, name + '/' + path, total, free);
+            return new DiskUsage(name, name, name + path, total, free);
         }
     }
 }

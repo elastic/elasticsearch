@@ -39,10 +39,10 @@ public class ClusterInfoSimulator {
             if (shard.relocatingNodeId() != null) {
                 // relocation
                 modifyDiskUsage(shard.relocatingNodeId(), getShardPath(shard.relocatingNodeId(), mostAvailableSpaceUsage), size);
-                modifyDiskUsage(shard.currentNodeId(), getShardPath(shard.currentNodeId(), leastAvailableSpaceUsage), -size);
+                modifyDiskUsage(shard.currentNodeId(), getShardPath(shard.currentNodeId(), mostAvailableSpaceUsage), -size);
             } else {
                 // new shard
-                modifyDiskUsage(shard.currentNodeId(), getShardPath(shard.currentNodeId(), leastAvailableSpaceUsage), -size);
+                modifyDiskUsage(shard.currentNodeId(), getShardPath(shard.currentNodeId(), mostAvailableSpaceUsage), -size);
                 shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shard), size);
             }
         }

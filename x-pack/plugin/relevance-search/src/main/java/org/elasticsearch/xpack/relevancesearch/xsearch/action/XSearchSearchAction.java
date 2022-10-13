@@ -33,7 +33,7 @@ public class XSearchSearchAction extends ActionType<XSearchSearchAction.Response
     public static final XSearchSearchAction INSTANCE = new XSearchSearchAction();
 
     // TODO - Should there be more fine-tuned permissions here?
-    static final String NAME = "indices:data/xsearch";
+    static final String NAME = "indices:data/read/xsearch";
 
     private XSearchSearchAction() {
         super(NAME, Response::new);

@@ -17,7 +17,7 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DesiredBalanceStatsTest extends AbstractWireSerializingTestCase<DesiredBalanceStats> {
+public class DesiredBalanceStatsTests extends AbstractWireSerializingTestCase<DesiredBalanceStats> {
 
     @Override
     protected Writeable.Reader<DesiredBalanceStats> instanceReader() {

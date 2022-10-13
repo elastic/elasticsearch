@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -55,14 +56,14 @@ public record DesiredBalanceStats(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
-        builder.field("computation.active", computationActive);
-        builder.field("computation.submitted", computationSubmitted);
-        builder.field("computation.executed", computationExecuted);
-        builder.field("computation.converged", computationConverged);
-        builder.field("computation.iterations", computationIterations);
-        builder.field("computation.converged.index", lastConvergedIndex);
-        builder.humanReadableField("computation.time_in_millis", "computation.time", cumulativeComputationTime);
-        builder.humanReadableField("reconciliation.time_in_millis", "reconciliation.time", cumulativeReconciliationTime);
+        builder.field("computation_active", computationActive);
+        builder.field("computation_submitted", computationSubmitted);
+        builder.field("computation_executed", computationExecuted);
+        builder.field("computation_converged", computationConverged);
+        builder.field("computation_iterations", computationIterations);
+        builder.field("computation_converged_index", lastConvergedIndex);
+        builder.humanReadableField("computation_time_in_millis", "computation_time", new TimeValue(cumulativeComputationTime));
+        builder.humanReadableField("reconciliation_time_in_millis", "reconciliation_time", new TimeValue(cumulativeReconciliationTime));
 
         return builder;
     }

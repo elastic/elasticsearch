@@ -223,18 +223,15 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
-        } else if (request.roleDescriptor().hasRemoteIndicesPrivileges()
-            && clusterService.state().nodes().getMinNodeVersion().before(VERSION_REMOTE_INDICES)) {
-                listener.onFailure(
-                    new IllegalStateException(
-                        "remote indices privileges only supported on clusters with all nodes on version ["
-                            + VERSION_REMOTE_INDICES
-                            + "] or higher"
-                    )
-                );
-            } else {
-                innerPutRole(request, role, listener);
-            }
+        } else if (role.hasRemoteIndicesPrivileges() && clusterService.state().nodes().getMinNodeVersion().before(VERSION_REMOTE_INDICES)) {
+            listener.onFailure(
+                new IllegalStateException(
+                    "all nodes must have version [" + VERSION_REMOTE_INDICES + "] or higher to support remote indices privileges"
+                )
+            );
+        } else {
+            innerPutRole(request, role, listener);
+        }
     }
 
     // pkg-private for testing

@@ -36,13 +36,13 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
 
     public void testParseValueBoost() throws Exception {
         Map<String, Object> rawSettings = Map.of(
-                "query_configuration",
-                Map.of(
+            "query_configuration",
+            Map.of(
                 "fields",
                 List.of("title", "description"),
                 "boosts",
                 Map.of("world_heritage_site", List.of(Map.of("type", "value", "operation", "multiply", "factor", "10", "value", "true")))
-                )
+            )
         );
         RelevanceSettings settings = service.parseSettings(rawSettings);
         Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
@@ -56,13 +56,13 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
 
     public void testParseFunctionalBoost() throws Exception {
         Map<String, Object> rawSettings = Map.of(
-                "query_configuration",
-                Map.of(
+            "query_configuration",
+            Map.of(
                 "fields",
                 List.of("title", "description"),
                 "boosts",
                 Map.of("visitors", List.of(Map.of("type", "functional", "operation", "add", "factor", 5, "function", "linear")))
-                )
+            )
         );
         RelevanceSettings settings = service.parseSettings(rawSettings);
         Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
@@ -76,13 +76,13 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
 
     public void testParseProximityBoost() throws Exception {
         Map<String, Object> rawSettings = Map.of(
-                "query_configuration",
-                Map.of(
+            "query_configuration",
+            Map.of(
                 "fields",
                 List.of("title", "description"),
                 "boosts",
                 Map.of("location", List.of(Map.of("type", "proximity", "center", "25.32, -80.93", "factor", 5, "function", "gaussian")))
-                )
+            )
         );
         RelevanceSettings settings = service.parseSettings(rawSettings);
         Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
@@ -96,8 +96,8 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
 
     public void testParseMultipleBoosts() throws Exception {
         Map<String, Object> rawSettings = Map.of(
-                "query_configuration",
-                Map.of(
+            "query_configuration",
+            Map.of(
                 "fields",
                 List.of("title", "description"),
                 "boosts",
@@ -109,7 +109,7 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
                     "world_heritage_site",
                     List.of(Map.of("type", "value", "operation", "multiply", "factor", "10", "value", "true"))
                 )
-                )
+            )
         );
         RelevanceSettings settings = service.parseSettings(rawSettings);
         Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
@@ -127,8 +127,8 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
 
     public void testParseMultipleBoostsSameField() throws Exception {
         Map<String, Object> rawSettings = Map.of(
-                "query_configuration",
-                Map.of(
+            "query_configuration",
+            Map.of(
                 "fields",
                 List.of("title", "description"),
                 "boosts",
@@ -139,7 +139,7 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
                         Map.of("type", "functional", "operation", "multiply", "factor", 3, "function", "logarithmic")
                     )
                 )
-                )
+            )
         );
         RelevanceSettings settings = service.parseSettings(rawSettings);
         Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();

@@ -24,7 +24,6 @@ public class XSearchSearchTransportAction extends HandledTransportAction<XSearch
     // private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
 
     @Inject
-    @Inject
     public XSearchSearchTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,

@@ -17,7 +17,7 @@ abstract class AbstractQueryRewriter<S extends Settings> implements QueryRewrite
     private final ClusterService clusterService;
     private final SettingsService<S> settingsService;
 
-    public AbstractQueryRewriter(ClusterService clusterService, SettingsService<S> settingsService) {
+    AbstractQueryRewriter(ClusterService clusterService, SettingsService<S> settingsService) {
         this.clusterService = clusterService;
         this.settingsService = settingsService;
     }

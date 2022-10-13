@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsServi
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 
 class CurationQueryRewriter extends AbstractQueryRewriter<CurationSettings> {
-    public CurationQueryRewriter(ClusterService clusterService, CurationsService settingsService) {
+    CurationQueryRewriter(ClusterService clusterService, CurationsService settingsService) {
         super(clusterService, settingsService);
     }
 

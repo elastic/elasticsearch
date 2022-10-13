@@ -59,9 +59,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     private final String[] clusterPrivileges;
     private final ConfigurableClusterPrivilege[] configurableClusterPrivileges;
     private final IndicesPrivileges[] indicesPrivileges;
-    private final RemoteIndicesPrivileges[] remoteIndicesPrivileges;
     private final ApplicationResourcePrivileges[] applicationPrivileges;
     private final String[] runAs;
+    private final RemoteIndicesPrivileges[] remoteIndicesPrivileges;
     private final Map<String, Object> metadata;
     private final Map<String, Object> transientMetadata;
 
@@ -167,7 +167,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
         this.configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
         if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
-            this.remoteIndicesPrivileges = in.readOptionalArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
+            this.remoteIndicesPrivileges = in.readArray(RemoteIndicesPrivileges::new, RemoteIndicesPrivileges[]::new);
         } else {
             this.remoteIndicesPrivileges = RemoteIndicesPrivileges.NONE;
         }

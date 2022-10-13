@@ -728,7 +728,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 new String[0],
                 new HashMap<>(),
                 new HashMap<>(),
-                randomBoolean() ? null : new RoleDescriptor.RemoteIndicesPrivileges[0]
+                new RoleDescriptor.RemoteIndicesPrivileges[0]
             ).isEmpty()
         );
 
@@ -763,7 +763,7 @@ public class RoleDescriptorTests extends ESTestCase {
             booleans.get(5) ? new HashMap<>() : Collections.singletonMap("foo", "bar"),
             Collections.singletonMap("foo", "bar"),
             booleans.get(6)
-                ? null
+                ? new RoleDescriptor.RemoteIndicesPrivileges[0]
                 : new RoleDescriptor.RemoteIndicesPrivileges[] {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() }
         );

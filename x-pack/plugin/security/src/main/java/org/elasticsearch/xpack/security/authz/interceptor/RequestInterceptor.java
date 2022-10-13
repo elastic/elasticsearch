@@ -20,6 +20,10 @@ public interface RequestInterceptor {
      * This interceptor will introspect the request and potentially modify it. If the interceptor does not apply
      * to the request then the request will not be modified.
      */
-    void intercept(RequestInfo requestInfo, AuthorizationEngine authorizationEngine, AuthorizationInfo authorizationInfo,
-                   ActionListener<Void> listener);
+    void intercept(
+        RequestInfo requestInfo,
+        AuthorizationEngine authorizationEngine,
+        AuthorizationInfo authorizationInfo,
+        ActionListener<Void> listener
+    );
 }

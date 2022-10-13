@@ -192,7 +192,7 @@ While both options would return similar scores, there are trade-offs:
 <<query-dsl-script-score-query,script_score>> provides a lot of flexibility,
 enabling you to combine the text relevance score with static signals as you
 prefer. On the other hand, the <<rank-feature,`rank_feature` query>> only
-exposes a couple ways to incorporate static signails into the score. However,
+exposes a couple ways to incorporate static signals into the score. However,
 it relies on the <<rank-feature,`rank_feature`>> and
 <<rank-features,`rank_features`>> fields, which index values in a special way
 that allows the <<query-dsl-rank-feature-query,`rank_feature` query>> to skip

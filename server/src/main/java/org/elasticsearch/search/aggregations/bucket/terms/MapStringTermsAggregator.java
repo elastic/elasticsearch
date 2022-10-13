@@ -12,11 +12,12 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -30,6 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.Bac
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -68,10 +70,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
-        this.collectorSource = collectorSource;
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.includeExclude = includeExclude;
         bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        // set last because if there is an error during construction the collector gets release outside the constructor.
+        this.collectorSource = collectorSource;
     }
 
     @Override
@@ -83,11 +86,11 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         return resultStrategy.wrapCollector(
             collectorSource.getLeafCollector(
                 includeExclude,
-                ctx,
+                aggCtx.getLeafReaderContext(),
                 sub,
                 this::addRequestCircuitBreakerBytes,
                 (s, doc, owningBucketOrd, bytes) -> {
@@ -117,6 +120,8 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("total_buckets", bucketOrds.size());
+        add.accept("collection_strategy", collectorSource.describe());
+        collectorSource.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
     }
 
@@ -126,11 +131,30 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     /**
-     * Abstaction on top of building collectors to fetch values.
+     * Abstraction on top of building collectors to fetch values so {@code terms},
+     * {@code significant_terms}, and {@code significant_text} can share a bunch of
+     * aggregation code.
      */
     public interface CollectorSource extends Releasable {
+        /**
+         * A description of the strategy to include in profile results.
+         */
+        String describe();
+
+        /**
+         * Collect debug information to add to the profiling results. This will
+         * only be called if the aggregation is being profiled.
+         */
+        void collectDebugInfo(BiConsumer<String, Object> add);
+
+        /**
+         * Does this {@link CollectorSource} need queries to calculate the score?
+         */
         boolean needsScores();
 
+        /**
+         * Build the collector.
+         */
         LeafBucketCollector getLeafCollector(
             IncludeExclude.StringFilter includeExclude,
             LeafReaderContext ctx,
@@ -139,6 +163,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             CollectConsumer consumer
         ) throws IOException;
     }
+
     @FunctionalInterface
     public interface CollectConsumer {
         void accept(LeafBucketCollector sub, int doc, long owningBucketOrd, BytesRef bytes) throws IOException;
@@ -148,15 +173,23 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
      * Fetch values from a {@link ValuesSource}.
      */
     public static class ValuesSourceCollectorSource implements CollectorSource {
-        private final ValuesSource valuesSource;
+        private final ValuesSourceConfig valuesSourceConfig;
 
-        public ValuesSourceCollectorSource(ValuesSource valuesSource) {
-            this.valuesSource = valuesSource;
+        public ValuesSourceCollectorSource(ValuesSourceConfig valuesSourceConfig) {
+            this.valuesSourceConfig = valuesSourceConfig;
         }
 
         @Override
+        public String describe() {
+            return "from " + valuesSourceConfig.getDescription();
+        }
+
+        @Override
+        public void collectDebugInfo(BiConsumer<String, Object> add) {}
+
+        @Override
         public boolean needsScores() {
-            return valuesSource.needsScores();
+            return valuesSourceConfig.getValuesSource().needsScores();
         }
 
         @Override
@@ -167,7 +200,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             LongConsumer addRequestCircuitBreakerBytes,
             CollectConsumer consumer
         ) throws IOException {
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            SortedBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
                 final BytesRefBuilder previous = new BytesRefBuilder();
 
@@ -414,9 +447,20 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             } else {
                 reduceOrder = order;
             }
-            return new StringTerms(name, reduceOrder, order, bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
-                otherDocCount, Arrays.asList(topBuckets), 0);
+            return new StringTerms(
+                name,
+                reduceOrder,
+                order,
+                bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(),
+                metadata(),
+                format,
+                bucketCountThresholds.getShardSize(),
+                showTermDocCountError,
+                otherDocCount,
+                Arrays.asList(topBuckets),
+                null
+            );
         }
 
         @Override
@@ -436,7 +480,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
 
-        private LongArray subsetSizes = bigArrays().newLongArray(1, true);
+        private LongArray subsetSizes;
 
         SignificantTermsResults(
             SignificanceLookup significanceLookup,
@@ -446,6 +490,15 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             backgroundFrequencies = significanceLookup.bytesLookup(bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
+            boolean success = false;
+            try {
+                subsetSizes = bigArrays().newLongArray(1, true);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
         }
 
         @Override
@@ -538,7 +591,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
         @Override
         SignificantStringTerms buildEmptyResult() {
-            return buildEmptySignificantTermsAggregation(0, significanceHeuristic);
+            return buildEmptySignificantTermsAggregation(0, supersetSize, significanceHeuristic);
         }
 
         @Override
@@ -547,4 +600,3 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         }
     }
 }
-

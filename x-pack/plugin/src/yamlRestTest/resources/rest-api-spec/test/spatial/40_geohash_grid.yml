@@ -1,0 +1,59 @@
+---
+"Test geohash_grid aggregation on geo_shape field":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_shape
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: locations
+              _id: "1"
+          - '{"location": "POINT(4.912350 52.374081)", "city": "Amsterdam", "name": "NEMO Science Museum"}'
+          - index:
+              _index: locations
+              _id: "2"
+          - '{"location": "POINT(4.901618 52.369219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}'
+          - index:
+              _index: locations
+              _id: "3"
+          - '{"location": "POINT(4.914722 52.371667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}'
+          - index:
+              _index: locations
+              _id: "4"
+          - '{"location": "POINT(4.405200 51.222900)", "city": "Antwerp", "name": "Letterenhuis"}'
+          - index:
+              _index: locations
+              _id: "5"
+          - '{"location": "POINT(2.336389 48.861111)", "city": "Paris", "name": "Musée du Louvre"}'
+          - index:
+              _index: locations
+              _id: "6"
+          - '{"location": "POINT(2.327000 48.860000)", "city": "Paris", "name": "Musée dOrsay"}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            grid:
+              geohash_grid:
+                precision: 4
+                field: location
+  - match: {hits.total:      6    }
+  - length: { aggregations.grid.buckets: 3 }
+  - match: { aggregations.grid.buckets.0.key: "u173" }
+  - match: { aggregations.grid.buckets.0.doc_count: 3 }
+  - match: { aggregations.grid.buckets.1.key: "u09t" }
+  - match: { aggregations.grid.buckets.1.doc_count: 2 }
+  - match: { aggregations.grid.buckets.2.key: "u155" }
+  - match: { aggregations.grid.buckets.2.doc_count: 1 }

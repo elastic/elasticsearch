@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class TrainedModelMetadataTests extends AbstractBWCSerializationTestCase<TrainedModelMetadata> {
 
@@ -26,8 +25,10 @@ public class TrainedModelMetadataTests extends AbstractBWCSerializationTestCase<
             randomAlphaOfLength(10),
             Stream.generate(TotalFeatureImportanceTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList()),
             randomBoolean() ? null : FeatureImportanceBaselineTests.randomInstance(),
-            randomBoolean() ? null : Stream.generate(HyperparametersTests::randomInstance).limit(randomIntBetween(1, 10))
-                                     .collect(Collectors.toList()));
+            randomBoolean()
+                ? null
+                : Stream.generate(HyperparametersTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
+        );
     }
 
     @Before

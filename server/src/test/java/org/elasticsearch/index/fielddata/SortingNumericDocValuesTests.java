@@ -17,55 +17,55 @@ import java.util.function.LongConsumer;
 
 public class SortingNumericDocValuesTests extends ESTestCase {
 
-   public void testResize() {
-       final int oldSize = Integer.MAX_VALUE - 200;
-       final int newSize = Integer.MAX_VALUE - 100;
-       // This counter should account for the initialization of the array (size == 1)
-       // and the diff between newSize (over-sized) and oldSize.
-       final AtomicLong counter = new AtomicLong();
-       LongConsumer consumer = value -> {
-           long total = counter.addAndGet(value);
-           assertThat(total, Matchers.greaterThanOrEqualTo(0L));
-       };
-       SortingNumericDocValues docValues = new SortingNumericDocValues(consumer) {
+    public void testResize() {
+        final int oldSize = Integer.MAX_VALUE - 200;
+        final int newSize = Integer.MAX_VALUE - 100;
+        // This counter should account for the initialization of the array (size == 1)
+        // and the diff between newSize (over-sized) and oldSize.
+        final AtomicLong counter = new AtomicLong();
+        LongConsumer consumer = value -> {
+            long total = counter.addAndGet(value);
+            assertThat(total, Matchers.greaterThanOrEqualTo(0L));
+        };
+        SortingNumericDocValues docValues = new SortingNumericDocValues(consumer) {
 
-           @Override
-           protected void growExact(int newValuesLength) {
-               // don't grow the array
-           }
+            @Override
+            protected void growExact(int newValuesLength) {
+                // don't grow the array
+            }
 
-           /** Get the size of the internal array using a method so we can override it during testing */
-           protected int getArrayLength() {
-               return oldSize;
-           }
+            /** Get the size of the internal array using a method so we can override it during testing */
+            protected int getArrayLength() {
+                return oldSize;
+            }
 
-           @Override
-           public boolean advanceExact(int target) {
-               return false;
-           }
+            @Override
+            public boolean advanceExact(int target) {
+                return false;
+            }
 
-           @Override
-           public int docID() {
-               return 0;
-           }
+            @Override
+            public int docID() {
+                return 0;
+            }
 
-           @Override
-           public int nextDoc() {
-               return 0;
-           }
+            @Override
+            public int nextDoc() {
+                return 0;
+            }
 
-           @Override
-           public int advance(int target) {
-               return 0;
-           }
+            @Override
+            public int advance(int target) {
+                return 0;
+            }
 
-           @Override
-           public long cost() {
-               return 0;
-           }
-       };
-       docValues.resize(newSize);
-       final long diff = ArrayUtil.oversize(newSize, Long.BYTES) - oldSize;
-       assertThat(counter.get(), Matchers.equalTo((diff + 1) * Long.BYTES));
-   }
+            @Override
+            public long cost() {
+                return 0;
+            }
+        };
+        docValues.resize(newSize);
+        final long diff = ArrayUtil.oversize(newSize, Long.BYTES) - oldSize;
+        assertThat(counter.get(), Matchers.equalTo((diff + 1) * Long.BYTES));
+    }
 }

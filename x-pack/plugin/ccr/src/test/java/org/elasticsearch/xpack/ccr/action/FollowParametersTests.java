@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 
 import java.io.IOException;
 
-public class FollowParametersTests extends AbstractSerializingTestCase<FollowParameters> {
+public class FollowParametersTests extends AbstractXContentSerializingTestCase<FollowParameters> {
 
     static final ObjectParser<FollowParameters, Void> PARSER = new ObjectParser<>("test_parser", FollowParameters::new);
     static {
@@ -36,6 +36,11 @@ public class FollowParametersTests extends AbstractSerializingTestCase<FollowPar
     @Override
     protected Writeable.Reader<FollowParameters> instanceReader() {
         return FollowParameters::new;
+    }
+
+    @Override
+    protected FollowParameters mutateInstance(FollowParameters instance) {
+        return randomInstance();
     }
 
     static FollowParameters randomInstance() {

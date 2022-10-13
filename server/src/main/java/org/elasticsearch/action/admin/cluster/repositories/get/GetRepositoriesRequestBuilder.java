@@ -9,14 +9,16 @@
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 
 /**
  * Get repository request builder
  */
-public class GetRepositoriesRequestBuilder
-        extends MasterNodeReadOperationRequestBuilder<GetRepositoriesRequest, GetRepositoriesResponse, GetRepositoriesRequestBuilder> {
+public class GetRepositoriesRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+    GetRepositoriesRequest,
+    GetRepositoriesResponse,
+    GetRepositoriesRequestBuilder> {
 
     /**
      * Creates new get repository request builder

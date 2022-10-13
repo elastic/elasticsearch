@@ -8,10 +8,18 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+
 /**
  * Abstraction of an array of integer values.
  */
-public interface IntArray extends BigArray {
+public interface IntArray extends BigArray, Writeable {
+    static IntArray readFrom(StreamInput in) throws IOException {
+        return new ReleasableIntArray(in);
+    }
 
     /**
      * Get an element given its index.
@@ -32,5 +40,10 @@ public interface IntArray extends BigArray {
      * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
      */
     void fill(long fromIndex, long toIndex, int value);
+
+    /**
+     * Bulk set.
+     */
+    void set(long index, byte[] buf, int offset, int len);
 
 }

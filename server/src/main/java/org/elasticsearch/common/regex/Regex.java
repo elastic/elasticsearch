@@ -8,12 +8,14 @@
 
 package org.elasticsearch.common.regex;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -37,6 +39,10 @@ public class Regex {
         return str.equals("*");
     }
 
+    public static boolean isSuffixMatchPattern(String str) {
+        return str.length() > 1 && str.indexOf("*") == str.length() - 1;
+    }
+
     /** Return an {@link Automaton} that matches the given pattern. */
     public static Automaton simpleMatchToAutomaton(String pattern) {
         List<Automaton> automata = new ArrayList<>();
@@ -57,9 +63,29 @@ public class Regex {
         if (patterns.length < 1) {
             throw new IllegalArgumentException("There must be at least one pattern, zero given");
         }
+
+        List<BytesRef> simpleStrings = new ArrayList<>();
         List<Automaton> automata = new ArrayList<>();
         for (String pattern : patterns) {
-            automata.add(simpleMatchToAutomaton(pattern));
+            // Strings longer than 1000 characters aren't supported by makeStringUnion
+            if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
+                automata.add(simpleMatchToAutomaton(pattern));
+            } else {
+                simpleStrings.add(new BytesRef(pattern));
+            }
+        }
+        if (false == simpleStrings.isEmpty()) {
+            Automaton simpleStringsAutomaton;
+            if (simpleStrings.size() > 0) {
+                Collections.sort(simpleStrings);
+                simpleStringsAutomaton = Automata.makeStringUnion(simpleStrings);
+            } else {
+                simpleStringsAutomaton = Automata.makeString(simpleStrings.get(0).utf8ToString());
+            }
+            if (automata.isEmpty()) {
+                return simpleStringsAutomaton;
+            }
+            automata.add(simpleStringsAutomaton);
         }
         return Operations.union(automata);
     }
@@ -77,7 +103,6 @@ public class Regex {
     public static boolean simpleMatch(String pattern, String str) {
         return simpleMatch(pattern, str, false);
     }
-
 
     /**
      * Match a String against the given pattern, supporting the following simple
@@ -159,19 +184,6 @@ public class Regex {
     public static boolean simpleMatch(final List<String> patterns, final String str) {
         // #simpleMatch(String[], String) is likely to be inlined into this method
         return patterns != null && simpleMatch(patterns.toArray(Strings.EMPTY_ARRAY), str);
-    }
-
-    public static boolean simpleMatch(String[] patterns, String[] types) {
-        if (patterns != null && types != null) {
-            for (String type : types) {
-                for (String pattern : patterns) {
-                    if (simpleMatch(pattern, type)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
     }
 
     public static Pattern compile(String regex, String flags) {

@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Clean up your deployment">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-cleanup"
+            id="cloud-cleanup">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-cleanup"
+            id="self-managed-cleanup"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-cleanup"
+       aria-labelledby="cloud-cleanup">
+++++
+
+include::quick-start-cleanup.asciidoc[tag=cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-cleanup"
+       aria-labelledby="self-managed-cleanup"
+       hidden="">
+++++
+
+include::quick-start-cleanup.asciidoc[tag=self-managed]
+
+++++
+  </div>
+</div>
+++++

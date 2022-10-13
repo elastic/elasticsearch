@@ -9,10 +9,10 @@
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 /**
  * Heuristic for that {@link SignificantTerms} uses to pick out significant terms.
@@ -27,11 +27,17 @@ public abstract class SignificanceHeuristic implements NamedWriteable, ToXConten
      */
     public abstract double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize);
 
-    protected void checkFrequencyValidity(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize,
-            String scoreFunctionName) {
+    protected static void checkFrequencyValidity(
+        long subsetFreq,
+        long subsetSize,
+        long supersetFreq,
+        long supersetSize,
+        String scoreFunctionName
+    ) {
         if (subsetFreq < 0 || subsetSize < 0 || supersetFreq < 0 || supersetSize < 0) {
-            throw new IllegalArgumentException("Frequencies of subset and superset must be positive in " + scoreFunctionName +
-                    ".getScore()");
+            throw new IllegalArgumentException(
+                "Frequencies of subset and superset must be positive in " + scoreFunctionName + ".getScore()"
+            );
         }
         if (subsetFreq > subsetSize) {
             throw new IllegalArgumentException("subsetFreq > subsetSize, in " + scoreFunctionName);
@@ -47,7 +53,7 @@ public abstract class SignificanceHeuristic implements NamedWriteable, ToXConten
      * @param reduceContext the reduce context on the coordinating node
      * @return a version of this heuristic suitable for execution
      */
-    public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext reduceContext) {
+    public SignificanceHeuristic rewrite(AggregationReduceContext reduceContext) {
         return this;
     }
 

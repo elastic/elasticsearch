@@ -29,10 +29,15 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, ValueCountAggregator::new, true);
     }
 
-    ValueCountAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
-                                AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                Map<String, Object> metadata,
-                                MetricAggregatorSupplier aggregatorSupplier) throws IOException {
+    ValueCountAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        MetricAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         this.aggregatorSupplier = aggregatorSupplier;
@@ -44,12 +49,8 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound bucketCardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
-        return aggregatorSupplier
-            .build(name, config, context, parent, metadata);
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound bucketCardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, config, context, parent, metadata);
     }
 }

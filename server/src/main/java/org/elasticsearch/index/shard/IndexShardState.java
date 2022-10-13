@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.shard;
 
-
 public enum IndexShardState {
     CREATED((byte) 0),
     RECOVERING((byte) 1),

@@ -11,8 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DiversifiedTopDocsCollector;
-import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
+import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.TopDocsCollector;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
@@ -26,6 +25,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
+
+import static org.apache.lucene.misc.search.DiversifiedTopDocsCollector.ScoreDocKey;
 
 public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
 
@@ -99,8 +100,7 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
                     public boolean advanceExact(int target) throws IOException {
                         if (values.advanceExact(target)) {
                             if (values.docValueCount() > 1) {
-                                throw new IllegalArgumentException(
-                                        "Sample diversifying key must be a single valued-field");
+                                throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                             }
                             return true;
                         } else {

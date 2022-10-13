@@ -36,22 +36,24 @@ a number of clients that have been contributed by the community for various lang
 * <<rust>>
 * <<scala>>
 * <<smalltalk>>
+* <<swift>>
 * <<vertx>>
 
 [[b4j]]
 == B4J
-* https://www.b4x.com/android/forum/threads/server-jelasticsearch-search-and-text-analytics.73335/
+* https://www.b4x.com/android/forum/threads/server-jelasticsearch-search-and-text-analytics.73335/[jElasticsearch]:
   B4J client based on the official Java REST client.
 
 [[cpp]]
 == C++
-* https://github.com/seznam/elasticlient[elasticlient]: simple library for simplified work with Elasticsearch in C++
+* https://github.com/seznam/elasticlient[elasticlient]: simple library for
+  simplified work with Elasticsearch in C++.
 
 [[clojure]]
 == Clojure
 
 * https://github.com/mpenet/spandex[Spandex]:
-  Clojure client, based on the new official low level rest-client.
+  Clojure client, based on the new official low-level REST client.
 
 * https://github.com/clojurewerkz/elastisch[Elastisch]:
   Clojure client.
@@ -59,8 +61,10 @@ a number of clients that have been contributed by the community for various lang
 [[coldfusion]]
 == ColdFusion (CFML)
 
-* https://www.forgebox.io/view/cbelasticsearch[cbElasticSearch]
-  Native ColdFusion (CFML) support for the ColdBox MVC Platform which provides you with a fluent search interface for Elasticsearch, in addition to a CacheBox Cache provider and a Logbox Appender for logging.
+* https://www.forgebox.io/view/cbelasticsearch[cbElasticSearch]:
+  Native ColdFusion (CFML) support for the ColdBox MVC Platform which provides
+  you with a fluent search interface for Elasticsearch, in addition to a
+  CacheBox Cache provider and a Logbox Appender for logging.
 
 [[erlang]]
 == Erlang
@@ -73,13 +77,16 @@ a number of clients that have been contributed by the community for various lang
   https://github.com/karmi/tire[Tire]. Ready to use in pure Erlang
   environment.
 
-* https://github.com/sashman/elasticsearch_elixir_bulk_processor[Elixir Bulk Processor]:
-  Dynamically configurable Elixir port of the [Bulk Processor](https://www.elastic.co/guide/en/elasticsearch/client/java-api/current/java-docs-bulk-processor.html). Implemented using GenStages to handle backpressure.
+* https://github.com/sashman/elasticsearch_elixir_bulk_processor[Elixir Bulk
+  Processor]: Dynamically configurable Elixir port of the
+  {client}/java-api/current/java-docs-bulk-processor.html[Bulk Processor].
+  Implemented using GenStages to handle back pressure.
 
 [[go]]
 == Go
 
-Also see the {client}/go-api/current/index.html[official Elasticsearch Go client].
+Also see the {client}/go-api/current/index.html[official Elasticsearch Go
+client].
 
 * https://github.com/mattbaird/elastigo[elastigo]:
   Go client.
@@ -87,7 +94,7 @@ Also see the {client}/go-api/current/index.html[official Elasticsearch Go client
 * https://github.com/olivere/elastic[elastic]:
   Elasticsearch client for Google Go.
 
-* https://github.com/softctrl/elk[elk]
+* https://github.com/softctrl/elk[elk]:
   Golang lib for Elasticsearch client.
 
 
@@ -96,30 +103,36 @@ Also see the {client}/go-api/current/index.html[official Elasticsearch Go client
 * https://github.com/bitemyapp/bloodhound[bloodhound]:
   Haskell client and DSL.
 
-
 [[java]]
 == Java
 
-Also see the {client}/java-api/current/index.html[official Elasticsearch Java client].
+Also see the {client}/java-api/current/index.html[official Elasticsearch Java
+client].
 
 * https://github.com/otto-de/flummi[Flummi]:
-  Java Rest client with comprehensive Query DSL API
+  Java Rest client with comprehensive Query DSL API.
+
 * https://github.com/searchbox-io/Jest[Jest]:
   Java Rest client.
 
 [[javascript]]
 == JavaScript
 
-Also see the {client}/javascript-api/current/index.html[official Elasticsearch JavaScript client].
+See the {client}/javascript-api/current/index.html[official Elasticsearch
+JavaScript client].
 
 [[kotlin]]
 == Kotlin
 
 * https://github.com/mbuhot/eskotlin[ES Kotlin]:
-  Elasticsearch Query DSL for kotlin based on the {client}/java-api/current/index.html[official Elasticsearch Java client].
+  Elasticsearch Query DSL for kotlin based on the
+  {client}/java-api/current/index.html[official Elasticsearch Java client].
 
-* https://github.com/jillesvangurp/es-kotlin-wrapper-client[ES Kotlin Wrapper Client]:
-  Kotlin extension functions and abstractions for the {client}/java-api/current/index.html[official Elasticsearch Highlevel Client]. Aims to reduce the amount of boilerplate needed to do searches, bulk indexing and other common things users do with the client.
+* https://github.com/jillesvangurp/es-kotlin-wrapper-client[ES Kotlin Wrapper
+Client]: Kotlin extension functions and abstractions for the
+  {client}/java-api/current/index.html[official Elasticsearch high-level
+  client]. Aims to reduce the amount of boilerplate needed to do searches, bulk
+  indexing and other common things users do with the client.
 
 [[lua]]
 == Lua
@@ -130,32 +143,38 @@ Also see the {client}/javascript-api/current/index.html[official Elasticsearch J
 [[dotnet]]
 == .NET
 
-Also see the {client}/net-api/current/index.html[official Elasticsearch .NET client].
+See the {client}/net-api/current/index.html[official Elasticsearch .NET client].
 
 [[perl]]
 == Perl
 
-Also see the {client}/perl-api/current/index.html[official Elasticsearch Perl client].
+Also see the {client}/perl-api/current/index.html[official Elasticsearch Perl
+client].
 
-* https://metacpan.org/pod/Elastijk[Elastijk]: A low level minimal HTTP client.
+* https://metacpan.org/pod/Elastijk[Elastijk]: A low-level, minimal HTTP client.
 
 
 [[php]]
 == PHP
 
-Also see the {client}/php-api/current/index.html[official Elasticsearch PHP client].
+Also see the {client}/php-api/current/index.html[official Elasticsearch PHP
+client].
 
 * https://github.com/ruflin/Elastica[Elastica]:
   PHP client.
 
-* https://github.com/nervetattoo/elasticsearch[elasticsearch] PHP client.
+* https://github.com/nervetattoo/elasticsearch[elasticsearch]: PHP client.
 
-* https://github.com/madewithlove/elasticsearcher[elasticsearcher] Agnostic lightweight package on top of the Elasticsearch PHP client. Its main goal is to allow for easier structuring of queries and indices in your application.  It does not want to hide or replace functionality of the Elasticsearch PHP client.
+* https://github.com/madewithlove/elasticsearcher[elasticsearcher]: Agnostic
+lightweight package on top of the Elasticsearch PHP client. Its main goal is to
+allow for easier structuring of queries and indices in your application. It does
+not want to hide or replace functionality of the Elasticsearch PHP client.
 
 [[python]]
 == Python
 
-Also see the {client}/python-api/current/index.html[official Elasticsearch Python client].
+See the {client}/python-api/current/index.html[official Elasticsearch Python
+client].
 
 [[r]]
 == R
@@ -178,18 +197,19 @@ Also see the {client}/ruby-api/current/index.html[official Elasticsearch Ruby cl
   Tiny client with built-in zero-downtime migrations and ActiveRecord integration.
 
 * https://github.com/toptal/chewy[chewy]:
-  Chewy is an ODM and wrapper for the official Elasticsearch client
+  An ODM and wrapper for the official Elasticsearch client.
 
 * https://github.com/ankane/searchkick[Searchkick]:
-  Intelligent search made easy
+  Intelligent search made easy.
 
 * https://github.com/artsy/estella[Estella]:
-  Make your Ruby models searchable
+  Make your Ruby models searchable.
 
 [[rust]]
 == Rust
 
-Also see the {client}/rust-api/current/index.html[official Elasticsearch Rust client].
+Also see the {client}/rust-api/current/index.html[official Elasticsearch Rust
+client].
 
 * https://github.com/benashford/rs-es[rs-es]:
   A REST API client with a strongly-typed Query DSL.
@@ -215,11 +235,16 @@ Also see the {client}/rust-api/current/index.html[official Elasticsearch Rust cl
 [[smalltalk]]
 == Smalltalk
 
-* https://github.com/newapplesho/elasticsearch-smalltalk[elasticsearch-smalltalk] -
-  Pharo Smalltalk client for Elasticsearch
+* https://github.com/newapplesho/elasticsearch-smalltalk[elasticsearch-smalltalk]:
+  Pharo Smalltalk client for Elasticsearch.
+  
+[[swift]]
+== Swift
+* https://github.com/brokenhandsio/elasticsearch-nio-client[Elasticsearch NIO Client]: a library for
+  working with Elasticsearch in Swift, built on top of SwiftNIO and Swift Package Manager.
 
 [[vertx]]
 == Vert.x
 
 * https://github.com/reactiverse/elasticsearch-client[elasticsearch-client]:
-  An Elasticsearch client for Eclipse Vert.x
+  An Elasticsearch client for Eclipse Vert.x.

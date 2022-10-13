@@ -55,7 +55,8 @@ public class ClientVersion {
             int foundJars = 0;
             if (normalized.size() > 1) {
                 StringBuilder sb = new StringBuilder(
-                        "Multiple Elasticsearch JDBC versions detected in the classpath; please use only one\n");
+                    "Multiple Elasticsearch JDBC versions detected in the classpath; please use only one\n"
+                );
                 for (String s : normalized) {
                     if (s.contains("jar:")) {
                         foundJars++;
@@ -78,7 +79,7 @@ public class ClientVersion {
     // (1) a file URL: file:<path><FS separator><driver name>.jar
     // (2) jar file URL pointing to a JAR file: jar:<sub-url><separator><driver name>.jar!/
     // (3) jar file URL pointing to a JAR file entry (likely a fat JAR, but other types are possible): jar:<sub-url>!/driver name>.jar!/
-    @SuppressForbidden(reason="java.util.jar.JarFile must be explicitly closed on Windows")
+    @SuppressForbidden(reason = "java.util.jar.JarFile must be explicitly closed on Windows")
     static Manifest getManifest(URL url) throws IOException {
         String urlStr = url.toString();
         if (urlStr.endsWith(".jar") || urlStr.endsWith(".jar!/")) {

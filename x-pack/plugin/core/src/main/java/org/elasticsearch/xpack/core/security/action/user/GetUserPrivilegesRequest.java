@@ -23,8 +23,7 @@ public final class GetUserPrivilegesRequest extends ActionRequest implements Use
     /**
      * Package level access for {@link GetUserPrivilegesRequestBuilder}.
      */
-    GetUserPrivilegesRequest() {
-    }
+    GetUserPrivilegesRequest() {}
 
     public GetUserPrivilegesRequest(StreamInput in) throws IOException {
         super(in);

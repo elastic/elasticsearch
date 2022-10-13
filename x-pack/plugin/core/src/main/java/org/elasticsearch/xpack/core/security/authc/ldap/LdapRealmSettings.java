@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc.ldap;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
@@ -23,12 +23,13 @@ public final class LdapRealmSettings {
     public static final String AD_TYPE = "active_directory";
 
     public static final String TIMEOUT_EXECUTION_SUFFIX = "timeout.execution";
-    public static final Function<String, Setting.AffixSetting<TimeValue>> EXECUTION_TIMEOUT = type ->
-            Setting.affixKeySetting(RealmSettings.realmSettingPrefix(type), TIMEOUT_EXECUTION_SUFFIX,
-                    key -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30L), Setting.Property.NodeScope));
+    public static final Function<String, Setting.AffixSetting<TimeValue>> EXECUTION_TIMEOUT = type -> Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(type),
+        TIMEOUT_EXECUTION_SUFFIX,
+        key -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30L), Setting.Property.NodeScope)
+    );
 
-    private LdapRealmSettings() {
-    }
+    private LdapRealmSettings() {}
 
     /**
      * @param type Either {@link #AD_TYPE} or {@link #LDAP_TYPE}

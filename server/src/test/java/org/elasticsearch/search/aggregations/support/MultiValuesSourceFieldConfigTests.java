@@ -11,13 +11,13 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -26,7 +26,7 @@ import java.util.Collections;
 import static org.elasticsearch.test.InternalAggregationTestCase.randomNumericDocValueFormat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCase<MultiValuesSourceFieldConfig> {
+public class MultiValuesSourceFieldConfigTests extends AbstractXContentSerializingTestCase<MultiValuesSourceFieldConfig> {
 
     @Override
     protected MultiValuesSourceFieldConfig doParseInstance(XContentParser parser) throws IOException {
@@ -64,20 +64,20 @@ public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCa
     }
 
     public void testBothFieldScript() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new MultiValuesSourceFieldConfig.Builder().setFieldName("foo").setScript(new Script("foo")).build());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MultiValuesSourceFieldConfig.Builder().setFieldName("foo").setScript(new Script("foo")).build()
+        );
         assertThat(e.getMessage(), equalTo("[field] and [script] cannot both be configured.  Please specify one or the other."));
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList())
-            .getNamedWriteables());
+        return new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList())
-            .getNamedXContents());
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
     }
 }

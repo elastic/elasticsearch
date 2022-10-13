@@ -36,10 +36,13 @@ public class Position extends BinaryStringStringFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new BinaryStringStringPipe(source(), this,
-                Expressions.pipe(left()),
-                Expressions.pipe(right()),
-                BinaryStringStringOperation.POSITION);
+        return new BinaryStringStringPipe(
+            source(),
+            this,
+            Expressions.pipe(left()),
+            Expressions.pipe(right()),
+            BinaryStringStringOperation.POSITION
+        );
     }
 
     @Override

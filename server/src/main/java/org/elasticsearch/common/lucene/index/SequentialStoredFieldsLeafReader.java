@@ -41,11 +41,9 @@ public abstract class SequentialStoredFieldsLeafReader extends FilterLeafReader 
      * Returns a {@link StoredFieldsReader} optimized for sequential access (adjacent doc ids).
      */
     public StoredFieldsReader getSequentialStoredFieldsReader() {
-        if (in instanceof CodecReader) {
-            CodecReader reader = (CodecReader) in;
+        if (in instanceof CodecReader reader) {
             return doGetSequentialStoredFieldsReader(reader.getFieldsReader().getMergeInstance());
-        } else if (in instanceof SequentialStoredFieldsLeafReader) {
-            SequentialStoredFieldsLeafReader reader = (SequentialStoredFieldsLeafReader) in;
+        } else if (in instanceof SequentialStoredFieldsLeafReader reader) {
             return doGetSequentialStoredFieldsReader(reader.getSequentialStoredFieldsReader());
         } else {
             throw new IllegalStateException("requires a CodecReader or a SequentialStoredFieldsLeafReader, got " + in.getClass());

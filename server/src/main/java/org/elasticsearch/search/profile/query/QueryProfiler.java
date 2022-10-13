@@ -75,5 +75,4 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
         return collector.getCollectorTree();
     }
 
-
 }

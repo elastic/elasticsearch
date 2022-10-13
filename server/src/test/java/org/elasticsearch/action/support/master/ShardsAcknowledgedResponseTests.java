@@ -23,8 +23,12 @@ public class ShardsAcknowledgedResponseTests extends ESTestCase {
     public void testSerialization() throws Exception {
         ShardsAcknowledgedResponse testInstance = new TestImpl(true, true);
 
-        ShardsAcknowledgedResponse result =
-            copyWriteable(testInstance, new NamedWriteableRegistry(List.of()), in -> new TestImpl(in, true), Version.CURRENT);
+        ShardsAcknowledgedResponse result = copyWriteable(
+            testInstance,
+            new NamedWriteableRegistry(List.of()),
+            in -> new TestImpl(in, true),
+            Version.CURRENT
+        );
         assertThat(result.isAcknowledged(), is(true));
         assertThat(result.isShardsAcknowledged(), is(true));
 

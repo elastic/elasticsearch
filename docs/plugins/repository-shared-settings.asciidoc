@@ -9,4 +9,4 @@
 
 `readonly`::
 
-    Makes repository read-only.  Defaults to `false`.
+    Makes repository read-only. Defaults to `false`.

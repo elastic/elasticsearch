@@ -15,7 +15,6 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,9 +30,7 @@ import java.nio.file.Path;
 final class TranslogHeader {
     public static final String TRANSLOG_CODEC = "translog";
 
-    public static final int VERSION_CHECKSUMS    = 1; // pre-2.0 - unsupported
-    public static final int VERSION_CHECKPOINTS  = 2; // added checkpoints
-    public static final int VERSION_PRIMARY_TERM = 3; // added primary term
+    public static final int VERSION_PRIMARY_TERM = 3; // with: checksums, checkpoints and primary term
     public static final int CURRENT_VERSION = VERSION_PRIMARY_TERM;
 
     private final String translogUUID;
@@ -96,16 +93,9 @@ final class TranslogHeader {
     static int readHeaderVersion(final Path path, final FileChannel channel, final StreamInput in) throws IOException {
         final int version;
         try {
-            version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_CHECKSUMS, VERSION_PRIMARY_TERM);
+            version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_PRIMARY_TERM, VERSION_PRIMARY_TERM);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
-            tryReportOldVersionError(path, channel);
             throw new TranslogCorruptedException(path.toString(), "translog header corrupted", e);
-        }
-        if (version == VERSION_CHECKSUMS) {
-            throw new IllegalStateException("pre-2.0 translog found [" + path + "]");
-        }
-        if (version == VERSION_CHECKPOINTS) {
-            throw new IllegalStateException("pre-6.3 translog found [" + path + "]");
         }
         return version;
     }
@@ -116,10 +106,10 @@ final class TranslogHeader {
     static TranslogHeader read(final String translogUUID, final Path path, final FileChannel channel) throws IOException {
         try {
             // This input is intentionally not closed because closing it will close the FileChannel.
-            final BufferedChecksumStreamInput in =
-                new BufferedChecksumStreamInput(
-                    new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel), channel.size()),
-                    path.toString());
+            final BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(
+                new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel), channel.size()),
+                path.toString()
+            );
             final int version = readHeaderVersion(path, channel, in);
             // Read the translogUUID
             final int uuidLen = in.readInt();
@@ -140,16 +130,16 @@ final class TranslogHeader {
             assert primaryTerm >= 0 : "Primary term must be non-negative [" + primaryTerm + "]; translog path [" + path + "]";
 
             final int headerSizeInBytes = headerSizeInBytes(version, uuid.length);
-            assert channel.position() == headerSizeInBytes :
-                "Header is not fully read; header size [" + headerSizeInBytes + "], position [" + channel.position() + "]";
+            assert channel.position() == headerSizeInBytes
+                : "Header is not fully read; header size [" + headerSizeInBytes + "], position [" + channel.position() + "]";
 
             // verify UUID only after checksum, to ensure that UUID is not corrupted
             final BytesRef expectedUUID = new BytesRef(translogUUID);
             if (uuid.bytesEquals(expectedUUID) == false) {
                 throw new TranslogCorruptedException(
                     path.toString(),
-                    "expected shard UUID " + expectedUUID + " but got: " + uuid +
-                        " this translog file belongs to a different translog");
+                    "expected shard UUID " + expectedUUID + " but got: " + uuid + " this translog file belongs to a different translog"
+                );
             }
 
             return new TranslogHeader(translogUUID, primaryTerm, headerSizeInBytes);
@@ -158,33 +148,15 @@ final class TranslogHeader {
         }
     }
 
-    private static void tryReportOldVersionError(final Path path, final FileChannel channel) throws IOException {
-        // Lucene's CodecUtil writes a magic number of 0x3FD76C17 with the header, in binary this looks like:
-        // binary: 0011 1111 1101 0111 0110 1100 0001 0111
-        // hex   :    3    f    d    7    6    c    1    7
-        //
-        // With version 0 of the translog, the first byte is the Operation.Type, which will always be between 0-4,
-        // so we know if we grab the first byte, it can be:
-        // 0x3f => Lucene's magic number, so we can assume it's version 1 or later
-        // 0x00 => version 0 of the translog
-        final byte b1 = Channels.readFromFileChannel(channel, 0, 1)[0];
-        if (b1 == 0x3f) { // LUCENE_CODEC_HEADER_BYTE
-            throw new TranslogCorruptedException(
-                    path.toString(),
-                    "translog looks like version 1 or later, but has corrupted header" );
-        } else if (b1 == 0x00) { // UNVERSIONED_TRANSLOG_HEADER_BYTE
-            throw new IllegalStateException("pre-1.4 translog found [" + path + "]");
-        }
-    }
-
     /**
      * Writes this header with the latest format into the file channel
      */
     void write(final FileChannel channel) throws IOException {
         // This output is intentionally not closed because closing it will close the FileChannel.
-        @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
+        @SuppressWarnings({ "IOResourceOpenedButNotSafelyClosed", "resource" })
         final BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(
-            new OutputStreamStreamOutput(java.nio.channels.Channels.newOutputStream(channel)));
+            new OutputStreamStreamOutput(java.nio.channels.Channels.newOutputStream(channel))
+        );
         CodecUtil.writeHeader(new OutputStreamDataOutput(out), TRANSLOG_CODEC, CURRENT_VERSION);
         // Write uuid
         final BytesRef uuid = new BytesRef(translogUUID);
@@ -196,7 +168,7 @@ final class TranslogHeader {
         out.writeInt((int) out.getChecksum());
         out.flush();
         channel.force(true);
-        assert channel.position() == headerSizeInBytes :
-            "Header is not fully written; header size [" + headerSizeInBytes + "], channel position [" + channel.position() + "]";
+        assert channel.position() == headerSizeInBytes
+            : "Header is not fully written; header size [" + headerSizeInBytes + "], channel position [" + channel.position() + "]";
     }
 }

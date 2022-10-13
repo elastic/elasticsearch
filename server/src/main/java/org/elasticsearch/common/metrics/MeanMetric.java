@@ -10,7 +10,7 @@ package org.elasticsearch.common.metrics;
 
 import java.util.concurrent.atomic.LongAdder;
 
-public class MeanMetric implements Metric {
+public final class MeanMetric {
 
     private final LongAdder counter = new LongAdder();
     private final LongAdder sum = new LongAdder();
@@ -20,13 +20,14 @@ public class MeanMetric implements Metric {
         sum.add(n);
     }
 
-    public void dec(long n) {
-        counter.decrement();
-        sum.add(-n);
-    }
-
+    /**
+     * Returns the current count of this metric. This metric supports only {@link #inc(long)} that increases the counter
+     * whenever it's invoked; hence, the returned count is always non-negative.
+     */
     public long count() {
-        return counter.sum();
+        final long count = counter.sum();
+        assert count >= 0 : "Count of MeanMetric must always be non-negative; got " + count;
+        return count;
     }
 
     public long sum() {
@@ -39,10 +40,5 @@ public class MeanMetric implements Metric {
             return sum.sum() / (double) count;
         }
         return 0.0;
-    }
-
-    public void clear() {
-        counter.reset();
-        sum.reset();
     }
 }

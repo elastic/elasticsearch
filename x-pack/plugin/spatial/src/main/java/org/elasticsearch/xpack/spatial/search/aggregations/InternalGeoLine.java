@@ -10,9 +10,10 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.spatial.search.aggregations.GeoShapeMetricAggregation;
 
 import java.io.IOException;
@@ -49,8 +50,16 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
      * @param sortOrder       the {@link SortOrder} for the line. Whether the points are to be plotted in asc or desc order
      * @param size            the max length of the line-string.
      */
-    InternalGeoLine(String name, long[] line, double[] sortVals, Map<String, Object> metadata, boolean complete,
-                    boolean includeSorts, SortOrder sortOrder, int size) {
+    InternalGeoLine(
+        String name,
+        long[] line,
+        double[] sortVals,
+        Map<String, Object> metadata,
+        boolean complete,
+        boolean includeSorts,
+        SortOrder sortOrder,
+        int size
+    ) {
         super(name, metadata);
         this.line = line;
         this.sortVals = sortVals;
@@ -84,19 +93,19 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         int mergedSize = 0;
-        boolean complete = true;
-        boolean includeSorts = true;
+        boolean reducedComplete = true;
+        boolean reducedIncludeSorts = true;
         List<InternalGeoLine> internalGeoLines = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoLine geoLine = (InternalGeoLine) aggregation;
             internalGeoLines.add(geoLine);
             mergedSize += geoLine.line.length;
-            complete &= geoLine.complete;
-            includeSorts &= geoLine.includeSorts;
+            reducedComplete &= geoLine.complete;
+            reducedIncludeSorts &= geoLine.includeSorts;
         }
-        complete &= mergedSize <= size;
+        reducedComplete &= mergedSize <= size;
         int finalSize = Math.min(mergedSize, size);
 
         MergedGeoLines mergedGeoLines = new MergedGeoLines(internalGeoLines, finalSize, sortOrder);
@@ -105,8 +114,16 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         if (reduceContext.isFinalReduce() && SortOrder.DESC.equals(sortOrder)) {
             new PathArraySorter(mergedGeoLines.getFinalPoints(), mergedGeoLines.getFinalSortValues(), SortOrder.ASC).sort();
         }
-        return new InternalGeoLine(name, mergedGeoLines.getFinalPoints(), mergedGeoLines.getFinalSortValues(), getMetadata(), complete,
-            includeSorts, sortOrder, size);
+        return new InternalGeoLine(
+            name,
+            mergedGeoLines.getFinalPoints(),
+            mergedGeoLines.getFinalSortValues(),
+            getMetadata(),
+            reducedComplete,
+            reducedIncludeSorts,
+            sortOrder,
+            size
+        );
     }
 
     @Override
@@ -149,11 +166,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder
-            .field("type", "Feature")
-            .field("geometry", geoJSONGeometry())
-            .startObject("properties")
-                .field("complete", isComplete());
+        builder.field("type", "Feature").field("geometry", geoJSONGeometry()).startObject("properties").field("complete", isComplete());
         if (includeSorts) {
             builder.field("sort_values", sortVals);
         }
@@ -209,14 +222,18 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         for (int i = 0; i < line.length; i++) {
             int x = (int) (line[i] >> 32);
             int y = (int) line[i];
-            coordinates.add(new double[] {
-                roundDegrees(GeoEncodingUtils.decodeLongitude(x)),
-                roundDegrees(GeoEncodingUtils.decodeLatitude(y))
-            });
+            coordinates.add(
+                new double[] { roundDegrees(GeoEncodingUtils.decodeLongitude(x)), roundDegrees(GeoEncodingUtils.decodeLatitude(y)) }
+            );
         }
         final Map<String, Object> geoJSON = new HashMap<>();
-        geoJSON.put("type", "LineString");
-        geoJSON.put("coordinates", coordinates.toArray());
+        if (coordinates.size() == 1) {
+            geoJSON.put("type", "Point");
+            geoJSON.put("coordinates", coordinates.get(0));
+        } else {
+            geoJSON.put("type", "LineString");
+            geoJSON.put("coordinates", coordinates.toArray());
+        }
         return geoJSON;
     }
 }

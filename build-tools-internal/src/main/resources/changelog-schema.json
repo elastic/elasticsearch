@@ -1,0 +1,281 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/elastic/elasticsearch/tree/main/docs/changelog",
+  "$ref": "#/definitions/Changelog",
+  "definitions": {
+    "Changelog": {
+      "type": "object",
+      "properties": {
+        "pr": {
+          "type": "integer"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "area": {
+          "type": "string",
+          "enum": [
+            "Aggregations",
+            "Allocation",
+            "Analysis",
+            "Audit",
+            "Authentication",
+            "Authorization",
+            "Autoscaling",
+            "CAT APIs",
+            "CCR",
+            "CRUD",
+            "Client",
+            "Cluster Coordination",
+            "Data streams",
+            "Discovery-Plugins",
+            "Distributed",
+            "EQL",
+            "Engine",
+            "FIPS",
+            "Features",
+            "Geo",
+            "Graph",
+            "Health",
+            "Highlighting",
+            "ILM+SLM",
+            "IdentityProvider",
+            "Indices APIs",
+            "Infra/CLI",
+            "Infra/Circuit Breakers",
+            "Infra/Core",
+            "Infra/Logging",
+            "Infra/Node Lifecycle",
+            "Infra/Plugins",
+            "Infra/REST API",
+            "Infra/Resiliency",
+            "Infra/Scripting",
+            "Infra/Settings",
+            "Infra/Transport API",
+            "Ingest",
+            "Ingest Node",
+            "Java High Level REST Client",
+            "Java Low Level REST Client",
+            "License",
+            "Machine Learning",
+            "Mapping",
+            "Monitoring",
+            "Network",
+            "Packaging",
+            "Percolator",
+            "Performance",
+            "Query Languages",
+            "Ranking",
+            "Recovery",
+            "Reindex",
+            "Rollup",
+            "SQL",
+            "Search",
+            "Security",
+            "Snapshot/Restore",
+            "Stats",
+            "Store",
+            "Suggesters",
+            "Task Management",
+            "TLS",
+            "Transform",
+            "TSDB",
+            "Vector Search",
+            "Watcher"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "breaking",
+            "breaking-java",
+            "bug",
+            "deprecation",
+            "enhancement",
+            "feature",
+            "known-issue",
+            "new-aggregation",
+            "regression",
+            "security",
+            "upgrade"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "highlight": {
+          "$ref": "#/definitions/Highlight"
+        },
+        "breaking": {
+          "$ref": "#/definitions/CompatibilityChange"
+        },
+        "deprecation": {
+          "$ref": "#/definitions/CompatibilityChange"
+        }
+      },
+      "required": [
+        "type",
+        "summary"
+      ],
+      "anyOf": [
+        {
+          "$comment": "PR number and area fields not required for known-issue type",
+          "if": {
+            "not": {
+              "properties": {
+                "type": {
+                  "const": "known-issue"
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "pr",
+              "area"
+            ]
+          }
+        },
+        {
+          "$comment": "PR number and area fields not required for security type",
+          "if": {
+            "not": {
+              "properties": {
+                "type": {
+                  "const": "security"
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "pr",
+              "area"
+            ]
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "breaking"
+              }
+            }
+          },
+          "then": {
+            "required": ["breaking"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "breaking-java"
+              }
+            }
+          },
+          "then": {
+            "required": ["breaking"]
+          }
+        }
+      ],
+      "if": {
+        "properties": {
+          "type": {
+            "const": "deprecation"
+          }
+        }
+      },
+      "then": {
+        "required": ["deprecation"]
+      },
+      "additionalProperties": false
+    },
+    "Highlight": {
+      "properties": {
+        "notable": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "body": {
+          "type": "string",
+          "pattern": "(?s)^((?!```).)*$",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "title",
+        "body"
+      ],
+      "message": {
+        "pattern": "Changelog uses a triple-backtick (```) in a details section, but it must be formatted as a Asciidoc code block. For example:\n\n    [source,yaml]\n    ----\n    {\n      \"metrics.time\" : 10,\n      \"metrics.time.min\" : 1,\n      \"metrics.time.max\" : 500\n    }\n    ----\n"
+      },
+      "additionalProperties": false
+    },
+    "CompatibilityChange": {
+      "properties": {
+        "area": {
+          "$ref": "#/definitions/compatibilityChangeArea"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "details": {
+          "type": "string",
+          "pattern": "(?s)^((?!```).)*$",
+          "minLength": 1
+        },
+        "impact": {
+          "type": "string",
+          "pattern": "(?s)^((?!```).)*$",
+          "minLength": 1
+        },
+        "notable": {
+          "type": "boolean"
+        },
+        "ess_setting_change": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "area",
+        "title",
+        "details",
+        "impact"
+      ],
+      "message": {
+        "pattern": "Changelog uses a triple-backtick (```) in a details section, but it must be formatted as a Asciidoc code block. For example:\n\n    [source,yaml]\n    ----\n    {\n      \"metrics.time\" : 10,\n      \"metrics.time.min\" : 1,\n      \"metrics.time.max\" : 500\n    }\n    ----\n"
+      },
+      "additionalProperties": false
+    },
+    "compatibilityChangeArea": {
+      "type": "string",
+      "enum": [
+        "Cluster and node setting",
+        "Command line tool",
+        "CRUD",
+        "Index setting",
+        "JVM option",
+        "Java API",
+        "Logging",
+        "Mapping",
+        "Packaging",
+        "Painless",
+        "REST API",
+        "System requirement",
+        "Transform"
+      ]
+    },
+    "additionalProperties": false
+  }
+}

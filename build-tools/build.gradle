@@ -1,0 +1,174 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+plugins {
+    id 'java-gradle-plugin'
+    id 'groovy'
+    id 'java-test-fixtures'
+    id 'elasticsearch.publish'
+    id 'elasticsearch.build-tools'
+    id 'elasticsearch.eclipse'
+    id 'elasticsearch.versions'
+    id 'elasticsearch.formatting'
+}
+
+description = "The elasticsearch build tools"
+
+group = "org.elasticsearch.gradle"
+version = versions.getProperty("elasticsearch")
+targetCompatibility = versions.get("minimumRuntimeJava")
+sourceCompatibility = versions.get("minimumRuntimeJava")
+
+gradlePlugin {
+    // We already configure publication and we don't need or want the one that comes
+    // with the java-gradle-plugin
+    automatedPublishing = false
+    plugins {
+        distributionDownload {
+            id = 'elasticsearch.distribution-download'
+            implementationClass = 'org.elasticsearch.gradle.DistributionDownloadPlugin'
+        }
+        esPlugin {
+            id = 'elasticsearch.esplugin'
+            implementationClass = 'org.elasticsearch.gradle.plugin.PluginBuildPlugin'
+        }
+        stableEsPlugin {
+          id = 'elasticsearch.stable-esplugin'
+          implementationClass = 'org.elasticsearch.gradle.plugin.StablePluginBuildPlugin'
+        }
+        javaRestTest {
+            id = 'elasticsearch.java-rest-test'
+            implementationClass = 'org.elasticsearch.gradle.test.JavaRestTestPlugin'
+        }
+        testclusters {
+            id = 'elasticsearch.testclusters'
+            implementationClass = 'org.elasticsearch.gradle.testclusters.TestClustersPlugin'
+        }
+        reaper {
+            id = 'elasticsearch.reaper'
+            implementationClass = 'org.elasticsearch.gradle.ReaperPlugin'
+        }
+        testpermissions {
+            id = 'elasticsearch.test-gradle-policy'
+            implementationClass = 'org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin'
+        }
+        yamlTests {
+            id = 'elasticsearch.yaml-rest-test'
+            implementationClass = 'org.elasticsearch.gradle.test.YamlRestTestPlugin'
+        }
+    }
+}
+
+// we update the version property to reflect if we are building a snapshot or a release build
+// we write this back out below to load it in the Build.java which will be shown in rest main action
+// to indicate this being a snapshot build or a release build.
+def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
+    outputFile = "${buildDir}/version.properties"
+    comment = 'Generated version properties'
+    properties(versions)
+}
+
+tasks.named("processResources").configure {
+    from(generateVersionProperties)
+    into('META-INF') {
+        from configurations.reaper
+    }
+}
+
+sourceSets {
+    integTest {
+        compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+// we do not publish the test fixtures of build-tools
+components.java.withVariantsFromConfiguration(configurations.testFixturesApiElements) { skip() }
+components.java.withVariantsFromConfiguration(configurations.testFixturesRuntimeElements) { skip() }
+
+publishing.publications.named("elastic").configure {
+    suppressPomMetadataWarningsFor("testFixturesApiElements")
+    suppressPomMetadataWarningsFor("testFixturesRuntimeElements")
+}
+
+configurations {
+    integTestImplementation.extendsFrom(testFixturesApi)
+    integTestImplementation.extendsFrom(testImplementation)
+    integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
+    register("reaper")
+}
+
+repositories {
+    mavenCentral()
+    gradlePluginPortal()
+}
+
+dependencies {
+    constraints {
+        // ensuring brought asm version brought in by spock is up-to-date
+        testFixturesApi buildLibs.asm
+        integTestImplementation buildLibs.asm
+    }
+    reaper project('reaper')
+
+    api localGroovy()
+    api gradleApi()
+    api buildLibs.apache.compress
+    api buildLibs.ant
+    api buildLibs.commmons.io
+    implementation buildLibs.asm.tree
+    implementation buildLibs.asm
+    implementation buildLibs.jackson.core
+    implementation buildLibs.jackson.databind
+
+    testFixturesApi gradleApi()
+    testFixturesApi gradleTestKit()
+    testFixturesApi buildLibs.junit
+    testFixturesApi buildLibs.wiremock
+    testFixturesApi platform(buildLibs.spock.platform)
+    testFixturesApi(buildLibs.spock.core) {
+        exclude module: "groovy"
+    }
+    testFixturesApi(buildLibs.bytebuddy) {
+      because 'Generating dynamic plugin apis'
+    }
+    testImplementation(buildLibs.spock.junit4) {
+        because 'required as we rely on junit4 rules'
+    }
+
+    testImplementation(platform(buildLibs.junit5.platform))
+    testImplementation(buildLibs.junit5.jupiter) {
+        because 'allows to write and run Jupiter tests'
+    }
+    testRuntimeOnly(buildLibs.junit5.vintage) {
+        because 'allows JUnit 3 and JUnit 4 tests to run'
+    }
+
+    testRuntimeOnly(buildLibs.junit5.platform.launcher) {
+        because 'allows tests to run from IDEs that bundle older version of launcher'
+    }
+
+}
+
+tasks.named('test').configure {
+    useJUnitPlatform()
+}
+tasks.register("integTest", Test) {
+    testClassesDirs = sourceSets.integTest.output.classesDirs
+    classpath = sourceSets.integTest.runtimeClasspath
+    useJUnitPlatform()
+}
+
+normalization {
+    runtimeClasspath {
+        // We already include the reaper jar as part of our runtime classpath. Ignore the copy in META-INF.
+        ignore('META-INF/reaper.jar')
+    }
+}
+
+tasks.named("check").configure { dependsOn("integTest") }

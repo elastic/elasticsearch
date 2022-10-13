@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -16,18 +17,17 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 public class GeoLineMultiValuesSource extends MultiValuesSource<ValuesSource> {
     public GeoLineMultiValuesSource(Map<String, ValuesSourceConfig> valuesSourceConfigs) {
-        values = new HashMap<>(valuesSourceConfigs.size());
+        values = Maps.newMapWithExpectedSize(valuesSourceConfigs.size());
         for (Map.Entry<String, ValuesSourceConfig> entry : valuesSourceConfigs.entrySet()) {
             final ValuesSource valuesSource = entry.getValue().getValuesSource();
-            if (valuesSource instanceof ValuesSource.Numeric == false
-                && valuesSource instanceof ValuesSource.GeoPoint == false) {
-                throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() +
-                    "is not supported for multi-valued aggregation");
+            if (valuesSource instanceof ValuesSource.Numeric == false && valuesSource instanceof ValuesSource.GeoPoint == false) {
+                throw new AggregationExecutionException(
+                    "ValuesSource type " + valuesSource.toString() + "is not supported for multi-valued aggregation"
+                );
             }
             values.put(entry.getKey(), valuesSource);
         }

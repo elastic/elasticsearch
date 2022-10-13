@@ -1,6 +1,6 @@
 [[es-tmpdir]]
 [discrete]
-=== Temporary directory settings
+==== Temporary directory settings
 
 By default, {es} uses a private temporary directory that the startup
 script creates immediately below the system temporary directory.

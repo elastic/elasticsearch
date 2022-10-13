@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -39,21 +40,20 @@ public class NestedValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
+    public List<Object> fetchValues(Source source, int doc, List<Object> includedValues) throws IOException {
         List<Object> nestedEntriesToReturn = new ArrayList<>();
         Map<String, Object> filteredSource = new HashMap<>();
         Map<String, Object> stub = createSourceMapStub(filteredSource);
-        List<?> nestedValues = XContentMapValues.extractNestedValue(nestedFieldPath, lookup.source());
+        List<?> nestedValues = XContentMapValues.extractNestedSources(nestedFieldPath, source.source());
         if (nestedValues == null) {
             return Collections.emptyList();
         }
         for (Object entry : nestedValues) {
             // add this one entry only to the stub and use this as source lookup
             stub.put(nestedFieldName, entry);
-            SourceLookup nestedSourceLookup = new SourceLookup();
-            nestedSourceLookup.setSource(filteredSource);
+            SourceLookup nestedSourceLookup = new SourceLookup(new SourceLookup.MapSourceProvider(filteredSource));
 
-            Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(nestedSourceLookup);
+            Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(nestedSourceLookup, doc);
 
             Map<String, Object> nestedEntry = new HashMap<>();
             for (DocumentField field : fetchResult.values()) {

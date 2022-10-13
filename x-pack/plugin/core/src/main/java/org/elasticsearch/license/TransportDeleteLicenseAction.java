@@ -27,11 +27,24 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
     private final LicenseService licenseService;
 
     @Inject
-    public TransportDeleteLicenseAction(TransportService transportService, ClusterService clusterService,
-                                        LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeleteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteLicenseRequest::new, indexNameExpressionResolver, ThreadPool.Names.MANAGEMENT);
+    public TransportDeleteLicenseAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        LicenseService licenseService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeleteLicenseAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteLicenseRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.licenseService = licenseService;
     }
 
@@ -41,9 +54,16 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
     }
 
     @Override
-    protected void masterOperation(Task task, final DeleteLicenseRequest request, ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) throws ElasticsearchException {
-        licenseService.removeLicense(request, listener.delegateFailure((l, postStartBasicResponse) ->
-                l.onResponse(AcknowledgedResponse.of(postStartBasicResponse.isAcknowledged()))));
+    protected void masterOperation(
+        Task task,
+        final DeleteLicenseRequest request,
+        ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) throws ElasticsearchException {
+        licenseService.removeLicense(
+            listener.delegateFailure(
+                (l, postStartBasicResponse) -> l.onResponse(AcknowledgedResponse.of(postStartBasicResponse.isAcknowledged()))
+            )
+        );
     }
 }

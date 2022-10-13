@@ -19,7 +19,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,7 +46,9 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> blocking repository");
         String blockedNode = blockNodeWithIndex("test-repo", "test-index");
-        dataNodeClient().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+        dataNodeClient().admin()
+            .cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(false)
             .setIndices("test-index")
             .get();
@@ -68,7 +69,10 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             final Snapshot snapshot = new Snapshot("test-repo", snapshotId);
             List<IndexShardSnapshotStatus.Stage> stages = snapshotShardsService.currentSnapshotShards(snapshot)
-                .values().stream().map(status -> status.asCopy().getStage()).collect(Collectors.toList());
+                .values()
+                .stream()
+                .map(status -> status.asCopy().getStage())
+                .toList();
             assertThat(stages, hasSize(shards));
             assertThat(stages, everyItem(equalTo(IndexShardSnapshotStatus.Stage.DONE)));
         }, 30L, TimeUnit.SECONDS);

@@ -19,11 +19,11 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.ssl.SSLContexts;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-import org.elasticsearch.common.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.Closeable;
@@ -36,13 +36,20 @@ import java.util.Map;
 
 public class URLHttpClient implements Closeable {
     public static final int MAX_ERROR_MESSAGE_BODY_SIZE = 1024;
+    private static final int MAX_CONNECTIONS = 50;
     private final Logger logger = LogManager.getLogger(URLHttpClient.class);
 
     private final CloseableHttpClient client;
     private final URLHttpClientSettings httpClientSettings;
 
     public static class Factory implements Closeable {
-        private final PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager();
+        private final PoolingHttpClientConnectionManager connManager;
+
+        public Factory() {
+            this.connManager = new PoolingHttpClientConnectionManager();
+            connManager.setDefaultMaxPerRoute(MAX_CONNECTIONS);
+            connManager.setMaxTotal(MAX_CONNECTIONS);
+        }
 
         public URLHttpClient create(URLHttpClientSettings settings) {
             final CloseableHttpClient apacheHttpClient = HttpClients.custom()
@@ -190,8 +197,9 @@ public class URLHttpClient implements Closeable {
 
     private boolean isValidContentTypeToParseError(HttpEntity httpEntity) {
         Header contentType = httpEntity.getContentType();
-        return contentType != null && httpEntity.getContentLength() > 0 &&
-            (contentType.getValue().startsWith("text/") || contentType.getValue().startsWith("application/"));
+        return contentType != null
+            && httpEntity.getContentLength() > 0
+            && (contentType.getValue().startsWith("text/") || contentType.getValue().startsWith("application/"));
     }
 
     private boolean isSuccessful(int statusCode) {

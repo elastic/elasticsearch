@@ -8,11 +8,13 @@
 package fixture.s3;
 
 import com.sun.net.httpserver.HttpHandler;
+
 import org.elasticsearch.rest.RestStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Objects;
 
 public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
@@ -64,19 +66,21 @@ public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
     }
 
     protected String buildCredentialResponse(final String ec2AccessKey, final String ec2SessionToken) {
-        return "{"
-            + "\"AccessKeyId\": \"" + ec2AccessKey + "\","
-            + "\"Expiration\": \"" + ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME) + "\","
-            + "\"RoleArn\": \"arn\","
-            + "\"SecretAccessKey\": \"secret_access_key\","
-            + "\"Token\": \"" + ec2SessionToken + "\""
-            + "}";
+        return String.format(Locale.ROOT, """
+            {
+              "AccessKeyId": "%s",
+              "Expiration": "%s",
+              "RoleArn": "arn",
+              "SecretAccessKey": "secret_access_key",
+              "Token": "%s"
+            }""", ec2AccessKey, ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME), ec2SessionToken);
     }
 
     public static void main(final String[] args) throws Exception {
         if (args == null || args.length < 6) {
-            throw new IllegalArgumentException("S3HttpFixtureWithEC2 expects 6 arguments " +
-                "[address, port, bucket, base path, ec2 access id, ec2 session token]");
+            throw new IllegalArgumentException(
+                "S3HttpFixtureWithEC2 expects 6 arguments " + "[address, port, bucket, base path, ec2 access id, ec2 session token]"
+            );
         }
         final S3HttpFixtureWithEC2 fixture = new S3HttpFixtureWithEC2(args);
         fixture.start();

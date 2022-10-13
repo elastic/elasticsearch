@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -46,7 +47,7 @@ public interface ValueSource {
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<Object, Object> mapValue = (Map) value;
-            Map<ValueSource, ValueSource> valueTypeMap = new HashMap<>(mapValue.size());
+            Map<ValueSource, ValueSource> valueTypeMap = Maps.newMapWithExpectedSize(mapValue.size());
             for (Map.Entry<Object, Object> entry : mapValue.entrySet()) {
                 valueTypeMap.put(wrap(entry.getKey(), scriptService, scriptOptions), wrap(entry.getValue(), scriptService, scriptOptions));
             }
@@ -61,14 +62,14 @@ public interface ValueSource {
             return new ListValue(valueSourceList);
         } else if (value == null || value instanceof Number || value instanceof Boolean) {
             return new ObjectValue(value);
-        } else if (value instanceof byte[]) {
-            return new ByteValue((byte[]) value);
-        } else if (value instanceof String) {
+        } else if (value instanceof byte[] bytes) {
+            return new ByteValue(bytes);
+        } else if (value instanceof String string) {
             // This check is here because the DEFAULT_TEMPLATE_LANG(mustache) is not
             // installed for use by REST tests. `value` will not be
             // modified if templating is not available
-            if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) && ((String) value).contains("{{")) {
-                Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, (String) value, scriptOptions, Map.of());
+            if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) && string.contains("{{")) {
+                Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, string, scriptOptions, Map.of());
                 return new TemplatedValue(scriptService.compile(script, TemplateScript.INGEST_CONTEXT));
             } else {
                 return new ObjectValue(value);

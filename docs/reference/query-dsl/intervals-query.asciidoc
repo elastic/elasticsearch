@@ -182,7 +182,7 @@ The `pattern` is normalized using the search analyzer from this field, unless
 ==== `fuzzy` rule parameters
 
 The `fuzzy` rule matches terms that are similar to the provided term, within an
-edit distance defined by <<fuzziness>>.  If the fuzzy expansion matches more than
+edit distance defined by <<fuzziness>>. If the fuzzy expansion matches more than
 128 terms, {es} returns an error.
 
 `term`::
@@ -198,7 +198,7 @@ adjacent characters (ab → ba). Defaults to `true`.
 
 `fuzziness`::
 (Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
-for valid values and more information.  Defaults to `auto`.
+for valid values and more information. Defaults to `auto`.
 
 `analyzer`::
 (Optional, string) <<analysis, analyzer>> used to normalize the `term`.

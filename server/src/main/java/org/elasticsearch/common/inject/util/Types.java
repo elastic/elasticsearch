@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 package org.elasticsearch.common.inject.util;
 
 import org.elasticsearch.common.inject.Provider;
@@ -27,7 +26,6 @@ import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -38,8 +36,7 @@ import java.util.Set;
  * @since 2.0
  */
 public final class Types {
-    private Types() {
-    }
+    private Types() {}
 
     /**
      * Returns a new parameterized type, applying {@code typeArguments} to
@@ -57,8 +54,7 @@ public final class Types {
      *
      * @return a parameterized type.
      */
-    public static ParameterizedType newParameterizedTypeWithOwner(
-            Type ownerType, Type rawType, Type... typeArguments) {
+    public static ParameterizedType newParameterizedTypeWithOwner(Type ownerType, Type rawType, Type... typeArguments) {
         return new ParameterizedTypeImpl(ownerType, rawType, typeArguments);
     }
 
@@ -79,7 +75,7 @@ public final class Types {
      * this returns {@code ?}, which is shorthand for {@code ? extends Object}.
      */
     public static WildcardType subtypeOf(Type bound) {
-        return new WildcardTypeImpl(new Type[]{bound}, MoreTypes.EMPTY_TYPE_ARRAY);
+        return new WildcardTypeImpl(new Type[] { bound }, MoreTypes.EMPTY_TYPE_ARRAY);
     }
 
     /**
@@ -88,17 +84,7 @@ public final class Types {
      * super String}.
      */
     public static WildcardType supertypeOf(Type bound) {
-        return new WildcardTypeImpl(new Type[]{Object.class}, new Type[]{bound});
-    }
-
-    /**
-     * Returns a type modelling a {@link List} whose elements are of type
-     * {@code elementType}.
-     *
-     * @return a parameterized type.
-     */
-    public static ParameterizedType listOf(Type elementType) {
-        return newParameterizedType(List.class, elementType);
+        return new WildcardTypeImpl(new Type[] { Object.class }, new Type[] { bound });
     }
 
     /**

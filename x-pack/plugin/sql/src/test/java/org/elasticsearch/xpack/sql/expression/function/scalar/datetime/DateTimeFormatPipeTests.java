@@ -32,10 +32,8 @@ public class DateTimeFormatPipeTests extends AbstractNodeTestCase<DateTimeFormat
 
     public static DateTimeFormatPipe randomDateTimeFormatPipe() {
         List<Pipe> functions = new ArrayList<>();
-        functions.add(new DateTimeFormat(randomSource(), randomDatetimeLiteral(), randomStringLiteral(), randomZone())
-            .makePipe());
-        functions.add(new Format(randomSource(), randomDatetimeLiteral(), randomStringLiteral(), randomZone())
-            .makePipe());
+        functions.add(new DateTimeFormat(randomSource(), randomDatetimeLiteral(), randomStringLiteral(), randomZone()).makePipe());
+        functions.add(new Format(randomSource(), randomDatetimeLiteral(), randomStringLiteral(), randomZone()).makePipe());
         return (DateTimeFormatPipe) randomFrom(functions);
     }
 
@@ -150,11 +148,13 @@ public class DateTimeFormatPipeTests extends AbstractNodeTestCase<DateTimeFormat
 
     @Override
     protected DateTimeFormatPipe copy(DateTimeFormatPipe instance) {
-        return new DateTimeFormatPipe(instance.source(),
+        return new DateTimeFormatPipe(
+            instance.source(),
             instance.expression(),
             instance.left(),
             instance.right(),
             instance.zoneId(),
-            instance.formatter());
+            instance.formatter()
+        );
     }
 }

@@ -10,6 +10,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
 
 /**
  * GROUP BY key for fields or scripts.
@@ -17,15 +18,15 @@ import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
 public class GroupByValue extends GroupByKey {
 
     public GroupByValue(String id, String fieldName) {
-        this(id, AggSource.of(fieldName), null);
+        this(id, AggSource.of(fieldName), null, null);
     }
 
     public GroupByValue(String id, ScriptTemplate script) {
-        this(id, AggSource.of(script), null);
+        this(id, AggSource.of(script), null, null);
     }
 
-    private GroupByValue(String id, AggSource source, Direction direction) {
-        super(id, source, direction);
+    private GroupByValue(String id, AggSource source, Direction direction, Missing missing) {
+        super(id, source, direction, missing);
     }
 
     @Override
@@ -34,7 +35,7 @@ public class GroupByValue extends GroupByKey {
     }
 
     @Override
-    protected GroupByKey copy(String id, AggSource source, Direction direction) {
-        return new GroupByValue(id, source(), direction);
+    protected GroupByKey copy(String id, AggSource source, Direction direction, Missing missing) {
+        return new GroupByValue(id, source(), direction, missing);
     }
 }

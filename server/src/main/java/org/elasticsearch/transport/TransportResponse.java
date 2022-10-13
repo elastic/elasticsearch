@@ -18,8 +18,7 @@ public abstract class TransportResponse extends TransportMessage {
     /**
      * Constructs a new empty transport response
      */
-    public TransportResponse() {
-    }
+    public TransportResponse() {}
 
     /**
      * Constructs a new transport response with the data from the {@link StreamInput}. This is

@@ -15,12 +15,12 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.queries.intervals.IntervalIterator;
+import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 
@@ -34,7 +34,7 @@ import java.util.List;
 /**
  * Constructs an IntervalsSource based on analyzed text
  */
-public class IntervalBuilder {
+public abstract class IntervalBuilder {
 
     private final String field;
     private final Analyzer analyzer;
@@ -44,9 +44,11 @@ public class IntervalBuilder {
         this.analyzer = analyzer;
     }
 
+    /** Create term intervals for the provided term. */
+    protected abstract IntervalsSource termIntervals(BytesRef term);
+
     public IntervalsSource analyzeText(String query, int maxGaps, boolean ordered) throws IOException {
-        try (TokenStream ts = analyzer.tokenStream(field, query);
-             CachingTokenFilter stream = new CachingTokenFilter(ts)) {
+        try (TokenStream ts = analyzer.tokenStream(field, query); CachingTokenFilter stream = new CachingTokenFilter(ts)) {
             return analyzeText(stream, maxGaps, ordered);
         }
     }
@@ -109,7 +111,7 @@ public class IntervalBuilder {
         TermToBytesRefAttribute bytesAtt = ts.addAttribute(TermToBytesRefAttribute.class);
         ts.reset();
         ts.incrementToken();
-        return Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
+        return termIntervals(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
     }
 
     protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered) {
@@ -138,7 +140,7 @@ public class IntervalBuilder {
         while (ts.incrementToken()) {
             BytesRef term = bytesAtt.getBytesRef();
             int precedingSpaces = posAtt.getPositionIncrement() - 1;
-            terms.add(extend(Intervals.term(BytesRef.deepCopyOf(term)), precedingSpaces));
+            terms.add(extend(termIntervals(BytesRef.deepCopyOf(term)), precedingSpaces));
         }
         ts.end();
         return terms;
@@ -163,19 +165,17 @@ public class IntervalBuilder {
             if (posInc > 0) {
                 if (synonyms.size() == 1) {
                     terms.add(extend(synonyms.get(0), spaces));
-                }
-                else if (synonyms.size() > 1) {
+                } else if (synonyms.size() > 1) {
                     terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
                 }
                 synonyms.clear();
                 spaces = posInc - 1;
             }
-            synonyms.add(Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef())));
+            synonyms.add(termIntervals(BytesRef.deepCopyOf(bytesAtt.getBytesRef())));
         }
         if (synonyms.size() == 1) {
             terms.add(extend(synonyms.get(0), spaces));
-        }
-        else {
+        } else {
             terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
         }
         return combineSources(terms, maxGaps, ordered);
@@ -225,6 +225,8 @@ public class IntervalBuilder {
         @Override
         public IntervalIterator intervals(String field, LeafReaderContext ctx) {
             return new IntervalIterator() {
+                boolean exhausted = false;
+
                 @Override
                 public int start() {
                     return NO_MORE_INTERVALS;
@@ -252,16 +254,18 @@ public class IntervalBuilder {
 
                 @Override
                 public int docID() {
-                    return NO_MORE_DOCS;
+                    return exhausted ? NO_MORE_DOCS : -1;
                 }
 
                 @Override
                 public int nextDoc() {
+                    exhausted = true;
                     return NO_MORE_DOCS;
                 }
 
                 @Override
                 public int advance(int target) {
+                    exhausted = true;
                     return NO_MORE_DOCS;
                 }
 

@@ -33,7 +33,7 @@ public class TypeMissingException extends ElasticsearchException {
         setIndex(index);
     }
 
-    public TypeMissingException(StreamInput in) throws IOException{
+    public TypeMissingException(StreamInput in) throws IOException {
         super(in);
     }
 

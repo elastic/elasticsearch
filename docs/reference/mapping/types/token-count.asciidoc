@@ -83,7 +83,7 @@ Defaults to `true`.
 <<null-value,`null_value`>>::
 
     Accepts a numeric value of the same `type` as the field which is
-    substituted for any explicit `null` values.  Defaults to `null`, which
+    substituted for any explicit `null` values. Defaults to `null`, which
     means the field is treated as missing.
 
 <<mapping-store,`store`>>::

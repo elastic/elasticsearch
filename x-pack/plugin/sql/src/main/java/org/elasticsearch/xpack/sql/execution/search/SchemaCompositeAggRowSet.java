@@ -23,8 +23,16 @@ class SchemaCompositeAggRowSet extends CompositeAggRowSet implements SchemaRowSe
 
     private final Schema schema;
 
-    SchemaCompositeAggRowSet(Schema schema, List<BucketExtractor> exts, BitSet mask, SearchResponse r, int limitAggs) {
-        super(exts, mask, r, limitAggs);
+    SchemaCompositeAggRowSet(
+        Schema schema,
+        List<BucketExtractor> exts,
+        BitSet mask,
+        SearchResponse r,
+        int sizeRequested,
+        int limitAggs,
+        boolean mightProducePartialPages
+    ) {
+        super(exts, mask, r, sizeRequested, limitAggs, mightProducePartialPages);
         this.schema = schema;
     }
 

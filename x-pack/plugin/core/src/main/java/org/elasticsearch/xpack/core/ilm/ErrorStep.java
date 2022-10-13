@@ -14,8 +14,14 @@ public class ErrorStep extends Step {
 
     public ErrorStep(StepKey key) {
         super(key, key);
-        if (NAME.equals(key.getName()) == false) {
+        if (NAME.equals(key.name()) == false) {
             throw new IllegalArgumentException("An error step must have a step key whose step name is " + NAME);
         }
+    }
+
+    @Override
+    public boolean isRetryable() {
+        // this is marker step so it doesn't make sense to be retryable
+        return false;
     }
 }

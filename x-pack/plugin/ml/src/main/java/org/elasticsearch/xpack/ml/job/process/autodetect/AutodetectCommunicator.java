@@ -8,15 +8,14 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
@@ -38,7 +36,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriterFactory;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.JsonDataToProcessWriter;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -56,7 +54,7 @@ import java.util.function.BiConsumer;
 
 public class AutodetectCommunicator implements Closeable {
 
-    private static final Logger LOGGER = LogManager.getLogger(AutodetectCommunicator.class);
+    private static final Logger logger = LogManager.getLogger(AutodetectCommunicator.class);
     private static final Duration FLUSH_PROCESS_CHECK_FREQUENCY = Duration.ofSeconds(1);
 
     private final Job job;
@@ -71,10 +69,16 @@ public class AutodetectCommunicator implements Closeable {
     private volatile CategorizationAnalyzer categorizationAnalyzer;
     private volatile boolean processKilled;
 
-    AutodetectCommunicator(Job job, AutodetectProcess process, StateStreamer stateStreamer,
-                           DataCountsReporter dataCountsReporter, AutodetectResultProcessor autodetectResultProcessor,
-                           BiConsumer<Exception, Boolean> onFinishHandler, NamedXContentRegistry xContentRegistry,
-                           ExecutorService autodetectWorkerExecutor) {
+    AutodetectCommunicator(
+        Job job,
+        AutodetectProcess process,
+        StateStreamer stateStreamer,
+        DataCountsReporter dataCountsReporter,
+        AutodetectResultProcessor autodetectResultProcessor,
+        BiConsumer<Exception, Boolean> onFinishHandler,
+        NamedXContentRegistry xContentRegistry,
+        ExecutorService autodetectWorkerExecutor
+    ) {
         this.job = job;
         this.autodetectProcess = process;
         this.stateStreamer = stateStreamer;
@@ -83,8 +87,7 @@ public class AutodetectCommunicator implements Closeable {
         this.onFinishHandler = onFinishHandler;
         this.xContentRegistry = xContentRegistry;
         this.autodetectWorkerExecutor = autodetectWorkerExecutor;
-        this.includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
-                && job.getAnalysisConfig().getCategorizationFieldName() != null;
+        this.includeTokensField = job.getAnalysisConfig().getCategorizationFieldName() != null;
     }
 
     public void restoreState(ModelSnapshot modelSnapshot) {
@@ -92,9 +95,15 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     private DataToProcessWriter createProcessWriter(DataDescription dataDescription) {
-        return DataToProcessWriterFactory.create(true, includeTokensField, autodetectProcess,
-                dataDescription, job.getAnalysisConfig(),
-                dataCountsReporter, xContentRegistry);
+        return new JsonDataToProcessWriter(
+            true,
+            includeTokensField,
+            autodetectProcess,
+            dataDescription,
+            job.getAnalysisConfig(),
+            dataCountsReporter,
+            xContentRegistry
+        );
     }
 
     /**
@@ -108,8 +117,13 @@ public class AutodetectCommunicator implements Closeable {
     /**
      * Call {@link #writeHeader()} exactly once before using this method
      */
-    public void writeToJob(InputStream inputStream, AnalysisRegistry analysisRegistry, XContentType xContentType,
-                           DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
+    public void writeToJob(
+        InputStream inputStream,
+        AnalysisRegistry analysisRegistry,
+        XContentType xContentType,
+        DataLoadParams params,
+        BiConsumer<DataCounts, Exception> handler
+    ) {
         submitOperation(() -> {
             if (params.isResettingBuckets()) {
                 autodetectProcess.writeResetBucketsControlMessage(params);
@@ -139,22 +153,14 @@ public class AutodetectCommunicator implements Closeable {
             } else {
                 return dataCountsAtomicReference.get();
             }
-        },
-        handler);
-    }
-
-    @Override
-    public void close() {
-        close(false, null);
+        }, handler);
     }
 
     /**
      * Closes job this communicator is encapsulating.
-     *
-     * @param restart   Whether the job should be restarted by persistent tasks
-     * @param reason    The reason for closing the job
      */
-    public void close(boolean restart, String reason) {
+    @Override
+    public void close() {
         Future<?> future = autodetectWorkerExecutor.submit(() -> {
             checkProcessIsAlive();
             try {
@@ -166,9 +172,9 @@ public class AutodetectCommunicator implements Closeable {
                 }
                 autodetectResultProcessor.awaitCompletion();
             } finally {
-                onFinishHandler.accept(restart ? new ElasticsearchException(reason) : null, true);
+                onFinishHandler.accept(null, true);
             }
-            LOGGER.info("[{}] job closed", job.getId());
+            logger.info("[{}] autodetect connection for job closed", job.getId());
             return null;
         });
         try {
@@ -203,7 +209,7 @@ public class AutodetectCommunicator implements Closeable {
                 try {
                     autodetectResultProcessor.awaitCompletion();
                 } catch (TimeoutException e) {
-                    LOGGER.warn(new ParameterizedMessage("[{}] Timed out waiting for killed job", job.getId()), e);
+                    logger.warn(() -> "[" + job.getId() + "] Timed out waiting for killed job", e);
                 }
             }
         } finally {
@@ -286,7 +292,7 @@ public class AutodetectCommunicator implements Closeable {
 
     @Nullable
     FlushAcknowledgement waitFlushToCompletion(String flushId, boolean waitForNormalization) throws Exception {
-        LOGGER.debug("[{}] waiting for flush", job.getId());
+        logger.debug("[{}] waiting for flush", job.getId());
 
         FlushAcknowledgement flushAcknowledgement;
         try {
@@ -304,11 +310,11 @@ public class AutodetectCommunicator implements Closeable {
             // We also have to wait for the normalizer to become idle so that we block
             // clients from querying results in the middle of normalization.
             if (waitForNormalization) {
-                LOGGER.debug("[{}] Initial flush completed, waiting until renormalizer is idle.", job.getId());
+                logger.debug("[{}] Initial flush completed, waiting until renormalizer is idle.", job.getId());
                 autodetectResultProcessor.waitUntilRenormalizerIsIdle();
             }
 
-            LOGGER.debug("[{}] Flush completed", job.getId());
+            logger.debug("[{}] Flush completed", job.getId());
         }
 
         return flushAcknowledgement;
@@ -365,10 +371,15 @@ public class AutodetectCommunicator implements Closeable {
             @Override
             public void onFailure(Exception e) {
                 if (processKilled) {
-                    handler.accept(null, ExceptionsHelper.conflictStatusException(
-                            "[{}] Could not submit operation to process as it has been killed", job.getId()));
+                    handler.accept(
+                        null,
+                        ExceptionsHelper.conflictStatusException(
+                            "[{}] Could not submit operation to process as it has been killed",
+                            job.getId()
+                        )
+                    );
                 } else {
-                    LOGGER.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
+                    logger.error(() -> "[" + job.getId() + "] Unexpected exception writing to process", e);
                     handler.accept(null, e);
                 }
             }
@@ -376,8 +387,13 @@ public class AutodetectCommunicator implements Closeable {
             @Override
             protected void doRun() throws Exception {
                 if (processKilled) {
-                    handler.accept(null, ExceptionsHelper.conflictStatusException(
-                            "[{}] Could not submit operation to process as it has been killed", job.getId()));
+                    handler.accept(
+                        null,
+                        ExceptionsHelper.conflictStatusException(
+                            "[{}] Could not submit operation to process as it has been killed",
+                            job.getId()
+                        )
+                    );
                 } else {
                     checkProcessIsAlive();
                     handler.accept(operation.get(), null);
@@ -390,9 +406,14 @@ public class AutodetectCommunicator implements Closeable {
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
         CategorizationAnalyzerConfig categorizationAnalyzerConfig = analysisConfig.getCategorizationAnalyzerConfig();
         if (categorizationAnalyzerConfig == null) {
-            categorizationAnalyzerConfig =
-                    CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(analysisConfig.getCategorizationFilters());
+            categorizationAnalyzerConfig = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(
+                analysisConfig.getCategorizationFilters()
+            );
         }
         categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, categorizationAnalyzerConfig);
+    }
+
+    public void setVacating(boolean vacating) {
+        autodetectResultProcessor.setVacating(vacating);
     }
 }

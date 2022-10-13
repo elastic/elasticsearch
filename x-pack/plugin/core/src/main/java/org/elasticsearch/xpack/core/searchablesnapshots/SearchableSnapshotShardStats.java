@@ -12,11 +12,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -33,8 +33,12 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
     private final SnapshotId snapshotId;
     private final IndexId indexId;
 
-    public SearchableSnapshotShardStats(ShardRouting shardRouting, SnapshotId snapshotId, IndexId indexId,
-                                        List<CacheIndexInputStats> stats) {
+    public SearchableSnapshotShardStats(
+        ShardRouting shardRouting,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        List<CacheIndexInputStats> stats
+    ) {
         this.shardRouting = Objects.requireNonNull(shardRouting);
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indexId = Objects.requireNonNull(indexId);
@@ -92,7 +96,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             builder.startArray("files");
             {
                 List<CacheIndexInputStats> stats = inputStats.stream()
-                    .sorted(Comparator.comparing(CacheIndexInputStats::getFileExt)).collect(toList());
+                    .sorted(Comparator.comparing(CacheIndexInputStats::getFileExt))
+                    .collect(toList());
                 for (CacheIndexInputStats stat : stats) {
                     stat.toXContent(builder, params);
                 }
@@ -145,16 +150,32 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         private final TimedCounter directBytesRead;
         private final TimedCounter optimizedBytesRead;
         private final Counter blobStoreBytesRequested;
+        private final Counter luceneBytesRead;
         private final long currentIndexCacheFills;
 
-        public CacheIndexInputStats(String fileExt, long numFiles, ByteSizeValue totalSize, ByteSizeValue minSize, ByteSizeValue maxSize,
-                                    long openCount, long closeCount,
-                                    Counter forwardSmallSeeks, Counter backwardSmallSeeks,
-                                    Counter forwardLargeSeeks, Counter backwardLargeSeeks,
-                                    Counter contiguousReads, Counter nonContiguousReads,
-                                    Counter cachedBytesRead, Counter indexCacheBytesRead,
-                                    TimedCounter cachedBytesWritten, TimedCounter directBytesRead, TimedCounter optimizedBytesRead,
-                                    Counter blobStoreBytesRequested, long currentIndexCacheFills) {
+        public CacheIndexInputStats(
+            String fileExt,
+            long numFiles,
+            ByteSizeValue totalSize,
+            ByteSizeValue minSize,
+            ByteSizeValue maxSize,
+            long openCount,
+            long closeCount,
+            Counter forwardSmallSeeks,
+            Counter backwardSmallSeeks,
+            Counter forwardLargeSeeks,
+            Counter backwardLargeSeeks,
+            Counter contiguousReads,
+            Counter nonContiguousReads,
+            Counter cachedBytesRead,
+            Counter indexCacheBytesRead,
+            TimedCounter cachedBytesWritten,
+            TimedCounter directBytesRead,
+            TimedCounter optimizedBytesRead,
+            Counter blobStoreBytesRequested,
+            Counter luceneBytesRead,
+            long currentIndexCacheFills
+        ) {
             this.fileExt = fileExt;
             this.numFiles = numFiles;
             this.totalSize = totalSize;
@@ -174,6 +195,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.directBytesRead = directBytesRead;
             this.optimizedBytesRead = optimizedBytesRead;
             this.blobStoreBytesRequested = blobStoreBytesRequested;
+            this.luceneBytesRead = luceneBytesRead;
             this.currentIndexCacheFills = currentIndexCacheFills;
         }
 
@@ -209,14 +231,20 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.directBytesRead = new TimedCounter(in);
             this.optimizedBytesRead = new TimedCounter(in);
             this.blobStoreBytesRequested = new Counter(in);
+            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+                this.luceneBytesRead = new Counter(in);
+            } else {
+                this.luceneBytesRead = new Counter(0, 0, 0, 0);
+            }
             this.currentIndexCacheFills = in.readVLong();
         }
 
         public static CacheIndexInputStats combine(CacheIndexInputStats cis1, CacheIndexInputStats cis2) {
             if (cis1.getFileExt().equals(cis2.getFileExt()) == false) {
                 assert false : "can only combine same file extensions";
-                throw new IllegalArgumentException("can only combine same file extensions but was " +
-                    cis1.fileExt + " and " + cis2.fileExt);
+                throw new IllegalArgumentException(
+                    "can only combine same file extensions but was " + cis1.fileExt + " and " + cis2.fileExt
+                );
             }
             return new CacheIndexInputStats(
                 cis1.fileExt,
@@ -238,6 +266,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 cis1.directBytesRead.add(cis2.directBytesRead),
                 cis1.optimizedBytesRead.add(cis2.optimizedBytesRead),
                 cis1.blobStoreBytesRequested.add(cis2.blobStoreBytesRequested),
+                cis1.luceneBytesRead.add(cis2.luceneBytesRead),
                 cis1.currentIndexCacheFills + cis2.currentIndexCacheFills
             );
         }
@@ -274,6 +303,9 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             directBytesRead.writeTo(out);
             optimizedBytesRead.writeTo(out);
             blobStoreBytesRequested.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+                luceneBytesRead.writeTo(out);
+            }
             out.writeVLong(currentIndexCacheFills);
         }
 
@@ -298,7 +330,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         public ByteSizeValue getAverageSize() {
-            final double average = (double) totalSize.getBytes()/ (double) numFiles;
+            final double average = (double) totalSize.getBytes() / (double) numFiles;
             return new ByteSizeValue(Math.round(average));
         }
 
@@ -358,6 +390,10 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return blobStoreBytesRequested;
         }
 
+        public Counter getLuceneBytesRead() {
+            return luceneBytesRead;
+        }
+
         public long getCurrentIndexCacheFills() {
             return currentIndexCacheFills;
         }
@@ -398,6 +434,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                     builder.endObject();
                 }
                 builder.field("blob_store_bytes_requested", getBlobStoreBytesRequested(), params);
+                builder.field("lucene_bytes_read", getLuceneBytesRead(), params);
                 builder.field("current_index_cache_fills", getCurrentIndexCacheFills());
             }
             return builder.endObject();
@@ -431,20 +468,35 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 && Objects.equals(directBytesRead, stats.directBytesRead)
                 && Objects.equals(optimizedBytesRead, stats.optimizedBytesRead)
                 && Objects.equals(blobStoreBytesRequested, stats.blobStoreBytesRequested)
+                && Objects.equals(luceneBytesRead, stats.luceneBytesRead)
                 && currentIndexCacheFills == stats.currentIndexCacheFills;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(fileExt, numFiles, totalSize,
-                minSize, maxSize,
-                openCount, closeCount,
-                forwardSmallSeeks, backwardSmallSeeks,
-                forwardLargeSeeks, backwardLargeSeeks,
-                contiguousReads, nonContiguousReads,
-                cachedBytesRead, indexCacheBytesRead,
-                cachedBytesWritten, directBytesRead, optimizedBytesRead,
-                blobStoreBytesRequested, currentIndexCacheFills);
+            return Objects.hash(
+                fileExt,
+                numFiles,
+                totalSize,
+                minSize,
+                maxSize,
+                openCount,
+                closeCount,
+                forwardSmallSeeks,
+                backwardSmallSeeks,
+                forwardLargeSeeks,
+                backwardLargeSeeks,
+                contiguousReads,
+                nonContiguousReads,
+                cachedBytesRead,
+                indexCacheBytesRead,
+                cachedBytesWritten,
+                directBytesRead,
+                optimizedBytesRead,
+                blobStoreBytesRequested,
+                luceneBytesRead,
+                currentIndexCacheFills
+            );
         }
     }
 
@@ -470,8 +522,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         public Counter add(Counter counter) {
-            return new Counter(count + counter.count, total + counter.total,
-                Math.min(min, counter.min), Math.max(max, counter.max));
+            return new Counter(count + counter.count, total + counter.total, Math.min(min, counter.min), Math.max(max, counter.max));
         }
 
         @Override
@@ -496,8 +547,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return builder;
         }
 
-        void innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        }
+        void innerToXContent(XContentBuilder builder, Params params) throws IOException {}
 
         public long getCount() {
             return count;
@@ -524,10 +574,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 return false;
             }
             Counter that = (Counter) other;
-            return count == that.count
-                && total == that.total
-                && min == that.min
-                && max == that.max;
+            return count == that.count && total == that.total && min == that.min && max == that.max;
         }
 
         @Override
@@ -551,8 +598,13 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         public TimedCounter add(TimedCounter counter) {
-            return new TimedCounter(count + counter.count, total + counter.total,
-                Math.min(min, counter.min), Math.max(max, counter.max), totalNanoseconds + counter.totalNanoseconds);
+            return new TimedCounter(
+                count + counter.count,
+                total + counter.total,
+                Math.min(min, counter.min),
+                Math.max(max, counter.max),
+                totalNanoseconds + counter.totalNanoseconds
+            );
         }
 
         @Override

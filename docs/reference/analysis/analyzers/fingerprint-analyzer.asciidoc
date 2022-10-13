@@ -9,7 +9,7 @@ https://github.com/OpenRefine/OpenRefine/wiki/Clustering-In-Depth#fingerprint[fi
 which is used by the OpenRefine project to assist in clustering.
 
 Input text is lowercased, normalized to remove extended characters, sorted,
-deduplicated and concatenated into a single token.  If a stopword list is
+deduplicated and concatenated into a single token. If a stopword list is
 configured, stop words will also be removed.
 
 [discrete]
@@ -59,17 +59,17 @@ The `fingerprint` analyzer accepts the following parameters:
 [horizontal]
 `separator`::
 
-    The character to use to concatenate the terms.  Defaults to a space.
+    The character to use to concatenate the terms. Defaults to a space.
 
 `max_output_size`::
 
-    The maximum token size to emit.  Defaults to `255`. Tokens larger than
+    The maximum token size to emit. Defaults to `255`. Tokens larger than
     this size will be discarded.
 
 `stopwords`::
 
-    A pre-defined stop words list like `_english_` or an array  containing a
-    list of stop words.  Defaults to `_none_`.
+    A pre-defined stop words list like `_english_` or an array containing a
+    list of stop words. Defaults to `_none_`.
 
 `stopwords_path`::
 

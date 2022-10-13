@@ -29,7 +29,6 @@ import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSi
 
 class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
-    private final SearchPhaseController searchPhaseController;
     private final SearchProgressListener progressListener;
 
     // informations to track the best bottom top doc globally.
@@ -37,36 +36,58 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private final int trackTotalHitsUpTo;
     private volatile BottomSortValuesCollector bottomSortCollector;
 
-    SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
-                                    final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-                                    final Map<String, AliasFilter> aliasFilter,
-                                    final Map<String, Float> concreteIndexBoosts,
-                                    final SearchPhaseController searchPhaseController, final Executor executor,
-                                    final QueryPhaseResultConsumer resultConsumer, final SearchRequest request,
-                                    final ActionListener<SearchResponse> listener,
-                                    final GroupShardsIterator<SearchShardIterator> shardsIts,
-                                    final TransportSearchAction.SearchTimeProvider timeProvider,
-                                    ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters) {
-        super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts,
-                executor, request, listener, shardsIts, timeProvider, clusterState, task,
-                resultConsumer, request.getMaxConcurrentShardRequests(), clusters);
+    SearchQueryThenFetchAsyncAction(
+        final Logger logger,
+        final SearchTransportService searchTransportService,
+        final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+        final Map<String, AliasFilter> aliasFilter,
+        final Map<String, Float> concreteIndexBoosts,
+        final Executor executor,
+        final QueryPhaseResultConsumer resultConsumer,
+        final SearchRequest request,
+        final ActionListener<SearchResponse> listener,
+        final GroupShardsIterator<SearchShardIterator> shardsIts,
+        final TransportSearchAction.SearchTimeProvider timeProvider,
+        ClusterState clusterState,
+        SearchTask task,
+        SearchResponse.Clusters clusters
+    ) {
+        super(
+            "query",
+            logger,
+            searchTransportService,
+            nodeIdToConnection,
+            aliasFilter,
+            concreteIndexBoosts,
+            executor,
+            request,
+            listener,
+            shardsIts,
+            timeProvider,
+            clusterState,
+            task,
+            resultConsumer,
+            request.getMaxConcurrentShardRequests(),
+            clusters
+        );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
-        this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
 
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
         addReleasable(resultConsumer);
 
-        boolean hasFetchPhase = request.source() == null ? true : request.source().size() > 0;
-        progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),
-            SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, hasFetchPhase);
+        if (progressListener != SearchProgressListener.NOOP) {
+            notifyListShards(progressListener, clusters, request.source());
+        }
     }
 
-    protected void executePhaseOnShard(final SearchShardIterator shardIt,
-                                       final SearchShardTarget shard,
-                                       final SearchActionListener<SearchPhaseResult> listener) {
+    protected void executePhaseOnShard(
+        final SearchShardIterator shardIt,
+        final SearchShardTarget shard,
+        final SearchActionListener<SearchPhaseResult> listener
+    ) {
         ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
         getSearchTransport().sendExecuteQuery(getConnection(shard.getClusterAlias(), shard.getNodeId()), request, getTask(), listener);
     }
@@ -80,12 +101,12 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
         QuerySearchResult queryResult = result.queryResult();
         if (queryResult.isNull() == false
-                // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
-                && getRequest().scroll() == null
-                // top docs are already consumed if the query was cancelled or in error.
-                && queryResult.hasConsumedTopDocs() == false
-                && queryResult.topDocs() != null
-                && queryResult.topDocs().topDocs.getClass() == TopFieldDocs.class) {
+            // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
+            && getRequest().scroll() == null
+            // top docs are already consumed if the query was cancelled or in error.
+            && queryResult.hasConsumedTopDocs() == false
+            && queryResult.topDocs() != null
+            && queryResult.topDocs().topDocs.getClass() == TopFieldDocs.class) {
             TopFieldDocs topDocs = (TopFieldDocs) queryResult.topDocs().topDocs;
             if (bottomSortCollector == null) {
                 synchronized (this) {
@@ -101,7 +122,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-        return new FetchSearchPhase(results, searchPhaseController, null, this);
+        return new FetchSearchPhase(results, null, this);
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
@@ -110,8 +131,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         }
 
         // disable tracking total hits if we already reached the required estimation.
-        if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE
-                && bottomSortCollector.getTotalHits() > trackTotalHitsUpTo) {
+        if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE && bottomSortCollector.getTotalHits() > trackTotalHitsUpTo) {
             request.source(request.source().shallowCopy().trackTotalHits(false));
         }
 

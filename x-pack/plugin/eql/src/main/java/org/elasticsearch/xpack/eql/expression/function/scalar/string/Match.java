@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BaseSurrogateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
@@ -69,7 +70,7 @@ public class Match extends BaseSurrogateFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isStringAndExact(field, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution resolution = isStringAndExact(field, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -78,12 +79,12 @@ public class Match extends BaseSurrogateFunction {
         for (Expression regex : patterns) {
             // Currently we have limited enum for ordinal numbers
             // So just using default here for error messaging
-            resolution = isStringAndExact(regex, sourceText(), ParamOrdinal.fromIndex(index));
+            resolution = isStringAndExact(regex, sourceText(), TypeResolutions.ParamOrdinal.fromIndex(index));
             if (resolution.unresolved()) {
                 return resolution;
             }
 
-            resolution = isFoldable(regex, sourceText(), ParamOrdinal.fromIndex(index));
+            resolution = isFoldable(regex, sourceText(), TypeResolutions.ParamOrdinal.fromIndex(index));
             if (resolution.unresolved()) {
                 break;
             }

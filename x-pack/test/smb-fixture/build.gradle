@@ -1,4 +1,1 @@
-apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.test.fixtures'
-
-tasks.named("test").configure { enabled = false }

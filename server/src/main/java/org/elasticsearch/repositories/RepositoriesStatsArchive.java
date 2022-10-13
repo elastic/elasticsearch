@@ -10,7 +10,7 @@ package org.elasticsearch.repositories;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -18,7 +18,6 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 public final class RepositoriesStatsArchive {
     private static final Logger logger = LogManager.getLogger(RepositoriesStatsArchive.class);
@@ -28,9 +27,7 @@ public final class RepositoriesStatsArchive {
     private final LongSupplier relativeTimeSupplier;
     private final Deque<ArchiveEntry> archive = new ArrayDeque<>();
 
-    public RepositoriesStatsArchive(TimeValue retentionPeriod,
-                                    int maxCapacity,
-                                    LongSupplier relativeTimeSupplier) {
+    public RepositoriesStatsArchive(TimeValue retentionPeriod, int maxCapacity, LongSupplier relativeTimeSupplier) {
         this.retentionPeriod = retentionPeriod;
         this.maxCapacity = maxCapacity;
         this.relativeTimeSupplier = relativeTimeSupplier;
@@ -58,7 +55,7 @@ public final class RepositoriesStatsArchive {
 
     synchronized List<RepositoryStatsSnapshot> getArchivedStats() {
         evict();
-        return archive.stream().map(e -> e.repositoryStatsSnapshot).collect(Collectors.toList());
+        return archive.stream().map(e -> e.repositoryStatsSnapshot).toList();
     }
 
     /**
@@ -90,8 +87,11 @@ public final class RepositoriesStatsArchive {
 
     private boolean containsRepositoryStats(RepositoryStatsSnapshot repositoryStats) {
         return archive.stream()
-            .anyMatch(entry ->
-                entry.repositoryStatsSnapshot.getRepositoryInfo().ephemeralId.equals(repositoryStats.getRepositoryInfo().ephemeralId));
+            .anyMatch(
+                entry -> entry.repositoryStatsSnapshot.getRepositoryInfo().ephemeralId.equals(
+                    repositoryStats.getRepositoryInfo().ephemeralId
+                )
+            );
     }
 
     private static class ArchiveEntry {

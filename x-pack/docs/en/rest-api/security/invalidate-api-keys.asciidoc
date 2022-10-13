@@ -82,13 +82,15 @@ API key information. For example:
 [source,console-result]
 --------------------------------------------------
 {
-  "id":"VuaCfGcBCdbkQm-e5aOx",
-  "name":"my-api-key",
-  "api_key":"ui2lp2axTNmsyakw9tvNnw"
+  "id": "VuaCfGcBCdbkQm-e5aOx",
+  "name": "my-api-key",
+  "api_key": "ui2lp2axTNmsyakw9tvNnw",
+  "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
 }
 --------------------------------------------------
 // TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+// TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
 
 The following example invalidates the API key identified by specified `ids`
 immediately:

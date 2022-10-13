@@ -7,24 +7,30 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 /**
- * Checks whether migration can start and whether ML resources (e.g. jobs, datafeeds)
- * are eligible to be migrated from the cluster state into the config index
+ * Checks whether ML config migration can start.
+ *
+ * Originally this class was used to check whether jobs and datafeeds could be
+ * migrated from cluster state to the ML config index. This use case is no longer
+ * relevant. However, it's possible that in the future we may want to do some
+ * other form of config migration, and the cluster setting defined in this class
+ * would be an ideal way to restrict it.
  */
 public class MlConfigMigrationEligibilityCheck {
 
     public static final Setting<Boolean> ENABLE_CONFIG_MIGRATION = Setting.boolSetting(
-        "xpack.ml.enable_config_migration", true, Setting.Property.OperatorDynamic, Setting.Property.NodeScope);
+        "xpack.ml.enable_config_migration",
+        true,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
 
     private volatile boolean isConfigMigrationEnabled;
 
@@ -36,7 +42,6 @@ public class MlConfigMigrationEligibilityCheck {
     private void setConfigMigrationEnabled(boolean configMigrationEnabled) {
         this.isConfigMigrationEnabled = configMigrationEnabled;
     }
-
 
     /**
      * Can migration start? Returns:
@@ -54,72 +59,12 @@ public class MlConfigMigrationEligibilityCheck {
     }
 
     static boolean mlConfigIndexIsAllocated(ClusterState clusterState) {
-        if (clusterState.metadata().hasIndex(MlConfigIndex.indexName()) == false) {
+        IndexAbstraction configIndexOrAlias = clusterState.metadata().getIndicesLookup().get(MlConfigIndex.indexName());
+        if (configIndexOrAlias == null) {
             return false;
         }
 
-        IndexRoutingTable routingTable = clusterState.getRoutingTable().index(MlConfigIndex.indexName());
-        if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Is the job a eligible for migration? Returns:
-     *     False if {@link #canStartMigration(ClusterState)} returns {@code false}
-     *     False if the job is not in the cluster state
-     *     False if the {@link Job#isDeleting()}
-     *     False if the job has an allocated persistent task
-     *     True otherwise i.e. the job is present, not deleting
-     *     and does not have a persistent task or its persistent
-     *     task is un-allocated
-     *
-     * @param jobId         The job Id
-     * @param clusterState  The cluster state
-     * @return A boolean depending on the conditions listed above
-     */
-    public boolean jobIsEligibleForMigration(String jobId, ClusterState clusterState) {
-        if (canStartMigration(clusterState) == false) {
-            return false;
-        }
-
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-        Job job = mlMetadata.getJobs().get(jobId);
-
-        if (job == null || job.isDeleting()) {
-            return false;
-        }
-
-        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-        return MlTasks.openJobIds(persistentTasks).contains(jobId) == false ||
-                MlTasks.unassignedJobIds(persistentTasks, clusterState.nodes()).contains(jobId);
-    }
-
-    /**
-     * Is the datafeed a eligible for migration? Returns:
-     *     False if {@link #canStartMigration(ClusterState)} returns {@code false}
-     *     False if the datafeed is not in the cluster state
-     *     False if the datafeed has an allocated persistent task
-     *     True otherwise i.e. the datafeed is present and does not have a persistent
-     *     task or its persistent task is un-allocated
-     *
-     * @param datafeedId   The datafeed Id
-     * @param clusterState  The cluster state
-     * @return A boolean depending on the conditions listed above
-     */
-    public boolean datafeedIsEligibleForMigration(String datafeedId, ClusterState clusterState) {
-        if (canStartMigration(clusterState) == false) {
-            return false;
-        }
-
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-        if (mlMetadata.getDatafeeds().containsKey(datafeedId) == false) {
-            return false;
-        }
-
-        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-        return MlTasks.startedDatafeedIds(persistentTasks).contains(datafeedId) == false
-                || MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()).contains(datafeedId);
+        IndexRoutingTable routingTable = clusterState.getRoutingTable().index(configIndexOrAlias.getWriteIndex());
+        return routingTable != null && routingTable.allPrimaryShardsActive();
     }
 }

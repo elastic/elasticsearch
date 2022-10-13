@@ -37,19 +37,25 @@ public abstract class InternalRangeTestCase<T extends InternalAggregation & Rang
     protected abstract T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations, boolean keyed);
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected void assertReduced(T reduced, List<T> inputs) {
         final Map<String, Long> expectedCounts = new TreeMap<>();
         for (T input : inputs) {
             for (Range.Bucket bucket : input.getBuckets()) {
-                expectedCounts.compute(bucket.getKeyAsString(),
-                        (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+                expectedCounts.compute(
+                    bucket.getKeyAsString(),
+                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount()
+                );
 
             }
         }
         final Map<String, Long> actualCounts = new TreeMap<>();
         for (Range.Bucket bucket : reduced.getBuckets()) {
-            actualCounts.compute(bucket.getKeyAsString(),
-                    (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+            actualCounts.compute(bucket.getKeyAsString(), (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
     }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractorTests;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
@@ -29,8 +30,14 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
             extractors.add(randomBucketExtractor(id));
         }
 
-        return new CompositeAggCursor(new byte[randomInt(256)], extractors, randomBitSet(extractorsSize),
-                randomIntBetween(10, 1024), randomBoolean(), randomAlphaOfLength(5));
+        return new CompositeAggCursor(
+            new SearchSourceBuilder().size(randomInt(1000)),
+            extractors,
+            randomBitSet(extractorsSize),
+            randomIntBetween(10, 1024),
+            randomBoolean(),
+            randomAlphaOfLength(5)
+        );
     }
 
     static BucketExtractor randomBucketExtractor(ZoneId zoneId) {
@@ -43,11 +50,14 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
 
     @Override
     protected CompositeAggCursor mutateInstance(CompositeAggCursor instance) throws IOException {
-        return new CompositeAggCursor(instance.next(), instance.extractors(),
-                randomValueOtherThan(instance.mask(), () -> randomBitSet(instance.extractors().size())),
-                randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 512)),
-                instance.includeFrozen() == false,
-                instance.indices());
+        return new CompositeAggCursor(
+            instance.next(),
+            instance.extractors(),
+            randomValueOtherThan(instance.mask(), () -> randomBitSet(instance.extractors().size())),
+            randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 512)),
+            instance.includeFrozen() == false,
+            instance.indices()
+        );
     }
 
     @Override

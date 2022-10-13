@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.utils;
 
-
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
@@ -62,20 +61,25 @@ public class MlStringsTests extends ESTestCase {
     }
 
     public void testFindMatching_GivenAllPattern() {
-        assertThat(MlStrings.findMatching(new String[] {"_all"}, new HashSet<>(Arrays.asList("a", "b"))), contains("a", "b"));
+        assertThat(MlStrings.findMatching(new String[] { "_all" }, new HashSet<>(Arrays.asList("a", "b"))), contains("a", "b"));
     }
 
     public void testFindMatching_GivenWildcardPattern() {
-        assertThat(MlStrings.findMatching(new String[] {"*"}, new HashSet<>(Arrays.asList("a", "b"))), contains("a", "b"));
+        assertThat(MlStrings.findMatching(new String[] { "*" }, new HashSet<>(Arrays.asList("a", "b"))), contains("a", "b"));
     }
 
     public void testFindMatching_GivenMixedPatterns() {
-        assertThat(MlStrings.findMatching(new String[] {"concrete", "wild-*"}, new HashSet<>(
-            Arrays.asList("a", "concrete", "con*", "wild-1", "wild-2"))), contains("concrete", "wild-1", "wild-2"));
+        assertThat(
+            MlStrings.findMatching(
+                new String[] { "concrete", "wild-*" },
+                new HashSet<>(Arrays.asList("a", "concrete", "con*", "wild-1", "wild-2"))
+            ),
+            contains("concrete", "wild-1", "wild-2")
+        );
     }
 
     public void testFindMatching_GivenItemMatchedByTwoPatterns() {
-        Set<String> matching = MlStrings.findMatching(new String[]{"a*", "ab*"}, new HashSet<>(Collections.singletonList("abc")));
+        Set<String> matching = MlStrings.findMatching(new String[] { "a*", "ab*" }, new HashSet<>(Collections.singletonList("abc")));
         assertThat(matching, contains("abc"));
     }
 }

@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Data tiers routing conflict">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-data-tiers-migration"
+            id="cloud-data-tiers-migration">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-data-tiers-migration"
+            id="self-managed-data-tiers-migration"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-data-tiers-migration"
+       aria-labelledby="cloud-data-tiers-migration">
+++++
+
+include::migrate-to-data-tiers-routing-guide.asciidoc[tag=cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-data-tiers-migration"
+       aria-labelledby="self-managed-data-tiers-migration"
+       hidden="">
+++++
+
+include::migrate-to-data-tiers-routing-guide.asciidoc[tag=self-managed]
+
+++++
+  </div>
+</div>
+++++

@@ -8,9 +8,15 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.X509ExtendedKeyManager;
+import org.elasticsearch.core.Tuple;
+
 import java.nio.file.Path;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.util.Collection;
+import java.util.List;
+
+import javax.net.ssl.X509ExtendedKeyManager;
 
 /**
  * An interface for building a key manager at runtime.
@@ -31,5 +37,25 @@ public interface SslKeyConfig {
      */
     X509ExtendedKeyManager createKeyManager();
 
-}
+    /**
+     * @return A list of private keys and their associated certificates
+     */
+    List<Tuple<PrivateKey, X509Certificate>> getKeys();
 
+    /**
+     * @return A collection of {@link StoredCertificate certificates} used by this config.
+     */
+    Collection<StoredCertificate> getConfiguredCertificates();
+
+    default boolean hasKeyMaterial() {
+        return getKeys().isEmpty() == false;
+    }
+
+    /**
+     * Create a {@link SslTrustConfig} based on the underlying file store that backs this key config
+     */
+    default SslTrustConfig asTrustConfig() {
+        return null;
+    }
+
+}

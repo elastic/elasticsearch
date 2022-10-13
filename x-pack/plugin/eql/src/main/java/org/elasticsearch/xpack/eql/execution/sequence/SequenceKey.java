@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.Arrays;
@@ -15,7 +17,9 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
-public class SequenceKey {
+public class SequenceKey implements Accountable, Comparable<SequenceKey> {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SequenceKey.class);
 
     public static final SequenceKey NONE = new SequenceKey();
 
@@ -29,6 +33,11 @@ public class SequenceKey {
 
     public List<Object> asList() {
         return keys == null ? emptyList() : Arrays.asList(keys);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOfObject(keys);
     }
 
     @Override
@@ -53,5 +62,21 @@ public class SequenceKey {
     @Override
     public String toString() {
         return CollectionUtils.isEmpty(keys) ? "NONE" : Arrays.toString(keys);
+    }
+
+    @Override
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public int compareTo(SequenceKey other) {
+        int length = keys.length;
+        int otherLength = other.keys.length;
+        for (int i = 0; i < length && i < otherLength; i++) {
+            if (keys[i]instanceof Comparable key) {
+                int result = key.compareTo(other.keys[i]);
+                if (result != 0) {
+                    return result;
+                }
+            }
+        }
+        return length - otherLength;
     }
 }

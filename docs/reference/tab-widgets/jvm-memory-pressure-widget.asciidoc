@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Check JVM memory pressure">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab"
+            id="cloud-jvm">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab"
+            id="self-managed-jvm"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab"
+       aria-labelledby="cloud-jvm">
+++++
+
+include::jvm-memory-pressure.asciidoc[tag=cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab"
+       aria-labelledby="self-managed-jvm"
+       hidden="">
+++++
+
+include::jvm-memory-pressure.asciidoc[tag=self-managed]
+
+++++
+  </div>
+</div>
+++++

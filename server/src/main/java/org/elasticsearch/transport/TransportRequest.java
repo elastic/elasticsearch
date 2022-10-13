@@ -31,8 +31,7 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
      */
     private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
 
-    public TransportRequest() {
-    }
+    public TransportRequest() {}
 
     public TransportRequest(StreamInput in) throws IOException {
         parentTaskId = TaskId.readFromStream(in);

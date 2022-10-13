@@ -45,8 +45,9 @@ public class LocateFunctionPipe extends Pipe {
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return pattern.supportedByAggsOnlyQuery() && input.supportedByAggsOnlyQuery()
-                && (start == null || start.supportedByAggsOnlyQuery());
+        return pattern.supportedByAggsOnlyQuery()
+            && input.supportedByAggsOnlyQuery()
+            && (start == null || start.supportedByAggsOnlyQuery());
     }
 
     @Override

@@ -13,14 +13,14 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class ClusterUpdateSettingsResponseTests extends AbstractSerializingTestCase<ClusterUpdateSettingsResponse> {
+public class ClusterUpdateSettingsResponseTests extends AbstractXContentSerializingTestCase<ClusterUpdateSettingsResponse> {
 
     @Override
     protected ClusterUpdateSettingsResponse doParseInstance(XContentParser parser) {
@@ -30,19 +30,24 @@ public class ClusterUpdateSettingsResponseTests extends AbstractSerializingTestC
     @Override
     protected ClusterUpdateSettingsResponse mutateInstance(ClusterUpdateSettingsResponse response) {
         int i = randomIntBetween(0, 2);
-        switch(i) {
-            case 0:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged() == false,
-                        response.transientSettings, response.persistentSettings);
-            case 1:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged(), mutateSettings(response.transientSettings),
-                        response.persistentSettings);
-            case 2:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged(), response.transientSettings,
-                        mutateSettings(response.persistentSettings));
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (i) {
+            case 0 -> new ClusterUpdateSettingsResponse(
+                response.isAcknowledged() == false,
+                response.transientSettings,
+                response.persistentSettings
+            );
+            case 1 -> new ClusterUpdateSettingsResponse(
+                response.isAcknowledged(),
+                mutateSettings(response.transientSettings),
+                response.persistentSettings
+            );
+            case 2 -> new ClusterUpdateSettingsResponse(
+                response.isAcknowledged(),
+                response.transientSettings,
+                mutateSettings(response.persistentSettings)
+            );
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     private static Settings mutateSettings(Settings settings) {

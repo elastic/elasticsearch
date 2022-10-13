@@ -10,12 +10,14 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
-public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<PutStoredScriptRequest,
-    AcknowledgedResponse, PutStoredScriptRequestBuilder> {
+public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<
+    PutStoredScriptRequest,
+    AcknowledgedResponse,
+    PutStoredScriptRequestBuilder> {
 
     public PutStoredScriptRequestBuilder(ElasticsearchClient client, PutStoredScriptAction action) {
         super(client, action, new PutStoredScriptRequest());
@@ -23,6 +25,11 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<Pu
 
     public PutStoredScriptRequestBuilder setId(String id) {
         request.id(id);
+        return this;
+    }
+
+    public PutStoredScriptRequestBuilder setContext(String context) {
+        request.context(context);
         return this;
     }
 

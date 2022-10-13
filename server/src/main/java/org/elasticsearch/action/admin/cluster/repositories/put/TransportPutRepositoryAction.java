@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -23,6 +24,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Optional;
+import java.util.Set;
+
 /**
  * Transport action for register repository operation
  */
@@ -31,11 +35,24 @@ public class TransportPutRepositoryAction extends AcknowledgedTransportMasterNod
     private final RepositoriesService repositoriesService;
 
     @Inject
-    public TransportPutRepositoryAction(TransportService transportService, ClusterService clusterService,
-                                        RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              PutRepositoryRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportPutRepositoryAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            PutRepositoryAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutRepositoryRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.repositoriesService = repositoriesService;
     }
 
@@ -45,8 +62,22 @@ public class TransportPutRepositoryAction extends AcknowledgedTransportMasterNod
     }
 
     @Override
-    protected void masterOperation(Task task, final PutRepositoryRequest request, ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        final PutRepositoryRequest request,
+        ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         repositoriesService.registerRepository(request, listener.map(response -> AcknowledgedResponse.of(response.isAcknowledged())));
+    }
+
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedRepositoryAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(PutRepositoryRequest request) {
+        return Set.of(request.name());
     }
 }

@@ -8,13 +8,16 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -117,6 +120,20 @@ public interface BlobContainer {
     }
 
     /**
+     * Write a blob by providing a consumer that will write its contents to an output stream. This method allows serializing a blob's
+     * contents directly to the blob store without having to materialize the serialized version in full before writing.
+     * This method is only used for streaming serialization of repository metadata that is known to be of limited size
+     * at any point in time and across all concurrent invocations of this method.
+     *
+     * @param blobName            the name of the blob to write
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @param atomic              whether the write should be atomic in case the implementation supports it
+     * @param writer              consumer for an output stream that will write the blob contents to the stream
+     */
+    void writeMetadataBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
+        throws IOException;
+
+    /**
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
      *
@@ -143,10 +160,10 @@ public interface BlobContainer {
      * Deletes the blobs with given names. This method will not throw an exception
      * when one or multiple of the given blobs don't exist and simply ignore this case.
      *
-     * @param   blobNames  The names of the blob to delete.
+     * @param   blobNames  the names of the blobs to delete
      * @throws  IOException if a subset of blob exists but could not be deleted.
      */
-    void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException;
+    void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException;
 
     /**
      * Lists all blobs in the container.

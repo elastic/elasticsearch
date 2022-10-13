@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.repositories.delete;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -23,6 +24,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Optional;
+import java.util.Set;
+
 /**
  * Transport action for unregister repository operation
  */
@@ -31,11 +35,24 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
     private final RepositoriesService repositoriesService;
 
     @Inject
-    public TransportDeleteRepositoryAction(TransportService transportService, ClusterService clusterService,
-                                           RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                           IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeleteRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              DeleteRepositoryRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportDeleteRepositoryAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeleteRepositoryAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteRepositoryRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.repositoriesService = repositoriesService;
     }
 
@@ -45,9 +62,25 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
     }
 
     @Override
-    protected void masterOperation(Task task, final DeleteRepositoryRequest request, ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
-        repositoriesService.unregisterRepository(request,
-                listener.map(unregisterRepositoryResponse -> AcknowledgedResponse.of(unregisterRepositoryResponse.isAcknowledged())));
+    protected void masterOperation(
+        Task task,
+        final DeleteRepositoryRequest request,
+        ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        repositoriesService.unregisterRepository(
+            request,
+            listener.map(unregisterRepositoryResponse -> AcknowledgedResponse.of(unregisterRepositoryResponse.isAcknowledged()))
+        );
+    }
+
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedRepositoryAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(DeleteRepositoryRequest request) {
+        return Set.of(request.name());
     }
 }

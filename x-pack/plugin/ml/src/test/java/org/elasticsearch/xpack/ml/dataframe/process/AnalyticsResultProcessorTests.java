@@ -46,8 +46,8 @@ import java.util.Optional;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -65,7 +65,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         ProgressTracker.fromZeroes(Collections.singletonList("analyzing"), false).report(),
         null,
         null,
-        new DataCounts(JOB_ID));
+        new DataCounts(JOB_ID)
+    );
     private TrainedModelProvider trainedModelProvider;
     private DataFrameAnalyticsAuditor auditor;
     private StatsPersister statsPersister;
@@ -79,10 +80,9 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         trainedModelProvider = mock(TrainedModelProvider.class);
         auditor = mock(DataFrameAnalyticsAuditor.class);
         statsPersister = mock(StatsPersister.class);
-        analyticsConfig = new DataFrameAnalyticsConfig.Builder()
-            .setId(JOB_ID)
+        analyticsConfig = new DataFrameAnalyticsConfig.Builder().setId(JOB_ID)
             .setDescription(JOB_DESCRIPTION)
-            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] { "my_source" }, null, null, null))
             .setDest(new DataFrameAnalyticsDest("my_dest", null))
             .setAnalysis(new Regression("foo"))
             .build();
@@ -102,9 +102,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     public void testProcess_GivenEmptyResults() {
         givenDataFrameRows(2);
-        givenProcessResults(Arrays.asList(
-            AnalyticsResult.builder().build(),
-            AnalyticsResult.builder().build()));
+        givenProcessResults(Arrays.asList(AnalyticsResult.builder().build(), AnalyticsResult.builder().build()));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -119,9 +117,12 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         givenDataFrameRows(2);
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(
-            AnalyticsResult.builder().setRowResults(rowResults1).build(),
-            AnalyticsResult.builder().setRowResults(rowResults2).build()));
+        givenProcessResults(
+            Arrays.asList(
+                AnalyticsResult.builder().setRowResults(rowResults1).build(),
+                AnalyticsResult.builder().setRowResults(rowResults2).build()
+            )
+        );
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -138,9 +139,12 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         givenDataFrameRows(2);
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(
-            AnalyticsResult.builder().setRowResults(rowResults1).build(),
-            AnalyticsResult.builder().setRowResults(rowResults2).build()));
+        givenProcessResults(
+            Arrays.asList(
+                AnalyticsResult.builder().setRowResults(rowResults1).build(),
+                AnalyticsResult.builder().setRowResults(rowResults2).build()
+            )
+        );
 
         doThrow(new RuntimeException("some failure")).when(dataFrameRowsJoiner).processRowResults(any(RowResults.class));
 
@@ -162,9 +166,12 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         givenDataFrameRows(2);
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(
-            AnalyticsResult.builder().setRowResults(rowResults1).build(),
-            AnalyticsResult.builder().setRowResults(rowResults2).build()));
+        givenProcessResults(
+            Arrays.asList(
+                AnalyticsResult.builder().setRowResults(rowResults1).build(),
+                AnalyticsResult.builder().setRowResults(rowResults2).build()
+            )
+        );
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.cancel();
@@ -211,7 +218,9 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(dataFrameRowsJoiner, trainedModelProvider);
         assertThat(statsHolder.getProgressTracker().getWritingResultsProgressPercent(), equalTo(0));
 
-        Optional<PhaseProgress> testPhaseProgress = statsHolder.getProgressTracker().report().stream()
+        Optional<PhaseProgress> testPhaseProgress = statsHolder.getProgressTracker()
+            .report()
+            .stream()
             .filter(p -> p.getPhase().equals(phaseProgress.getPhase()))
             .findAny();
         assertThat(testPhaseProgress.isPresent(), is(true));
@@ -304,8 +313,16 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     private void givenDataFrameRows(int rows) {
         AnalyticsProcessConfig config = new AnalyticsProcessConfig(
-            "job_id", rows, 1, ByteSizeValue.ZERO, 1, "ml", Collections.emptySet(), mock(DataFrameAnalysis.class),
-            mock(ExtractedFields.class));
+            "job_id",
+            rows,
+            1,
+            ByteSizeValue.ZERO,
+            1,
+            "ml",
+            Collections.emptySet(),
+            mock(DataFrameAnalysis.class),
+            mock(ExtractedFields.class)
+        );
         when(process.getConfig()).thenReturn(config);
     }
 
@@ -314,12 +331,14 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     }
 
     private AnalyticsResultProcessor createResultProcessor(List<ExtractedField> fieldNames) {
-        return new AnalyticsResultProcessor(analyticsConfig,
+        return new AnalyticsResultProcessor(
+            analyticsConfig,
             dataFrameRowsJoiner,
             statsHolder,
             trainedModelProvider,
             auditor,
             statsPersister,
-            new ExtractedFields(fieldNames, Collections.emptyList(), Collections.emptyMap()));
+            new ExtractedFields(fieldNames, Collections.emptyList(), Collections.emptyMap())
+        );
     }
 }

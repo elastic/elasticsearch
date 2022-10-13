@@ -13,11 +13,15 @@ import org.elasticsearch.action.support.IndicesOptions;
  */
 public final class MlIndicesUtils {
 
-    private MlIndicesUtils() {
-    }
+    private MlIndicesUtils() {}
 
     public static IndicesOptions addIgnoreUnavailable(IndicesOptions indicesOptions) {
-        return IndicesOptions.fromOptions(true, indicesOptions.allowNoIndices(), indicesOptions.expandWildcardsOpen(),
-                indicesOptions.expandWildcardsClosed(), indicesOptions);
+        return IndicesOptions.fromOptions(
+            true,
+            indicesOptions.allowNoIndices(),
+            indicesOptions.expandWildcardsOpen(),
+            indicesOptions.expandWildcardsClosed(),
+            indicesOptions
+        );
     }
 }

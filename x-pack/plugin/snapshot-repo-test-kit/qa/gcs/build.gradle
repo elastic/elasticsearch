@@ -5,8 +5,7 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -14,22 +13,18 @@ import java.security.KeyPairGenerator
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
-final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
-  testImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
-  testImplementation repositoryPlugin
+  javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'snapshot_repo_test_kit'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'snapshot_repo_test_kit'
   }
 }
 
@@ -87,7 +82,7 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'gcs-fixture-repository-test-kit')
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   systemProperty 'test.gcs.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repository_test_kit_tests" + BuildParams.testSeed
 
@@ -96,9 +91,8 @@ tasks.named("integTest").configure {
   }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.path
 
   keystore 'gcs.client.repository_test_kit.credentials_file', serviceAccountFile, IGNORE_VALUE
   if (useFixture) {
@@ -108,8 +102,9 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   } else {
     println "Using an external service to test " + project.name
   }
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.register("gcsThirdPartyTest")  {
-  dependsOn "integTest"
+  dependsOn "javaRestTest"
 }

@@ -19,7 +19,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public final class CJKWidthFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     CJKWidthFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
     }
 
     @Override

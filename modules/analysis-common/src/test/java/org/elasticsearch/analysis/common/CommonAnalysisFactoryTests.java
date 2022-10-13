@@ -13,6 +13,8 @@ import org.apache.lucene.analysis.en.PorterStemFilterFactory;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
+import org.apache.lucene.analysis.te.TeluguNormalizationFilterFactory;
+import org.apache.lucene.analysis.te.TeluguStemFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.List;
@@ -84,6 +86,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("latvianstem", StemmerTokenFilterFactory.class);
         filters.put("norwegianlightstem", StemmerTokenFilterFactory.class);
         filters.put("norwegianminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("norwegiannormalization", Void.class);
         filters.put("portuguesestem", StemmerTokenFilterFactory.class);
         filters.put("portugueselightstem", StemmerTokenFilterFactory.class);
         filters.put("portugueseminimalstem", StemmerTokenFilterFactory.class);
@@ -91,7 +94,10 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("soranistem", StemmerTokenFilterFactory.class);
         filters.put("spanishlightstem", StemmerTokenFilterFactory.class);
         filters.put("swedishlightstem", StemmerTokenFilterFactory.class);
+        filters.put("swedishminimalstem", Void.class);
         filters.put("stemmeroverride", StemmerOverrideTokenFilterFactory.class);
+        filters.put("telugunormalization", TeluguNormalizationFilterFactory.class);
+        filters.put("telugustem", TeluguStemFilterFactory.class);
         filters.put("kstem", KStemTokenFilterFactory.class);
         filters.put("synonym", SynonymTokenFilterFactory.class);
         filters.put("synonymgraph", SynonymGraphTokenFilterFactory.class);
@@ -137,13 +143,13 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getCharFilters() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getCharFilters());
-        filters.put("htmlstrip",      HtmlStripCharFilterFactory.class);
-        filters.put("mapping",        MappingCharFilterFactory.class);
+        filters.put("htmlstrip", HtmlStripCharFilterFactory.class);
+        filters.put("mapping", MappingCharFilterFactory.class);
         filters.put("patternreplace", PatternReplaceCharFilterFactory.class);
 
         // TODO: these charfilters are not yet exposed: useful?
         // handling of zwnj for persian
-        filters.put("persian",        Void.class);
+        filters.put("persian", Void.class);
         return filters;
     }
 
@@ -212,7 +218,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("keyword", null);
         tokenizers.put("lowercase", Void.class);
         tokenizers.put("classic", null);
-        tokenizers.put("uax_url_email", org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class);
+        tokenizers.put("uax_url_email", org.apache.lucene.analysis.email.UAX29URLEmailTokenizerFactory.class);
         tokenizers.put("path_hierarchy", null);
         tokenizers.put("letter", null);
         tokenizers.put("whitespace", null);
@@ -254,12 +260,16 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     }
 
     private void markedTestCase(String name, Map<String, Class<?>> map) {
-        List<String> unmarked = map.entrySet().stream()
-                .filter(e -> e.getValue() == MovedToAnalysisCommon.class)
-                .map(Map.Entry::getKey)
-                .sorted()
-                .collect(toList());
-        assertEquals(name + " marked in AnalysisFactoryTestCase as moved to analysis-common "
-                + "but not mapped here", emptyList(), unmarked);
+        List<String> unmarked = map.entrySet()
+            .stream()
+            .filter(e -> e.getValue() == MovedToAnalysisCommon.class)
+            .map(Map.Entry::getKey)
+            .sorted()
+            .collect(toList());
+        assertEquals(
+            name + " marked in AnalysisFactoryTestCase as moved to analysis-common " + "but not mapped here",
+            emptyList(),
+            unmarked
+        );
     }
 }

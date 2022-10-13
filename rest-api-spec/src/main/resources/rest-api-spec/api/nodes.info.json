@@ -46,9 +46,11 @@
                 "transport",
                 "http",
                 "plugins",
-                "ingest"
+                "ingest",
+                "indices",
+                "aggregations"
               ],
-              "description":"A comma-separated list of metrics you wish returned. Leave empty to return all."
+              "description":"A comma-separated list of metrics you wish returned. Leave empty to return all metrics."
             }
           }
         },
@@ -73,9 +75,13 @@
                 "transport",
                 "http",
                 "plugins",
-                "ingest"
+                "ingest",
+                "indices",
+                "aggregations",
+                "_all",
+                "_none"
               ],
-              "description":"A comma-separated list of metrics you wish returned. Leave empty to return all."
+              "description":"A comma-separated list of metrics you wish returned. Use `_all` to retrieve all metrics and `_none` to retrieve the node identity without any additional metrics."
             }
           }
         }

@@ -10,7 +10,7 @@
   - match: { my_remote_cluster.mode: "sniff" }
 
 ---
-"Add transient remote cluster based on the preset cluster and check remote info":
+"Add persistent remote cluster based on the preset cluster and check remote info":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -21,14 +21,14 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.mode: "sniff"
             cluster.remote.test_remote_cluster.node_connections: "2"
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "sniff"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.node_connections: "2"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.seeds: $remote_ip}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.mode: "sniff"}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.node_connections: "2"}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.seeds: $remote_ip}
 
   # we do another search here since this will enforce the connection to be established
   # otherwise the cluster might not have been connected yet.
@@ -65,16 +65,16 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.mode: "proxy"
             cluster.remote.test_remote_cluster.seeds: null
             cluster.remote.test_remote_cluster.node_connections: null
             cluster.remote.test_remote_cluster.proxy_socket_connections: "10"
             cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
-  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_socket_connections: "10"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.proxy_socket_connections: "10"}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
 
   - do:
       cluster.remote_info: {}
@@ -89,7 +89,7 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.mode: null
             cluster.remote.test_remote_cluster.proxy_socket_connections: null
             cluster.remote.test_remote_cluster.proxy_address: null
@@ -106,10 +106,10 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.remote1.seeds: $remote_ip
 
-  - match: {transient: {cluster.remote.remote1.seeds: $remote_ip}}
+  - match: {persistent: {cluster.remote.remote1.seeds: $remote_ip}}
 
   - do:
       cluster.remote_info: {}
@@ -118,10 +118,10 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.remote.remote1.skip_unavailable: true
 
-  - is_true: transient.cluster.remote.remote1.skip_unavailable
+  - is_true: persistent.cluster.remote.remote1.skip_unavailable
 
   - do:
       cluster.remote_info: {}
@@ -131,10 +131,10 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.remote.remote1.skip_unavailable: false
 
-  - is_false: transient.cluster.remote.remote1.skip_unavailable
+  - is_false: persistent.cluster.remote.remote1.skip_unavailable
 
   - do:
       cluster.remote_info: {}
@@ -144,10 +144,10 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.remote.remote1.skip_unavailable: null
 
-  - match: {transient: {}}
+  - match: {persistent: {}}
 
   - do:
       cluster.remote_info: {}
@@ -157,6 +157,6 @@
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.remote.remote1.seeds: null
             cluster.remote.remote1.skip_unavailable: null

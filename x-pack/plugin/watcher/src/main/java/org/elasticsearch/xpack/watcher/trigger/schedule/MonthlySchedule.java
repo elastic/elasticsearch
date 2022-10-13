@@ -7,8 +7,9 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.MonthTimes;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class MonthlySchedule extends CronnableSchedule {
 
     static String[] crons(MonthTimes[] times) {
         assert times.length > 0 : "at least one time must be defined";
-        Set<String> crons = new HashSet<>(times.length);
+        Set<String> crons = Sets.newHashSetWithExpectedSize(times.length);
         for (MonthTimes time : times) {
             crons.addAll(time.crons());
         }
@@ -96,8 +97,12 @@ public class MonthlySchedule extends CronnableSchedule {
                 }
                 return times.isEmpty() ? new MonthlySchedule() : new MonthlySchedule(times.toArray(new MonthTimes[times.size()]));
             }
-            throw new ElasticsearchParseException("could not parse [{}] schedule. expected either an object or an array " +
-                    "of objects representing month times, but found [{}] instead", TYPE, parser.currentToken());
+            throw new ElasticsearchParseException(
+                "could not parse [{}] schedule. expected either an object or an array "
+                    + "of objects representing month times, but found [{}] instead",
+                TYPE,
+                parser.currentToken()
+            );
         }
     }
 
@@ -105,8 +110,7 @@ public class MonthlySchedule extends CronnableSchedule {
 
         private final Set<MonthTimes> times = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder time(MonthTimes time) {
             times.add(time);

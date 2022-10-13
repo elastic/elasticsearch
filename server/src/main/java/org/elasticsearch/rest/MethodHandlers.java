@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +30,10 @@ final class MethodHandlers {
         // array references, while those few that contain 3 or 4 elements will have been resized just once and will still
         // waste only 1 or 0 array references
         this.methodHandlers = new HashMap<>(2, 1);
+    }
+
+    public String getPath() {
+        return path;
     }
 
     /**
@@ -59,7 +63,7 @@ final class MethodHandlers {
     RestHandler getHandler(RestRequest.Method method, RestApiVersion version) {
         Map<RestApiVersion, RestHandler> versionToHandlers = methodHandlers.get(method);
         if (versionToHandlers == null) {
-            return null; //method not found
+            return null; // method not found
         }
         final RestHandler handler = versionToHandlers.get(version);
         return handler == null ? versionToHandlers.get(RestApiVersion.current()) : handler;

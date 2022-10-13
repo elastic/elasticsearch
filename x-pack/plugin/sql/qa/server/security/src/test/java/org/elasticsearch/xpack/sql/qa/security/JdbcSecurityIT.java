@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xpack.sql.qa.jdbc.LocalH2;
 
 import java.net.URISyntaxException;
@@ -27,7 +27,6 @@ import java.util.Properties;
 
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcAssert.assertResultSets;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase.elasticsearchAddress;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase.randomKnownTimeZone;
 import static org.elasticsearch.xpack.sql.qa.security.RestSqlIT.SSL_ENABLED;
 import static org.hamcrest.Matchers.containsString;
 
@@ -44,7 +43,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
     static Connection es(Properties properties) throws SQLException {
         Properties props = new Properties();
-        props.put("timezone", randomKnownTimeZone());
+        props.put("timezone", randomZone().getId());
         props.putAll(properties);
         String scheme = SSL_ENABLED ? "https" : "http";
         return DriverManager.getConnection("jdbc:es://" + scheme + "://" + elasticsearchAddress(), props);

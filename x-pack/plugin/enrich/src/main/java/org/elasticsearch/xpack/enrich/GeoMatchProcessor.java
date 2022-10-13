@@ -7,16 +7,16 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.TemplateScript;
 
+import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 public final class GeoMatchProcessor extends AbstractEnrichProcessor {
@@ -27,7 +27,7 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
     GeoMatchProcessor(
         String tag,
         String description,
-        Client client,
+        BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> searchRunner,
         String policyName,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
@@ -36,27 +36,7 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         String matchField,
         int maxMatches,
         ShapeRelation shapeRelation,
-        ShapeBuilder.Orientation orientation
-    ) {
-        super(tag, description, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
-        this.shapeRelation = shapeRelation;
-        parser = new GeometryParser(orientation.getAsBoolean(), true, true);
-    }
-
-    /** used in tests **/
-    GeoMatchProcessor(
-        String tag,
-        String description,
-        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
-        String policyName,
-        TemplateScript.Factory field,
-        TemplateScript.Factory targetField,
-        boolean overrideEnabled,
-        boolean ignoreMissing,
-        String matchField,
-        int maxMatches,
-        ShapeRelation shapeRelation,
-        ShapeBuilder.Orientation orientation
+        Orientation orientation
     ) {
         super(tag, description, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;

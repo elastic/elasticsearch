@@ -13,10 +13,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.junit.Before;
 
-import javax.crypto.KeyGenerator;
-
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+
+import javax.crypto.KeyGenerator;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -28,9 +28,7 @@ public class CryptoServiceTests extends ESTestCase {
     public void init() throws Exception {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), generateKey());
-        settings = Settings.builder()
-                .setSecureSettings(mockSecureSettings)
-                .build();
+        settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
     }
 
     public void testEncryptionAndDecryptionChars() throws Exception {

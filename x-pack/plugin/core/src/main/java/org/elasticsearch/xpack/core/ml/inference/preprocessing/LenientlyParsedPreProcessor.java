@@ -9,5 +9,4 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 /**
  * To be used in conjunction with a lenient parser.
  */
-public interface LenientlyParsedPreProcessor extends PreProcessor {
-}
+public interface LenientlyParsedPreProcessor extends PreProcessor {}

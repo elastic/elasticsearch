@@ -22,16 +22,17 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
     public void testSqlAction() {
         assertAcked(client().admin().indices().prepareCreate("test").get());
         client().prepareBulk()
-                .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
-                .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+            .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
+            .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
         ensureYellow("test");
 
         boolean dataBeforeCount = randomBoolean();
         String columns = dataBeforeCount ? "data, count" : "count, data";
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-                .query("SELECT " + columns + " FROM test ORDER BY count").mode(Mode.JDBC).version(Version.CURRENT.toString()).get();
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(
+            "SELECT " + columns + " FROM test ORDER BY count"
+        ).mode(Mode.JDBC).version(Version.CURRENT.toString()).get();
         assertThat(response.size(), equalTo(2L));
         assertThat(response.columns(), hasSize(2));
         int dataIndex = dataBeforeCount ? 0 : 1;
@@ -47,16 +48,18 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
     }
 
     public void testSqlActionCurrentVersion() {
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-            .query("SELECT true").mode(randomFrom(Mode.CLI, Mode.JDBC)).version(Version.CURRENT.toString()).get();
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT true")
+            .mode(randomFrom(Mode.CLI, Mode.JDBC))
+            .version(Version.CURRENT.toString())
+            .get();
         assertThat(response.size(), equalTo(1L));
         assertEquals(true, response.rows().get(0).get(0));
     }
 
     public void testSqlActionOutdatedVersion() {
-        SqlQueryRequestBuilder request = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-            .query("SELECT true").mode(randomFrom(Mode.CLI, Mode.JDBC)).version("1.2.3");
+        SqlQueryRequestBuilder request = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT true")
+            .mode(randomFrom(Mode.CLI, Mode.JDBC))
+            .version("1.2.3");
         assertRequestBuilderThrows(request, org.elasticsearch.action.ActionRequestValidationException.class);
     }
 }
-

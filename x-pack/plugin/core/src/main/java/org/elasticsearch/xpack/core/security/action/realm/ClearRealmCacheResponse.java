@@ -14,12 +14,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheResponse.Node> implements ToXContentFragment {
 
@@ -63,7 +64,8 @@ public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheRe
             builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+            return String.format(Locale.ROOT, """
+                { "error" : "%s" }""", e.getMessage());
         }
     }
 

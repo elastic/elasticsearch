@@ -1,0 +1,23 @@
+[role="exclude"]
+
+["source","sh",subs="attributes"]
+----
+The generated password for the elastic built-in superuser is:
+<password>
+
+The enrollment token for Kibana instances, valid for the next 30 minutes:
+<enrollment-token>
+
+The hex-encoded SHA-256 fingerprint of the generated HTTPS CA DER-encoded certificate:
+<fingerprint>
+
+You can complete the following actions at any time:
+Reset the password of the elastic built-in superuser with
+'bin{slash}elasticsearch-reset-password -u elastic'.
+
+Generate an enrollment token for Kibana instances with
+'bin{slash}elasticsearch-create-enrollment-token -s kibana'.
+
+Generate an enrollment token for Elasticsearch nodes with
+'bin{slash}elasticsearch-create-enrollment-token -s node'.
+----

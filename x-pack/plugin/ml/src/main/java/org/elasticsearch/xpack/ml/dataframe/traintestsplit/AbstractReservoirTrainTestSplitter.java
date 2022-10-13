@@ -24,8 +24,7 @@ abstract class AbstractReservoirTrainTestSplitter implements TrainTestSplitter {
     private final double samplingRatio;
     private final Random random;
 
-    AbstractReservoirTrainTestSplitter(List<String> fieldNames, String dependentVariable, double trainingPercent,
-                                       long randomizeSeed) {
+    AbstractReservoirTrainTestSplitter(List<String> fieldNames, String dependentVariable, double trainingPercent, long randomizeSeed) {
         assert trainingPercent >= 1.0 && trainingPercent <= 100.0;
         this.dependentVariableIndex = findDependentVariableIndex(fieldNames, dependentVariable);
         this.samplingRatio = trainingPercent / 100.0;

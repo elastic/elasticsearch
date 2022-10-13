@@ -14,6 +14,7 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
 import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 import com.microsoft.windowsazure.management.compute.models.RoleInstancePowerState;
+
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Discovery;
@@ -50,9 +51,9 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "azure");
 
         // We add a fake subscription_id to start mock compute service
@@ -145,21 +146,23 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
          * network addresses for Azure instances running on the same host but different ports.
          */
         @Override
-        protected AzureSeedHostsProvider createSeedHostsProvider(final Settings settings,
-                                                                 final AzureComputeService azureComputeService,
-                                                                 final TransportService transportService,
-                                                                 final NetworkService networkService) {
-            return new AzureSeedHostsProvider(settings, azureComputeService, transportService, networkService) {
+        protected AzureSeedHostsProvider createSeedHostsProvider(
+            final Settings settingsToUse,
+            final AzureComputeService azureComputeService,
+            final TransportService transportService,
+            final NetworkService networkService
+        ) {
+            return new AzureSeedHostsProvider(settingsToUse, azureComputeService, transportService, networkService) {
                 @Override
-                protected String resolveInstanceAddress(final HostType hostType, final RoleInstance instance) {
-                    if (hostType == HostType.PRIVATE_IP) {
+                protected String resolveInstanceAddress(final HostType hostTypeValue, final RoleInstance instance) {
+                    if (hostTypeValue == HostType.PRIVATE_IP) {
                         DiscoveryNode discoveryNode = nodes.get(instance.getInstanceName());
                         if (discoveryNode != null) {
                             // Format the InetSocketAddress to a format that contains the port number
                             return NetworkAddress.format(discoveryNode.getAddress().address());
                         }
                     }
-                    return super.resolveInstanceAddress(hostType, instance);
+                    return super.resolveInstanceAddress(hostTypeValue, instance);
                 }
             };
         }

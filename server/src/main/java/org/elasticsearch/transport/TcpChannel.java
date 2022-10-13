@@ -11,10 +11,9 @@ package org.elasticsearch.transport;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.net.InetSocketAddress;
-
 
 /**
  * This is a tcp channel representing a single channel connection to another node. It is the base channel

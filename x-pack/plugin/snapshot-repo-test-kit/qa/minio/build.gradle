@@ -7,23 +7,19 @@
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:minio-fixture')
-final Project repositoryPlugin = project(':plugins:repository-s3')
 
 dependencies {
-  testImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
-  testImplementation repositoryPlugin
+  javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'snapshot_repo_test_kit'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'snapshot_repo_test_kit'
   }
 }
 
@@ -34,18 +30,19 @@ def fixtureAddress = {
   '127.0.0.1:' + ephemeralPort
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   systemProperty 'test.minio.bucket', 'bucket'
   systemProperty 'test.minio.base_path', 'repository_test_kit_tests'
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.path
 
   keystore 's3.client.repository_test_kit.access_key', 's3_test_access_key'
   keystore 's3.client.repository_test_kit.secret_key', 's3_test_secret_key'
   setting 's3.client.repository_test_kit.protocol', 'http'
   setting 's3.client.repository_test_kit.endpoint', { "${-> fixtureAddress()}" }, IGNORE_VALUE
+
+  setting 'xpack.security.enabled', 'false'
 }
 

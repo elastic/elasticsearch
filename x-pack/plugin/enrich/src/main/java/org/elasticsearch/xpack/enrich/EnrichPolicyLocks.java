@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 /**
  * A coordination object that allows multiple distinct polices to be executed concurrently, but also makes sure that a single

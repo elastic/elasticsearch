@@ -10,15 +10,16 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+
+import java.util.Map;
 
 public class SnapshotShardSizeInfo {
 
-    public static final SnapshotShardSizeInfo EMPTY = new SnapshotShardSizeInfo(ImmutableOpenMap.of());
+    public static final SnapshotShardSizeInfo EMPTY = new SnapshotShardSizeInfo(Map.of());
 
-    private final ImmutableOpenMap<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes;
+    private final Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes;
 
-    public SnapshotShardSizeInfo(ImmutableOpenMap<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes) {
+    public SnapshotShardSizeInfo(Map<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShardSizes) {
         this.snapshotShardSizes = snapshotShardSizes;
     }
 
@@ -26,10 +27,15 @@ public class SnapshotShardSizeInfo {
         if (shardRouting.primary()
             && shardRouting.active() == false
             && shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-            final RecoverySource.SnapshotRecoverySource snapshotRecoverySource =
-                (RecoverySource.SnapshotRecoverySource) shardRouting.recoverySource();
-            return snapshotShardSizes.get(new InternalSnapshotsInfoService.SnapshotShard(
-                snapshotRecoverySource.snapshot(), snapshotRecoverySource.index(), shardRouting.shardId()));
+            final RecoverySource.SnapshotRecoverySource snapshotRecoverySource = (RecoverySource.SnapshotRecoverySource) shardRouting
+                .recoverySource();
+            return snapshotShardSizes.get(
+                new InternalSnapshotsInfoService.SnapshotShard(
+                    snapshotRecoverySource.snapshot(),
+                    snapshotRecoverySource.index(),
+                    shardRouting.shardId()
+                )
+            );
         }
         assert false : "Expected shard with snapshot recovery source but was " + shardRouting;
         return null;

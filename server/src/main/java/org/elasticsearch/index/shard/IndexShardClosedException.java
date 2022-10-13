@@ -21,7 +21,7 @@ public class IndexShardClosedException extends IllegalIndexShardStateException {
         super(shardId, IndexShardState.CLOSED, message);
     }
 
-    public IndexShardClosedException(StreamInput in) throws IOException{
+    public IndexShardClosedException(StreamInput in) throws IOException {
         super(in);
     }
 }

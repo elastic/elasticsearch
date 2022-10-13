@@ -15,7 +15,7 @@
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "text": "뿌리가 깊은 나무는" }
   - do:
       indices.refresh: {}

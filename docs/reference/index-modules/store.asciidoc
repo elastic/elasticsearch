@@ -48,6 +48,8 @@ supported systems but is subject to change.
 
 [[simplefs]]`simplefs`::
 
+deprecated::[7.15,"simplefs is deprecated and will be removed in 8.0. Use niofs or other file systems instead. Elasticsearch 7.15 or later uses niofs for the simplefs store type as it offers superior or equivalent performance to simplefs."]
+
 The Simple FS type is a straightforward implementation of file system
 storage (maps to Lucene `SimpleFsDirectory`) using a random access file.
 This implementation has poor concurrent performance (multiple threads

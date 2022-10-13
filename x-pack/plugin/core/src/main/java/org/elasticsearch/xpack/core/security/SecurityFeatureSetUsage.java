@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -30,6 +30,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     private static final String ANONYMOUS_XFIELD = "anonymous";
     private static final String FIPS_140_XFIELD = "fips_140";
     private static final String OPERATOR_PRIVILEGES_XFIELD = XPackField.OPERATOR_PRIVILEGES;
+    private static final String DOMAINS_XFIELD = "domains";
+    private static final String USER_PROFILE_XFIELD = "user_profile";
 
     private Map<String, Object> realmsUsage;
     private Map<String, Object> rolesStoreUsage;
@@ -42,6 +44,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     private Map<String, Object> roleMappingStoreUsage;
     private Map<String, Object> fips140Usage;
     private Map<String, Object> operatorPrivilegesUsage;
+    private Map<String, Object> domainsUsage;
+    private Map<String, Object> userProfileUsage;
 
     public SecurityFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
@@ -62,14 +66,30 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
             operatorPrivilegesUsage = in.readMap();
         }
+        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+            domainsUsage = in.readMap();
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            userProfileUsage = in.readMap();
+        }
     }
 
-    public SecurityFeatureSetUsage(boolean enabled, Map<String, Object> realmsUsage,
-                                   Map<String, Object> rolesStoreUsage, Map<String, Object> roleMappingStoreUsage,
-                                   Map<String, Object> sslUsage, Map<String, Object> auditUsage,
-                                   Map<String, Object> ipFilterUsage, Map<String, Object> anonymousUsage,
-                                   Map<String, Object> tokenServiceUsage, Map<String, Object> apiKeyServiceUsage,
-                                   Map<String, Object> fips140Usage, Map<String, Object> operatorPrivilegesUsage) {
+    public SecurityFeatureSetUsage(
+        boolean enabled,
+        Map<String, Object> realmsUsage,
+        Map<String, Object> rolesStoreUsage,
+        Map<String, Object> roleMappingStoreUsage,
+        Map<String, Object> sslUsage,
+        Map<String, Object> auditUsage,
+        Map<String, Object> ipFilterUsage,
+        Map<String, Object> anonymousUsage,
+        Map<String, Object> tokenServiceUsage,
+        Map<String, Object> apiKeyServiceUsage,
+        Map<String, Object> fips140Usage,
+        Map<String, Object> operatorPrivilegesUsage,
+        Map<String, Object> domainsUsage,
+        Map<String, Object> userProfileUsage
+    ) {
         super(XPackField.SECURITY, true, enabled);
         this.realmsUsage = realmsUsage;
         this.rolesStoreUsage = rolesStoreUsage;
@@ -82,6 +102,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         this.anonymousUsage = anonymousUsage;
         this.fips140Usage = fips140Usage;
         this.operatorPrivilegesUsage = operatorPrivilegesUsage;
+        this.domainsUsage = domainsUsage;
+        this.userProfileUsage = userProfileUsage;
     }
 
     @Override
@@ -92,22 +114,28 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(realmsUsage);
-        out.writeMap(rolesStoreUsage);
-        out.writeMap(sslUsage);
+        out.writeGenericMap(realmsUsage);
+        out.writeGenericMap(rolesStoreUsage);
+        out.writeGenericMap(sslUsage);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeMap(tokenServiceUsage);
-            out.writeMap(apiKeyServiceUsage);
+            out.writeGenericMap(tokenServiceUsage);
+            out.writeGenericMap(apiKeyServiceUsage);
         }
-        out.writeMap(auditUsage);
-        out.writeMap(ipFilterUsage);
-        out.writeMap(anonymousUsage);
-        out.writeMap(roleMappingStoreUsage);
+        out.writeGenericMap(auditUsage);
+        out.writeGenericMap(ipFilterUsage);
+        out.writeGenericMap(anonymousUsage);
+        out.writeGenericMap(roleMappingStoreUsage);
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeMap(fips140Usage);
+            out.writeGenericMap(fips140Usage);
         }
         if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            out.writeMap(operatorPrivilegesUsage);
+            out.writeGenericMap(operatorPrivilegesUsage);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+            out.writeGenericMap(domainsUsage);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            out.writeGenericMap(userProfileUsage);
         }
     }
 
@@ -126,6 +154,12 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field(ANONYMOUS_XFIELD, anonymousUsage);
             builder.field(FIPS_140_XFIELD, fips140Usage);
             builder.field(OPERATOR_PRIVILEGES_XFIELD, operatorPrivilegesUsage);
+            if (domainsUsage != null && false == domainsUsage.isEmpty()) {
+                builder.field(DOMAINS_XFIELD, domainsUsage);
+            }
+            if (userProfileUsage != null && false == userProfileUsage.isEmpty()) {
+                builder.field(USER_PROFILE_XFIELD, userProfileUsage);
+            }
         } else if (sslUsage.isEmpty() == false) {
             // A trial (or basic) license can have SSL without security.
             // This is because security defaults to disabled on that license, but that dynamic-default does not disable SSL.

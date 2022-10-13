@@ -15,8 +15,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
-
 public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_user";
@@ -32,8 +30,7 @@ public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlS
         return true;
     }
 
-    public MultiClusterSearchWithSecurityYamlTestSuiteIT(
-            @Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public MultiClusterSearchWithSecurityYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
@@ -45,9 +42,6 @@ public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlS
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }
-

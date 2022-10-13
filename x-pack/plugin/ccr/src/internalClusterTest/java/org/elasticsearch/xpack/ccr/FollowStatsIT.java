@@ -9,12 +9,9 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -40,40 +37,34 @@ import static org.hamcrest.collection.IsEmptyCollection.empty;
 public class FollowStatsIT extends CcrSingleNodeTestCase {
 
     /**
-     * Previously we would throw a NullPointerException when there was no persistent tasks metadata in the cluster state. This tests
-     * maintains that we do not make this mistake again.
+     * This test ensures no errors occur when there are no related persistent tasks metadata in the cluster state.
      *
      * @throws InterruptedException if we are interrupted waiting on the latch to countdown
      */
     public void testStatsWhenNoPersistentTasksMetadataExists() throws InterruptedException {
-        final ClusterStateResponse response = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
-        assertNull(response.getState().metadata().custom(PersistentTasksCustomMetadata.TYPE));
         final AtomicBoolean onResponse = new AtomicBoolean();
         final CountDownLatch latch = new CountDownLatch(1);
-        client().execute(
-                FollowStatsAction.INSTANCE,
-                new FollowStatsAction.StatsRequest(),
-                new ActionListener<FollowStatsAction.StatsResponses>() {
-                    @Override
-                    public void onResponse(final FollowStatsAction.StatsResponses statsResponses) {
-                        try {
-                            assertThat(statsResponses.getTaskFailures(), empty());
-                            assertThat(statsResponses.getNodeFailures(), empty());
-                            onResponse.set(true);
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
+        client().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest(), new ActionListener<>() {
+            @Override
+            public void onResponse(final FollowStatsAction.StatsResponses statsResponses) {
+                try {
+                    assertThat(statsResponses.getTaskFailures(), empty());
+                    assertThat(statsResponses.getNodeFailures(), empty());
+                    onResponse.set(true);
+                } finally {
+                    latch.countDown();
+                }
+            }
 
-                    @Override
-                    public void onFailure(final Exception e) {
-                        try {
-                            fail(e.toString());
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-                });
+            @Override
+            public void onFailure(final Exception e) {
+                try {
+                    fail(e.toString());
+                } finally {
+                    latch.countDown();
+                }
+            }
+        });
         latch.await();
         assertTrue(onResponse.get());
     }
@@ -92,18 +83,18 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
-        statsRequest.setIndices(new String[] {"follower1"});
+        statsRequest.setIndices(new String[] { "follower1" });
         FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(response.getStatsResponses().size(), equalTo(1));
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
 
         statsRequest = new FollowStatsAction.StatsRequest();
-        statsRequest.setIndices(new String[] {"follower2"});
+        statsRequest.setIndices(new String[] { "follower2" });
         response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(response.getStatsResponses().size(), equalTo(1));
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower2"));
 
-        response = client().execute(FollowStatsAction.INSTANCE,  new FollowStatsAction.StatsRequest()).actionGet();
+        response = client().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
         assertThat(response.getStatsResponses().size(), equalTo(2));
         response.getStatsResponses().sort(Comparator.comparing(o -> o.status().followerIndex()));
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
@@ -113,8 +104,10 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower2")).actionGet());
 
         assertBusy(() -> {
-            List<FollowStatsAction.StatsResponse> responseList =
-                client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet().getFollowStats().getStatsResponses();
+            List<FollowStatsAction.StatsResponse> responseList = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request())
+                .actionGet()
+                .getFollowStats()
+                .getStatsResponses();
             assertThat(responseList.size(), equalTo(0));
         });
     }
@@ -124,9 +117,11 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         FollowStatsAction.StatsResponses response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(response.getStatsResponses().size(), equalTo(0));
 
-        statsRequest.setIndices(new String[] {"follower1"});
-        Exception e = expectThrows(ResourceNotFoundException.class,
-            () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet());
+        statsRequest.setIndices(new String[] { "follower1" });
+        Exception e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet()
+        );
         assertThat(e.getMessage(), equalTo("No shard follow tasks for follower indices [follower1]"));
 
         final String leaderIndexSettings = getIndexSettings(1, 0, Collections.emptyMap());
@@ -140,9 +135,8 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         assertThat(response.getStatsResponses().size(), equalTo(1));
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
 
-        statsRequest.setIndices(new String[] {"follower2"});
-        e = expectThrows(ResourceNotFoundException.class,
-            () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet());
+        statsRequest.setIndices(new String[] { "follower2" });
+        e = expectThrows(ResourceNotFoundException.class, () -> client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet());
         assertThat(e.getMessage(), equalTo("No shard follow tasks for follower indices [follower2]"));
 
         assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
@@ -162,7 +156,7 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
 
         statsRequest = new FollowStatsAction.StatsRequest();
-        statsRequest.setIndices(new String[] {"follower1"});
+        statsRequest.setIndices(new String[] { "follower1" });
         response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(response.getStatsResponses().size(), equalTo(1));
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
@@ -190,7 +184,7 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
 
         statsRequest = new FollowStatsAction.StatsRequest();
-        statsRequest.setIndices(new String[] {"follower1"});
+        statsRequest.setIndices(new String[] { "follower1" });
         response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(response.getStatsResponses().size(), equalTo(1));
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
@@ -203,7 +197,7 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));
 
         statsRequest = new FollowStatsAction.StatsRequest();
-        statsRequest.setIndices(new String[] {"follower1"});
+        statsRequest.setIndices(new String[] { "follower1" });
         response = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(response.getStatsResponses().size(), equalTo(1));
         assertThat(response.getStatsResponses().get(0).status().followerIndex(), equalTo("follower1"));

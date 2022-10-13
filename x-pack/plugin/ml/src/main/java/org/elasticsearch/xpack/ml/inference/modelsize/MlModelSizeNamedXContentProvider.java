@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
@@ -20,18 +20,10 @@ public class MlModelSizeNamedXContentProvider implements NamedXContentProvider {
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
         return Arrays.asList(
-            new NamedXContentRegistry.Entry(PreprocessorSize.class,
-                FrequencyEncoding.NAME,
-                FrequencyEncodingSize::fromXContent),
-            new NamedXContentRegistry.Entry(PreprocessorSize.class,
-                OneHotEncoding.NAME,
-                OneHotEncodingSize::fromXContent),
-            new NamedXContentRegistry.Entry(PreprocessorSize.class,
-                TargetMeanEncoding.NAME,
-                TargetMeanEncodingSize::fromXContent),
-            new NamedXContentRegistry.Entry(TrainedModelSizeInfo.class,
-                EnsembleSizeInfo.NAME,
-                EnsembleSizeInfo::fromXContent)
+            new NamedXContentRegistry.Entry(PreprocessorSize.class, FrequencyEncoding.NAME, FrequencyEncodingSize::fromXContent),
+            new NamedXContentRegistry.Entry(PreprocessorSize.class, OneHotEncoding.NAME, OneHotEncodingSize::fromXContent),
+            new NamedXContentRegistry.Entry(PreprocessorSize.class, TargetMeanEncoding.NAME, TargetMeanEncodingSize::fromXContent),
+            new NamedXContentRegistry.Entry(TrainedModelSizeInfo.class, EnsembleSizeInfo.NAME, EnsembleSizeInfo::fromXContent)
         );
     }
 }

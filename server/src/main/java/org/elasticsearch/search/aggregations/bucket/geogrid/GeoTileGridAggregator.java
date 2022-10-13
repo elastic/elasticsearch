@@ -24,15 +24,27 @@ import java.util.Map;
  */
 public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid> {
 
-    public GeoTileGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
-                                 int requiredSize, int shardSize, AggregationContext context,
-                                 Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
+    public GeoTileGridAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        int requiredSize,
+        int shardSize,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, valuesSource, requiredSize, shardSize, context, parent, cardinality, metadata);
     }
 
     @Override
-    InternalGeoTileGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets,
-                                         Map<String, Object> metadata) {
+    protected InternalGeoTileGrid buildAggregation(
+        String name,
+        int requiredSize,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
+    ) {
         return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
@@ -41,7 +53,7 @@ public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid
         return new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metadata());
     }
 
-    InternalGeoGridBucket newEmptyBucket() {
+    protected InternalGeoGridBucket newEmptyBucket() {
         return new InternalGeoTileGridBucket(0, 0, null);
     }
 }

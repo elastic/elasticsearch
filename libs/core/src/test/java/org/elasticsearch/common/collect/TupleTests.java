@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.collect;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -31,6 +32,6 @@ public class TupleTests extends ESTestCase {
         assertNotEquals(t3, t4);
         assertNotEquals(t1, t5);
 
-        assertThat(t1.toString(), equalTo("Tuple [v1=2, v2=foo]"));
+        assertThat(t1.toString(), equalTo("Tuple[v1=2, v2=foo]"));
     }
 }

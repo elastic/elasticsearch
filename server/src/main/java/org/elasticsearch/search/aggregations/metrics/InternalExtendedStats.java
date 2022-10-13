@@ -9,9 +9,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,24 +27,48 @@ import java.util.stream.Stream;
 public class InternalExtendedStats extends InternalStats implements ExtendedStats {
     enum Metrics {
 
-        count, sum, min, max, avg, sum_of_squares, variance, variance_population, variance_sampling,
-        std_deviation, std_deviation_population, std_deviation_sampling, std_upper, std_lower, std_upper_population, std_lower_population,
-        std_upper_sampling, std_lower_sampling;
+        count,
+        sum,
+        min,
+        max,
+        avg,
+        sum_of_squares,
+        variance,
+        variance_population,
+        variance_sampling,
+        std_deviation,
+        std_deviation_population,
+        std_deviation_sampling,
+        std_upper,
+        std_lower,
+        std_upper_population,
+        std_lower_population,
+        std_upper_sampling,
+        std_lower_sampling;
 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
         }
     }
 
-    private static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
+    static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
         Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet())
     );
 
     private final double sumOfSqrs;
     private final double sigma;
 
-    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
-                                 DocValueFormat formatter, Map<String, Object> metadata) {
+    public InternalExtendedStats(
+        String name,
+        long count,
+        double sum,
+        double min,
+        double max,
+        double sumOfSqrs,
+        double sigma,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, count, sum, min, max, formatter, metadata);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
@@ -133,14 +159,14 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public double getVariancePopulation() {
-        double variance =  (sumOfSqrs - ((sum * sum) / count)) / count;
-        return variance < 0  ? 0 : variance;
+        double variance = (sumOfSqrs - ((sum * sum) / count)) / count;
+        return variance < 0 ? 0 : variance;
     }
 
     @Override
     public double getVarianceSampling() {
-        double variance =  (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
-        return variance < 0  ? 0 : variance;
+        double variance = (sumOfSqrs - ((sum * sum) / count)) / (count - 1);
+        return variance < 0 ? 0 : variance;
     }
 
     @Override
@@ -160,20 +186,12 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public double getStdDeviationBound(Bounds bound) {
-        switch (bound) {
-            case UPPER:
-            case UPPER_POPULATION:
-                return getAvg() + (getStdDeviationPopulation() * sigma);
-            case UPPER_SAMPLING:
-                return getAvg() + (getStdDeviationSampling() * sigma);
-            case LOWER:
-            case LOWER_POPULATION:
-                return getAvg() - (getStdDeviationPopulation() * sigma);
-            case LOWER_SAMPLING:
-                return getAvg() - (getStdDeviationSampling() * sigma);
-            default:
-                throw new IllegalArgumentException("Unknown bounds type " + bound);
-        }
+        return switch (bound) {
+            case UPPER, UPPER_POPULATION -> getAvg() + (getStdDeviationPopulation() * sigma);
+            case UPPER_SAMPLING -> getAvg() + (getStdDeviationSampling() * sigma);
+            case LOWER, LOWER_POPULATION -> getAvg() - (getStdDeviationPopulation() * sigma);
+            case LOWER_SAMPLING -> getAvg() - (getStdDeviationSampling() * sigma);
+        };
     }
 
     @Override
@@ -213,26 +231,18 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public String getStdDeviationBoundAsString(Bounds bound) {
-        switch (bound) {
-            case UPPER:
-                return valueAsString(Metrics.std_upper.name());
-            case LOWER:
-                return valueAsString(Metrics.std_lower.name());
-            case UPPER_POPULATION:
-                return valueAsString(Metrics.std_upper_population.name());
-            case LOWER_POPULATION:
-                return valueAsString(Metrics.std_lower_population.name());
-            case UPPER_SAMPLING:
-                return valueAsString(Metrics.std_upper_sampling.name());
-            case LOWER_SAMPLING:
-                return valueAsString(Metrics.std_lower_sampling.name());
-            default:
-                throw new IllegalArgumentException("Unknown bounds type " + bound);
-        }
+        return switch (bound) {
+            case UPPER -> valueAsString(Metrics.std_upper.name());
+            case LOWER -> valueAsString(Metrics.std_lower.name());
+            case UPPER_POPULATION -> valueAsString(Metrics.std_upper_population.name());
+            case LOWER_POPULATION -> valueAsString(Metrics.std_lower_population.name());
+            case UPPER_SAMPLING -> valueAsString(Metrics.std_upper_sampling.name());
+            case LOWER_SAMPLING -> valueAsString(Metrics.std_lower_sampling.name());
+        };
     }
 
     @Override
-    public InternalExtendedStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalExtendedStats reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         double sumOfSqrs = 0;
         double compensationOfSqrs = 0;
         for (InternalAggregation aggregation : aggregations) {
@@ -251,8 +261,32 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             }
         }
         final InternalStats stats = super.reduce(aggregations, reduceContext);
-        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
-            format, getMetadata());
+        return new InternalExtendedStats(
+            name,
+            stats.getCount(),
+            stats.getSum(),
+            stats.getMin(),
+            stats.getMax(),
+            sumOfSqrs,
+            sigma,
+            format,
+            getMetadata()
+        );
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalExtendedStats(
+            name,
+            samplingContext.scaleUp(count),
+            samplingContext.scaleUp(sum),
+            min,
+            max,
+            samplingContext.scaleUp(sumOfSqrs),
+            sigma,
+            format,
+            getMetadata()
+        );
     }
 
     static class Fields {
@@ -353,7 +387,6 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         if (super.equals(obj) == false) return false;
 
         InternalExtendedStats other = (InternalExtendedStats) obj;
-        return Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 &&
-            Double.compare(sigma, other.sigma) == 0;
+        return Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 && Double.compare(sigma, other.sigma) == 0;
     }
 }

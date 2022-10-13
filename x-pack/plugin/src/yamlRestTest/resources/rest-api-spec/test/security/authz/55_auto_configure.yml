@@ -1,0 +1,82 @@
+---
+setup:
+  - skip:
+      features: ["headers", "allowed_warnings"]
+      version: " - 7.8.99"
+      reason: "auto_configure available in 7.9+"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "ingest_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["index-auto-configure"], "privileges": ["create_doc", "auto_configure"] },
+              { "names": ["index-limited"], "privileges": ["create_doc"] }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "ingest_role" ],
+            "full_name" : "user with privileges on data streams but not backing indices"
+          }
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [index*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [index*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "ingest_role"
+        ignore: 404
+
+---
+"auto_configure privilege permits auto-create of indices":
+  - skip:
+      version: " - 7.8.99"
+      reason: "auto_configure available in 7.9+"
+      features: ["headers", "allowed_warnings"]
+
+  # should succeed because test_user is authorized for auto_configure on index-auto-configure
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  index-auto-configure
+        id:       "1"
+        op_type:  create
+        body:   { foo: bar, "@timestamp": "2020-12-12" }
+
+  # should fail because test_user is not authorized for auto_configure on index-limited
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  index-limited
+        id:       "1"
+        op_type:  create
+        body:   { "@timestamp": "2020-12-12" }

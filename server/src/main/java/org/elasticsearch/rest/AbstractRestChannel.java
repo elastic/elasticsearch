@@ -7,17 +7,20 @@
  */
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.ParsedMediaType;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParsedMediaType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +29,8 @@ import java.util.function.Predicate;
 import static java.util.stream.Collectors.toSet;
 
 public abstract class AbstractRestChannel implements RestChannel {
+
+    private static final Logger logger = LogManager.getLogger(AbstractRestChannel.class);
 
     private static final Predicate<String> INCLUDE_FILTER = f -> f.charAt(0) != '-';
     private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();
@@ -38,7 +43,7 @@ public abstract class AbstractRestChannel implements RestChannel {
     private final boolean human;
     private final String acceptHeader;
 
-    private BytesStreamOutput bytesOut;
+    private BytesStream bytesOut;
 
     /**
      * Construct a channel for handling the request.
@@ -64,6 +69,8 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     @Override
     public XContentBuilder newErrorBuilder() throws IOException {
+        // release whatever output we already buffered and write error response to fresh buffer
+        releaseOutputBuffer();
         // Disable filtering when building error responses
         return newBuilder(request.getXContentType(), false);
     }
@@ -86,8 +93,31 @@ public abstract class AbstractRestChannel implements RestChannel {
      * is {@code null}.
      */
     @Override
-    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
-            boolean useFiltering) throws IOException {
+    public XContentBuilder newBuilder(
+        @Nullable XContentType requestContentType,
+        @Nullable XContentType responseContentType,
+        boolean useFiltering
+    ) throws IOException {
+        return newBuilder(
+            requestContentType,
+            responseContentType,
+            useFiltering,
+            org.elasticsearch.common.io.Streams.flushOnCloseStream(bytesOutput())
+        );
+    }
+
+    /**
+     * Creates a new {@link XContentBuilder} for a response to be sent using this channel. The builder's type can be sent as a parameter,
+     * through {@code responseContentType} or it can fallback to {@link #newBuilder(XContentType, boolean)} logic if the sent type value
+     * is {@code null}.
+     */
+    @Override
+    public XContentBuilder newBuilder(
+        @Nullable XContentType requestContentType,
+        @Nullable XContentType responseContentType,
+        boolean useFiltering,
+        OutputStream outputStream
+    ) throws IOException {
 
         if (responseContentType == null) {
             if (Strings.hasText(format)) {
@@ -118,15 +148,19 @@ public abstract class AbstractRestChannel implements RestChannel {
             excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
         }
 
-        OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
-
-        Map<String, String> parameters = request.getParsedAccept() != null ?
-            request.getParsedAccept().getParameters() : Collections.emptyMap();
+        Map<String, String> parameters = request.getParsedAccept() != null
+            ? request.getParsedAccept().getParameters()
+            : Collections.emptyMap();
         ParsedMediaType responseMediaType = ParsedMediaType.parseMediaType(responseContentType, parameters);
 
-        XContentBuilder builder =
-            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
-                includes, excludes, responseMediaType);
+        XContentBuilder builder = new XContentBuilder(
+            XContentFactory.xContent(responseContentType),
+            outputStream,
+            includes,
+            excludes,
+            responseMediaType,
+            request.getRestApiVersion()
+        );
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }
@@ -137,28 +171,36 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     /**
      * A channel level bytes output that can be reused. The bytes output is lazily instantiated
-     * by a call to {@link #newBytesOutput()}. Once the stream is created, it gets reset on each
-     * call to this method.
+     * by a call to {@link #newBytesOutput()}. This method should only be called once per request.
      */
     @Override
-    public final BytesStreamOutput bytesOutput() {
-        if (bytesOut == null) {
-            bytesOut = newBytesOutput();
-        } else {
-            bytesOut.reset();
+    public final BytesStream bytesOutput() {
+        if (bytesOut != null) {
+            // fallback in case of encountering a bug, release the existing buffer if any (to avoid leaking memory) and acquire a new one
+            // to send out an error response
+            assert false : "getting here is always a bug";
+            logger.error("channel handling [{}] reused", request.rawPath());
+            releaseOutputBuffer();
         }
+        bytesOut = newBytesOutput();
         return bytesOut;
     }
 
-    /**
-     * An accessor to the raw value of the channel bytes output. This method will not instantiate
-     * a new stream if one does not exist and this method will not reset the stream.
-     */
-    protected final BytesStreamOutput bytesOutputOrNull() {
-        return bytesOut;
+    @Override
+    public final void releaseOutputBuffer() {
+        if (bytesOut != null) {
+            try {
+                bytesOut.close();
+            } catch (IOException e) {
+                // should never throw
+                assert false : e;
+                throw new UncheckedIOException(e);
+            }
+            bytesOut = null;
+        }
     }
 
-    protected BytesStreamOutput newBytesOutput() {
+    protected BytesStream newBytesOutput() {
         return new BytesStreamOutput();
     }
 

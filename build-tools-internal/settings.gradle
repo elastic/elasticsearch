@@ -1,0 +1,7 @@
+dependencyResolutionManagement {
+    versionCatalogs {
+        buildLibs {
+            from(files("../gradle/build.versions.toml"))
+        }
+    }
+}

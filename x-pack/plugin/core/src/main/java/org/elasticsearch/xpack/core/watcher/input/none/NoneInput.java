@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.watcher.input.none;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 
@@ -19,8 +19,7 @@ public class NoneInput implements Input {
     public static final String TYPE = "none";
     public static final NoneInput INSTANCE = new NoneInput();
 
-    private NoneInput() {
-    }
+    private NoneInput() {}
 
     @Override
     public String type() {
@@ -66,8 +65,7 @@ public class NoneInput implements Input {
 
         private static final Builder INSTANCE = new Builder();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         @Override
         public NoneInput build() {

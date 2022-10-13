@@ -33,14 +33,11 @@ public enum Scheme {
     public static Scheme parse(String value) {
         Objects.requireNonNull(value, "Scheme should not be Null");
         value = value.toLowerCase(Locale.ROOT);
-        switch (value) {
-            case "http":
-                return HTTP;
-            case "https":
-                return HTTPS;
-            default:
-                throw new IllegalArgumentException("unsupported http scheme [" + value + "]");
-        }
+        return switch (value) {
+            case "http" -> HTTP;
+            case "https" -> HTTPS;
+            default -> throw new IllegalArgumentException("unsupported http scheme [" + value + "]");
+        };
     }
 
     public String value() {

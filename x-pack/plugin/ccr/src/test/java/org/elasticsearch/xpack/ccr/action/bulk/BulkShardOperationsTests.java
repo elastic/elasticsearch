@@ -11,7 +11,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -34,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BulkShardOperationsTests extends IndexShardTestCase {
 
-    private static final byte[] SOURCE = "{}".getBytes(StandardCharsets.UTF_8);
+    private static final BytesReference SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
 
     // test that we use the primary term on the follower when applying operations from the leader
     public void testPrimaryTermFromFollower() throws IOException {
@@ -49,31 +52,35 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         for (int i = 0; i < numOps; i++) {
             final String id = Integer.toString(i);
             final long seqNo = i;
-            final Translog.Operation.Type type =
-                    randomValueOtherThan(Translog.Operation.Type.CREATE, () -> randomFrom(Translog.Operation.Type.values()));
+            final Translog.Operation.Type type = randomValueOtherThan(
+                Translog.Operation.Type.CREATE,
+                () -> randomFrom(Translog.Operation.Type.values())
+            );
             switch (type) {
-                case INDEX:
-                    operations.add(new Translog.Index(id, seqNo, primaryTerm, 0, SOURCE, null, -1));
-                    break;
-                case DELETE:
-                    operations.add(
-                        new Translog.Delete(id, seqNo, primaryTerm, 0));
-                    break;
-                case NO_OP:
-                    operations.add(new Translog.NoOp(seqNo, primaryTerm, "test"));
-                    break;
-                default:
-                    throw new IllegalStateException("unexpected operation type [" + type + "]");
+                case INDEX -> operations.add(new Translog.Index(id, seqNo, primaryTerm, 0, SOURCE, null, -1));
+                case DELETE -> operations.add(new Translog.Delete(id, seqNo, primaryTerm, 0));
+                case NO_OP -> operations.add(new Translog.NoOp(seqNo, primaryTerm, "test"));
+                default -> throw new IllegalStateException("unexpected operation type [" + type + "]");
             }
         }
 
         final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> result =
-            TransportBulkShardOperationsAction.shardOperationOnPrimary(followerPrimary.shardId(), followerPrimary.getHistoryUUID(),
-                    operations,
-                numOps - 1, followerPrimary, logger);
+            TransportBulkShardOperationsAction.shardOperationOnPrimary(
+                followerPrimary.shardId(),
+                followerPrimary.getHistoryUUID(),
+                operations,
+                numOps - 1,
+                followerPrimary,
+                logger
+            );
 
-        try (Translog.Snapshot snapshot = followerPrimary.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
-            assertThat(snapshot.totalOperations(), equalTo(operations.size()));
+        boolean accessStats = randomBoolean();
+        try (
+            Translog.Snapshot snapshot = followerPrimary.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), accessStats)
+        ) {
+            if (accessStats) {
+                assertThat(snapshot.totalOperations(), equalTo(operations.size()));
+            }
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 assertThat(operation.primaryTerm(), equalTo(followerPrimary.getOperationPrimaryTerm()));
@@ -120,24 +127,40 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         Randomness.shuffle(secondBulk);
         oldPrimary.advanceMaxSeqNoOfUpdatesOrDeletes(seqno);
         final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> fullResult =
-            TransportBulkShardOperationsAction.shardOperationOnPrimary(oldPrimary.shardId(),
-            oldPrimary.getHistoryUUID(), firstBulk, seqno, oldPrimary, logger);
-        assertThat(fullResult.replicaRequest().getOperations(),
-            equalTo(firstBulk.stream().map(op -> rewriteOperationWithPrimaryTerm(op, oldPrimaryTerm)).collect(Collectors.toList())));
+            TransportBulkShardOperationsAction.shardOperationOnPrimary(
+                oldPrimary.shardId(),
+                oldPrimary.getHistoryUUID(),
+                firstBulk,
+                seqno,
+                oldPrimary,
+                logger
+            );
+        assertThat(
+            fullResult.replicaRequest().getOperations(),
+            equalTo(firstBulk.stream().map(op -> rewriteOperationWithPrimaryTerm(op, oldPrimaryTerm)).collect(Collectors.toList()))
+        );
         primaryTerm = randomLongBetween(primaryTerm, primaryTerm + 10);
         final IndexShard newPrimary = reinitShard(oldPrimary);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newPrimary.markAsRecovering("store", new RecoveryState(newPrimary.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newPrimary));
-        IndexShardTestCase.updateRoutingEntry(newPrimary, newPrimary.routingEntry().moveToStarted());
+        IndexShardTestCase.updateRoutingEntry(
+            newPrimary,
+            newPrimary.routingEntry().moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+        );
         newPrimary.advanceMaxSeqNoOfUpdatesOrDeletes(seqno);
         // The second bulk includes some operations from the first bulk which were processed already;
         // only a subset of these operations will be included the result but with the old primary term.
         final List<Translog.Operation> existingOps = randomSubsetOf(firstBulk);
         final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> partialResult =
-            TransportBulkShardOperationsAction.shardOperationOnPrimary(newPrimary.shardId(),
-            newPrimary.getHistoryUUID(), Stream.concat(secondBulk.stream(), existingOps.stream()).collect(Collectors.toList()),
-            seqno, newPrimary, logger);
+            TransportBulkShardOperationsAction.shardOperationOnPrimary(
+                newPrimary.shardId(),
+                newPrimary.getHistoryUUID(),
+                Stream.concat(secondBulk.stream(), existingOps.stream()).collect(Collectors.toList()),
+                seqno,
+                newPrimary,
+                logger
+            );
         final long newPrimaryTerm = newPrimary.getOperationPrimaryTerm();
         final long globalCheckpoint = newPrimary.getLastKnownGlobalCheckpoint();
         final List<Translog.Operation> appliedOperations = Stream.concat(

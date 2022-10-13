@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.store.ByteArrayDataInput;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+
+import java.io.IOException;
 
 /**
  * A tree reader for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
@@ -18,18 +20,24 @@ import org.apache.lucene.store.ByteArrayDataInput;
  */
 class TriangleTreeReader {
 
-    private TriangleTreeReader() {
-    }
+    private TriangleTreeReader() {}
 
     /**
      * Visit the Triangle tree using the {@link Visitor} provided.
      */
-    public static void visit(ByteArrayDataInput input, TriangleTreeReader.Visitor visitor, int thisMaxX, int thisMaxY) {
+    public static void visit(ByteArrayStreamInput input, TriangleTreeReader.Visitor visitor, int thisMaxX, int thisMaxY)
+        throws IOException {
         visit(input, visitor, true, thisMaxX, thisMaxY, true);
     }
 
-    private static boolean visit(ByteArrayDataInput input, TriangleTreeReader.Visitor visitor,
-                                 boolean splitX, int thisMaxX, int thisMaxY, boolean isRoot) {
+    private static boolean visit(
+        ByteArrayStreamInput input,
+        TriangleTreeReader.Visitor visitor,
+        boolean splitX,
+        int thisMaxX,
+        int thisMaxY,
+        boolean isRoot
+    ) throws IOException {
         byte metadata = input.readByte();
         int thisMinX;
         int thisMinY;
@@ -82,8 +90,13 @@ class TriangleTreeReader {
         return visitor.push();
     }
 
-    private static boolean pushLeft(ByteArrayDataInput input, TriangleTreeReader.Visitor visitor,
-                                    int thisMaxX, int thisMaxY, boolean splitX) {
+    private static boolean pushLeft(
+        ByteArrayStreamInput input,
+        TriangleTreeReader.Visitor visitor,
+        int thisMaxX,
+        int thisMaxY,
+        boolean splitX
+    ) throws IOException {
         int nextMaxX = Math.toIntExact(thisMaxX - input.readVLong());
         int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
         int size = input.readVInt();
@@ -95,8 +108,16 @@ class TriangleTreeReader {
         }
     }
 
-    private static boolean pushRight(ByteArrayDataInput input, TriangleTreeReader.Visitor visitor, int thisMaxX,
-                                     int thisMaxY, int thisMinX, int thisMinY, boolean splitX, int rightSize) {
+    private static boolean pushRight(
+        ByteArrayStreamInput input,
+        TriangleTreeReader.Visitor visitor,
+        int thisMaxX,
+        int thisMaxY,
+        int thisMinX,
+        int thisMinY,
+        boolean splitX,
+        int rightSize
+    ) throws IOException {
         if ((splitX == false && visitor.pushY(thisMinY)) || (splitX && visitor.pushX(thisMinX))) {
             int nextMaxX = Math.toIntExact(thisMaxX - input.readVLong());
             int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
@@ -113,7 +134,7 @@ class TriangleTreeReader {
     }
 
     /** Visitor for triangle interval tree */
-   interface Visitor {
+    interface Visitor {
 
         /** visit a node point. */
         void visitPoint(int x, int y);
@@ -143,5 +164,93 @@ class TriangleTreeReader {
         /** Should the visitor visit the tree given the bounding box of the tree. Called before
          * visiting the tree. */
         boolean push(int minX, int minY, int maxX, int maxY);
+    }
+
+    /** Visitor for triangle interval tree which decodes the coordinates */
+    public abstract static class DecodedVisitor implements Visitor {
+
+        private final CoordinateEncoder encoder;
+
+        DecodedVisitor(CoordinateEncoder encoder) {
+            this.encoder = encoder;
+        }
+
+        @Override
+        public void visitPoint(int x, int y) {
+            visitDecodedPoint(encoder.decodeX(x), encoder.decodeY(y));
+        }
+
+        /**
+         * Equivalent to {@link #visitPoint(int, int)} but coordinates are decoded.
+         */
+        abstract void visitDecodedPoint(double x, double y);
+
+        @Override
+        public void visitLine(int aX, int aY, int bX, int bY, byte metadata) {
+            visitDecodedLine(encoder.decodeX(aX), encoder.decodeY(aY), encoder.decodeX(bX), encoder.decodeY(bY), metadata);
+        }
+
+        /**
+         * Equivalent to {@link #visitLine(int, int, int, int, byte)} but coordinates are decoded.
+         */
+        abstract void visitDecodedLine(double aX, double aY, double bX, double bY, byte metadata);
+
+        @Override
+        public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
+            visitDecodedTriangle(
+                encoder.decodeX(aX),
+                encoder.decodeY(aY),
+                encoder.decodeX(bX),
+                encoder.decodeY(bY),
+                encoder.decodeX(cX),
+                encoder.decodeY(cY),
+                metadata
+            );
+        }
+
+        /**
+         * Equivalent to {@link #visitTriangle(int, int, int, int, int, int, byte)} but coordinates are decoded.
+         */
+        abstract void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata);
+
+        @Override
+        public boolean pushX(int minX) {
+            return pushDecodedX(encoder.decodeX(minX));
+        }
+
+        /**
+         * Equivalent to {@link #pushX(int)}  but coordinates are decoded.
+         */
+        abstract boolean pushDecodedX(double minX);
+
+        @Override
+        public boolean pushY(int minY) {
+            return pushDecodedY(encoder.decodeY(minY));
+        }
+
+        /**
+         * Equivalent to {@link #pushY(int)}  but coordinates are decoded.
+         */
+        abstract boolean pushDecodedY(double minX);
+
+        @Override
+        public boolean push(int maxX, int maxY) {
+            return pushDecoded(encoder.decodeX(maxX), encoder.decodeY(maxY));
+        }
+
+        /**
+         * Equivalent to {@link #push(int, int)} but coordinates are decoded.
+         */
+        abstract boolean pushDecoded(double maxX, double maxY);
+
+        @Override
+        public boolean push(int minX, int minY, int maxX, int maxY) {
+            return pushDecoded(encoder.decodeX(minX), encoder.decodeY(minY), encoder.decodeX(maxX), encoder.decodeY(maxY));
+        }
+
+        /**
+         * Equivalent to {@link #push(int, int, int, int)} but coordinates are decoded.
+         */
+        abstract boolean pushDecoded(double minX, double minY, double maxX, double maxY);
     }
 }

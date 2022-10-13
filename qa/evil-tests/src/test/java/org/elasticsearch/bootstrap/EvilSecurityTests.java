@@ -9,9 +9,9 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -45,7 +45,7 @@ public class EvilSecurityTests extends ESTestCase {
         try {
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
             Environment environment = TestEnvironment.newEnvironment(settings);
-            permissions = Security.createPermissions(environment);
+            permissions = Security.createPermissions(environment, null);
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);
         }
@@ -70,11 +70,13 @@ public class EvilSecurityTests extends ESTestCase {
 
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.resolve("home").toString());
-        settingsBuilder.putList(Environment.PATH_DATA_SETTING.getKey(), esHome.resolve("data1").toString(),
-                esHome.resolve("data2").toString());
+        settingsBuilder.putList(
+            Environment.PATH_DATA_SETTING.getKey(),
+            esHome.resolve("data1").toString(),
+            esHome.resolve("data2").toString()
+        );
         settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
         settingsBuilder.put(Environment.PATH_LOGS_SETTING.getKey(), esHome.resolve("logs").toString());
-        settingsBuilder.put(Environment.NODE_PIDFILE_SETTING.getKey(), esHome.resolve("test.pid").toString());
         Settings settings = settingsBuilder.build();
 
         Path fakeTmpDir = createTempDir();
@@ -84,7 +86,7 @@ public class EvilSecurityTests extends ESTestCase {
         try {
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
             environment = new Environment(settings, esHome.resolve("conf"));
-            permissions = Security.createPermissions(environment);
+            permissions = Security.createPermissions(environment, null);
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);
         }
@@ -120,8 +122,6 @@ public class EvilSecurityTests extends ESTestCase {
         assertExactPermissions(new FilePermission(environment.logsFile().toString(), "read,readlink,write,delete"), permissions);
         // temp dir: r/w
         assertExactPermissions(new FilePermission(fakeTmpDir.toString(), "read,readlink,write,delete"), permissions);
-        // PID file: delete only (for the shutdown hook)
-        assertExactPermissions(new FilePermission(environment.pidFile().toString(), "delete"), permissions);
     }
 
     public void testDuplicateDataPaths() throws IOException {
@@ -137,15 +137,13 @@ public class EvilSecurityTests extends ESTestCase {
             Files.createSymbolicLink(duplicate, data);
         }
 
-        final Settings settings =
-                Settings
-                        .builder()
-                        .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
-                        .putList(Environment.PATH_DATA_SETTING.getKey(), data.toString(), duplicate.toString())
-                        .build();
+        final Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), data.toString(), duplicate.toString())
+            .build();
 
         final Environment environment = TestEnvironment.newEnvironment(settings);
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Security.createPermissions(environment));
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Security.createPermissions(environment, null));
         assertThat(e, hasToString(containsString("path [" + duplicate.toRealPath() + "] is duplicated by [" + duplicate + "]")));
     }
 

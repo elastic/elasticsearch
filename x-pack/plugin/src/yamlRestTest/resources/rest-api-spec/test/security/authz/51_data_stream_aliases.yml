@@ -1,0 +1,286 @@
+---
+setup:
+  - skip:
+      features: ["headers", "allowed_warnings"]
+      version: " - 7.99.99"
+      reason: "data stream aliases not yet backported to 7.x branch"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "ingest_events_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["events*"], "privileges": ["create_doc", "create_index"] }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "query_events_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["app1", "events*"], "privileges": ["read", "view_index_metadata", "monitor"] }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "admin_events_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["events*"], "privileges": ["read", "write", "manage"] }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "ingest_logs_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["logs*"], "privileges": ["create_doc", "create_index"] }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "query_logs_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["app1", "logs*"], "privileges": ["read", "view_index_metadata", "monitor"] }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "admin_logs_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["logs*"], "privileges": ["read", "write", "manage"] }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "ingest_events_role", "query_events_role" ],
+            "full_name" : "user with privileges on event data streams"
+          }
+
+  - do:
+      security.put_user:
+        username: "no_authz_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "ingest_logs_role", "query_logs_role" ],
+            "full_name" : "user with privileges on logs data streams"
+          }
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [events-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [events-*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                'foo':
+                  type: keyword
+          data_stream: {}
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [logs-*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                'foo':
+                  type: keyword
+          data_stream: {}
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "test_user2"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "ingest_events_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "query_events_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "admin_events_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "ingest_logs_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "query_logs_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "admin_logs_role"
+        ignore: 404
+
+---
+"Basic read authorization test":
+  - skip:
+      features: ["headers", "allowed_warnings"]
+      version: " - 7.99.99"
+      reason: "data stream aliases not yet backported to 7.x branch"
+
+  - do:
+      index:
+        index:  events-app1
+        refresh: true
+        body:
+          '@timestamp': '2022-12-12'
+          foo: bar
+
+  - do:
+      index:
+        index:  logs-app1
+        refresh: true
+        body:
+          '@timestamp': '2022-12-12'
+          bar: baz
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: events-app1
+                alias: app1
+            - add:
+                index: logs-app1
+                alias: app1
+
+  # app1 allows access to both data streams for this user irregardless whether privileges have been granted on data streams
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: app1
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.foo: bar }
+  - match: { hits.hits.1._source.bar: baz }
+
+  # this user is authorized to use events-app1 data stream directly
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: events-app1
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.foo: bar }
+
+  # this user is authorized to use a backing index of events-app1 data stream directly
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: .ds-events-app1*
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.foo: bar }
+
+  # this user isn't authorized to use logs-app1 data stream directly
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      catch: forbidden
+      search:
+        rest_total_hits_as_int: true
+        index: logs-app1
+
+  # this user isn't authorized to use a backing index of logs-app1 data stream directly
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: .ds-logs-app1*
+  - match: { hits.total: 0 }
+
+  # app1 allows access to both data streams for this user irregardless whether privileges have been granted on data streams
+  - do:
+      headers: { Authorization: "Basic bm9fYXV0aHpfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # no_authz_user
+      search:
+        rest_total_hits_as_int: true
+        index: app1
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.foo: bar }
+  - match: { hits.hits.1._source.bar: baz }
+
+  # this user isn't authorized to use events-app1 data stream directly
+  - do:
+      headers: { Authorization: "Basic bm9fYXV0aHpfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # no_authz_user
+      catch: forbidden
+      search:
+        rest_total_hits_as_int: true
+        index: events-app1
+
+  # this user isn't authorized to use a backing index of events-app1 data stream directly
+  - do:
+      headers: { Authorization: "Basic bm9fYXV0aHpfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # no_authz_user
+      search:
+        rest_total_hits_as_int: true
+        index: .ds-events-app1*
+  - match: { hits.total: 0 }
+
+  # this user is authorized to use logs-app1 data stream directly
+  - do:
+      headers: { Authorization: "Basic bm9fYXV0aHpfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # no_authz_user
+      search:
+        rest_total_hits_as_int: true
+        index: logs-app1
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.bar: baz }
+
+  # this user is authorized to use a backing index of logs-app1 data stream directly
+  - do:
+      headers: { Authorization: "Basic bm9fYXV0aHpfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # no_authz_user
+      search:
+        rest_total_hits_as_int: true
+        index: .ds-logs-app1*
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.bar: baz }

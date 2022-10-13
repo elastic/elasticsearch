@@ -1,0 +1,112 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: upgrade-model-snapshot
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            },
+            "analysis_limits" : {
+                "model_memory_limit":"20mb"
+            }
+          }
+
+  # It's too hard to create a genuine model snapshot in a YAML test.
+  # All we can do is create the descriptor doc that will allow the
+  # endpoints to get past an existence check. Then the actual snapshot
+  # upgrade will of course fail, but we can test that the stats report
+  # the attempt.
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index: .ml-anomalies-shared
+        id:    upgrade-model-snapshot_model_snapshot_1234567890
+        body:  >
+          {
+            "job_id": "upgrade-model-snapshot",
+            "min_version": "7.15.1",
+            "timestamp": "2021-12-13T03:04:05Z",
+            "description": "just for this test",
+            "snapshot_id": "1234567890",
+            "snapshot_doc_count": 1,
+            "latest_record_timestamp": "2021-12-13T02:03:04Z",
+            "latest_result_timestamp": "2021-12-13T01:02:03Z",
+            "retain":true
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index: .ml-state-000001
+        id:    "upgrade-model-snapshot_model_state_1234567890#1"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: [.ml-anomalies-shared,.ml-state-000001]
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      ml.upgrade_job_snapshot:
+        job_id: "non-existent-job"
+        snapshot_id: "san"
+
+---
+"Test with unknown snapshot id":
+  - do:
+      catch: missing
+      ml.upgrade_job_snapshot:
+        job_id: "upgrade-model-snapshot"
+        snapshot_id: "9999999999"
+
+---
+"Test stats all snapshots":
+  - do:
+      ml.get_model_snapshot_upgrade_stats:
+        job_id: "upgrade-model-snapshot"
+        snapshot_id: "_all"
+  - match: { count: 0 }
+
+---
+"Test stats one snapshot":
+  - do:
+      catch: missing
+      ml.get_model_snapshot_upgrade_stats:
+        job_id: "upgrade-model-snapshot"
+        snapshot_id: "9999999999"
+
+---
+"Test existing but corrupt snapshot":
+  - do:
+      ml.upgrade_job_snapshot:
+        job_id: "upgrade-model-snapshot"
+        snapshot_id: "1234567890"
+        wait_for_completion: false
+
+  - do:
+      ml.get_model_snapshot_upgrade_stats:
+        job_id: "upgrade-model-snapshot"
+        snapshot_id: "1234567890"
+  - match: { count: 1 }
+  - match: { model_snapshot_upgrades.0.job_id: "upgrade-model-snapshot" }
+  - match: { model_snapshot_upgrades.0.snapshot_id: "1234567890" }
+  - match: { model_snapshot_upgrades.0.state: /failed|loading_old_state/ }

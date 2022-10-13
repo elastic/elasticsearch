@@ -42,7 +42,7 @@ class DefaultConstructionProxyFactory<T> implements ConstructionProxyFactory<T> 
         @SuppressWarnings("unchecked") // the injection point is for a constructor of T
         final Constructor<T> constructor = (Constructor<T>) injectionPoint.getMember();
 
-        return new ConstructionProxy<T>() {
+        return new ConstructionProxy<>() {
             @Override
             public T newInstance(Object... arguments) throws InvocationTargetException {
                 try {
@@ -60,10 +60,6 @@ class DefaultConstructionProxyFactory<T> implements ConstructionProxyFactory<T> 
                 return injectionPoint;
             }
 
-            @Override
-            public Constructor<T> getConstructor() {
-                return constructor;
-            }
         };
     }
 }

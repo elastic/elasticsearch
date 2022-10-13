@@ -22,7 +22,7 @@
   - match: {indices.2.attributes.1: open}
   - match: {indices.2.data_stream: simple-data-stream2}
   - match: {indices.3.name: my_remote_cluster:.security-7}
-  - match: {indices.3.attributes.0: open}
+  - match: {indices.3.attributes.0: hidden}
   - match: {indices.4.name: my_remote_cluster:closed_index}
   - match: {indices.4.aliases.0: aliased_closed_index}
   - match: {indices.4.attributes.0: closed}
@@ -35,11 +35,14 @@
   - match: {indices.8.name: my_remote_cluster:secured_via_alias}
   - match: {indices.8.attributes.0: open}
   - match: {indices.9.name: my_remote_cluster:shared_index}
+  - match: {indices.9.attributes.0: open}
   - match: {indices.10.name: my_remote_cluster:single_doc_index}
-  - match: {indices.11.attributes.0: open}
-  - match: {indices.11.name: my_remote_cluster:test_index}
-  - match: {indices.11.aliases.0: aliased_test_index}
-  - match: {indices.11.attributes.0: open}
+  - match: {indices.10.attributes.0: open}
+  - match: {indices.11.name: my_remote_cluster:terms_enum_index }
+  - match: {indices.11.attributes.0: open }
+  - match: {indices.12.name: my_remote_cluster:test_index}
+  - match: {indices.12.aliases.0: aliased_test_index}
+  - match: {indices.12.attributes.0: open}
   - match: {aliases.0.name: my_remote_cluster:.security}
   - match: {aliases.0.indices.0: .security-7}
   - match: {aliases.1.name: my_remote_cluster:aliased_closed_index}

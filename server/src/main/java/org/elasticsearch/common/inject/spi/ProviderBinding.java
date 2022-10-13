@@ -17,7 +17,6 @@
 package org.elasticsearch.common.inject.spi;
 
 import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
 
 /**
@@ -29,8 +28,4 @@ import org.elasticsearch.common.inject.Provider;
  */
 public interface ProviderBinding<T extends Provider<?>> extends Binding<T> {
 
-    /**
-     * Returns the key whose binding is used to {@link Provider#get provide instances}.
-     */
-    Key<?> getProvidedKey();
 }

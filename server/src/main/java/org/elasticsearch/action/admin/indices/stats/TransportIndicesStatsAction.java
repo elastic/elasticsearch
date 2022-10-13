@@ -42,10 +42,22 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     private final IndicesService indicesService;
 
     @Inject
-    public TransportIndicesStatsAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(IndicesStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                IndicesStatsRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportIndicesStatsAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            IndicesStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            IndicesStatsRequest::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.indicesService = indicesService;
     }
 
@@ -73,11 +85,23 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected IndicesStatsResponse newResponse(IndicesStatsRequest request, int totalShards, int successfulShards, int failedShards,
-                                               List<ShardStats> responses, List<DefaultShardOperationFailedException> shardFailures,
-                                               ClusterState clusterState) {
-        return new IndicesStatsResponse(responses.toArray(new ShardStats[responses.size()]), totalShards, successfulShards, failedShards,
-            shardFailures);
+    protected IndicesStatsResponse newResponse(
+        IndicesStatsRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<ShardStats> responses,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
+        return new IndicesStatsResponse(
+            responses.toArray(new ShardStats[responses.size()]),
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures,
+            clusterState
+        );
     }
 
     @Override
@@ -86,8 +110,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task,
-                                  ActionListener<ShardStats> listener) {
+    protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task, ActionListener<ShardStats> listener) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
@@ -97,7 +120,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
                 throw new ShardNotFoundException(indexShard.shardId());
             }
 
-            CommonStats commonStats = new CommonStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
+            CommonStats commonStats = CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
             CommitStats commitStats;
             SeqNoStats seqNoStats;
             RetentionLeaseStats retentionLeaseStats;
@@ -117,7 +140,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
                 commonStats,
                 commitStats,
                 seqNoStats,
-                retentionLeaseStats);
+                retentionLeaseStats
+            );
         });
     }
 }

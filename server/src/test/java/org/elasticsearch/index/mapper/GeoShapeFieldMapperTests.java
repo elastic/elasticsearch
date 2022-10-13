@@ -8,11 +8,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -30,11 +31,7 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
             GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper) m;
-            assertEquals(ShapeBuilder.Orientation.RIGHT, gsfm.orientation());
-        });
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
-            GeoShapeFieldMapper gpfm = (GeoShapeFieldMapper) m;
-            assertTrue(gpfm.ignoreMalformed());
+            assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
         checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
             GeoShapeFieldMapper gpfm = (GeoShapeFieldMapper) m;
@@ -57,6 +54,11 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         return "POINT (14.0 15.0)";
     }
@@ -66,8 +68,7 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        assertThat(geoShapeFieldMapper.fieldType().orientation(),
-            equalTo(ShapeBuilder.Orientation.RIGHT));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.RIGHT));
         assertThat(geoShapeFieldMapper.fieldType().hasDocValues(), equalTo(false));
     }
 
@@ -79,20 +80,20 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
-        ShapeBuilder.Orientation orientation = ((GeoShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+        Orientation orientation = ((GeoShapeFieldMapper) fieldMapper).fieldType().orientation();
+        assertThat(orientation, equalTo(Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.LEFT));
+        assertThat(orientation, equalTo(Orientation.CW));
 
         // explicit right orientation test
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("orientation", "right")));
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
-        orientation = ((GeoShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+        orientation = ((GeoShapeFieldMapper) fieldMapper).fieldType().orientation();
+        assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.RIGHT));
+        assertThat(orientation, equalTo(Orientation.CCW));
     }
 
     /**
@@ -102,14 +103,14 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("coerce", true)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-        boolean coerce = ((GeoShapeFieldMapper)fieldMapper).coerce();
+        boolean coerce = ((GeoShapeFieldMapper) fieldMapper).coerce();
         assertThat(coerce, equalTo(true));
 
         // explicit false coerce test
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("coerce", false)));
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-        coerce = ((GeoShapeFieldMapper)fieldMapper).coerce();
+        coerce = ((GeoShapeFieldMapper) fieldMapper).coerce();
         assertThat(coerce, equalTo(false));
     }
 
@@ -121,7 +122,7 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
-        boolean ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue();
+        boolean ignoreZValue = ((GeoShapeFieldMapper) fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(true));
 
         // explicit false accept_z_value test
@@ -129,35 +130,24 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
-        ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue();
+        ignoreZValue = ((GeoShapeFieldMapper) fieldMapper).ignoreZValue();
         assertThat(ignoreZValue, equalTo(false));
     }
 
-    /**
-     * Test that ignore_malformed parameter correctly parses
-     */
-    public void testIgnoreMalformedParsing() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("ignore_malformed", true)));
-        Mapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-        boolean ignoreMalformed = ((GeoShapeFieldMapper)fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed, equalTo(true));
-
-        // explicit false ignore_malformed test
-        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_shape").field("ignore_malformed", false)));
-        fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
-        ignoreMalformed = ((GeoShapeFieldMapper)fieldMapper).ignoreMalformed();
-        assertThat(ignoreMalformed, equalTo(false));
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
     }
 
-    private void assertFieldWarnings(String... fieldNames) {
-        String[] warnings = new String[fieldNames.length];
-        for (int i = 0; i < fieldNames.length; ++i) {
-            warnings[i] = "Parameter [" + fieldNames[i] + "] "
-                + "is deprecated and will be removed in a future version";
-        }
-        assertWarnings(warnings);
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue("Bad shape").errorMatches("Unknown geometry type: bad"),
+            exampleMalformedValue(
+                "POLYGON ((18.9401790919516 -33.9681188869036, 18.9401790919516 -33.9681188869036, 18.9401790919517 "
+                    + "-33.9681188869036, 18.9401790919517 -33.9681188869036, 18.9401790919516 -33.9681188869036))"
+            ).errorMatches("at least three non-collinear points required")
+        );
     }
 
     public void testGeoShapeMapperMerge() throws Exception {
@@ -165,31 +155,14 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CCW));
 
         // change mapping; orientation
         merge(mapperService, fieldMapping(b -> b.field("type", "geo_shape").field("orientation", "cw")));
         fieldMapper = mapperService.documentMapper().mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
         geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
-    }
-
-    public void testGeoShapeLegacyMerge() throws Exception {
-        MapperService m = createMapperService(fieldMapping(b -> b.field("type", "geo_shape")));
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> merge(m, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive"))));
-
-        assertThat(e.getMessage(),
-            containsString("mapper [field] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
-        assertFieldWarnings("strategy");
-
-        MapperService lm = createMapperService(fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive")));
-        e = expectThrows(IllegalArgumentException.class,
-            () -> merge(lm, fieldMapping(b -> b.field("type", "geo_shape"))));
-        assertThat(e.getMessage(),
-            containsString("mapper [field] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
-        assertFieldWarnings("strategy");
+        assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
     }
 
     public void testSerializeDefaults() throws Exception {
@@ -199,7 +172,7 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
                 mapper.mappers().getMapper("field"),
                 new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"))
             ),
-            containsString("\"orientation\":\"" + ShapeBuilder.Orientation.RIGHT + "\"")
+            containsString("\"orientation\":\"" + Orientation.RIGHT + "\"")
         );
     }
 
@@ -217,13 +190,40 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(document.docs().get(0).getFields("field").length, equalTo(2));
     }
 
+    public void testMultiFieldsDeprecationWarning() throws Exception {
+        createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
+    }
+
     @Override
     protected boolean supportsMeta() {
         return false;
     }
 
     protected void assertSearchable(MappedFieldType fieldType) {
-        //always searchable even if it uses TextSearchInfo.NONE
+        // always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isIndexed());
         assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

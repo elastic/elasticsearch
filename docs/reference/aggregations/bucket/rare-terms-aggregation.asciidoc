@@ -5,9 +5,9 @@
 ++++
 
 A multi-bucket value source based aggregation which finds "rare" terms -- terms that are at the long-tail
-of the distribution and are not frequent.  Conceptually, this is like a `terms` aggregation that is
-sorted by `_count` ascending.  As noted in the <<search-aggregations-bucket-terms-aggregation-order,terms aggregation docs>>,
-actually ordering a `terms` agg by count ascending has unbounded error.  Instead, you should use the `rare_terms`
+of the distribution and are not frequent. Conceptually, this is like a `terms` aggregation that is
+sorted by `_count` ascending. As noted in the <<search-aggregations-bucket-terms-aggregation-order,terms aggregation docs>>,
+actually ordering a `terms` agg by count ascending has unbounded error. Instead, you should use the `rare_terms`
 aggregation
 
 //////////////////////////
@@ -78,7 +78,7 @@ A `rare_terms` aggregation looks like this in isolation:
 |Parameter Name |Description |Required |Default Value
 |`field` |The field we wish to find rare terms in |Required |
 |`max_doc_count` |The maximum number of documents a term should appear in. |Optional |`1`
-|`precision` |The precision of the internal CuckooFilters.  Smaller precision leads to
+|`precision` |The precision of the internal CuckooFilters. Smaller precision leads to
 better approximation, but higher memory usage. Cannot be smaller than `0.00001` |Optional |`0.01`
 |`include` |Terms that should be included in the aggregation|Optional |
 |`exclude` |Terms that should be excluded from the aggregation|Optional |
@@ -124,7 +124,7 @@ Response:
 // TESTRESPONSE[s/\.\.\.//]
 
 In this example, the only bucket that we see is the "swing" bucket, because it is the only term that appears in
-one document.  If we increase the `max_doc_count` to `2`, we'll see some more buckets:
+one document. If we increase the `max_doc_count` to `2`, we'll see some more buckets:
 
 [source,console,id=rare-terms-aggregation-max-doc-count-example]
 --------------------------------------------------
@@ -169,27 +169,27 @@ This now shows the "jazz" term which has a `doc_count` of 2":
 [[search-aggregations-bucket-rare-terms-aggregation-max-doc-count]]
 ==== Maximum document count
 
-The `max_doc_count` parameter is used to control the upper bound of document counts that a term can have.  There
-is not a size limitation on the `rare_terms` agg like `terms` agg has.  This means that terms
-which match the `max_doc_count` criteria will be returned.  The aggregation functions in this manner to avoid
+The `max_doc_count` parameter is used to control the upper bound of document counts that a term can have. There
+is not a size limitation on the `rare_terms` agg like `terms` agg has. This means that terms
+which match the `max_doc_count` criteria will be returned. The aggregation functions in this manner to avoid
 the order-by-ascending issues that afflict the `terms` aggregation.
 
-This does, however, mean that  a large number of results can be returned if chosen incorrectly.
+This does, however, mean that a large number of results can be returned if chosen incorrectly.
 To limit the danger of this setting, the maximum `max_doc_count` is 100.
 
 [[search-aggregations-bucket-rare-terms-aggregation-max-buckets]]
 ==== Max Bucket Limit
 
 The Rare Terms aggregation is more liable to trip the `search.max_buckets` soft limit than other aggregations due
-to how it works.  The `max_bucket` soft-limit is evaluated on a per-shard basis while the aggregation is collecting
-results.  It is possible for a term to be "rare" on a shard but become "not rare" once all the shard results are
-merged together.  This means that individual shards tend to collect more buckets than are truly rare, because
-they only have their own local view.  This list is ultimately pruned to the correct, smaller list of rare
+to how it works. The `max_bucket` soft-limit is evaluated on a per-shard basis while the aggregation is collecting
+results. It is possible for a term to be "rare" on a shard but become "not rare" once all the shard results are
+merged together. This means that individual shards tend to collect more buckets than are truly rare, because
+they only have their own local view. This list is ultimately pruned to the correct, smaller list of rare
 terms on the coordinating node... but a shard may have already tripped the `max_buckets` soft limit and aborted
 the request.
 
 When aggregating on fields that have potentially many "rare" terms, you may need to increase the `max_buckets` soft
-limit.  Alternatively, you might need to find a way to filter the results to return fewer rare values (smaller time
+limit. Alternatively, you might need to find a way to filter the results to return fewer rare values (smaller time
 span, filter by category, etc), or re-evaluate your definition of "rare" (e.g. if something
 appears 100,000 times, is it truly "rare"?)
 
@@ -197,8 +197,8 @@ appears 100,000 times, is it truly "rare"?)
 ==== Document counts are approximate
 
 The naive way to determine the "rare" terms in a dataset is to place all the values in a map, incrementing counts
-as each document is visited, then return the bottom `n` rows.  This does not scale beyond even modestly sized data
-sets.  A sharded approach where only the "top n" values are retained from each shard (ala the `terms` aggregation)
+as each document is visited, then return the bottom `n` rows. This does not scale beyond even modestly sized data
+sets. A sharded approach where only the "top n" values are retained from each shard (ala the `terms` aggregation)
 fails because the long-tail nature of the problem means it is impossible to find the "top n" bottom values without
 simply collecting all the values from all shards.
 
@@ -208,16 +208,16 @@ Instead, the Rare Terms aggregation uses a different approximate algorithm:
 2. Each addition occurrence of the term increments a counter in the map
 3. If the counter > the `max_doc_count` threshold, the term is removed from the map and placed in a
 https://www.cs.cmu.edu/~dga/papers/cuckoo-conext2014.pdf[CuckooFilter]
-4. The CuckooFilter is consulted on each term.  If the value is inside the filter, it is known to be above the
+4. The CuckooFilter is consulted on each term. If the value is inside the filter, it is known to be above the
 threshold already and skipped.
 
-After execution, the map of values is the map of "rare" terms under the `max_doc_count` threshold.  This map and CuckooFilter
-are then merged with all other shards.  If there are terms that are greater than the threshold (or appear in
-a different shard's CuckooFilter) the term is removed from the merged list.  The final map of values is returned
+After execution, the map of values is the map of "rare" terms under the `max_doc_count` threshold. This map and CuckooFilter
+are then merged with all other shards. If there are terms that are greater than the threshold (or appear in
+a different shard's CuckooFilter) the term is removed from the merged list. The final map of values is returned
 to the user as the "rare" terms.
 
 CuckooFilters have the possibility of returning false positives (they can say a value exists in their collection when
-it actually does not).  Since the CuckooFilter is being used to see if a term is over threshold, this means a false positive
+it actually does not). Since the CuckooFilter is being used to see if a term is over threshold, this means a false positive
 from the CuckooFilter will mistakenly say a value is common when it is not (and thus exclude it from it final list of buckets).
 Practically, this means the aggregations exhibits false-negative behavior since the filter is being used "in reverse"
 of how people generally think of approximate set membership sketches.
@@ -230,14 +230,14 @@ Proceedings of the 10th ACM International on Conference on emerging Networking E
 ==== Precision
 
 Although the internal CuckooFilter is approximate in nature, the false-negative rate can be controlled with a
-`precision` parameter.  This allows the user to trade more runtime memory for more accurate results.
+`precision` parameter. This allows the user to trade more runtime memory for more accurate results.
 
 The default precision is `0.001`, and the smallest (e.g. most accurate and largest memory overhead) is `0.00001`.
 Below are some charts which demonstrate how the accuracy of the aggregation is affected by precision and number
 of distinct terms.
 
 The X-axis shows the number of distinct values the aggregation has seen, and the Y-axis shows the percent error.
-Each line series represents one "rarity" condition (ranging from one rare item to 100,000 rare items).  For example,
+Each line series represents one "rarity" condition (ranging from one rare item to 100,000 rare items). For example,
 the orange "10" line means ten of the values were "rare" (`doc_count == 1`), out of 1-20m distinct values (where the
 rest of the values had `doc_count > 1`)
 
@@ -258,14 +258,14 @@ degrades in a controlled, linear fashion as the number of distinct values increa
 
 The default precision of `0.001` has a memory profile of `1.748⁻⁶ * n` bytes, where `n` is the number
 of distinct values the aggregation has seen (it can also be roughly eyeballed, e.g. 20 million unique values is about
-30mb of memory).  The memory usage is linear to the number of distinct values regardless of which precision is chosen,
+30mb of memory). The memory usage is linear to the number of distinct values regardless of which precision is chosen,
 the precision only affects the slope of the memory profile as seen in this chart:
 
 image:images/rare_terms/memory.png[]
 
 For comparison, an equivalent terms aggregation at 20 million buckets would be roughly
 `20m * 69b == ~1.38gb` (with 69 bytes being a very optimistic estimate of an empty bucket cost, far lower than what
-the circuit breaker accounts for).  So although the `rare_terms` agg is relatively heavy, it is still orders of
+the circuit breaker accounts for). So although the `rare_terms` agg is relatively heavy, it is still orders of
 magnitude smaller than the equivalent terms aggregation
 
 ==== Filtering Values
@@ -347,9 +347,9 @@ GET /_search
 ==== Nested, RareTerms, and scoring sub-aggregations
 
 The RareTerms aggregation has to operate in `breadth_first` mode, since it needs to prune terms as doc count thresholds
-are breached.  This requirement means the RareTerms aggregation is incompatible with certain combinations of aggregations
+are breached. This requirement means the RareTerms aggregation is incompatible with certain combinations of aggregations
 that require `depth_first`. In particular, scoring sub-aggregations that are inside a `nested` force the entire aggregation tree to run
-in `depth_first` mode.  This will throw an exception since RareTerms is unable to process `depth_first`.
+in `depth_first` mode. This will throw an exception since RareTerms is unable to process `depth_first`.
 
 As a concrete example, if `rare_terms` aggregation is the child of a `nested` aggregation, and one of the child aggregations of `rare_terms`
 needs document scores (like a `top_hits` aggregation), this will throw an exception.

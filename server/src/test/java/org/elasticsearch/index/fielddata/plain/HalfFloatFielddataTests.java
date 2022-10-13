@@ -8,18 +8,20 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -30,15 +32,16 @@ public class HalfFloatFielddataTests extends ESTestCase {
         Directory dir = newDirectory();
         // we need the default codec to check for singletons
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setCodec(TestUtil.getDefaultCodec()));
-        Document doc = new Document();
-        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 3f, false, true, false)) {
-            doc.add(f);
-        }
+        LuceneDocument doc = new LuceneDocument();
+        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 3f, false, true, false);
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);
-        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(
-                reader, "half_float").getDoubleValues();
+        SortedNumericDoubleValues values = new SortedDoublesIndexFieldData.SortedNumericHalfFloatFieldData(
+            reader,
+            "half_float",
+            (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
+        ).getDoubleValues();
         assertNotNull(FieldData.unwrapSingleton(values));
         assertTrue(values.advanceExact(0));
         assertEquals(1, values.docValueCount());
@@ -49,18 +52,17 @@ public class HalfFloatFielddataTests extends ESTestCase {
     public void testMultiValued() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        Document doc = new Document();
-        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 3f, false, true, false)) {
-            doc.add(f);
-        }
-        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 2f, false, true, false)) {
-            doc.add(f);
-        }
+        LuceneDocument doc = new LuceneDocument();
+        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 3f, false, true, false);
+        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 2f, false, true, false);
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);
-        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(
-                reader, "half_float").getDoubleValues();
+        SortedNumericDoubleValues values = new SortedDoublesIndexFieldData.SortedNumericHalfFloatFieldData(
+            reader,
+            "half_float",
+            (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
+        ).getDoubleValues();
         assertNull(FieldData.unwrapSingleton(values));
         assertTrue(values.advanceExact(0));
         assertEquals(2, values.docValueCount());

@@ -4,13 +4,84 @@
 <titleabbrev>Filter</titleabbrev>
 ++++
 
-Defines a single bucket of all the documents in the current document set context that match a specified filter. Often this will be used to narrow down the current aggregation context to a specific set of documents.
+A single bucket aggregation that narrows the set of documents
+to those that match a <<query-dsl,query>>.
 
 Example:
 
 [source,console,id=filter-aggregation-example]
---------------------------------------------------
-POST /sales/_search?size=0
+----
+POST /sales/_search?size=0&filter_path=aggregations
+{
+  "aggs": {
+    "avg_price": { "avg": { "field": "price" } },
+    "t_shirts": {
+      "filter": { "term": { "type": "t-shirt" } },
+      "aggs": {
+        "avg_price": { "avg": { "field": "price" } }
+      }
+    }
+  }
+}
+----
+// TEST[setup:sales]
+
+The previous example calculates the average price of all sales as well as
+the average price of all T-shirt sales.
+
+Response:
+
+[source,console-result]
+----
+{
+  "aggregations": {
+    "avg_price": { "value": 140.71428571428572 },
+    "t_shirts": {
+      "doc_count": 3,
+      "avg_price": { "value": 128.33333333333334 }
+    }
+  }
+}
+----
+
+[[use-top-level-query-to-limit-all-aggs]]
+==== Use a top-level `query` to limit all aggregations
+
+To limit the documents on which all aggregations in a search run, use a
+top-level `query`. This is faster than a single `filter` aggregation with
+sub-aggregations.
+
+For example, use this:
+
+
+[source,console,id=filter-aggregation-top-good]
+----
+POST /sales/_search?size=0&filter_path=aggregations
+{
+  "query": { "term": { "type": "t-shirt" } },
+  "aggs": {
+    "avg_price": { "avg": { "field": "price" } }
+  }
+}
+----
+// TEST[setup:sales]
+
+////
+[source,console-result]
+----
+{
+  "aggregations": {
+    "avg_price": { "value": 128.33333333333334 }
+  }
+}
+----
+////
+
+Instead of this:
+
+[source,console,id=filter-aggregation-top-bad]
+----
+POST /sales/_search?size=0&filter_path=aggregations
 {
   "aggs": {
     "t_shirts": {
@@ -21,17 +92,13 @@ POST /sales/_search?size=0
     }
   }
 }
---------------------------------------------------
+----
 // TEST[setup:sales]
 
-In the above example, we calculate the average price of all the products that are of type t-shirt.
-
-Response:
-
+////
 [source,console-result]
---------------------------------------------------
+----
 {
-  ...
   "aggregations": {
     "t_shirts": {
       "doc_count": 3,
@@ -39,5 +106,99 @@ Response:
     }
   }
 }
---------------------------------------------------
-// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+----
+////
+
+[[use-filters-agg-for-multiple-filters]]
+==== Use the `filters` aggregation for multiple filters
+
+To group documents using multiple filters, use the
+<<search-aggregations-bucket-filters-aggregation,`filters` aggregation>>. This
+is faster than multiple `filter` aggregations.
+
+For example, use this:
+
+[source,console,id=filter-aggregation-many-good]
+----
+POST /sales/_search?size=0&filter_path=aggregations
+{
+  "aggs": {
+    "f": {
+      "filters": { 
+        "filters": {
+          "hats": { "term": { "type": "hat" } },
+          "t_shirts": { "term": { "type": "t-shirt" } }
+        }
+      },
+      "aggs": {
+        "avg_price": { "avg": { "field": "price" } }
+      }
+    }
+  }
+}
+----
+// TEST[setup:sales]
+
+////
+[source,console-result]
+----
+{
+  "aggregations": {
+    "f": {
+      "buckets": {
+        "hats": {
+          "doc_count": 3,
+          "avg_price": { "value": 150.0 }
+        },
+        "t_shirts": {
+          "doc_count": 3,
+          "avg_price": { "value": 128.33333333333334 }
+        }
+      }
+    }
+  }
+}
+----
+////
+
+Instead of this:
+
+[source,console,id=filter-aggregation-many-bad]
+----
+POST /sales/_search?size=0&filter_path=aggregations
+{
+  "aggs": {
+    "hats": {
+      "filter": { "term": { "type": "hat" } },
+      "aggs": {
+        "avg_price": { "avg": { "field": "price" } }
+      }
+    },
+    "t_shirts": {
+      "filter": { "term": { "type": "t-shirt" } },
+      "aggs": {
+        "avg_price": { "avg": { "field": "price" } }
+      }
+    }
+  }
+}
+----
+// TEST[setup:sales]
+
+////
+[source,console-result]
+----
+{
+  "aggregations": {
+    "hats": {
+      "doc_count": 3,
+      "avg_price": { "value": 150.0 }
+    },
+    "t_shirts": {
+      "doc_count": 3,
+      "avg_price": { "value": 128.33333333333334 }
+    }
+  }
+}
+----
+////

@@ -10,7 +10,7 @@ package org.elasticsearch.common.blobstore.url;
 
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpServer;
-import org.elasticsearch.common.SuppressForbidden;
+
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
 import org.junit.AfterClass;
@@ -115,7 +116,7 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     @Override
     BlobContainer getBlobContainer() {
-        return urlBlobStore.blobContainer(new BlobPath().add("indices"));
+        return urlBlobStore.blobContainer(BlobPath.EMPTY.add("indices"));
     }
 
     @Override

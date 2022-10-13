@@ -29,7 +29,8 @@ public class AggregationProfileBreakdown extends AbstractProfileBreakdown<Aggreg
      * Add extra debugging information about the aggregation.
      */
     public void addDebugInfo(String key, Object value) {
-        extra.put(key, value);
+        Object old = extra.put(key, value);
+        assert old == null : "debug info duplicate key [" + key + "] was [" + old + "] is [" + value + "]";
     }
 
     @Override

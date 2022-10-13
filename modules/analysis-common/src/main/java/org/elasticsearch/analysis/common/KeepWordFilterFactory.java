@@ -50,14 +50,15 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
     KeepWordFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         final List<String> arrayKeepWords = settings.getAsList(KEEP_WORDS_KEY, null);
         final String keepWordsPath = settings.get(KEEP_WORDS_PATH_KEY, null);
         if ((arrayKeepWords == null && keepWordsPath == null) || (arrayKeepWords != null && keepWordsPath != null)) {
             // we don't allow both or none
-            throw new IllegalArgumentException("keep requires either `" + KEEP_WORDS_KEY + "` or `"
-                    + KEEP_WORDS_PATH_KEY + "` to be configured");
+            throw new IllegalArgumentException(
+                "keep requires either `" + KEEP_WORDS_KEY + "` or `" + KEEP_WORDS_PATH_KEY + "` to be configured"
+            );
         }
         if (settings.get(ENABLE_POS_INC_KEY) != null) {
             throw new IllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain");

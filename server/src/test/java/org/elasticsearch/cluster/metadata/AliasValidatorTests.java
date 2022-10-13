@@ -15,21 +15,20 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class AliasValidatorTests extends ESTestCase {
     public void testValidatesAliasNames() {
-        AliasValidator validator = new AliasValidator();
-        Exception e = expectThrows(InvalidAliasNameException.class, () -> validator.validateAliasStandalone(".", null));
+        Exception e = expectThrows(InvalidAliasNameException.class, () -> AliasValidator.validateAliasStandalone(".", null));
         assertEquals("Invalid alias name [.]: must not be '.' or '..'", e.getMessage());
-        e = expectThrows(InvalidAliasNameException.class, () -> validator.validateAliasStandalone("..", null));
+        e = expectThrows(InvalidAliasNameException.class, () -> AliasValidator.validateAliasStandalone("..", null));
         assertEquals("Invalid alias name [..]: must not be '.' or '..'", e.getMessage());
-        e = expectThrows(InvalidAliasNameException.class, () -> validator.validateAliasStandalone("_cat", null));
+        e = expectThrows(InvalidAliasNameException.class, () -> AliasValidator.validateAliasStandalone("_cat", null));
         assertEquals("Invalid alias name [_cat]: must not start with '_', '-', or '+'", e.getMessage());
-        e = expectThrows(InvalidAliasNameException.class, () -> validator.validateAliasStandalone("-cat", null));
+        e = expectThrows(InvalidAliasNameException.class, () -> AliasValidator.validateAliasStandalone("-cat", null));
         assertEquals("Invalid alias name [-cat]: must not start with '_', '-', or '+'", e.getMessage());
-        e = expectThrows(InvalidAliasNameException.class, () -> validator.validateAliasStandalone("+cat", null));
+        e = expectThrows(InvalidAliasNameException.class, () -> AliasValidator.validateAliasStandalone("+cat", null));
         assertEquals("Invalid alias name [+cat]: must not start with '_', '-', or '+'", e.getMessage());
-        e = expectThrows(InvalidAliasNameException.class, () -> validator.validateAliasStandalone("c*t", null));
+        e = expectThrows(InvalidAliasNameException.class, () -> AliasValidator.validateAliasStandalone("c*t", null));
         assertThat(e.getMessage(), startsWith("Invalid alias name [c*t]: must not contain the following characters "));
 
         // Doesn't throw an exception because we allow upper case alias names
-        validator.validateAliasStandalone("CAT", null);
+        AliasValidator.validateAliasStandalone("CAT", null);
     }
 }

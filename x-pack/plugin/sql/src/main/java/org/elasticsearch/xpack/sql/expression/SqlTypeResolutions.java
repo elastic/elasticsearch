@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -31,13 +31,20 @@ public final class SqlTypeResolutions {
     }
 
     public static TypeResolution isNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, dt -> dt.isNumeric() || SqlDataTypes.isDateBased(dt), operationName, paramOrd,
-            "date", "datetime", "numeric");
+        return isType(e, dt -> dt.isNumeric() || SqlDataTypes.isDateBased(dt), operationName, paramOrd, "date", "datetime", "numeric");
     }
 
     public static TypeResolution isNumericOrDateOrTime(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, dt -> dt.isNumeric() || SqlDataTypes.isDateOrTimeBased(dt), operationName, paramOrd,
-            "date", "time", "datetime", "numeric");
+        return isType(
+            e,
+            dt -> dt.isNumeric() || SqlDataTypes.isDateOrTimeBased(dt),
+            operationName,
+            paramOrd,
+            "date",
+            "time",
+            "datetime",
+            "numeric"
+        );
     }
 
     public static TypeResolution isGeo(Expression e, String operationName, ParamOrdinal paramOrd) {

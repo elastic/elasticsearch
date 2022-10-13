@@ -8,12 +8,11 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.process.NativeController;
@@ -27,6 +26,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<AnalyticsResult> {
 
     private static final Logger logger = LogManager.getLogger(NativeAnalyticsProcess.class);
@@ -35,12 +36,27 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
 
     private final AnalyticsProcessConfig config;
 
-    protected NativeAnalyticsProcess(String jobId, NativeController nativeController, ProcessPipes processPipes,
-                                     int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash,
-                                     AnalyticsProcessConfig config,
-                                     NamedXContentRegistry namedXContentRegistry) {
-        super(NAME, AnalyticsResult.PARSER, jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash,
-            namedXContentRegistry);
+    protected NativeAnalyticsProcess(
+        String jobId,
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        int numberOfFields,
+        List<Path> filesToDelete,
+        Consumer<String> onProcessCrash,
+        AnalyticsProcessConfig config,
+        NamedXContentRegistry namedXContentRegistry
+    ) {
+        super(
+            NAME,
+            AnalyticsResult.PARSER,
+            jobId,
+            nativeController,
+            processPipes,
+            numberOfFields,
+            filesToDelete,
+            onProcessCrash,
+            namedXContentRegistry
+        );
         this.config = Objects.requireNonNull(config);
     }
 
@@ -55,8 +71,7 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
     }
 
     @Override
-    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
-    }
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {}
 
     @Override
     public void writeEndOfDataMessage() throws IOException {
@@ -81,12 +96,13 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
                 // We fetch the documents one at a time because all together they can amount to too much memory
                 SearchResponse stateResponse = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                     .setSize(1)
-                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocIdPrefix + ++docNum)).get();
+                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocIdPrefix + ++docNum))
+                    .get();
                 if (stateResponse.getHits().getHits().length == 0) {
                     break;
                 }
                 SearchHit stateDoc = stateResponse.getHits().getAt(0);
-                logger.debug(() -> new ParameterizedMessage("[{}] Restoring state document [{}]", config.jobId(), stateDoc.getId()));
+                logger.debug(() -> format("[%s] Restoring state document [%s]", config.jobId(), stateDoc.getId()));
                 StateToProcessWriterHelper.writeStateToStream(stateDoc.getSourceRef(), restoreStream);
             }
         }

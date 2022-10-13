@@ -27,6 +27,7 @@ public abstract class UnaryExpression extends Expression {
     public final UnaryExpression replaceChildren(List<Expression> newChildren) {
         return replaceChild(newChildren.get(0));
     }
+
     protected abstract UnaryExpression replaceChild(Expression newChild);
 
     public Expression child() {

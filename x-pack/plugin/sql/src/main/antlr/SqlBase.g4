@@ -50,11 +50,18 @@ statement
         )*
         ')')?
         statement                                                                                         #debug
-    | SHOW TABLES (INCLUDE FROZEN)? (tableLike=likePattern | tableIdent=tableIdentifier)?                 #showTables
-    | SHOW COLUMNS (INCLUDE FROZEN)? (FROM | IN) (tableLike=likePattern | tableIdent=tableIdentifier)     #showColumns
-    | (DESCRIBE | DESC) (INCLUDE FROZEN)? (tableLike=likePattern | tableIdent=tableIdentifier)            #showColumns
+    | SHOW TABLES (CATALOG (clusterLike=likePattern | cluster=string))?
+                  (INCLUDE FROZEN)?
+                  (tableLike=likePattern | tableIdent=tableIdentifier)?                                   #showTables
+    | SHOW COLUMNS (CATALOG cluster=string)?
+                   (INCLUDE FROZEN)?
+                   (FROM | IN) (tableLike=likePattern | tableIdent=tableIdentifier)                       #showColumns
+    | (DESCRIBE | DESC) (CATALOG cluster=string)?
+                        (INCLUDE FROZEN)?
+                        (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
     | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
+    | SHOW CATALOGS                                                                                       #showCatalogs
     | SYS TABLES (CATALOG clusterLike=likePattern)?
                  (tableLike=likePattern | tableIdent=tableIdentifier)?
                  (TYPE string (',' string)* )?                                                            #sysTables

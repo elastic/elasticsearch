@@ -33,8 +33,7 @@ public final class MlStrings {
 
     public static final int ID_LENGTH_LIMIT = 64;
 
-    private MlStrings() {
-    }
+    private MlStrings() {}
 
     /**
      * Surrounds with double quotes the given {@code input} if it contains
@@ -117,7 +116,7 @@ public final class MlStrings {
 
         Set<String> matchingItems = new LinkedHashSet<>();
         for (String pattern : patterns) {
-            if (items.contains(pattern))  {
+            if (items.contains(pattern)) {
                 matchingItems.add(pattern);
             } else if (Regex.isSimpleMatchPattern(pattern)) {
                 for (String item : items) {

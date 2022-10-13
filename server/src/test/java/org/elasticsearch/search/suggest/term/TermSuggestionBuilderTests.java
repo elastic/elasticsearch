@@ -10,14 +10,14 @@ package org.elasticsearch.search.suggest.term;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -66,70 +66,48 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
 
     private static SuggestMode randomSuggestMode() {
         final int randomVal = randomIntBetween(0, 2);
-        switch (randomVal) {
-            case 0: return SuggestMode.MISSING;
-            case 1: return SuggestMode.POPULAR;
-            case 2: return SuggestMode.ALWAYS;
-            default: throw new IllegalArgumentException("No suggest mode with an ordinal of " + randomVal);
-        }
+        return switch (randomVal) {
+            case 0 -> SuggestMode.MISSING;
+            case 1 -> SuggestMode.POPULAR;
+            case 2 -> SuggestMode.ALWAYS;
+            default -> throw new IllegalArgumentException("No suggest mode with an ordinal of " + randomVal);
+        };
     }
 
     private static SortBy randomSort() {
         int randomVal = randomIntBetween(0, 1);
-        switch (randomVal) {
-            case 0: return SortBy.SCORE;
-            case 1: return SortBy.FREQUENCY;
-            default: throw new IllegalArgumentException("No sort mode with an ordinal of " + randomVal);
-        }
+        return switch (randomVal) {
+            case 0 -> SortBy.SCORE;
+            case 1 -> SortBy.FREQUENCY;
+            default -> throw new IllegalArgumentException("No sort mode with an ordinal of " + randomVal);
+        };
     }
 
     private static StringDistanceImpl randomStringDistance() {
         int randomVal = randomIntBetween(0, 4);
-        switch (randomVal) {
-            case 0: return StringDistanceImpl.INTERNAL;
-            case 1: return StringDistanceImpl.DAMERAU_LEVENSHTEIN;
-            case 2: return StringDistanceImpl.LEVENSHTEIN;
-            case 3: return StringDistanceImpl.JARO_WINKLER;
-            case 4: return StringDistanceImpl.NGRAM;
-            default: throw new IllegalArgumentException("No string distance algorithm with an ordinal of " + randomVal);
-        }
+        return switch (randomVal) {
+            case 0 -> StringDistanceImpl.INTERNAL;
+            case 1 -> StringDistanceImpl.DAMERAU_LEVENSHTEIN;
+            case 2 -> StringDistanceImpl.LEVENSHTEIN;
+            case 3 -> StringDistanceImpl.JARO_WINKLER;
+            case 4 -> StringDistanceImpl.NGRAM;
+            default -> throw new IllegalArgumentException("No string distance algorithm with an ordinal of " + randomVal);
+        };
     }
 
     @Override
     protected void mutateSpecificParameters(TermSuggestionBuilder builder) throws IOException {
         switch (randomIntBetween(0, 9)) {
-            case 0:
-                builder.suggestMode(randomValueOtherThan(builder.suggestMode(), () -> randomSuggestMode()));
-                break;
-            case 1:
-                builder.accuracy(randomValueOtherThan(builder.accuracy(), () -> randomFloat()));
-                break;
-            case 2:
-                builder.sort(randomValueOtherThan(builder.sort(), () -> randomSort()));
-                break;
-            case 3:
-                builder.stringDistance(randomValueOtherThan(builder.stringDistance(), () -> randomStringDistance()));
-                break;
-            case 4:
-                builder.maxEdits(randomValueOtherThan(builder.maxEdits(), () -> randomIntBetween(1, 2)));
-                break;
-            case 5:
-                builder.maxInspections(randomValueOtherThan(builder.maxInspections(), () -> randomInt(Integer.MAX_VALUE)));
-                break;
-            case 6:
-                builder.maxTermFreq(randomValueOtherThan(builder.maxTermFreq(), () -> randomFloat()));
-                break;
-            case 7:
-                builder.prefixLength(randomValueOtherThan(builder.prefixLength(), () -> randomInt(Integer.MAX_VALUE)));
-                break;
-            case 8:
-                builder.minWordLength(randomValueOtherThan(builder.minWordLength(), () -> randomInt(Integer.MAX_VALUE)));
-                break;
-            case 9:
-                builder.minDocFreq(randomValueOtherThan(builder.minDocFreq(), () -> randomFloat()));
-                break;
-            default:
-                break; // do nothing
+            case 0 -> builder.suggestMode(randomValueOtherThan(builder.suggestMode(), () -> randomSuggestMode()));
+            case 1 -> builder.accuracy(randomValueOtherThan(builder.accuracy(), () -> randomFloat()));
+            case 2 -> builder.sort(randomValueOtherThan(builder.sort(), () -> randomSort()));
+            case 3 -> builder.stringDistance(randomValueOtherThan(builder.stringDistance(), () -> randomStringDistance()));
+            case 4 -> builder.maxEdits(randomValueOtherThan(builder.maxEdits(), () -> randomIntBetween(1, 2)));
+            case 5 -> builder.maxInspections(randomValueOtherThan(builder.maxInspections(), () -> randomInt(Integer.MAX_VALUE)));
+            case 6 -> builder.maxTermFreq(randomValueOtherThan(builder.maxTermFreq(), () -> randomFloat()));
+            case 7 -> builder.prefixLength(randomValueOtherThan(builder.prefixLength(), () -> randomInt(Integer.MAX_VALUE)));
+            case 8 -> builder.minWordLength(randomValueOtherThan(builder.minWordLength(), () -> randomInt(Integer.MAX_VALUE)));
+            case 9 -> builder.minDocFreq(randomValueOtherThan(builder.minDocFreq(), () -> randomFloat()));
         }
     }
 
@@ -199,16 +177,15 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
 
     public void testMalformedJson() {
         final String field = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
-        String suggest = "{\n"
-            + "  \"bad-payload\" : {\n"
-            + "    \"text\" : \"the amsterdma meetpu\",\n"
-            + "    \"term\" : {\n"
-            + "      \"field\" : { \""
-            + field
-            + "\" : \"bad-object\" }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String suggest = formatted("""
+            {
+              "bad-payload" : {
+                "text" : "the amsterdma meetpu",
+                "term" : {
+                  "field" : { "%s" : "bad-object" }
+                }
+              }
+            }""", field);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, suggest)) {
             final SuggestBuilder suggestBuilder = SuggestBuilder.fromXContent(parser);
             fail("Should not have been able to create SuggestBuilder from malformed JSON: " + suggestBuilder);
@@ -233,7 +210,9 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         assertEquals(builder.suggestMode().toLucene(), termSuggesterCtx.getDirectSpellCheckerSettings().suggestMode());
         assertEquals(builder.sort(), termSuggesterCtx.getDirectSpellCheckerSettings().sort());
         // distance implementations don't implement equals() and have little to compare, so we only check class
-        assertEquals(builder.stringDistance().toLucene().getClass(),
-                termSuggesterCtx.getDirectSpellCheckerSettings().stringDistance().getClass());
+        assertEquals(
+            builder.stringDistance().toLucene().getClass(),
+            termSuggesterCtx.getDirectSpellCheckerSettings().stringDistance().getClass()
+        );
     }
 }

@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class TransformIndexerPositionTests extends AbstractSerializingTestCase<TransformIndexerPosition> {
+public class TransformIndexerPositionTests extends AbstractXContentSerializingTestCase<TransformIndexerPosition> {
 
     public static TransformIndexerPosition randomTransformIndexerPosition() {
         return new TransformIndexerPosition(randomPosition(), randomPosition());

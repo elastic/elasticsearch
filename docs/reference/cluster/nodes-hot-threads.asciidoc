@@ -40,7 +40,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 `ignore_idle_threads`::
 		(Optional, Boolean) If true, known idle threads (e.g. waiting in a socket 
-		select, or to get a task from an empty queue) are filtered out.  Defaults to 
+		select, or to get a task from an empty queue) are filtered out. Defaults to 
 		true.
 
 `interval`::

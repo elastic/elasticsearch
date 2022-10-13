@@ -6,10 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -23,8 +21,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -40,13 +37,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -68,7 +65,7 @@ public class ExtractedFieldsDetectorFactory {
     }
 
     public void createFromDest(DataFrameAnalyticsConfig config, ActionListener<ExtractedFieldsDetector> listener) {
-        create(new String[] {config.getDest().getIndex()}, config, listener);
+        create(new String[] { config.getDest().getIndex() }, config, listener);
     }
 
     private void create(String[] index, DataFrameAnalyticsConfig config, ActionListener<ExtractedFieldsDetector> listener) {
@@ -76,43 +73,39 @@ public class ExtractedFieldsDetectorFactory {
         AtomicReference<FieldCapabilitiesResponse> fieldCapsResponseHolder = new AtomicReference<>();
 
         // Step 4. Create cardinality by field map and build detector
-        ActionListener<Map<String, Long>> fieldCardinalitiesHandler = ActionListener.wrap(
-            fieldCardinalities -> {
-                ExtractedFieldsDetector detector =
-                    new ExtractedFieldsDetector(config, docValueFieldsLimitHolder.get(), fieldCapsResponseHolder.get(), fieldCardinalities);
-                listener.onResponse(detector);
-            },
-            listener::onFailure
-        );
+        ActionListener<Map<String, Long>> fieldCardinalitiesHandler = ActionListener.wrap(fieldCardinalities -> {
+            ExtractedFieldsDetector detector = new ExtractedFieldsDetector(
+                config,
+                docValueFieldsLimitHolder.get(),
+                fieldCapsResponseHolder.get(),
+                fieldCardinalities
+            );
+            listener.onResponse(detector);
+        }, listener::onFailure);
 
         // Step 3. Get cardinalities for fields with constraints
-        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
-            fieldCapabilitiesResponse -> {
-                LOGGER.debug(() -> new ParameterizedMessage(
-                    "[{}] Field capabilities response: {}", config.getId(), fieldCapabilitiesResponse));
-                fieldCapsResponseHolder.set(fieldCapabilitiesResponse);
-                getCardinalitiesForFieldsWithConstraints(index, config, fieldCapabilitiesResponse, fieldCardinalitiesHandler);
-            },
-            listener::onFailure
-        );
+        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(fieldCapabilitiesResponse -> {
+            LOGGER.debug(() -> format("[%s] Field capabilities response: %s", config.getId(), fieldCapabilitiesResponse));
+            fieldCapsResponseHolder.set(fieldCapabilitiesResponse);
+            getCardinalitiesForFieldsWithConstraints(index, config, fieldCapabilitiesResponse, fieldCardinalitiesHandler);
+        }, listener::onFailure);
 
         // Step 2. Get field capabilities necessary to build the information of how to extract fields
-        ActionListener<Integer> docValueFieldsLimitListener = ActionListener.wrap(
-            docValueFieldsLimit -> {
-                docValueFieldsLimitHolder.set(docValueFieldsLimit);
-                getFieldCaps(index, config, fieldCapabilitiesHandler);
-            },
-            listener::onFailure
-        );
+        ActionListener<Integer> docValueFieldsLimitListener = ActionListener.wrap(docValueFieldsLimit -> {
+            docValueFieldsLimitHolder.set(docValueFieldsLimit);
+            getFieldCaps(index, config, fieldCapabilitiesHandler);
+        }, listener::onFailure);
 
         // Step 1. Get doc value fields limit
         getDocValueFieldsLimit(index, docValueFieldsLimitListener);
     }
 
-    private void getCardinalitiesForFieldsWithConstraints(String[] index,
-                                                          DataFrameAnalyticsConfig config,
-                                                          FieldCapabilitiesResponse fieldCapabilitiesResponse,
-                                                          ActionListener<Map<String, Long>> listener) {
+    private void getCardinalitiesForFieldsWithConstraints(
+        String[] index,
+        DataFrameAnalyticsConfig config,
+        FieldCapabilitiesResponse fieldCapabilitiesResponse,
+        ActionListener<Map<String, Long>> listener
+    ) {
         List<FieldCardinalityConstraint> fieldCardinalityConstraints = config.getAnalysis().getFieldCardinalityConstraints();
         if (fieldCardinalityConstraints.isEmpty()) {
             listener.onResponse(Collections.emptyMap());
@@ -124,8 +117,7 @@ public class ExtractedFieldsDetectorFactory {
             listener::onFailure
         );
 
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
-            .size(0)
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
             .query(config.getSource().getParsedQuery())
             .runtimeMappings(config.getSource().getRuntimeMappings());
         for (FieldCardinalityConstraint constraint : fieldCardinalityConstraints) {
@@ -135,22 +127,28 @@ public class ExtractedFieldsDetectorFactory {
             }
             for (FieldCapabilities fieldCaps : fieldCapsPerType.values()) {
                 if (fieldCaps.isAggregatable() == false) {
-                    throw ExceptionsHelper.badRequestException("field [{}] of type [{}] is non-aggregatable",
-                        fieldCaps.getName(), fieldCaps.getType());
+                    throw ExceptionsHelper.badRequestException(
+                        "field [{}] of type [{}] is non-aggregatable",
+                        fieldCaps.getName(),
+                        fieldCaps.getType()
+                    );
                 }
             }
             searchSourceBuilder.aggregation(
                 AggregationBuilders.cardinality(constraint.getField())
                     .field(constraint.getField())
-                    .precisionThreshold(constraint.getUpperBound() + 1));
+                    .precisionThreshold(constraint.getUpperBound() + 1)
+            );
         }
         SearchRequest searchRequest = new SearchRequest(index).source(searchSourceBuilder);
-        ClientHelper.executeWithHeadersAsync(
-            config.getHeaders(), ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, searchListener);
+        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, searchListener);
     }
 
-    private void buildFieldCardinalitiesMap(DataFrameAnalyticsConfig config, SearchResponse searchResponse,
-                                            ActionListener<Map<String, Long>> listener) {
+    private void buildFieldCardinalitiesMap(
+        DataFrameAnalyticsConfig config,
+        SearchResponse searchResponse,
+        ActionListener<Map<String, Long>> listener
+    ) {
         Aggregations aggs = searchResponse.getAggregations();
         if (aggs == null) {
             listener.onFailure(ExceptionsHelper.serverError("Unexpected null response when gathering field cardinalities"));
@@ -175,8 +173,7 @@ public class ExtractedFieldsDetectorFactory {
         fieldCapabilitiesRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         fieldCapabilitiesRequest.fields("*");
         fieldCapabilitiesRequest.runtimeFields(config.getSource().getRuntimeMappings());
-        LOGGER.debug(() -> new ParameterizedMessage(
-            "[{}] Requesting field caps for index {}", config.getId(), Arrays.toString(index)));
+        LOGGER.debug(() -> format("[%s] Requesting field caps for index %s", config.getId(), Arrays.toString(index)));
         ClientHelper.executeWithHeaders(config.getHeaders(), ML_ORIGIN, client, () -> {
             client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, listener);
             // This response gets discarded - the listener handles the real response
@@ -186,29 +183,28 @@ public class ExtractedFieldsDetectorFactory {
 
     private void getDocValueFieldsLimit(String[] index, ActionListener<Integer> docValueFieldsLimitListener) {
         ActionListener<GetSettingsResponse> settingsListener = ActionListener.wrap(getSettingsResponse -> {
-                Integer minDocValueFieldsLimit = Integer.MAX_VALUE;
+            Integer minDocValueFieldsLimit = Integer.MAX_VALUE;
 
-                ImmutableOpenMap<String, Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
-                Iterator<ObjectObjectCursor<String, Settings>> iterator = indexToSettings.iterator();
-                while (iterator.hasNext()) {
-                    ObjectObjectCursor<String, Settings> indexSettings = iterator.next();
-                    Integer indexMaxDocValueFields = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(indexSettings.value);
-                    if (indexMaxDocValueFields < minDocValueFieldsLimit) {
-                        minDocValueFieldsLimit = indexMaxDocValueFields;
-                    }
-                }
-                docValueFieldsLimitListener.onResponse(minDocValueFieldsLimit);
-            },
-            e -> {
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof IndexNotFoundException) {
-                    docValueFieldsLimitListener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "
-                        + ((IndexNotFoundException) cause).getIndex() + " does not exist"));
-                } else {
-                    docValueFieldsLimitListener.onFailure(e);
+            Map<String, Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
+            for (var indexSettings : indexToSettings.values()) {
+                Integer indexMaxDocValueFields = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(indexSettings);
+                if (indexMaxDocValueFields < minDocValueFieldsLimit) {
+                    minDocValueFieldsLimit = indexMaxDocValueFields;
                 }
             }
-        );
+            docValueFieldsLimitListener.onResponse(minDocValueFieldsLimit);
+        }, e -> {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof IndexNotFoundException) {
+                docValueFieldsLimitListener.onFailure(
+                    new ResourceNotFoundException(
+                        "cannot retrieve data because index " + ((IndexNotFoundException) cause).getIndex() + " does not exist"
+                    )
+                );
+            } else {
+                docValueFieldsLimitListener.onFailure(e);
+            }
+        });
 
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
         getSettingsRequest.indices(index);

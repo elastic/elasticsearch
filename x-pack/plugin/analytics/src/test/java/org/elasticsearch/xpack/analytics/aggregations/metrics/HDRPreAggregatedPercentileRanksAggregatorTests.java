@@ -11,10 +11,9 @@ import org.HdrHistogram.DoubleHistogramIterationValue;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -48,22 +47,23 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new PercentileRanksAggregationBuilder("hdr_percentiles", new double[]{1.0})
-            .field(fieldName)
+        return new PercentileRanksAggregationBuilder("hdr_percentiles", new double[] { 1.0 }).field(fieldName)
             .percentilesConfig(new PercentilesConfig.Hdr());
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         // Note: this is the same list as Core, plus Analytics
-        return List.of(CoreValuesSourceType.NUMERIC,
+        return List.of(
+            CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
-            AnalyticsValuesSourceType.HISTOGRAM);
+            AnalyticsValuesSourceType.HISTOGRAM
+        );
     }
 
     private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
-        DoubleHistogram histogram = new DoubleHistogram(3);//default
+        DoubleHistogram histogram = new DoubleHistogram(3);// default
         for (double value : values) {
             histogram.recordValue(value);
         }
@@ -81,19 +81,18 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
     }
 
     public void testSimple() throws IOException {
-        try (Directory dir = newDirectory();
-                RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            doc.add(getDocValue("field", new double[] {3, 0.2, 10}));
+            doc.add(getDocValue("field", new double[] { 3, 0.2, 10 }));
             w.addDocument(doc);
 
-            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[]{0.1, 0.5, 12})
-                    .field("field")
-                    .method(PercentilesMethod.HDR);
+            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[] { 0.1, 0.5, 12 })
+                .field("field")
+                .method(PercentilesMethod.HDR);
             MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("field", Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                PercentileRanks ranks = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                PercentileRanks ranks = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 Iterator<Percentile> rankIterator = ranks.iterator();
                 Percentile rank = rankIterator.next();
                 assertEquals(0.1, rank.getValue(), 0d);
@@ -106,7 +105,7 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
                 assertEquals(12, rank.getValue(), 0d);
                 assertThat(rank.getPercent(), Matchers.equalTo(100d));
                 assertFalse(rankIterator.hasNext());
-                assertTrue(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks)ranks));
+                assertTrue(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks) ranks));
             }
         }
     }

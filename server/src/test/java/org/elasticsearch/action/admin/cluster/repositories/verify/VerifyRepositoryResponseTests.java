@@ -7,13 +7,13 @@
  */
 package org.elasticsearch.action.admin.cluster.repositories.verify;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class VerifyRepositoryResponseTests  extends AbstractXContentTestCase<VerifyRepositoryResponse> {
+public class VerifyRepositoryResponseTests extends AbstractXContentTestCase<VerifyRepositoryResponse> {
 
     @Override
     protected VerifyRepositoryResponse doParseInstance(XContentParser parser) {

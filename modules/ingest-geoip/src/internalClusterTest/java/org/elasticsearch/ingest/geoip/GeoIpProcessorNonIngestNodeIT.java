@@ -14,12 +14,12 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(nonIngestNode()).build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(nonIngestNode()).build();
     }
 
     /**
@@ -101,19 +101,19 @@ public class GeoIpProcessorNonIngestNodeIT extends AbstractGeoIpIT {
         final IndexRequest indexRequest = new IndexRequest("index");
         indexRequest.setPipeline("geoip");
         indexRequest.source(Collections.singletonMap("ip", "1.1.1.1"));
-        final IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        final IndexResponse indexResponse = client(ingestNode).index(indexRequest).actionGet();
         assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
         // now the geo-IP database should be loaded on the ingest node
         assertDatabaseLoadStatus(ingestNode, true);
         // the geo-IP database should still not be loaded on the non-ingest nodes
         Arrays.stream(internalCluster().getNodeNames())
-                .filter(node -> node.equals(ingestNode) == false)
-                .forEach(node -> assertDatabaseLoadStatus(node, false));
+            .filter(node -> node.equals(ingestNode) == false)
+            .forEach(node -> assertDatabaseLoadStatus(node, false));
     }
 
     private void assertDatabaseLoadStatus(final String node, final boolean loaded) {
         final IngestService ingestService = internalCluster().getInstance(IngestService.class, node);
-        final GeoIpProcessor.Factory factory = (GeoIpProcessor.Factory)ingestService.getProcessorFactories().get("geoip");
+        final GeoIpProcessor.Factory factory = (GeoIpProcessor.Factory) ingestService.getProcessorFactories().get("geoip");
         for (final DatabaseReaderLazyLoader loader : factory.getAllDatabases()) {
             if (loaded) {
                 assertNotNull(loader.databaseReader.get());

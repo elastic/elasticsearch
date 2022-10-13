@@ -50,7 +50,8 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                     valuesSourceConfig,
                     maxDocsPerValue
                 ),
-                true);
+            true
+        );
 
         builder.register(
             DiversifiedAggregationBuilder.REGISTRY_KEY,
@@ -74,12 +75,13 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                 if (execution == null) {
                     execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
-                if ((execution.needsGlobalOrdinals()) && (valuesSourceConfig.hasGlobalOrdinals() == false)) {
+                if ((execution.needsGlobalOrdinals()) && (valuesSourceConfig.hasOrdinals() == false)) {
                     execution = ExecutionMode.MAP;
                 }
                 return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSourceConfig, context, parent, metadata);
             },
-            true);
+            true
+        );
     }
 
     private final DiversifiedAggregatorSupplier aggregatorSupplier;
@@ -87,10 +89,18 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     private final int maxDocsPerValue;
     private final String executionHint;
 
-    DiversifiedAggregatorFactory(String name, ValuesSourceConfig config, int shardSize, int maxDocsPerValue,
-                                 String executionHint, AggregationContext context, AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata,
-                                 DiversifiedAggregatorSupplier aggregatorSupplier) throws IOException {
+    DiversifiedAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        int shardSize,
+        int maxDocsPerValue,
+        String executionHint,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        DiversifiedAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.shardSize = shardSize;
         this.maxDocsPerValue = maxDocsPerValue;
@@ -99,12 +109,10 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
 
-        return aggregatorSupplier.build(name, shardSize, factories, context,
-                                        parent, metadata, config, maxDocsPerValue, executionHint);
+        return aggregatorSupplier.build(name, shardSize, factories, context, parent, metadata, config, maxDocsPerValue, executionHint);
     }
 
     @Override

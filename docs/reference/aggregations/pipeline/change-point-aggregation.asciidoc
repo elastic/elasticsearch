@@ -1,0 +1,99 @@
+[role="xpack"]
+[[search-aggregations-change-point-aggregation]]
+=== Change point aggregation
+++++
+<titleabbrev>Change point</titleabbrev>
+++++
+
+experimental::[]
+
+A sibling pipeline that detects, spikes, dips, and change points in a metric. Given a distribution of values
+provided by the sibling multi-bucket aggregation, this aggregation indicates the bucket of any spike or dip
+and/or the bucket at which the largest change in the distribution of values, if they are statistically significant.
+
+
+
+[[change-point-agg-syntax]]
+==== Parameters
+
+`buckets_path`::
+(Required, string)
+Path to the buckets that contain one set of values in which to detect a change point. There must be at least 22 bucketed
+values. Fewer than 1,000 is preferred.
+For syntax, see <<buckets-path-syntax>>.
+
+==== Syntax
+
+A `change_point` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+  "change_point": {
+    "buckets_path": "date_histogram>_count" <1>
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The buckets containing the values to test against.
+
+[[change-point-agg-response]]
+==== Response body
+
+`bucket`::
+(Optional, object)
+Values of the bucket that indicates the discovered change point. Not returned if no change point was found.
+All the aggregations in the bucket are returned as well.
++
+.Properties of bucket
+[%collapsible%open]
+====
+`key`:::
+(value)
+The key of the bucket matched. Could be string or numeric.
+
+`doc_count`:::
+(number)
+The document count of the bucket.
+====
+
+`type`::
+(object)
+The found change point type and its related values. Possible types:
++
+--
+* `dip`: a significant dip occurs at this change point
+* `distribution_change`: the overall distribution of the values has changed significantly
+* `non_stationary`: there is no change point, but the values are not from a stationary distribution
+* `spike`: a significant spike occurs at this point
+* `stationary`: no change point found
+* `step_change`: the change indicates a statistically significant step up or down in value distribution
+* `trend_change`: there is an overall trend change occurring at this point
+--
+
+==== Response example
+[source,js]
+--------------------------------------------------
+    "changes" : {
+      "bucket" : {
+        "key" : "2022-01-28T23:00:00.000Z", <1>
+        "doc_count" : 48, <2>
+        "ticket_price" : { <3>
+          "value" : 1187.61083984375
+        }
+      },
+      "type" : { <4>
+        "distribution_change" : {
+          "p_value" : 0.023753965139433175, <5>
+          "change_point" : 40 <6>
+        }
+      }
+    }
+--------------------------------------------------
+// NOTCONSOLE
+<1> The bucket key that is the change point.
+<2> The number of documents in that bucket.
+<3> Aggregated values in the bucket.
+<4> Type of change found.
+<5> The `p_value` indicates how extreme the change is; lower values indicate greater change.
+<6> The specific bucket where the change occurs (indexing starts at `0`).

@@ -37,11 +37,12 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
     public static class IndicesAliasesPlugin extends Plugin implements ActionPlugin {
 
         static final Setting<List<String>> ALLOWED_ORIGINS_SETTING = Setting.listSetting(
-                "index.aliases.allowed_origins",
-                Collections.emptyList(),
-                Function.identity(),
-                Setting.Property.IndexScope,
-                Setting.Property.Dynamic);
+            "index.aliases.allowed_origins",
+            Collections.emptyList(),
+            Function.identity(),
+            Setting.Property.IndexScope,
+            Setting.Property.Dynamic
+        );
 
         @Override
         public List<Setting<?>> getSettings() {
@@ -55,10 +56,11 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
                     final List<String> allowedOrigins = ALLOWED_ORIGINS_SETTING.get(state.metadata().index(index).getSettings());
                     if (allowedOrigins.contains(request.origin()) == false) {
                         final String message = String.format(
-                                Locale.ROOT,
-                                "origin [%s] not allowed for index [%s]",
-                                request.origin(),
-                                index.getName());
+                            Locale.ROOT,
+                            "origin [%s] not allowed for index [%s]",
+                            request.origin(),
+                            index.getName()
+                        );
                         return Optional.of(new IllegalStateException(message));
                     }
                 }
@@ -75,15 +77,15 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
     public void testAllowed() {
         final Settings settings = Settings.builder()
-                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
-                .build();
+            .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
+            .build();
         createIndex("index", settings);
         final IndicesAliasesRequest request = new IndicesAliasesRequest().origin("allowed");
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index").alias("alias"));
         assertAcked(client().admin().indices().aliases(request).actionGet());
         final GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest("alias")).actionGet();
-        assertThat(response.getAliases().keys().size(), equalTo(1));
-        assertThat(response.getAliases().keys().iterator().next().value, equalTo("index"));
+        assertThat(response.getAliases().keySet().size(), equalTo(1));
+        assertThat(response.getAliases().keySet().iterator().next(), equalTo("index"));
         final List<AliasMetadata> aliasMetadata = response.getAliases().get("index");
         assertThat(aliasMetadata, hasSize(1));
         assertThat(aliasMetadata.get(0).alias(), equalTo("alias"));
@@ -91,8 +93,8 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
     public void testNotAllowed() {
         final Settings settings = Settings.builder()
-                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
-                .build();
+            .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("allowed"))
+            .build();
         createIndex("index", settings);
         final String origin = randomFrom("", "not-allowed");
         final IndicesAliasesRequest request = new IndicesAliasesRequest().origin(origin);
@@ -103,12 +105,12 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
     public void testSomeAllowed() {
         final Settings fooIndexSettings = Settings.builder()
-                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("foo_allowed"))
-                .build();
+            .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("foo_allowed"))
+            .build();
         createIndex("foo", fooIndexSettings);
         final Settings barIndexSettings = Settings.builder()
-                .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("bar_allowed"))
-                .build();
+            .putList(IndicesAliasesPlugin.ALLOWED_ORIGINS_SETTING.getKey(), Collections.singletonList("bar_allowed"))
+            .build();
         createIndex("bar", barIndexSettings);
         final String origin = randomFrom("foo_allowed", "bar_allowed");
         final IndicesAliasesRequest request = new IndicesAliasesRequest().origin(origin);

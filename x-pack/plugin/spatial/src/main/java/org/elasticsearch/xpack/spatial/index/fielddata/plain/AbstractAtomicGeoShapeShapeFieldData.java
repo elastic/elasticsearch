@@ -7,48 +7,57 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
-import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
+import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 
-import java.util.Collection;
-import java.util.Collections;
+import static org.elasticsearch.common.geo.SphericalMercatorUtils.latToSphericalMercator;
+import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSphericalMercator;
 
-public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoShapeFieldData {
+public abstract class AbstractAtomicGeoShapeShapeFieldData extends LeafShapeFieldData<GeoShapeValues> {
 
-    @Override
-    public final SortedBinaryDocValues getBytesValues() {
-        throw new UnsupportedOperationException("scripts and term aggs are not supported by geo_shape doc values");
+    public AbstractAtomicGeoShapeShapeFieldData(ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
+        super(toScriptFieldFactory);
     }
 
-    @Override
-    public final ScriptDocValues.BytesRefs getScriptValues() {
-        throw new UnsupportedOperationException("scripts are not supported by geo_shape doc values");
+    public static LeafShapeFieldData<GeoShapeValues> empty(final int maxDoc, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
+        return new LeafShapeFieldData.Empty<>(toScriptFieldFactory, GeoShapeValues.EMPTY);
     }
 
-    public static LeafGeoShapeFieldData empty(final int maxDoc) {
-        return new AbstractAtomicGeoShapeShapeFieldData() {
+    public static final class GeoShapeScriptValues extends LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue>
+        implements
+            ScriptDocValues.Geometry {
 
-            @Override
-            public long ramBytesUsed() {
-                return 0;
-            }
+        public GeoShapeScriptValues(GeometrySupplier<GeoPoint, GeoShapeValues.GeoShapeValue> supplier) {
+            super(supplier);
+        }
 
-            @Override
-            public Collection<Accountable> getChildResources() {
-                return Collections.emptyList();
-            }
+        @Override
+        public GeoShapeValues.GeoShapeValue get(int index) {
+            return super.get(index);
+        }
 
-            @Override
-            public void close() {
-            }
+        @Override
+        public GeoShapeValues.GeoShapeValue getValue() {
+            return super.getValue();
+        }
 
-            @Override
-            public GeoShapeValues getGeoShapeValues() {
-                return GeoShapeValues.EMPTY;
-            }
-        };
+        @Override
+        public GeoBoundingBox getBoundingBox() {
+            return (GeoBoundingBox) super.getBoundingBox();
+        }
+
+        @Override
+        public double getMercatorWidth() {
+            return lonToSphericalMercator(getBoundingBox().right()) - lonToSphericalMercator(getBoundingBox().left());
+        }
+
+        @Override
+        public double getMercatorHeight() {
+            return latToSphericalMercator(getBoundingBox().top()) - latToSphericalMercator(getBoundingBox().bottom());
+        }
     }
 }

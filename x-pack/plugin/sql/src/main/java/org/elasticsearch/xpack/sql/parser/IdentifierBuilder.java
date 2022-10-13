@@ -14,6 +14,9 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QualifiedNameContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TableIdentifierContext;
 
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
+
 abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
@@ -40,7 +43,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             return null;
         }
 
-        return Strings.collectionToDelimitedString(visitList(ctx.identifier(), String.class), ".");
+        return Strings.collectionToDelimitedString(visitList(this, ctx.identifier(), String.class), ".");
     }
 
     private static String unquoteIdentifier(String identifier) {

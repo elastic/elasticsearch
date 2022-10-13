@@ -11,10 +11,10 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.OffsetTime;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -31,8 +31,7 @@ public class DateTimeTestUtils {
         return dateTime(year, month, day, hour, minute, seconds, nanos, DateUtils.UTC);
     }
 
-    public static ZonedDateTime dateTime(int year, int month, int day, int hour, int minute, int seconds, int nanos,
-                                         ZoneId zoneId) {
+    public static ZonedDateTime dateTime(int year, int month, int day, int hour, int minute, int seconds, int nanos, ZoneId zoneId) {
         return ZonedDateTime.of(year, month, day, hour, minute, seconds, nanos, zoneId);
     }
 

@@ -10,15 +10,15 @@ package org.elasticsearch.monitor.fs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeEnvironment.NodePath;
+import org.elasticsearch.env.NodeEnvironment.DataPath;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,6 +26,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class FsProbe {
 
@@ -41,7 +43,7 @@ public class FsProbe {
         if (nodeEnv.hasNodeFile() == false) {
             return new FsInfo(System.currentTimeMillis(), null, new FsInfo.Path[0]);
         }
-        NodePath[] dataLocations = nodeEnv.nodePaths();
+        DataPath[] dataLocations = nodeEnv.dataPaths();
         FsInfo.Path[] paths = new FsInfo.Path[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
             paths[i] = getFSInfo(dataLocations[i]);
@@ -85,16 +87,18 @@ public class FsProbe {
                     final long sectorsRead = Long.parseLong(fields[5]);
                     final long writesCompleted = Long.parseLong(fields[7]);
                     final long sectorsWritten = Long.parseLong(fields[9]);
-                    final FsInfo.DeviceStats deviceStats =
-                            new FsInfo.DeviceStats(
-                                    majorDeviceNumber,
-                                    minorDeviceNumber,
-                                    deviceName,
-                                    readsCompleted,
-                                    sectorsRead,
-                                    writesCompleted,
-                                    sectorsWritten,
-                                    deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber)));
+                    final long ioTime = Long.parseLong(fields[12]);
+                    final FsInfo.DeviceStats deviceStats = new FsInfo.DeviceStats(
+                        majorDeviceNumber,
+                        minorDeviceNumber,
+                        deviceName,
+                        readsCompleted,
+                        sectorsRead,
+                        writesCompleted,
+                        sectorsWritten,
+                        ioTime,
+                        deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber))
+                    );
                     devicesStats.add(deviceStats);
                 }
             }
@@ -103,8 +107,7 @@ public class FsProbe {
         } catch (Exception e) {
             // do not fail Elasticsearch if something unexpected
             // happens here
-            logger.debug(() -> new ParameterizedMessage(
-                    "unexpected exception processing /proc/diskstats for devices {}", devicesNumbers), e);
+            logger.debug(() -> format("unexpected exception processing /proc/diskstats for devices %s", devicesNumbers), e);
             return null;
         }
     }
@@ -126,19 +129,23 @@ public class FsProbe {
         return bytes;
     }
 
-    public static FsInfo.Path getFSInfo(NodePath nodePath) throws IOException {
+    public static FsInfo.Path getFSInfo(DataPath dataPath) throws IOException {
         FsInfo.Path fsPath = new FsInfo.Path();
-        fsPath.path = nodePath.path.toString();
+        fsPath.path = dataPath.path.toString();
 
         // NOTE: we use already cached (on node startup) FileStore and spins
         // since recomputing these once per second (default) could be costly,
         // and they should not change:
-        fsPath.total = adjustForHugeFilesystems(nodePath.fileStore.getTotalSpace());
-        fsPath.free = adjustForHugeFilesystems(nodePath.fileStore.getUnallocatedSpace());
-        fsPath.available = adjustForHugeFilesystems(nodePath.fileStore.getUsableSpace());
-        fsPath.type = nodePath.fileStore.type();
-        fsPath.mount = nodePath.fileStore.toString();
+        fsPath.total = getTotal(dataPath.fileStore);
+        fsPath.free = adjustForHugeFilesystems(dataPath.fileStore.getUnallocatedSpace());
+        fsPath.available = adjustForHugeFilesystems(dataPath.fileStore.getUsableSpace());
+        fsPath.type = dataPath.fileStore.type();
+        fsPath.mount = dataPath.fileStore.toString();
         return fsPath;
+    }
+
+    public static long getTotal(FileStore fileStore) throws IOException {
+        return adjustForHugeFilesystems(fileStore.getTotalSpace());
     }
 
 }

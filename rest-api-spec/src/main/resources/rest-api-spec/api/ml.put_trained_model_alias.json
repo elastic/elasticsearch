@@ -1,0 +1,40 @@
+{
+  "ml.put_trained_model_alias":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-trained-models-aliases.html",
+      "description":"Creates a new model alias (or reassigns an existing one) to refer to the trained model"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/{model_id}/model_aliases/{model_alias}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "model_alias":{
+              "type":"string",
+              "description":"The trained model alias to update"
+            },
+            "model_id": {
+              "type": "string",
+              "description": "The trained model where the model alias should be assigned"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "reassign":{
+        "type":"boolean",
+        "description":"If the model_alias already exists and points to a separate model_id, this parameter must be true. Defaults to false."
+      }
+    }
+  }
+}

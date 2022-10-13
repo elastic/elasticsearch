@@ -17,9 +17,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
 /**
  * Transport action that handles setting a native or reserved user to enabled
@@ -31,8 +32,13 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
     private final NativeUsersStore usersStore;
 
     @Inject
-    public TransportSetEnabledAction(Settings settings, TransportService transportService,
-                                     ActionFilters actionFilters, SecurityContext securityContext, NativeUsersStore usersStore) {
+    public TransportSetEnabledAction(
+        Settings settings,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SecurityContext securityContext,
+        NativeUsersStore usersStore
+    ) {
         super(SetEnabledAction.NAME, transportService, actionFilters, SetEnabledRequest::new);
         this.settings = settings;
         this.securityContext = securityContext;
@@ -43,18 +49,28 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
     protected void doExecute(Task task, SetEnabledRequest request, ActionListener<ActionResponse.Empty> listener) {
         final String username = request.username();
         // make sure the user is not disabling themselves
-        if (securityContext.getUser().principal().equals(request.username())) {
+        if (isSameUserRequest(request)) {
             listener.onFailure(new IllegalArgumentException("users may not update the enabled status of their own account"));
-            return;
-        } else if (User.isInternalUsername(username)) {
-            listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
             return;
         } else if (AnonymousUser.isAnonymousUsername(username, settings)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be modified using the api"));
             return;
         }
 
-        usersStore.setEnabled(username, request.enabled(), request.getRefreshPolicy(),
-                listener.delegateFailure((l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE)));
+        usersStore.setEnabled(
+            username,
+            request.enabled(),
+            request.getRefreshPolicy(),
+            listener.delegateFailure((l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE))
+        );
+    }
+
+    private boolean isSameUserRequest(SetEnabledRequest request) {
+        final var effectiveSubject = securityContext.getAuthentication().getEffectiveSubject();
+        final var realmType = effectiveSubject.getRealm().getType();
+        // Only native or reserved realm users can be disabled via the API. If the realm of the effective subject is neither,
+        // the target must be a different user
+        return (ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType))
+            && effectiveSubject.getUser().principal().equals(request.username());
     }
 }

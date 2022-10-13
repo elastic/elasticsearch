@@ -1,0 +1,5 @@
+---
+"Basic sanity check":
+  - do:
+      cluster.reroute:
+        metric: none

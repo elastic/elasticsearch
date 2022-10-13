@@ -13,31 +13,4 @@ import org.elasticsearch.index.shard.ShardId;
 /**
  * A class that represents a stale shard copy.
  */
-public class StaleShard {
-    private final ShardId shardId;
-    private final String allocationId;
-
-    public StaleShard(ShardId shardId, String allocationId) {
-        this.shardId = shardId;
-        this.allocationId = allocationId;
-    }
-
-    @Override
-    public String toString() {
-        return "stale shard, shard " + shardId + ", alloc. id [" + allocationId + "]";
-    }
-
-    /**
-     * The shard id of the stale shard.
-     */
-    public ShardId getShardId() {
-        return shardId;
-    }
-
-    /**
-     * The allocation id of the stale shard.
-     */
-    public String getAllocationId() {
-        return allocationId;
-    }
-}
+public record StaleShard(ShardId shardId, String allocationId) {}

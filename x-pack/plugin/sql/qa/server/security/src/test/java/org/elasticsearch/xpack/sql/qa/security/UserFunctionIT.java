@@ -13,10 +13,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -33,7 +34,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.query;
 import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.randomMode;
-import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.toMap;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 
@@ -165,7 +165,7 @@ public class UserFunctionIT extends ESRestTestCase {
             request.setOptions(options);
         }
         request.setEntity(new StringEntity(query(sql).mode(mode).toString(), ContentType.APPLICATION_JSON));
-        return toMap(client().performRequest(request), mode);
+        return BaseRestSqlTestCase.toMap(client().performRequest(request), mode);
     }
 
     private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
@@ -181,7 +181,7 @@ public class UserFunctionIT extends ESRestTestCase {
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {
-            bulk.append("{\"index\":{}\n");
+            bulk.append("{\"index\":{}}\n");
             bulk.append(doc + "\n");
         }
         request.setJsonEntity(bulk.toString());

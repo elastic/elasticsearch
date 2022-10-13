@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.Map;
@@ -47,15 +47,19 @@ public class TextEsField extends EsField {
         for (EsField property : getProperties().values()) {
             if (property.getDataType() == KEYWORD && property.getExactInfo().hasExact()) {
                 if (field != null) {
-                    return new Tuple<>(null, "Multiple exact keyword candidates available for [" + getName() +
-                        "]; specify which one to use");
+                    return new Tuple<>(
+                        null,
+                        "Multiple exact keyword candidates available for [" + getName() + "]; specify which one to use"
+                    );
                 }
                 field = property;
             }
         }
         if (field == null) {
-            return new Tuple<>(null, "No keyword/multi-field defined exact matches for [" + getName() +
-                "]; define one or use MATCH/QUERY instead");
+            return new Tuple<>(
+                null,
+                "No keyword/multi-field defined exact matches for [" + getName() + "]; define one or use MATCH/QUERY instead"
+            );
         }
         return new Tuple<>(field, null);
     }

@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.StringReader;
 
-
 public class MlClassicTokenizerTests extends ESTestCase {
 
     public void testTokenize() throws IOException {

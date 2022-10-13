@@ -81,7 +81,7 @@ public class SortBuilders {
      * @param fieldName The geo point like field name.
      * @param geohashes The points to create the range distance facets from.
      */
-    public static GeoDistanceSortBuilder geoDistanceSort(String fieldName, String ... geohashes) {
+    public static GeoDistanceSortBuilder geoDistanceSort(String fieldName, String... geohashes) {
         return new GeoDistanceSortBuilder(fieldName, geohashes);
     }
 }

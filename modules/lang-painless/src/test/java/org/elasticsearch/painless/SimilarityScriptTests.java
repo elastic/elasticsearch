@@ -42,14 +42,18 @@ public class SimilarityScriptTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(SimilarityScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(SimilarityWeightScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(SimilarityScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(SimilarityWeightScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
         return contexts;
     }
 
     public void testBasics() throws IOException {
         SimilarityScript.Factory factory = scriptEngine.compile(
-                "foobar", "return query.boost * doc.freq / doc.length", SimilarityScript.CONTEXT, Collections.emptyMap());
+            "foobar",
+            "return query.boost * doc.freq / doc.length",
+            SimilarityScript.CONTEXT,
+            Collections.emptyMap()
+        );
         ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", factory::newInstance, true);
         Directory dir = new ByteBuffersDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
@@ -73,10 +77,12 @@ public class SimilarityScriptTests extends ScriptTestCase {
         w.close();
         IndexSearcher searcher = new IndexSearcher(r);
         searcher.setSimilarity(sim);
-        Query query = new BoostQuery(new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
+        Query query = new BoostQuery(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
                 .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
-                .build(), 3.2f);
+                .build(),
+            3.2f
+        );
         TopDocs topDocs = searcher.search(query, 1);
         assertEquals(1, topDocs.totalHits.value);
         assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);
@@ -86,9 +92,17 @@ public class SimilarityScriptTests extends ScriptTestCase {
 
     public void testWeightScript() throws IOException {
         SimilarityWeightScript.Factory weightFactory = scriptEngine.compile(
-                "foobar", "return query.boost", SimilarityWeightScript.CONTEXT, Collections.emptyMap());
+            "foobar",
+            "return query.boost",
+            SimilarityWeightScript.CONTEXT,
+            Collections.emptyMap()
+        );
         SimilarityScript.Factory factory = scriptEngine.compile(
-                "foobar", "return weight * doc.freq / doc.length", SimilarityScript.CONTEXT, Collections.emptyMap());
+            "foobar",
+            "return weight * doc.freq / doc.length",
+            SimilarityScript.CONTEXT,
+            Collections.emptyMap()
+        );
         ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightFactory::newInstance, "foobaz", factory::newInstance, true);
         Directory dir = new ByteBuffersDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
@@ -112,10 +126,12 @@ public class SimilarityScriptTests extends ScriptTestCase {
         w.close();
         IndexSearcher searcher = new IndexSearcher(r);
         searcher.setSimilarity(sim);
-        Query query = new BoostQuery(new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
+        Query query = new BoostQuery(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
                 .add(new TermQuery(new Term("match", "yes")), Occur.FILTER)
-                .build(), 3.2f);
+                .build(),
+            3.2f
+        );
         TopDocs topDocs = searcher.search(query, 1);
         assertEquals(1, topDocs.totalHits.value);
         assertEquals((float) (3.2 * 2 / 3), topDocs.scoreDocs[0].score, 0);

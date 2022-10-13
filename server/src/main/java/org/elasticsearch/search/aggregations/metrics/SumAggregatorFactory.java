@@ -26,13 +26,15 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final MetricAggregatorSupplier aggregatorSupplier;
 
-    SumAggregatorFactory(String name,
-                            ValuesSourceConfig config,
-                            AggregationContext context,
-                            AggregatorFactory parent,
-                            AggregatorFactories.Builder subFactoriesBuilder,
-                            Map<String, Object> metadata,
-                            MetricAggregatorSupplier aggregatorSupplier) throws IOException {
+    SumAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        MetricAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         this.aggregatorSupplier = aggregatorSupplier;
@@ -43,7 +45,8 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
             SumAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             SumAggregator::new,
-                true);
+            true
+        );
     }
 
     @Override
@@ -52,12 +55,8 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound bucketCardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
-        return aggregatorSupplier
-            .build(name, config, context, parent, metadata);
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound bucketCardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, config, context, parent, metadata);
     }
 }

@@ -8,5 +8,9 @@
         }
       }
     }
+  },
+  "_meta": {
+    "description": "default policy for the logs index template installed by x-pack",
+    "managed": true
   }
 }

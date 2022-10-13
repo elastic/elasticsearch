@@ -7,18 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
@@ -27,9 +16,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -39,18 +30,37 @@ import org.elasticsearch.xpack.eql.execution.assembler.SeriesUtils.SeriesSpec;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
+import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
 import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 public class SequenceSpecTests extends ESTestCase {
 
+    private static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("SequenceSpecTests");
+
     private static final String PARAM_FORMATTING = "%1$s";
     private static final String QUERIES_FILENAME = "sequences.series-spec";
+
+    private static final String KEY_FIELD_NAME = "key";
 
     private final List<Map<Integer, Tuple<String, String>>> events;
     private final List<List<String>> matches;
@@ -60,6 +70,7 @@ public class SequenceSpecTests extends ESTestCase {
     private final List<HitExtractor> keyExtractors;
     private final HitExtractor tsExtractor;
     private final HitExtractor tbExtractor;
+    private final HitExtractor implicitTbExtractor;
 
     abstract static class EmptyHitExtractor implements HitExtractor {
         @Override
@@ -81,15 +92,24 @@ public class SequenceSpecTests extends ESTestCase {
         static final TimestampExtractor INSTANCE = new TimestampExtractor();
 
         @Override
-        public Long extract(SearchHit hit) {
-            return (long) hit.docId();
+        public Timestamp extract(SearchHit hit) {
+            return Timestamp.of(String.valueOf(hit.docId()));
         }
     }
 
     static class KeyExtractor extends EmptyHitExtractor {
         @Override
         public String extract(SearchHit hit) {
-            return hit.getId();
+            return hit.getFields().get(KEY_FIELD_NAME).getValues().get(0).toString();
+        }
+    }
+
+    static class ImplicitTbExtractor extends EmptyHitExtractor {
+        static final ImplicitTbExtractor INSTANCE = new ImplicitTbExtractor();
+
+        @Override
+        public Long extract(SearchHit hit) {
+            return (long) hit.docId();
         }
     }
 
@@ -98,15 +118,25 @@ public class SequenceSpecTests extends ESTestCase {
         private boolean unused = true;
 
         TestCriterion(final int ordinal) {
-            super(ordinal,
-                  new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource()
-                      // set a non-negative size
-                      .size(10)
-                      .query(matchAllQuery())
-                      // pass the ordinal through terminate after
-                      .terminateAfter(ordinal), "timestamp", emptyList()),
-                  keyExtractors,
-                  tsExtractor, tbExtractor, false);
+            super(
+                ordinal,
+                new BoxedQueryRequest(
+                    () -> SearchSourceBuilder.searchSource()
+                        // set a non-negative size
+                        .size(10)
+                        .query(matchAllQuery())
+                        // pass the ordinal through terminate after
+                        .terminateAfter(ordinal),
+                    "timestamp",
+                    emptyList(),
+                    emptySet()
+                ),
+                keyExtractors,
+                tsExtractor,
+                tbExtractor,
+                implicitTbExtractor,
+                false
+            );
             this.ordinal = ordinal;
         }
 
@@ -155,8 +185,10 @@ public class SequenceSpecTests extends ESTestCase {
 
             for (Entry<Integer, Tuple<String, String>> entry : events.entrySet()) {
                 Tuple<String, String> value = entry.getValue();
+                Map<String, DocumentField> documentFields = new HashMap<>();
+                documentFields.put(KEY_FIELD_NAME, new DocumentField(KEY_FIELD_NAME, Collections.singletonList(value.v1())));
                 // save the timestamp both as docId (int) and as id (string)
-                SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString(), null, null);
+                SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString(), documentFields, null);
                 hits.add(searchHit);
             }
         }
@@ -182,8 +214,11 @@ public class SequenceSpecTests extends ESTestCase {
             Map<Integer, Tuple<String, String>> evs = ordinal != Integer.MAX_VALUE ? events.get(ordinal) : emptyMap();
 
             EventsAsHits eah = new EventsAsHits(evs);
-            SearchHits searchHits = new SearchHits(eah.hits.toArray(new SearchHit[0]), new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
-                    0.0f);
+            SearchHits searchHits = new SearchHits(
+                eah.hits.toArray(new SearchHit[0]),
+                new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
+                0.0f
+            );
             SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
             SearchResponse s = new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY);
             l.onResponse(s);
@@ -212,6 +247,7 @@ public class SequenceSpecTests extends ESTestCase {
         this.keyExtractors = hasKeys ? singletonList(new KeyExtractor()) : emptyList();
         this.tsExtractor = TimestampExtractor.INSTANCE;
         this.tbExtractor = null;
+        this.implicitTbExtractor = ImplicitTbExtractor.INSTANCE;
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
@@ -229,15 +265,13 @@ public class SequenceSpecTests extends ESTestCase {
         }
 
         // convert the results through a test specific payload
-        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null);
+        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, NOOP_CIRCUIT_BREAKER);
 
         QueryClient testClient = new TestQueryClient();
         TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher);
 
         // finally make the assertion at the end of the listener
-        window.execute(wrap(this::checkResults, ex -> {
-            throw ExceptionsHelper.convertToRuntime(ex);
-        }));
+        window.execute(wrap(this::checkResults, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
     }
 
     private void checkResults(Payload payload) {

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -48,6 +49,11 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
         return LINEAR_DECAY_FUNCTION;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
+
     private static final class LinearDecayScoreFunction implements DecayFunction {
 
         @Override
@@ -57,9 +63,7 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecay
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
-            return Explanation.match(
-                    (float) evaluate(value, scale),
-                    "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
+            return Explanation.match((float) evaluate(value, scale), "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
         }
 
         @Override

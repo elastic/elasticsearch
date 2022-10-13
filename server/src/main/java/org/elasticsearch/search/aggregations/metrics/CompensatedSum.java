@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-
 /**
  * Used to calculate sums using the Kahan summation algorithm.
  *
@@ -34,6 +33,10 @@ public class CompensatedSum {
     public CompensatedSum(double value, double delta) {
         this.value = value;
         this.delta = delta;
+    }
+
+    public CompensatedSum() {
+        this(0, 0);
     }
 
     /**
@@ -85,6 +88,4 @@ public class CompensatedSum {
         return this;
     }
 
-
 }
-

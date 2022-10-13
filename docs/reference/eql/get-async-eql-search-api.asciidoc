@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 
 [[get-async-eql-search-api]]
 === Get async EQL search API

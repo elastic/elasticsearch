@@ -30,10 +30,7 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlug
 
     @Override
     public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-        return Arrays.asList(
-            new PercolatorMatchedSlotSubFetchPhase(),
-            new PercolatorHighlightSubFetchPhase(context.getHighlighters())
-        );
+        return Arrays.asList(new PercolatorMatchedSlotSubFetchPhase(), new PercolatorHighlightSubFetchPhase(context.getHighlighters()));
     }
 
     @Override

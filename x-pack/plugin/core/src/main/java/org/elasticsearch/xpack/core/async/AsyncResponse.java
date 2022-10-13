@@ -20,4 +20,11 @@ public interface AsyncResponse<T extends AsyncResponse<?>> extends Writeable {
      */
     T withExpirationTime(long expirationTimeMillis);
 
+    /**
+     * Convert this AsyncResponse to a new AsyncResponse with a given failure
+     * @return a new AsyncResponse that stores a failure with a provided exception
+     */
+    default T convertToFailure(Exception exc) {
+        return null;
+    }
 }

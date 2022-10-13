@@ -1,0 +1,68 @@
+---
+setup:
+  - skip:
+      version: "9.0.0 - "
+      reason: "compatible from 8.x to 7.x"
+      features:
+        - "headers"
+        - "warnings"
+
+---
+"Put template":
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "Deprecated field [template] used, replaced by [index_patterns]"
+      indices.put_template:
+        name: test
+        body:
+          template: test-*
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              field:
+                type: keyword
+
+  - do:
+      indices.get_template:
+        name: test
+        flat_settings: true
+
+  - match: {test.index_patterns: ["test-*"]}
+  - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+  - match: {test.mappings: {properties: {field: {type: keyword}}}}
+
+---
+"Put template (with template parameter)":
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "Deprecated parameter [template] used, replaced by [index_patterns]"
+      indices.put_template_with_param:
+        name: test
+        template: "test-*"
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              field:
+                type: keyword
+
+  - do:
+      indices.get_template:
+        name: test
+        flat_settings: true
+
+  - match: {test.index_patterns: ["test-*"]}
+  - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+  - match: {test.mappings: {properties: {field: {type: keyword}}}}

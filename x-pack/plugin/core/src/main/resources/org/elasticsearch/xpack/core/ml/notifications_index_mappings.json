@@ -1,0 +1,35 @@
+{
+  "_meta" : {
+    "version" : "${xpack.ml.version}"
+  },
+  "dynamic" : "false",
+  "properties" : {
+    "job_id": {
+      "type": "keyword"
+    },
+    "level": {
+      "type": "keyword"
+    },
+    "message": {
+      "type": "text",
+      "fields": {
+        "raw": {
+          "type": "keyword",
+          "ignore_above": 1024
+        }
+      }
+    },
+    "timestamp": {
+      "type": "date"
+    },
+    "node_name": {
+      "type": "keyword"
+    },
+    "job_type": {
+      "type": "keyword"
+    },
+    "cleared": {
+      "type": "boolean"
+    }
+  }
+}

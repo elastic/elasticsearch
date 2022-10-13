@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[uri-parts-processor]]
 === URI parts processor
 ++++

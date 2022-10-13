@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.cache;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 import java.util.function.ToLongBiFunction;
@@ -24,8 +24,7 @@ public class CacheBuilder<K, V> {
         return new CacheBuilder<>();
     }
 
-    private CacheBuilder() {
-    }
+    private CacheBuilder() {}
 
     public CacheBuilder<K, V> setMaximumWeight(long maximumWeight) {
         if (maximumWeight < 0) {

@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecordTests;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BucketTests extends AbstractSerializingTestCase<Bucket> {
+public class BucketTests extends AbstractXContentSerializingTestCase<Bucket> {
 
     private static final long MAX_BUCKET_SPAN_SEC = 100_000_000_000L;  // bucket span of > 3000 years should be enough for everyone
 
@@ -147,8 +147,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         Bucket bucket1 = new Bucket("foo", new Date(123), 123);
         bucket1.setRecords(Collections.singletonList(new AnomalyRecord("foo", new Date(123), 123)));
         Bucket bucket2 = new Bucket("foo", new Date(123), 123);
-        bucket2.setRecords(Arrays.asList(new AnomalyRecord("foo", new Date(123), 123),
-                new AnomalyRecord("foo", new Date(123), 123)));
+        bucket2.setRecords(Arrays.asList(new AnomalyRecord("foo", new Date(123), 123), new AnomalyRecord("foo", new Date(123), 123)));
 
         assertFalse(bucket1.equals(bucket2));
         assertFalse(bucket2.equals(bucket1));
@@ -244,7 +243,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         assertTrue(bucket.isNormalizable());
     }
 
-     public void testId() {
+    public void testId() {
         Bucket bucket = new Bucket("foo", new Date(123), 60L);
         assertEquals("foo_bucket_123_60", bucket.getId());
     }
@@ -258,17 +257,20 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123544456, "bucket_span": 3600, "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> Bucket.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Bucket.STRICT_PARSER.apply(parser, null));
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123544456, "bucket_span": 3600, "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             Bucket.LENIENT_PARSER.apply(parser, null);
         }

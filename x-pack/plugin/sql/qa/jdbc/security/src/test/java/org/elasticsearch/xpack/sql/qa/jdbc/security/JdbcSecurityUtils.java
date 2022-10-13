@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc.security;
 
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
 
-import static org.apache.lucene.util.LuceneTestCase.getTestClass;
+import static org.apache.lucene.tests.util.LuceneTestCase.getTestClass;
 
 final class JdbcSecurityUtils {
 

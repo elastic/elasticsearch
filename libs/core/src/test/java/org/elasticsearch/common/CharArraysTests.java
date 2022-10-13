@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;

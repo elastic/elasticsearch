@@ -39,7 +39,7 @@ of username and password and is always available. See <<file-realm>>.
 _saml_::
 A realm that facilitates authentication using the SAML 2.0 Web SSO protocol.
 This realm is designed to support authentication through {kib} and is not
-intended for use in the REST API.  See <<saml-realm>>.
+intended for use in the REST API. See <<saml-realm>>.
 
 _kerberos_::
 A realm that authenticates a user using Kerberos authentication. Users are
@@ -47,6 +47,11 @@ authenticated on the basis of Kerberos tickets. See <<kerberos-realm>>.
 
 _oidc_::
 A realm that facilitates authentication using OpenID Connect. It enables {es} to serve as an OpenID Connect Relying Party (RP) and provide single sign-on (SSO) support in {kib}. See <<oidc-guide>>.
+
+_jwt_::
+A realm that facilitates using JWT identity tokens as authentication bearer tokens.
+Compatible tokens are OpenID Connect ID Tokens, or custom JWTs containing the same claims.
+See <<jwt-realm>>.
 
 The {security-features} also support custom realms. If you need to integrate
 with another authentication system, you can build a custom realm plugin. For

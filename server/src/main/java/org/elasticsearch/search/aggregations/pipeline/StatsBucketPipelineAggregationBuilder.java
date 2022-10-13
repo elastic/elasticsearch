@@ -8,9 +8,10 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -25,8 +26,7 @@ public class StatsBucketPipelineAggregationBuilder extends BucketMetricsPipeline
     /**
      * Read from a stream.
      */
-    public StatsBucketPipelineAggregationBuilder(StreamInput in)
-            throws IOException {
+    public StatsBucketPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
     }
 
@@ -47,8 +47,11 @@ public class StatsBucketPipelineAggregationBuilder extends BucketMetricsPipeline
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
         @Override
-        protected StatsBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
-                String bucketsPath, Map<String, Object> params) {
+        protected StatsBucketPipelineAggregationBuilder buildFactory(
+            String pipelineAggregatorName,
+            String bucketsPath,
+            Map<String, Object> params
+        ) {
             return new StatsBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
         }
     };
@@ -56,5 +59,10 @@ public class StatsBucketPipelineAggregationBuilder extends BucketMetricsPipeline
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

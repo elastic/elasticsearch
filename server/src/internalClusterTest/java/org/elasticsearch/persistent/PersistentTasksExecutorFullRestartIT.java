@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,45 +55,49 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
             assertThat(futures.get(i).get().getId(), equalTo(taskIds[i]));
         }
 
-        PersistentTasksCustomMetadata tasksInProgress = internalCluster().clusterService().state().getMetadata()
-                .custom(PersistentTasksCustomMetadata.TYPE);
-        assertThat(tasksInProgress.tasks().size(), equalTo(numberOfTasks));
+        List<PersistentTask<?>> tasksInProgress = findTasks(internalCluster().clusterService().state(), TestPersistentTasksExecutor.NAME);
+        assertThat(tasksInProgress.size(), equalTo(numberOfTasks));
 
         // Make sure that at least one of the tasks is running
         assertBusy(() -> {
             // Wait for the task to start
-            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                    .getTasks().size(), greaterThan(0));
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                greaterThan(0)
+            );
         });
 
         // Restart cluster
         internalCluster().fullRestart();
         ensureYellow();
 
-        tasksInProgress = internalCluster().clusterService().state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        assertThat(tasksInProgress.tasks().size(), equalTo(numberOfTasks));
+        tasksInProgress = findTasks(internalCluster().clusterService().state(), TestPersistentTasksExecutor.NAME);
+        assertThat(tasksInProgress.size(), equalTo(numberOfTasks));
+        Set<String> taskInProgressIds = tasksInProgress.stream().map(PersistentTask::getId).collect(Collectors.toSet());
         // Check that cluster state is correct
         for (int i = 0; i < numberOfTasks; i++) {
-            PersistentTask<?> task = tasksInProgress.getTask(taskIds[i]);
-            assertNotNull(task);
+            assertTrue(taskInProgressIds.contains(taskIds[i]));
         }
 
         logger.info("Waiting for {} tasks to start", numberOfTasks);
         assertBusy(() -> {
             // Wait for all tasks to start
-            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                            .getTasks().size(), equalTo(numberOfTasks));
+            assertThat(
+                client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().size(),
+                equalTo(numberOfTasks)
+            );
         });
 
         logger.info("Complete all tasks");
         // Complete the running task and make sure it finishes properly
-        assertThat(new TestPersistentTasksPlugin.TestTasksRequestBuilder(client()).setOperation("finish").get().getTasks().size(),
-                equalTo(numberOfTasks));
+        assertThat(
+            new TestPersistentTasksPlugin.TestTasksRequestBuilder(client()).setOperation("finish").get().getTasks().size(),
+            equalTo(numberOfTasks)
+        );
 
         assertBusy(() -> {
             // Make sure the task is removed from the cluster state
-            assertThat(((PersistentTasksCustomMetadata) internalCluster().clusterService().state().getMetadata()
-                    .custom(PersistentTasksCustomMetadata.TYPE)).tasks(), empty());
+            assertThat(findTasks(internalCluster().clusterService().state(), TestPersistentTasksExecutor.NAME), empty());
         });
 
     }

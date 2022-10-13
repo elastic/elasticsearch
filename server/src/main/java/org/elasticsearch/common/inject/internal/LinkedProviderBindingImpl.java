@@ -16,27 +16,29 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
 import org.elasticsearch.common.inject.spi.ProviderKeyBinding;
 
-public final class LinkedProviderBindingImpl<T>
-        extends BindingImpl<T> implements ProviderKeyBinding<T> {
+public final class LinkedProviderBindingImpl<T> extends BindingImpl<T> implements ProviderKeyBinding<T> {
 
     final Key<? extends Provider<? extends T>> providerKey;
 
-    public LinkedProviderBindingImpl(Injector injector, Key<T> key, Object source,
-                                     InternalFactory<? extends T> internalFactory, Scoping scoping,
-                                     Key<? extends Provider<? extends T>> providerKey) {
+    public LinkedProviderBindingImpl(
+        Injector injector,
+        Key<T> key,
+        Object source,
+        InternalFactory<? extends T> internalFactory,
+        Scoping scoping,
+        Key<? extends Provider<? extends T>> providerKey
+    ) {
         super(injector, key, source, internalFactory, scoping);
         this.providerKey = providerKey;
     }
 
-    LinkedProviderBindingImpl(Object source, Key<T> key, Scoping scoping,
-                              Key<? extends Provider<? extends T>> providerKey) {
+    LinkedProviderBindingImpl(Object source, Key<T> key, Scoping scoping, Key<? extends Provider<? extends T>> providerKey) {
         super(source, key, scoping);
         this.providerKey = providerKey;
     }
@@ -57,23 +59,11 @@ public final class LinkedProviderBindingImpl<T>
     }
 
     @Override
-    public BindingImpl<T> withKey(Key<T> key) {
-        return new LinkedProviderBindingImpl<>(getSource(), key, getScoping(), providerKey);
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        getScoping().applyTo(binder.withSource(getSource())
-                .bind(getKey()).toProvider(getProviderKey()));
-    }
-
-    @Override
     public String toString() {
-        return new ToStringBuilder(ProviderKeyBinding.class)
-                .add("key", getKey())
-                .add("source", getSource())
-                .add("scope", getScoping())
-                .add("provider", providerKey)
-                .toString();
+        return new ToStringBuilder(ProviderKeyBinding.class).add("key", getKey())
+            .add("source", getSource())
+            .add("scope", getScoping())
+            .add("provider", providerKey)
+            .toString();
     }
 }

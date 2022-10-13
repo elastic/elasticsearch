@@ -27,9 +27,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public class BulkRejectionIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("thread_pool.write.size", 1)
             .put("thread_pool.write.queue_size", 1)
             .build();
@@ -42,9 +42,11 @@ public class BulkRejectionIT extends ESIntegTestCase {
 
     @Override
     public Settings indexSettings() {
-        return Settings.builder().put(super.indexSettings())
+        return Settings.builder()
+            .put(super.indexSettings())
             // sync global checkpoint quickly so we can verify seq_no_stats aligned between all copies after tests.
-            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s").build();
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+            .build();
     }
 
     @Override

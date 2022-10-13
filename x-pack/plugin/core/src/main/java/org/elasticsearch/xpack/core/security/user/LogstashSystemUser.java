@@ -17,6 +17,6 @@ public class LogstashSystemUser extends User {
     public static final String ROLE_NAME = UsernamesField.LOGSTASH_ROLE;
 
     public LogstashSystemUser(boolean enabled) {
-        super(NAME, new String[]{ ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
+        super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
     }
 }

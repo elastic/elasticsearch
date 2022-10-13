@@ -9,6 +9,7 @@
 package org.elasticsearch.common;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.ByteUtils;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -17,28 +18,25 @@ import java.math.BigInteger;
  * A set of utilities for numbers.
  */
 public final class Numbers {
-
     private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
     private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
 
-    private Numbers() {
+    private Numbers() {}
+
+    public static short bytesToShort(byte[] bytes, int offset) {
+        return ByteUtils.readShortBE(bytes, offset);
+    }
+
+    public static int bytesToInt(byte[] bytes, int offset) {
+        return ByteUtils.readIntBE(bytes, offset);
+    }
+
+    public static long bytesToLong(byte[] bytes, int offset) {
+        return ByteUtils.readLongBE(bytes, offset);
     }
 
     public static long bytesToLong(BytesRef bytes) {
-        int high = (bytes.bytes[bytes.offset + 0] << 24) | ((bytes.bytes[bytes.offset + 1] & 0xff) << 16) |
-            ((bytes.bytes[bytes.offset + 2] & 0xff) << 8) | (bytes.bytes[bytes.offset + 3] & 0xff);
-        int low = (bytes.bytes[bytes.offset + 4] << 24) | ((bytes.bytes[bytes.offset + 5] & 0xff) << 16) |
-            ((bytes.bytes[bytes.offset + 6] & 0xff) << 8) | (bytes.bytes[bytes.offset + 7] & 0xff);
-        return (((long) high) << 32) | (low & 0x0ffffffffL);
-    }
-
-    public static byte[] intToBytes(int val) {
-        byte[] arr = new byte[4];
-        arr[0] = (byte) (val >>> 24);
-        arr[1] = (byte) (val >>> 16);
-        arr[2] = (byte) (val >>> 8);
-        arr[3] = (byte) (val);
-        return arr;
+        return bytesToLong(bytes.bytes, bytes.offset);
     }
 
     /**
@@ -47,10 +45,21 @@ public final class Numbers {
      * @param val The int to convert to a byte array
      * @return The byte array converted
      */
+    public static byte[] intToBytes(int val) {
+        byte[] arr = new byte[4];
+        ByteUtils.writeIntBE(val, arr, 0);
+        return arr;
+    }
+
+    /**
+     * Converts a short to a byte array.
+     *
+     * @param val The short to convert to a byte array
+     * @return The byte array converted
+     */
     public static byte[] shortToBytes(int val) {
         byte[] arr = new byte[2];
-        arr[0] = (byte) (val >>> 8);
-        arr[1] = (byte) (val);
+        ByteUtils.writeShortBE((short) val, arr, 0);
         return arr;
     }
 
@@ -62,14 +71,7 @@ public final class Numbers {
      */
     public static byte[] longToBytes(long val) {
         byte[] arr = new byte[8];
-        arr[0] = (byte) (val >>> 56);
-        arr[1] = (byte) (val >>> 48);
-        arr[2] = (byte) (val >>> 40);
-        arr[3] = (byte) (val >>> 32);
-        arr[4] = (byte) (val >>> 24);
-        arr[5] = (byte) (val >>> 16);
-        arr[6] = (byte) (val >>> 8);
-        arr[7] = (byte) (val);
+        ByteUtils.writeLongBE(val, arr, 0);
         return arr;
     }
 
@@ -95,8 +97,7 @@ public final class Numbers {
      *  stored value cannot be converted to a long that stores the exact same
      *  value. */
     public static long toLongExact(Number n) {
-        if (n instanceof Byte || n instanceof Short || n instanceof Integer
-                || n instanceof Long) {
+        if (n instanceof Byte || n instanceof Short || n instanceof Integer || n instanceof Long) {
             return n.longValue();
         } else if (n instanceof Float || n instanceof Double) {
             double d = n.doubleValue();
@@ -109,8 +110,9 @@ public final class Numbers {
         } else if (n instanceof BigInteger) {
             return ((BigInteger) n).longValueExact();
         } else {
-            throw new IllegalArgumentException("Cannot check whether [" + n + "] of class [" + n.getClass().getName()
-                    + "] is actually a long");
+            throw new IllegalArgumentException(
+                "Cannot check whether [" + n + "] of class [" + n.getClass().getName() + "] is actually a long"
+            );
         }
     }
 
@@ -131,8 +133,8 @@ public final class Numbers {
         final BigInteger bigIntegerValue;
         try {
             BigDecimal bigDecimalValue = new BigDecimal(stringValue);
-            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0 ||
-                bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
+            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0
+                || bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
                 throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
             }
             bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
@@ -176,5 +178,18 @@ public final class Numbers {
             throw new ArithmeticException("byte overflow: " + l);
         }
         return (byte) l;
+    }
+
+    /**
+     * Checks if the given string can be parsed as a positive integer value.
+     */
+    public static boolean isPositiveNumeric(String string) {
+        for (int i = 0; i < string.length(); ++i) {
+            final char c = string.charAt(i);
+            if (c < '0' || c > '9') {
+                return false;
+            }
+        }
+        return true;
     }
 }

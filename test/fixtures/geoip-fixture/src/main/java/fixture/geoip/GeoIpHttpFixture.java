@@ -10,6 +10,10 @@ package fixture.geoip;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.cli.ProcessInfo;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.geoip.GeoIpCli;
+
 import java.io.BufferedWriter;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -17,13 +21,16 @@ import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class GeoIpHttpFixture {
 
     private final HttpServer server;
 
     GeoIpHttpFixture(final String[] args) throws Exception {
-        String rawData = new String(GeoIpHttpFixture.class.getResourceAsStream("/data.json").readAllBytes(), StandardCharsets.UTF_8);
+        copyFiles();
+        String data = new String(GeoIpHttpFixture.class.getResourceAsStream("/data.json").readAllBytes(), StandardCharsets.UTF_8);
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(args[0]), Integer.parseInt(args[1])), 0);
         this.server.createContext("/", exchange -> {
             String query = exchange.getRequestURI().getQuery();
@@ -32,7 +39,6 @@ public class GeoIpHttpFixture {
                 exchange.getResponseBody().close();
                 return;
             }
-            String data = rawData.replace("endpoint", "http://" + exchange.getRequestHeaders().getFirst("Host"));
             exchange.sendResponseHeaders(200, data.length());
             try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(exchange.getResponseBody()))) {
                 writer.write(data);
@@ -41,11 +47,47 @@ public class GeoIpHttpFixture {
         this.server.createContext("/db", exchange -> {
             exchange.sendResponseHeaders(200, 0);
             String dbName = exchange.getRequestURI().getPath().replaceAll(".*/db", "");
-            try (OutputStream outputStream = exchange.getResponseBody();
-                 InputStream db = GeoIpHttpFixture.class.getResourceAsStream(dbName)) {
+            try (
+                OutputStream outputStream = exchange.getResponseBody();
+                InputStream db = GeoIpHttpFixture.class.getResourceAsStream(dbName)
+            ) {
                 db.transferTo(outputStream);
             }
         });
+        this.server.createContext("/cli", exchange -> {
+            String fileName = exchange.getRequestURI().getPath().replaceAll(".*/cli/", "");
+            Path target = Path.of("target").resolve(fileName);
+            if (Files.isRegularFile(target)) {
+                try (OutputStream outputStream = exchange.getResponseBody(); InputStream db = Files.newInputStream(target)) {
+                    exchange.sendResponseHeaders(200, 0);
+                    db.transferTo(outputStream);
+                } catch (Exception e) {
+                    exchange.sendResponseHeaders(500, 0);
+                    exchange.getResponseBody().close();
+                }
+            } else {
+                exchange.sendResponseHeaders(404, 0);
+                exchange.getResponseBody().close();
+            }
+        });
+    }
+
+    private void copyFiles() throws Exception {
+        Path source = Path.of("source");
+        Files.createDirectory(source);
+
+        Path target = Path.of("target");
+        Files.createDirectory(target);
+
+        Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/GeoLite2-ASN.tgz"), source.resolve("GeoLite2-ASN.tgz"));
+        Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/GeoLite2-City.mmdb"), source.resolve("GeoLite2-City.mmdb"));
+        Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/GeoLite2-Country.mmdb"), source.resolve("GeoLite2-Country.mmdb"));
+
+        new GeoIpCli().main(
+            new String[] { "-s", source.toAbsolutePath().toString(), "-t", target.toAbsolutePath().toString() },
+            Terminal.DEFAULT,
+            ProcessInfo.fromSystem()
+        );
     }
 
     final void start() throws Exception {

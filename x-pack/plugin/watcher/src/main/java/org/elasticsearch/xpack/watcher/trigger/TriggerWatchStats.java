@@ -20,8 +20,15 @@ public class TriggerWatchStats {
     public final String transformType;
     public final ActionStats[] actions;
 
-    private TriggerWatchStats(boolean metadata, String triggerType, String scheduleType, String inputType,
-                              String conditionType, String transformType, ActionStats[] actions) {
+    private TriggerWatchStats(
+        boolean metadata,
+        String triggerType,
+        String scheduleType,
+        String inputType,
+        String conditionType,
+        String transformType,
+        ActionStats[] actions
+    ) {
         this.metadata = metadata;
         this.triggerType = triggerType;
         this.scheduleType = scheduleType;
@@ -64,7 +71,6 @@ public class TriggerWatchStats {
             actionStats[i++] = new ActionStats(type, transform, condition);
         }
 
-        return new TriggerWatchStats(metadata, triggerType, scheduleTriggerType, inputType,
-                                     conditionType, transformType, actionStats);
+        return new TriggerWatchStats(metadata, triggerType, scheduleTriggerType, inputType, conditionType, transformType, actionStats);
     }
 }

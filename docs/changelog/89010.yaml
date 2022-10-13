@@ -1,0 +1,5 @@
+pr: 89010
+summary: "Support source fallback for double, float, and `half_float` field types"
+area: Mapping
+type: enhancement
+issues: []

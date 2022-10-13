@@ -12,6 +12,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.url.URLBlobContainer;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -21,11 +22,13 @@ public class HttpURLBlobContainer extends URLBlobContainer {
     private final URLHttpClient httpClient;
     private final URLHttpClientSettings httpClientSettings;
 
-    public HttpURLBlobContainer(URLBlobStore blobStore,
-                                BlobPath blobPath,
-                                URL path,
-                                URLHttpClient httpClient,
-                                URLHttpClientSettings httpClientSettings) {
+    public HttpURLBlobContainer(
+        URLBlobStore blobStore,
+        BlobPath blobPath,
+        URL path,
+        URLHttpClient httpClient,
+        URLHttpClientSettings httpClientSettings
+    ) {
         super(blobStore, blobPath, path);
         this.httpClient = httpClient;
         this.httpClientSettings = httpClientSettings;
@@ -33,12 +36,18 @@ public class HttpURLBlobContainer extends URLBlobContainer {
 
     @Override
     public InputStream readBlob(String name, long position, long length) throws IOException {
-        return new RetryingHttpInputStream(name,
+        if (length == 0) {
+            return new ByteArrayInputStream(new byte[0]);
+        }
+
+        return new RetryingHttpInputStream(
+            name,
             getURIForBlob(name),
             position,
             Math.addExact(position, length) - 1,
             httpClient,
-            httpClientSettings.getMaxRetries());
+            httpClientSettings.getMaxRetries()
+        );
     }
 
     @Override

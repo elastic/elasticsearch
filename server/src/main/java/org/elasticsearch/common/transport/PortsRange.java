@@ -8,9 +8,8 @@
 
 package org.elasticsearch.common.transport;
 
-
-import com.carrotsearch.hppc.IntArrayList;
-
+import java.util.ArrayList;
+import java.util.List;
 import java.util.StringTokenizer;
 
 public class PortsRange {
@@ -26,15 +25,12 @@ public class PortsRange {
     }
 
     public int[] ports() throws NumberFormatException {
-        final IntArrayList ports = new IntArrayList();
-        iterate(new PortCallback() {
-            @Override
-            public boolean onPortNumber(int portNumber) {
-                ports.add(portNumber);
-                return false;
-            }
+        final List<Integer> ports = new ArrayList<>();
+        iterate(portNumber -> {
+            ports.add(portNumber);
+            return false;
         });
-        return ports.toArray();
+        return ports.stream().mapToInt(Integer::intValue).toArray();
     }
 
     public boolean iterate(PortCallback callback) throws NumberFormatException {
@@ -72,8 +68,6 @@ public class PortsRange {
 
     @Override
     public String toString() {
-        return "PortsRange{" +
-            "portRange='" + portRange + '\'' +
-            '}';
+        return "PortsRange{" + "portRange='" + portRange + '\'' + '}';
     }
 }

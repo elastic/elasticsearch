@@ -21,12 +21,11 @@ public class FrenchAnalyzerProvider extends AbstractIndexAnalyzerProvider<French
     private final FrenchAnalyzer analyzer;
 
     FrenchAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         analyzer = new FrenchAnalyzer(
             Analysis.parseStopWords(env, settings, FrenchAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
     }
 
     @Override

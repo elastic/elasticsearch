@@ -45,7 +45,7 @@ public abstract class ArbitraryConditionalFunction extends ConditionalFunction {
             templates.add(asScript(ex));
         }
 
-        StringJoiner template = new StringJoiner(",", "{sql}." + operation.scriptMethodName() +"([", "])");
+        StringJoiner template = new StringJoiner(",", "{sql}." + operation.scriptMethodName() + "([", "])");
         ParamsBuilder params = paramsBuilder();
 
         for (ScriptTemplate scriptTemplate : templates) {

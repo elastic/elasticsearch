@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.sql.qa.geo;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.xpack.sql.qa.jdbc.LocalH2;
 import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
-import org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration;
 import org.h2gis.functions.factory.H2GISFunctions;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -21,7 +21,6 @@ import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Properties;
 
 /**
  * Tests comparing geo sql queries executed against our jdbc client
@@ -88,13 +87,5 @@ public abstract class GeoSqlSpecTestCase extends SpecBaseIntegrationTestCase {
 
             assertResults(expected, elasticResults);
         }
-    }
-
-    // TODO: use UTC for now until deciding on a strategy for handling date extraction
-    @Override
-    protected Properties connectionProperties() {
-        Properties connectionProperties = new Properties();
-        connectionProperties.setProperty(JdbcConfiguration.TIME_ZONE, "UTC");
-        return connectionProperties;
     }
 }

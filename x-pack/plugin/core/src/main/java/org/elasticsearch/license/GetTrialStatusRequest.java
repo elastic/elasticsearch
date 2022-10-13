@@ -14,8 +14,7 @@ import java.io.IOException;
 
 public class GetTrialStatusRequest extends MasterNodeReadRequest<GetTrialStatusRequest> {
 
-    public GetTrialStatusRequest() {
-    }
+    public GetTrialStatusRequest() {}
 
     public GetTrialStatusRequest(StreamInput in) throws IOException {
         super(in);

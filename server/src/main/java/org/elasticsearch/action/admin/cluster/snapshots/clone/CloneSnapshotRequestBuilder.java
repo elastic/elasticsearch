@@ -12,19 +12,29 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 
-public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<CloneSnapshotRequest, AcknowledgedResponse,
-                                                                                   CloneSnapshotRequestBuilder> {
+public class CloneSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<
+    CloneSnapshotRequest,
+    AcknowledgedResponse,
+    CloneSnapshotRequestBuilder> {
 
-    protected CloneSnapshotRequestBuilder(ElasticsearchClient client, ActionType<AcknowledgedResponse> action,
-                                          CloneSnapshotRequest request) {
+    protected CloneSnapshotRequestBuilder(
+        ElasticsearchClient client,
+        ActionType<AcknowledgedResponse> action,
+        CloneSnapshotRequest request
+    ) {
         super(client, action, request);
     }
 
-    public CloneSnapshotRequestBuilder(ElasticsearchClient client, ActionType<AcknowledgedResponse> action,
-                                       String repository, String source, String target) {
+    public CloneSnapshotRequestBuilder(
+        ElasticsearchClient client,
+        ActionType<AcknowledgedResponse> action,
+        String repository,
+        String source,
+        String target
+    ) {
         this(client, action, new CloneSnapshotRequest(repository, source, target, Strings.EMPTY_ARRAY));
     }
 

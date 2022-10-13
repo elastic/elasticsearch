@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-functions-math]]
 === Mathematical Functions
 
@@ -21,7 +20,7 @@ ABS(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: numeric
 
@@ -43,7 +42,7 @@ CBRT(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -65,7 +64,7 @@ CEIL(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: integer or long numeric value
 
@@ -107,7 +106,7 @@ EXP(numeric_exp) <1>
 
 *Input*:
 
-<1> float numeric expression
+<1> float numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -129,7 +128,7 @@ EXPM1(numeric_exp) <1>
 
 *Input*:
 
-<1> float numeric expression
+<1> float numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -151,7 +150,7 @@ FLOOR(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: integer or long numeric value
 
@@ -173,7 +172,7 @@ LOG(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -195,7 +194,7 @@ LOG10(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -239,8 +238,8 @@ POWER(
 
 *Input*:
 
-<1> numeric expression
-<2> integer expression
+<1> numeric expression. If `null`, the function returns `null`.
+<2> integer expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -267,7 +266,7 @@ RANDOM(seed) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -290,8 +289,8 @@ ROUND(
 ----
 *Input*:
 
-<1> numeric expression
-<2> integer expression; optional
+<1> numeric expression. If `null`, the function returns `null`.
+<2> integer expression; optional. If `null`, the function returns `null`.
 
 *Output*: numeric 
 
@@ -321,7 +320,7 @@ SIGN(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: [-1, 0, 1]
 
@@ -344,7 +343,7 @@ SQRT(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -367,13 +366,13 @@ TRUNCATE(
 ----
 *Input*:
 
-<1> numeric expression
-<2> integer expression; optional
+<1> numeric expression. If `null`, the function returns `null`.
+<2> integer expression; optional. If `null`, the function returns `null`.
 
 *Output*: numeric 
 
 *Description*: Returns `numeric_exp` truncated to `integer_exp` places right of the decimal point. If `integer_exp` is negative,
-`numeric_exp` is truncated to |`integer_exp`| places to the left of the decimal point.  If `integer_exp` is omitted,
+`numeric_exp` is truncated to |`integer_exp`| places to the left of the decimal point. If `integer_exp` is omitted,
 the function will perform as if `integer_exp` would be 0. The returned numeric data type is the same as the data type 
 of `numeric_exp`.
 
@@ -402,7 +401,7 @@ ACOS(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -424,7 +423,7 @@ ASIN(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -446,7 +445,7 @@ ATAN(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -470,8 +469,8 @@ ATAN2(
 
 *Input*:
 
-<1> numeric expression
-<2> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
+<2> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -493,7 +492,7 @@ COS(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -515,7 +514,7 @@ COSH(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -537,7 +536,7 @@ COT(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -559,7 +558,7 @@ DEGREES(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -582,7 +581,7 @@ RADIANS(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -605,7 +604,7 @@ SIN(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -627,7 +626,7 @@ SINH(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 
@@ -649,7 +648,7 @@ TAN(numeric_exp) <1>
 
 *Input*:
 
-<1> numeric expression
+<1> numeric expression. If `null`, the function returns `null`.
 
 *Output*: double numeric value
 

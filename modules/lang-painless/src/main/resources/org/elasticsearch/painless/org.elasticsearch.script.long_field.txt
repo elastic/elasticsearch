@@ -1,0 +1,20 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+# The whitelist for long-valued runtime fields
+
+# These two whitelists are required for painless to find the classes
+class org.elasticsearch.script.LongFieldScript @no_import {
+}
+class org.elasticsearch.script.LongFieldScript$Factory @no_import {
+}
+
+static_import {
+    # The `emit` callback to collect values for the field
+    void emit(org.elasticsearch.script.LongFieldScript, long) bound_to org.elasticsearch.script.LongFieldScript$Emit
+}

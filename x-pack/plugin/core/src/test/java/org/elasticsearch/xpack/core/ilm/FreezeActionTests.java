@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -24,19 +24,22 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
 
     @Override
     protected FreezeAction createTestInstance() {
-        return new FreezeAction();
+        return FreezeAction.INSTANCE;
     }
 
     @Override
     protected Reader<FreezeAction> instanceReader() {
-        return FreezeAction::new;
+        return in -> FreezeAction.INSTANCE;
     }
 
     public void testToSteps() {
         FreezeAction action = createTestInstance();
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(3, steps.size());
@@ -54,5 +57,11 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
         assertEquals(expectedThirdStepKey, secondStep.getNextStepKey());
         assertEquals(expectedThirdStepKey, thirdStep.getKey());
         assertEquals(nextStepKey, thirdStep.getNextStepKey());
+    }
+
+    @Override
+    protected void assertEqualInstances(FreezeAction expectedInstance, FreezeAction newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 }

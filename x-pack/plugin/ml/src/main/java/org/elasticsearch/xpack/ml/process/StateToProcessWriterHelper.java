@@ -21,7 +21,7 @@ public final class StateToProcessWriterHelper {
     private StateToProcessWriterHelper() {}
 
     public static void writeStateToStream(BytesReference source, OutputStream stream) throws IOException {
-        // The source bytes are already UTF-8.  The C++ process wants UTF-8, so we
+        // The source bytes are already UTF-8. The C++ process wants UTF-8, so we
         // can avoid converting to a Java String only to convert back again.
         BytesRefIterator iterator = source.iterator();
         for (BytesRef ref = iterator.next(); ref != null; ref = iterator.next()) {

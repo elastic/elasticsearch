@@ -9,26 +9,29 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ScriptConfig extends AbstractDiffable<ScriptConfig> implements Writeable, ToXContentObject {
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+public class ScriptConfig implements SimpleDiffable<ScriptConfig>, Writeable, ToXContentObject {
     private static final Logger logger = LogManager.getLogger(ScriptConfig.class);
 
     // we store the in 2 formats: the raw format and the parsed format
@@ -52,7 +55,7 @@ public class ScriptConfig extends AbstractDiffable<ScriptConfig> implements Writ
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(source);
+        out.writeGenericMap(source);
         out.writeOptionalWriteable(script);
     }
 
@@ -106,8 +109,10 @@ public class ScriptConfig extends AbstractDiffable<ScriptConfig> implements Writ
         return Objects.equals(this.source, that.source) && Objects.equals(this.script, that.script);
     }
 
-    public boolean isValid() {
-        return this.script != null;
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        if (script == null) {
+            validationException = addValidationError("script must not be null", validationException);
+        }
+        return validationException;
     }
-
 }

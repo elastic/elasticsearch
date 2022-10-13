@@ -79,7 +79,7 @@ value like the following:
 =======
 Allowing a wildcard at the beginning of a word (eg `"*ing"`) is particularly
 heavy, because all terms in the index need to be examined, just in case
-they match.  Leading wildcards can be disabled by setting
+they match. Leading wildcards can be disabled by setting
 `allow_leading_wildcard` to `false`.
 =======
 
@@ -105,7 +105,7 @@ The supported regular expression syntax is explained in <<regexp-syntax>>.
 [WARNING]
 =======
 The `allow_leading_wildcard` parameter does not have any control over
-regular expressions.  A query string such as the following would force
+regular expressions. A query string such as the following would force
 Elasticsearch to visit every term in the index:
 
     /.*n/
@@ -116,13 +116,15 @@ Use with caution!
 [[query-string-fuzziness]]
 ====== Fuzziness
 
-We can search for terms that are
-similar to, but not exactly like our search terms, using the ``fuzzy''
-operator:
+You can run <<query-dsl-fuzzy-query,`fuzzy` queries>> using the `~` operator:
 
     quikc~ brwn~ foks~
 
-This uses the
+For these queries, the query string is <<analysis-normalizers,normalized>>. If
+present, only certain filters from the analyzer are applied. For a list of
+applicable filters, see <<analysis-normalizers>>.
+
+The query uses the
 {wikipedia}/Damerau-Levenshtein_distance[Damerau-Levenshtein distance]
 to find all terms with a maximum of
 two changes, where a change is the insertion, deletion
@@ -148,7 +150,7 @@ you can search for `app~1` (fuzzy) or `app*` (wildcard), but searches for
 
 While a phrase query (eg `"john smith"`) expects all of the terms in exactly
 the same order, a proximity query allows the specified words to be further
-apart or in a different order.  In the same way that fuzzy queries can
+apart or in a different order. In the same way that fuzzy queries can
 specify a maximum edit distance for characters in a word, a proximity search
 allows us to specify a maximum edit distance of words in a phrase:
 
@@ -230,9 +232,9 @@ Boosts can also be applied to phrases or to groups:
 
 ====== Boolean operators
 
-By default, all terms are optional, as long as one term matches.  A search
+By default, all terms are optional, as long as one term matches. A search
 for `foo bar baz` will find any document that contains one or more of
-`foo` or `bar` or `baz`.  We have already discussed the `default_operator`
+`foo` or `bar` or `baz`. We have already discussed the `default_operator`
 above which allows you to force all terms to be required, but there are
 also _boolean operators_ which can be used in the query string itself
 to provide more control.

@@ -54,7 +54,8 @@ public class PagerDutyAccount {
         SecureString secureString = SECURE_SERVICE_API_KEY_SETTING.get(accountSettings);
         if (secureString == null || secureString.length() < 1) {
             throw new SettingsException(
-                    "invalid pagerduty account [" + name + "]. missing required [" + SECURE_SERVICE_API_KEY_SETTING.getKey() + "] setting");
+                "invalid pagerduty account [" + name + "]. missing required [" + SECURE_SERVICE_API_KEY_SETTING.getKey() + "] setting"
+            );
         }
         return secureString.toString();
     }

@@ -1,0 +1,26 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.build'
+
+archivesBaseName = 'elasticsearch-ansi-console'
+
+dependencies {
+  compileOnly project(":server")
+  testImplementation project(":test:framework")
+
+  // multi-platform (Windows too) terminal detection and output formatting
+  api "org.fusesource.jansi:jansi:2.4.0"
+}
+
+// the code and tests in this project cover console initialization
+// which happens before the SecurityManager is installed
+tasks.named("test").configure {
+  systemProperty 'tests.security.manager', 'false'
+}
+

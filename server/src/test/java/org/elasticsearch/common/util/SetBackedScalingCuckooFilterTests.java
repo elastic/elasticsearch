@@ -10,6 +10,7 @@ package org.elasticsearch.common.util;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -41,7 +42,12 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
 
     @Override
     protected SetBackedScalingCuckooFilter mutateInstance(SetBackedScalingCuckooFilter instance) throws IOException {
-        SetBackedScalingCuckooFilter newInstance = new SetBackedScalingCuckooFilter(instance);
+        SetBackedScalingCuckooFilter newInstance = new SetBackedScalingCuckooFilter(
+            instance.getThreshold(),
+            instance.getRng(),
+            instance.getFpp()
+        );
+        newInstance.merge(instance);
         int num = randomIntBetween(1, 10);
         for (int i = 0; i < num; i++) {
             newInstance.add(randomLong());
@@ -55,7 +61,7 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
 
         int size = 0;
         Set<Long> values = new HashSet<>();
-        Set<Long> hashed = new HashSet<>(values.size());
+        Set<Long> hashed = Sets.newHashSetWithExpectedSize(values.size());
         while (size < threshold - 100) {
             long value = randomLong();
             filter.add(value);
@@ -120,8 +126,10 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
         assertNull(filter.hashes);
         assertThat(filter.filters.size(), greaterThan(0));
         IllegalStateException e = expectThrows(IllegalStateException.class, filter::convert);
-        assertThat(e.getMessage(), equalTo("Cannot convert SetBackedScalingCuckooFilter to approximate " +
-            "when it has already been converted."));
+        assertThat(
+            e.getMessage(),
+            equalTo("Cannot convert SetBackedScalingCuckooFilter to approximate " + "when it has already been converted.")
+        );
     }
 
     public void testMergeSmall() {
@@ -205,16 +213,16 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
     }
 
     public void testBadParameters() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new SetBackedScalingCuckooFilter(-1, Randomness.get(), 0.11));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SetBackedScalingCuckooFilter(-1, Randomness.get(), 0.11)
+        );
         assertThat(e.getMessage(), equalTo("[threshold] must be a positive integer"));
 
-        e = expectThrows(IllegalArgumentException.class,
-            () -> new SetBackedScalingCuckooFilter(1000000, Randomness.get(), 0.11));
+        e = expectThrows(IllegalArgumentException.class, () -> new SetBackedScalingCuckooFilter(1000000, Randomness.get(), 0.11));
         assertThat(e.getMessage(), equalTo("[threshold] must be smaller than [500000]"));
 
-        e = expectThrows(IllegalArgumentException.class,
-            () -> new SetBackedScalingCuckooFilter(100, Randomness.get(), -1.0));
+        e = expectThrows(IllegalArgumentException.class, () -> new SetBackedScalingCuckooFilter(100, Randomness.get(), -1.0));
         assertThat(e.getMessage(), equalTo("[fpp] must be a positive double"));
     }
 }

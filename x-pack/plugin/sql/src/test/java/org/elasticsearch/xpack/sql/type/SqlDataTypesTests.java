@@ -88,22 +88,23 @@ public class SqlDataTypesTests extends ESTestCase {
         assertEquals(Integer.valueOf(2), metaSqlRadix(FLOAT));
     }
 
-
     // type checks
     public void testIsInterval() {
-        for (DataType dataType : asList(INTERVAL_YEAR,
-                INTERVAL_MONTH,
-                INTERVAL_DAY,
-                INTERVAL_HOUR,
-                INTERVAL_MINUTE,
-                INTERVAL_SECOND,
-                INTERVAL_YEAR_TO_MONTH,
-                INTERVAL_DAY_TO_HOUR,
-                INTERVAL_DAY_TO_MINUTE,
-                INTERVAL_DAY_TO_SECOND,
-                INTERVAL_HOUR_TO_MINUTE,
-                INTERVAL_HOUR_TO_SECOND,
-                INTERVAL_MINUTE_TO_SECOND)) {
+        for (DataType dataType : asList(
+            INTERVAL_YEAR,
+            INTERVAL_MONTH,
+            INTERVAL_DAY,
+            INTERVAL_HOUR,
+            INTERVAL_MINUTE,
+            INTERVAL_SECOND,
+            INTERVAL_YEAR_TO_MONTH,
+            INTERVAL_DAY_TO_HOUR,
+            INTERVAL_DAY_TO_MINUTE,
+            INTERVAL_DAY_TO_SECOND,
+            INTERVAL_HOUR_TO_MINUTE,
+            INTERVAL_HOUR_TO_SECOND,
+            INTERVAL_MINUTE_TO_SECOND
+        )) {
             assertTrue(dataType + " is not an interval", isInterval(dataType));
         }
     }
@@ -141,7 +142,8 @@ public class SqlDataTypesTests extends ESTestCase {
     }
 
     public void testIntervalCompabitilityWithDateTimes() {
-        for (DataType intervalType : asList(INTERVAL_YEAR,
+        for (DataType intervalType : asList(
+            INTERVAL_YEAR,
             INTERVAL_MONTH,
             INTERVAL_DAY,
             INTERVAL_HOUR,
@@ -153,8 +155,9 @@ public class SqlDataTypesTests extends ESTestCase {
             INTERVAL_DAY_TO_SECOND,
             INTERVAL_HOUR_TO_MINUTE,
             INTERVAL_HOUR_TO_SECOND,
-            INTERVAL_MINUTE_TO_SECOND)) {
-            for (DataType dateTimeType: asList(DATE, DATETIME)) {
+            INTERVAL_MINUTE_TO_SECOND
+        )) {
+            for (DataType dateTimeType : asList(DATE, DATETIME)) {
                 assertTrue(areCompatible(intervalType, dateTimeType));
                 assertTrue(areCompatible(dateTimeType, intervalType));
             }
@@ -162,28 +165,51 @@ public class SqlDataTypesTests extends ESTestCase {
     }
 
     public void testEsToDataType() {
-        List<String> types = new ArrayList<>(Arrays.asList("null", "boolean", "bool",
-                "byte", "tinyint",
-                "short", "smallint",
+        List<String> types = new ArrayList<>(
+            Arrays.asList(
+                "null",
+                "boolean",
+                "bool",
+                "byte",
+                "tinyint",
+                "short",
+                "smallint",
                 "integer",
-                "long", "bigint",
-                "double", "real",
-                "half_float", "scaled_float", "float",
-                "decimal", "numeric",
-                "keyword", "text", "varchar",
-                "date", "datetime", "timestamp",
-                "binary", "varbinary",
+                "long",
+                "bigint",
+                "double",
+                "real",
+                "half_float",
+                "scaled_float",
+                "float",
+                "decimal",
+                "numeric",
+                "keyword",
+                "text",
+                "varchar",
+                "date",
+                "datetime",
+                "timestamp",
+                "binary",
+                "varbinary",
                 "ip",
-                "interval_year", "interval_month", "interval_year_to_month",
-                "interval_day", "interval_hour", "interval_minute", "interval_second",
-                "interval_day_to_hour", "interval_day_to_minute", "interval_day_to_second",
-                "interval_hour_to_minute", "interval_hour_to_second",
-                "interval_minute_to_second"));
+                "interval_year",
+                "interval_month",
+                "interval_year_to_month",
+                "interval_day",
+                "interval_hour",
+                "interval_minute",
+                "interval_second",
+                "interval_day_to_hour",
+                "interval_day_to_minute",
+                "interval_day_to_second",
+                "interval_hour_to_minute",
+                "interval_hour_to_second",
+                "interval_minute_to_second"
+            )
+        );
 
-        types.addAll(SqlDataTypes.types().stream()
-                .filter(DataTypes::isPrimitive)
-                .map(DataType::typeName)
-               .collect(toList()));
+        types.addAll(SqlDataTypes.types().stream().filter(DataTypes::isPrimitive).map(DataType::typeName).collect(toList()));
         String type = randomFrom(types.toArray(new String[0]));
         DataType dataType = SqlDataTypes.fromSqlOrEsType(type);
         assertNotNull("cound not find " + type, dataType);

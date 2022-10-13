@@ -92,24 +92,24 @@ public final class RandomAliasActionsGenerator {
         for (int i = 0; i < members; i++) {
             Object value;
             switch (between(0, 3)) {
-            case 0:
-                if (maxDepth > 0) {
-                    value = randomMap(maxDepth - 1);
-                } else {
+                case 0:
+                    if (maxDepth > 0) {
+                        value = randomMap(maxDepth - 1);
+                    } else {
+                        value = randomAlphaOfLength(5);
+                    }
+                    break;
+                case 1:
                     value = randomAlphaOfLength(5);
-                }
-                break;
-            case 1:
-                value = randomAlphaOfLength(5);
-                break;
-            case 2:
-                value = randomBoolean();
-                break;
-            case 3:
-                value = randomLong();
-                break;
-            default:
-                throw new UnsupportedOperationException();
+                    break;
+                case 2:
+                    value = randomBoolean();
+                    break;
+                case 3:
+                    value = randomLong();
+                    break;
+                default:
+                    throw new UnsupportedOperationException();
             }
             result.put(randomAlphaOfLength(5), value);
         }

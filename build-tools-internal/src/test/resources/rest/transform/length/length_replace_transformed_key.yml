@@ -1,0 +1,18 @@
+---
+"First test":
+
+  - do:
+      something:
+        that_is: true
+
+  - do:
+      and: again
+
+  - key_not_to_replace: { copied.from.real.test.total: 1 }
+  - length: { key.in_length_replaced: 1 }
+
+  - do:
+      and: again
+
+  - key_not_to_replace: { hits.total: 1 }
+

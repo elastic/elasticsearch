@@ -39,9 +39,9 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
     }
 
     @Override
-    protected List<Object> foldAndConvertListOfValues(List<Expression> list, DataType dataType) {
-        List<Object> values = new ArrayList<>(list.size());
-        for (Expression e : list) {
+    protected List<Object> foldAndConvertListOfValues(List<Expression> expressions, DataType dataType) {
+        List<Object> values = new ArrayList<>(expressions.size());
+        for (Expression e : expressions) {
             values.add(SqlDataTypeConverter.convert(Foldables.valueOf(e), dataType));
         }
         return values;

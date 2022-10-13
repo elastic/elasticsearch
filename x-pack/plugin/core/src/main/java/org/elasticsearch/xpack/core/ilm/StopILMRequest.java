@@ -20,8 +20,7 @@ public class StopILMRequest extends AcknowledgedRequest<StopILMRequest> {
 
     }
 
-    public StopILMRequest() {
-    }
+    public StopILMRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {

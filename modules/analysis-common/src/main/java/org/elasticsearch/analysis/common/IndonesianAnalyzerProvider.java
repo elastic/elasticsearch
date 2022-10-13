@@ -21,12 +21,11 @@ public class IndonesianAnalyzerProvider extends AbstractIndexAnalyzerProvider<In
     private final IndonesianAnalyzer analyzer;
 
     IndonesianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         analyzer = new IndonesianAnalyzer(
             Analysis.parseStopWords(env, settings, IndonesianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
     }
 
     @Override

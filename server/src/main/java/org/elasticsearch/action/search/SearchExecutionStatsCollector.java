@@ -28,17 +28,22 @@ public final class SearchExecutionStatsCollector extends ActionListener.Delegati
     private final ResponseCollectorService collector;
     private final long startNanos;
 
-    SearchExecutionStatsCollector(ActionListener<SearchPhaseResult> listener,
-                                  ResponseCollectorService collector,
-                                  String nodeId) {
+    SearchExecutionStatsCollector(ActionListener<SearchPhaseResult> listener, ResponseCollectorService collector, String nodeId) {
         super(Objects.requireNonNull(listener, "listener cannot be null"));
         this.collector = Objects.requireNonNull(collector, "response collector cannot be null");
         this.startNanos = System.nanoTime();
         this.nodeId = nodeId;
     }
 
-    public static BiFunction<Transport.Connection, SearchActionListener, ActionListener> makeWrapper(ResponseCollectorService service) {
-        return (connection, originalListener) -> new SearchExecutionStatsCollector(originalListener, service, connection.getNode().getId());
+    @SuppressWarnings("unchecked")
+    public static
+        BiFunction<Transport.Connection, SearchActionListener<? super SearchPhaseResult>, ActionListener<? super SearchPhaseResult>>
+        makeWrapper(ResponseCollectorService service) {
+        return (connection, originalListener) -> new SearchExecutionStatsCollector(
+            (ActionListener<SearchPhaseResult>) originalListener,
+            service,
+            connection.getNode().getId()
+        );
     }
 
     @Override

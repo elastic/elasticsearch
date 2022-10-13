@@ -23,8 +23,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
-    private static final String BASIC_AUTH_VALUE_SUPER_USER =
-        UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+    private static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(
+        "x_pack_rest_user",
+        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+    );
 
     @Override
     protected Settings restClientSettings() {
@@ -33,11 +35,9 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
 
     private static void setupDataAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity("{"
-            + "  \"indices\" : ["
-            + "    { \"names\": [\"" + index + "\"], \"privileges\": [\"read\"] }"
-            + "  ]"
-            + "}");
+        request.setJsonEntity(formatted("""
+            {  "indices" : [    { "names": ["%s"], "privileges": ["read"] }  ]}
+            """, index));
         client().performRequest(request);
     }
 
@@ -45,22 +45,20 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity("{"
-            + "  \"password\" : \"" + password + "\","
-            + "  \"roles\" : [ " + roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", ")) + " ]"
-            + "}");
+        request.setJsonEntity(formatted("""
+            { "password" : "%s",  "roles" : [ %s ]}
+            """, password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
         client().performRequest(request);
     }
 
     public void testEvaluate_withSecurity() throws Exception {
         String index = "test_data";
         Request createDoc = new Request("POST", index + "/_doc");
-        createDoc.setJsonEntity(
-            "{\n" +
-                "  \"is_outlier\": 0.0,\n" +
-                "  \"ml.outlier_score\": 1.0\n" +
-                "}"
-        );
+        createDoc.setJsonEntity("""
+            {
+              "is_outlier": 0.0,
+              "ml.outlier_score": 1.0
+            }""");
         client().performRequest(createDoc);
         Request refreshRequest = new Request("POST", index + "/_refresh");
         client().performRequest(refreshRequest);
@@ -81,17 +79,17 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
 
     private static Request buildRegressionEval(String index, String primaryHeader, String secondaryHeader) {
         Request evaluateRequest = new Request("POST", "_ml/data_frame/_evaluate");
-        evaluateRequest.setJsonEntity(
-            "{\n" +
-                "  \"index\": \"" + index + "\",\n" +
-                "  \"evaluation\": {\n" +
-                "    \"regression\": {\n" +
-                "      \"actual_field\": \"is_outlier\",\n" +
-                "      \"predicted_field\": \"ml.outlier_score\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}\n"
-        );
+        evaluateRequest.setJsonEntity(formatted("""
+            {
+              "index": "%s",
+              "evaluation": {
+                "regression": {
+                  "actual_field": "is_outlier",
+                  "predicted_field": "ml.outlier_score"
+                }
+              }
+            }
+            """, index));
         RequestOptions.Builder options = evaluateRequest.getOptions().toBuilder();
         options.addHeader("Authorization", primaryHeader);
         options.addHeader("es-secondary-authorization", secondaryHeader);

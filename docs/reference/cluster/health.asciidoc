@@ -181,7 +181,7 @@ with a single index with one shard and one replica:
   "active_shards_percent_as_number": 50.0
 }
 --------------------------------------------------
-// TESTRESPONSE[s/testcluster/integTest/]
+// TESTRESPONSE[s/testcluster/yamlRestTest/]
 // TESTRESPONSE[s/"number_of_pending_tasks" : 0,/"number_of_pending_tasks" : $body.number_of_pending_tasks,/]
 // TESTRESPONSE[s/"task_max_waiting_in_queue_millis": 0/"task_max_waiting_in_queue_millis": $body.task_max_waiting_in_queue_millis/]
 

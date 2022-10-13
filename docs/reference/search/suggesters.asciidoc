@@ -2,7 +2,6 @@
 === Suggesters
 
 Suggests similar looking terms based on a provided text by using a suggester. 
-Parts of the suggest feature are still under development.
 
 [source,console]
 --------------------------------------------------
@@ -29,18 +28,18 @@ POST my-index-000001/_search
 [[search-suggesters-api-request]]
 ==== {api-request-title}
 
-The suggest feature suggests similar looking terms based on a provided text by 
-using a suggester. The suggest request part is defined alongside the query part 
-in a `_search` request. If the query part is left out, only suggestions are 
+The suggest feature suggests similar looking terms based on a provided text by
+using a suggester. The suggest request part is defined alongside the query part
+in a `_search` request. If the query part is left out, only suggestions are
 returned.
 
 
 [[search-suggesters-api-example]]
 ==== {api-examples-title}
 
-Several suggestions can be specified per request. Each suggestion is identified 
-with an arbitrary name. In the example below two suggestions are requested. Both 
-`my-suggest-1` and `my-suggest-2` suggestions use the `term` suggester, but have 
+Several suggestions can be specified per request. Each suggestion is identified
+with an arbitrary name. In the example below two suggestions are requested. Both
+`my-suggest-1` and `my-suggest-2` suggestions use the `term` suggester, but have
 a different `text`.
 
 [source,console]

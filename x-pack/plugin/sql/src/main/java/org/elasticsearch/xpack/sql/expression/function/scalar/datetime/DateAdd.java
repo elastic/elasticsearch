@@ -23,6 +23,9 @@ import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
@@ -36,8 +39,8 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
         DAYOFYEAR((dt, i) -> dt.plus(i, ChronoUnit.DAYS), "dy", "y"),
         DAY((dt, i) -> dt.plus(i, ChronoUnit.DAYS), "days", "dd", "d"),
         WEEK((dt, i) -> dt.plus(i, ChronoUnit.WEEKS), "weeks", "wk", "ww"),
-        WEEKDAY((dt, i) -> dt.plus(i, ChronoUnit.DAYS),  "weekdays", "dw"),
-        HOUR((dt, i) -> dt.plus(i, ChronoUnit.HOURS),  "hours", "hh"),
+        WEEKDAY((dt, i) -> dt.plus(i, ChronoUnit.DAYS), "weekdays", "dw"),
+        HOUR((dt, i) -> dt.plus(i, ChronoUnit.HOURS), "hours", "hh"),
         MINUTE((dt, i) -> dt.plus(i, ChronoUnit.MINUTES), "minutes", "mi", "n"),
         SECOND((dt, i) -> dt.plus(i, ChronoUnit.SECONDS), "seconds", "ss", "s"),
         MILLISECOND((dt, i) -> dt.plus(i, ChronoUnit.MILLIS), "milliseconds", "ms"),
@@ -84,7 +87,7 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = isString(first(), sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isString(first(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -94,25 +97,35 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
             if (datePartValue != null && resolveDateTimeField(datePartValue) == false) {
                 List<String> similar = findSimilarDateTimeFields(datePartValue);
                 if (similar.isEmpty()) {
-                    return new TypeResolution(format(null, "first argument of [{}] must be one of {} or their aliases; found value [{}]",
-                        sourceText(),
-                        validDateTimeFieldValues(),
-                        Expressions.name(first())));
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "first argument of [{}] must be one of {} or their aliases; found value [{}]",
+                            sourceText(),
+                            validDateTimeFieldValues(),
+                            Expressions.name(first())
+                        )
+                    );
                 } else {
-                    return new TypeResolution(format(null, "Unknown value [{}] for first argument of [{}]; did you mean {}?",
-                        Expressions.name(first()),
-                        sourceText(),
-                        similar));
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "Unknown value [{}] for first argument of [{}]; did you mean {}?",
+                            Expressions.name(first()),
+                            sourceText(),
+                            similar
+                        )
+                    );
                 }
             }
         }
 
-        resolution = isInteger(second(), sourceText(), Expressions.ParamOrdinal.SECOND);
+        resolution = isInteger(second(), sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = isDate(third(), sourceText(), Expressions.ParamOrdinal.THIRD);
+        resolution = isDate(third(), sourceText(), THIRD);
         if (resolution.unresolved()) {
             return resolution;
         }

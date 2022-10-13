@@ -1,11 +1,10 @@
 [role="xpack"]
-[testenv="basic"]
 [discrete]
 [[wildcard-field-type]]
 === Wildcard field type
 
 The `wildcard` field type is a specialized keyword field for unstructured
-machine-generated content you plan to search using grep-like 
+machine-generated content you plan to search using grep-like
 <<query-dsl-wildcard-query,`wildcard`>> and <<query-dsl-regexp-query,`regexp`>>
 queries. The `wildcard` type is optimized for fields with large values or high
 cardinality.
@@ -119,15 +118,49 @@ The following parameters are accepted by `wildcard` fields:
 <<null-value,`null_value`>>::
 
     Accepts a string value which is substituted for any explicit `null`
-    values.  Defaults to `null`, which means the field is treated as missing.
+    values. Defaults to `null`, which means the field is treated as missing.
 
 <<ignore-above,`ignore_above`>>::
 
-    Do not index any string longer than this value.  Defaults to `2147483647`
+    Do not index any string longer than this value. Defaults to `2147483647`
     so that all values would be accepted.
 
 [discrete]
 ==== Limitations
 
 * `wildcard` fields are untokenized like keyword fields, so do not support queries that rely on word positions such as phrase queries.
+* When running `wildcard` queries any `rewrite` parameter is ignored. The scoring is always a constant score.
 
+[[wildcard-synthetic-source]]
+==== Synthetic `_source`
+`wildcard` fields support <<synthetic-source,synthetic `_source`>> so long as they don't
+declare <<copy-to,`copy_to`>>.
+
+Synthetic source always sorts `wildcard` fields. For example:
+[source,console,id=synthetic-source-wildcard-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "card": { "type": "wildcard" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "card": ["king", "ace", "ace", "jack"]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "card": ["ace", "jack", "king"]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

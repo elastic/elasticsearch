@@ -18,6 +18,7 @@ import java.util.Objects;
 interface GroupOrJob {
 
     boolean isGroup();
+
     List<Job> jobs();
 
     final class Group implements GroupOrJob {

@@ -32,7 +32,8 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
 
     public void testAbortedRestoreAlsoAbortFileRestores() throws Exception {
         internalCluster().startMasterOnlyNode();
-        final String dataNode = internalCluster().startDataOnlyNode();
+        // small pool so we are able to fully block all of its threads later
+        final String dataNode = internalCluster().startDataOnlyNode(SMALL_SNAPSHOT_POOL_SETTINGS);
 
         final String indexName = "test-abort-restore";
         createIndex(indexName, indexSettingsNoReplicas(1).build());
@@ -52,14 +53,20 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
         failReadsAllDataNodes(repositoryName);
 
         logger.info("--> starting restore");
-        final ActionFuture<RestoreSnapshotResponse> future = client().admin().cluster().prepareRestoreSnapshot(repositoryName, snapshotName)
+        final ActionFuture<RestoreSnapshotResponse> future = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(repositoryName, snapshotName)
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .execute();
 
         assertBusy(() -> {
-            final RecoveryResponse recoveries = client().admin().indices().prepareRecoveries(indexName)
-                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN).setActiveOnly(true).get();
+            final RecoveryResponse recoveries = client().admin()
+                .indices()
+                .prepareRecoveries(indexName)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+                .setActiveOnly(true)
+                .get();
             assertThat(recoveries.hasRecoveries(), is(true));
             final List<RecoveryState> shardRecoveries = recoveries.shardRecoveryStates().get(indexName);
             assertThat(shardRecoveries, hasSize(1));
@@ -71,8 +78,8 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
             }
         });
 
-        final ThreadPool.Info snapshotThreadPoolInfo =
-                internalCluster().getInstance(ThreadPool.class, dataNode).info(ThreadPool.Names.SNAPSHOT);
+        final ThreadPool.Info snapshotThreadPoolInfo = internalCluster().getInstance(ThreadPool.class, dataNode)
+            .info(ThreadPool.Names.SNAPSHOT);
         assertThat(snapshotThreadPoolInfo.getMax(), greaterThan(0));
 
         logger.info("--> waiting for snapshot thread [max={}] pool to be full", snapshotThreadPoolInfo.getMax());

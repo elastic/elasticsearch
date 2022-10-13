@@ -1,12 +1,11 @@
 [role="xpack"]
-[testenv="basic"]
 [[histogram]]
 === Histogram field type
 ++++
 <titleabbrev>Histogram</titleabbrev>
 ++++
 
-A  field to store pre-aggregated numerical data representing a histogram.
+A field to store pre-aggregated numerical data representing a histogram.
 This data is defined using two paired arrays:
 
 * A `values` array of <<number, `double`>> numbers, representing the buckets for
@@ -24,6 +23,7 @@ per document. Nested arrays are not supported.
 * `histogram` fields do not support sorting.
 ========
 
+[role="child_attributes"]
 [[histogram-uses]]
 ==== Uses
 
@@ -44,6 +44,7 @@ following aggregations and queries:
 * <<search-aggregations-metrics-percentile-rank-aggregation,percentile ranks>> aggregation
 * <<search-aggregations-metrics-boxplot-aggregation,boxplot>> aggregation
 * <<search-aggregations-bucket-histogram-aggregation-histogram-fields,histogram>> aggregation
+* <<search-aggregations-bucket-range-aggregation-histogram-fields,range>> aggregation
 * <<query-dsl-exists-query,exists>> query
 
 [[mapping-types-histogram-building-histogram]]
@@ -66,6 +67,12 @@ therefore the value used when generating the histogram would be the maximum accu
 The histogram field is "algorithm agnostic" and does not store data specific to either T-Digest or HDRHistogram. While this
 means the field can technically be aggregated with either algorithm, in practice the user should chose one algorithm and
 index data in that manner (e.g. centroids for T-Digest or intervals for HDRHistogram) to ensure best accuracy.
+
+[[histogram-synthetic-source]]
+==== Synthetic `_source` preview:[]
+`histogram` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with
+<<ignore-malformed,`ignore_malformed`>> or <<copy-to,`copy_to`>>.
 
 [[histogram-ex]]
 ==== Examples

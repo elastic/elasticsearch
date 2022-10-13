@@ -8,18 +8,19 @@
 
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -46,6 +47,8 @@ import static org.hamcrest.Matchers.not;
 public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     public static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
+    private static final Logger LOGGER = LogManager.getLogger(AbstractMultiClustersTestCase.class);
+
     private static volatile ClusterGroup clusterGroup;
 
     protected Collection<String> remoteClusterAlias() {
@@ -54,6 +57,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         return Collections.emptyList();
+    }
+
+    protected Settings nodeSettings() {
+        return Settings.EMPTY;
     }
 
     protected final Client client() {
@@ -88,13 +95,28 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         for (String clusterAlias : clusterAliases) {
             final String clusterName = clusterAlias.equals(LOCAL_CLUSTER) ? "main-cluster" : clusterAlias;
             final int numberOfNodes = randomIntBetween(1, 3);
-            final List<Class<? extends Plugin>> mockPlugins =
-                List.of(MockHttpTransport.TestPlugin.class, MockTransportService.TestPlugin.class, MockNioTransportPlugin.class);
+            final List<Class<? extends Plugin>> mockPlugins = List.of(
+                MockHttpTransport.TestPlugin.class,
+                MockTransportService.TestPlugin.class,
+                getTestTransportPlugin()
+            );
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
-            final Settings nodeSettings = Settings.EMPTY;
-            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings, nodePlugins);
-            final InternalTestCluster cluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodes,
-                numberOfNodes, clusterName, nodeConfigurationSource, 0, clusterName + "-", mockPlugins, Function.identity());
+
+            final NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource(nodeSettings(), nodePlugins);
+            final InternalTestCluster cluster = new InternalTestCluster(
+                randomLong(),
+                createTempDir(),
+                true,
+                true,
+                numberOfNodes,
+                numberOfNodes,
+                clusterName,
+                nodeConfigurationSource,
+                0,
+                clusterName + "-",
+                mockPlugins,
+                Function.identity()
+            );
             cluster.beforeTest(random());
             clusters.put(clusterAlias, cluster);
         }
@@ -108,6 +130,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             cluster.wipe(Set.of());
             cluster.assertAfterTest();
         }
+        ESIntegTestCase.awaitGlobalNettyThreadsFinish();
     }
 
     @AfterClass
@@ -122,6 +145,8 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         for (String clusterAlias : clusterAliases) {
             if (clusterAlias.equals(LOCAL_CLUSTER) == false) {
                 settings.putNull("cluster.remote." + clusterAlias + ".seeds");
+                settings.putNull("cluster.remote." + clusterAlias + ".mode");
+                settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
             }
         }
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
@@ -144,19 +169,34 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     }
 
     protected void configureRemoteCluster(String clusterAlias, Collection<String> seedNodes) throws Exception {
+        final String remoteClusterSettingPrefix = "cluster.remote." + clusterAlias + ".";
         Settings.Builder settings = Settings.builder();
-        final String seed = seedNodes.stream()
-            .map(node -> {
-                final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
-                return transportService.boundAddress().publishAddress().toString();
-            })
-            .collect(Collectors.joining(","));
-        settings.put("cluster.remote." + clusterAlias + ".seeds", seed);
+        final List<String> seedAdresses = seedNodes.stream().map(node -> {
+            final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
+            return transportService.boundAddress().publishAddress().toString();
+        }).toList();
+        if (randomBoolean()) {
+            LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", Collectors.joining(","), seedNodes);
+            settings.putNull(remoteClusterSettingPrefix + "proxy_address")
+                .put(remoteClusterSettingPrefix + "mode", "sniff")
+                .put(remoteClusterSettingPrefix + "seeds", String.join(",", seedAdresses))
+                .build();
+        } else {
+            final String proxyNode = randomFrom(seedAdresses);
+            LOGGER.info("--> use proxy node [{}], remote nodes [{}]", proxyNode, seedNodes);
+            settings.putNull(remoteClusterSettingPrefix + "seeds")
+                .put(remoteClusterSettingPrefix + "mode", "proxy")
+                .put(remoteClusterSettingPrefix + "proxy_address", proxyNode)
+                .build();
+        }
+
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         assertBusy(() -> {
-            List<RemoteConnectionInfo> remoteConnectionInfos = client()
-                .execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).actionGet().getInfos()
-                .stream().filter(c -> c.isConnected() && c.getClusterAlias().equals(clusterAlias))
+            List<RemoteConnectionInfo> remoteConnectionInfos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())
+                .actionGet()
+                .getInfos()
+                .stream()
+                .filter(c -> c.isConnected() && c.getClusterAlias().equals(clusterAlias))
                 .collect(Collectors.toList());
             assertThat(remoteConnectionInfos, not(empty()));
         });
@@ -193,7 +233,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
 
         return new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return builder.build();
             }
 

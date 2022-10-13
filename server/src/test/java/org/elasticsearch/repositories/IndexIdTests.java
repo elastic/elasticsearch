@@ -11,11 +11,11 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -38,7 +38,7 @@ public class IndexIdTests extends ESTestCase {
         indexId2 = new IndexId(name, id);
         assertEquals(indexId1, indexId2);
         assertEquals(indexId1.hashCode(), indexId2.hashCode());
-        //assert not equals when name or id differ
+        // assert not equals when name or id differ
         indexId2 = new IndexId(randomAlphaOfLength(8), id);
         assertNotEquals(indexId1, indexId2);
         assertNotEquals(indexId1.hashCode(), indexId2.hashCode());

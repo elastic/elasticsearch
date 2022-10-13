@@ -28,6 +28,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
         return new Add(source(), left, right);
     }
 
+    @Override
     public Add swapLeftAndRight() {
         return new Add(source(), right(), left());
     }
@@ -35,5 +36,10 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     @Override
     public ArithmeticOperationFactory binaryComparisonInverse() {
         return Sub::new;
+    }
+
+    @Override
+    protected boolean isCommutative() {
+        return true;
     }
 }

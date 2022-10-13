@@ -1,0 +1,34 @@
+{
+  "shutdown.get_node":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current",
+      "description":"Retrieve status of a node or nodes that are currently marked as shutting down. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+    },
+    "stability":"stable",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_nodes/shutdown",
+          "methods":["GET"],
+          "parts":{}
+        },
+        {
+          "path":"/_nodes/{node_id}/shutdown",
+          "methods":["GET"],
+          "parts":{
+            "node_id":{
+              "type":"string",
+              "description":"Which node for which to retrieve the shutdown status"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

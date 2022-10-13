@@ -64,8 +64,9 @@ public class PairedTTestState implements TTestState {
             PairedTTestState state = (PairedTTestState) tTestState;
             reducer.accept(state.stats);
             if (state.tails != tails) {
-                throw new IllegalStateException("Incompatible tails value in the reduce. Expected "
-                    + state.tails + " reduced with " + tails);
+                throw new IllegalStateException(
+                    "Incompatible tails value in the reduce. Expected " + state.tails + " reduced with " + tails
+                );
             }
         });
         return new PairedTTestState(reducer.result(), tails);
@@ -81,8 +82,7 @@ public class PairedTTestState implements TTestState {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PairedTTestState that = (PairedTTestState) o;
-        return tails == that.tails &&
-            stats.equals(that.stats);
+        return tails == that.tails && stats.equals(that.stats);
     }
 
     @Override

@@ -13,5 +13,5 @@ apply plugin: 'elasticsearch.publish'
 tasks.named("test").configure { enabled = false }
 
 // test depend on ES core...
-disableTasks('forbiddenApisMain')
+tasks.named('forbiddenApisMain').configure { enabled = false}
 tasks.named("jarHell").configure { enabled = false }

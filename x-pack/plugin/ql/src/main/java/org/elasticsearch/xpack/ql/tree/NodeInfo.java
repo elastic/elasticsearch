@@ -41,6 +41,7 @@ public abstract class NodeInfo<T extends Node<?>> {
     public final List<Object> properties() {
         return unmodifiableList(innerProperties());
     }
+
     protected abstract List<Object> innerProperties();
 
     /**
@@ -51,14 +52,14 @@ public abstract class NodeInfo<T extends Node<?>> {
         List<?> children = node.children();
 
         Function<Object, Object> realRule = p -> {
-            if (p != children && false == children.contains(p)
-                    && (p == null || typeToken.isInstance(p))) {
+            if (p != children && false == children.contains(p) && (p == null || typeToken.isInstance(p))) {
                 return rule.apply(typeToken.cast(p));
             }
             return p;
         };
         return innerTransform(realRule);
     }
+
     protected abstract T innerTransform(Function<Object, Object> rule);
 
     /**
@@ -77,9 +78,7 @@ public abstract class NodeInfo<T extends Node<?>> {
         };
     }
 
-    public static <T extends Node<?>, P1> NodeInfo<T> create(
-            T n, BiFunction<Source, P1, T> ctor,
-            P1 p1) {
+    public static <T extends Node<?>, P1> NodeInfo<T> create(T n, BiFunction<Source, P1, T> ctor, P1 p1) {
         return new NodeInfo<T>(n) {
             @Override
             protected List<Object> innerProperties() {
@@ -98,9 +97,7 @@ public abstract class NodeInfo<T extends Node<?>> {
         };
     }
 
-    public static <T extends Node<?>, P1, P2> NodeInfo<T> create(
-            T n, NodeCtor2<P1, P2, T> ctor,
-            P1 p1, P2 p2) {
+    public static <T extends Node<?>, P1, P2> NodeInfo<T> create(T n, NodeCtor2<P1, P2, T> ctor, P1 p1, P2 p2) {
         return new NodeInfo<T>(n) {
             @Override
             protected List<Object> innerProperties() {
@@ -121,13 +118,12 @@ public abstract class NodeInfo<T extends Node<?>> {
             }
         };
     }
+
     public interface NodeCtor2<P1, P2, T> {
         T apply(Source l, P1 p1, P2 p2);
     }
 
-    public static <T extends Node<?>, P1, P2, P3> NodeInfo<T> create(
-            T n, NodeCtor3<P1, P2, P3, T> ctor,
-            P1 p1, P2 p2, P3 p3) {
+    public static <T extends Node<?>, P1, P2, P3> NodeInfo<T> create(T n, NodeCtor3<P1, P2, P3, T> ctor, P1 p1, P2 p2, P3 p3) {
         return new NodeInfo<T>(n) {
             @Override
             protected List<Object> innerProperties() {
@@ -151,13 +147,19 @@ public abstract class NodeInfo<T extends Node<?>> {
             }
         };
     }
+
     public interface NodeCtor3<P1, P2, P3, T> {
         T apply(Source l, P1 p1, P2 p2, P3 p3);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4> NodeInfo<T> create(
-            T n, NodeCtor4<P1, P2, P3, P4, T> ctor,
-            P1 p1, P2 p2, P3 p3, P4 p4) {
+        T n,
+        NodeCtor4<P1, P2, P3, P4, T> ctor,
+        P1 p1,
+        P2 p2,
+        P3 p3,
+        P4 p4
+    ) {
         return new NodeInfo<T>(n) {
             @Override
             protected List<Object> innerProperties() {
@@ -184,13 +186,20 @@ public abstract class NodeInfo<T extends Node<?>> {
             }
         };
     }
+
     public interface NodeCtor4<P1, P2, P3, P4, T> {
         T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4, P5> NodeInfo<T> create(
-            T n, NodeCtor5<P1, P2, P3, P4, P5, T> ctor,
-            P1 p1, P2 p2, P3 p3, P4 p4, P5 p5) {
+        T n,
+        NodeCtor5<P1, P2, P3, P4, P5, T> ctor,
+        P1 p1,
+        P2 p2,
+        P3 p3,
+        P4 p4,
+        P5 p5
+    ) {
         return new NodeInfo<T>(n) {
             @Override
             protected List<Object> innerProperties() {
@@ -220,13 +229,21 @@ public abstract class NodeInfo<T extends Node<?>> {
             }
         };
     }
+
     public interface NodeCtor5<P1, P2, P3, P4, P5, T> {
         T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4, P5, P6> NodeInfo<T> create(
-            T n, NodeCtor6<P1, P2, P3, P4, P5, P6, T> ctor,
-            P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6) {
+        T n,
+        NodeCtor6<P1, P2, P3, P4, P5, P6, T> ctor,
+        P1 p1,
+        P2 p2,
+        P3 p3,
+        P4 p4,
+        P5 p5,
+        P6 p6
+    ) {
         return new NodeInfo<T>(n) {
             @Override
             protected List<Object> innerProperties() {
@@ -259,13 +276,22 @@ public abstract class NodeInfo<T extends Node<?>> {
             }
         };
     }
+
     public interface NodeCtor6<P1, P2, P3, P4, P5, P6, T> {
         T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4, P5, P6, P7> NodeInfo<T> create(
-            T n, NodeCtor7<P1, P2, P3, P4, P5, P6, P7, T> ctor,
-            P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7) {
+        T n,
+        NodeCtor7<P1, P2, P3, P4, P5, P6, P7, T> ctor,
+        P1 p1,
+        P2 p2,
+        P3 p3,
+        P4 p4,
+        P5 p5,
+        P6 p6,
+        P7 p7
+    ) {
         return new NodeInfo<T>(n) {
             @Override
             protected List<Object> innerProperties() {
@@ -301,13 +327,23 @@ public abstract class NodeInfo<T extends Node<?>> {
             }
         };
     }
+
     public interface NodeCtor7<P1, P2, P3, P4, P5, P6, P7, T> {
         T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4, P5, P6, P7, P8> NodeInfo<T> create(
-            T n, NodeCtor8<P1, P2, P3, P4, P5, P6, P7, P8, T> ctor,
-            P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8) {
+        T n,
+        NodeCtor8<P1, P2, P3, P4, P5, P6, P7, P8, T> ctor,
+        P1 p1,
+        P2 p2,
+        P3 p3,
+        P4 p4,
+        P5 p5,
+        P6 p6,
+        P7 p7,
+        P8 p8
+    ) {
         return new NodeInfo<T>(n) {
             @Override
             protected List<Object> innerProperties() {
@@ -346,13 +382,24 @@ public abstract class NodeInfo<T extends Node<?>> {
             }
         };
     }
+
     public interface NodeCtor8<P1, P2, P3, P4, P5, P6, P7, P8, T> {
         T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4, P5, P6, P7, P8, P9> NodeInfo<T> create(
-            T n, NodeCtor9<P1, P2, P3, P4, P5, P6, P7, P8, P9, T> ctor,
-            P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9) {
+        T n,
+        NodeCtor9<P1, P2, P3, P4, P5, P6, P7, P8, P9, T> ctor,
+        P1 p1,
+        P2 p2,
+        P3 p3,
+        P4 p4,
+        P5 p5,
+        P6 p6,
+        P7 p7,
+        P8 p8,
+        P9 p9
+    ) {
         return new NodeInfo<T>(n) {
             @Override
             protected List<Object> innerProperties() {
@@ -394,13 +441,25 @@ public abstract class NodeInfo<T extends Node<?>> {
             }
         };
     }
+
     public interface NodeCtor9<P1, P2, P3, P4, P5, P6, P7, P8, P9, T> {
         T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9);
     }
 
     public static <T extends Node<?>, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10> NodeInfo<T> create(
-            T n, NodeCtor10<P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, T> ctor,
-            P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9, P10 p10) {
+        T n,
+        NodeCtor10<P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, T> ctor,
+        P1 p1,
+        P2 p2,
+        P3 p3,
+        P4 p4,
+        P5 p5,
+        P6 p6,
+        P7 p7,
+        P8 p8,
+        P9 p9,
+        P10 p10
+    ) {
         return new NodeInfo<T>(n) {
             @Override
             protected List<Object> innerProperties() {
@@ -441,11 +500,11 @@ public abstract class NodeInfo<T extends Node<?>> {
                 P10 newP10 = (P10) rule.apply(p10);
                 same &= Objects.equals(p10, newP10);
 
-                return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6, newP7, newP8,
-                        newP9, newP10);
+                return same ? node : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6, newP7, newP8, newP9, newP10);
             }
         };
     }
+
     public interface NodeCtor10<P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, T> {
         T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9, P10 p10);
     }

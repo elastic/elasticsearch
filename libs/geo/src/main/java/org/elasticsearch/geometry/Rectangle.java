@@ -58,6 +58,7 @@ public class Rectangle implements Geometry {
     public Rectangle(double minX, double maxX, double maxY, double minY) {
         this(minX, maxX, maxY, minY, Double.NaN, Double.NaN);
     }
+
     /**
      * Constructs a bounding box by first validating the provided latitude and longitude coordinates
      */
@@ -70,7 +71,7 @@ public class Rectangle implements Geometry {
         this.maxZ = maxZ;
         empty = false;
         if (maxY < minY) {
-            throw new IllegalArgumentException("max y cannot be less than min x");
+            throw new IllegalArgumentException("max y cannot be less than min y");
         }
         if (Double.isNaN(minZ) != Double.isNaN(maxZ)) {
             throw new IllegalArgumentException("only one z value is specified");
@@ -109,7 +110,6 @@ public class Rectangle implements Geometry {
         return minX;
     }
 
-
     public double getMinAlt() {
         return minZ;
     }
@@ -133,9 +133,8 @@ public class Rectangle implements Geometry {
 
     @Override
     public String toString() {
-        return WellKnownText.INSTANCE.toWKT(this);
+        return WellKnownText.toWKT(this);
     }
-
 
     @Override
     public boolean equals(Object o) {

@@ -8,6 +8,12 @@
 
 package org.elasticsearch.common.hash;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.bytes.BytesReference;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
@@ -18,6 +24,8 @@ import java.util.Objects;
  * SHA-512 message digests.
  */
 public final class MessageDigests {
+
+    static final int STREAM_DIGEST_BLOCK_SIZE = 1024;
 
     private static ThreadLocal<MessageDigest> createThreadLocalMessageDigest(String digest) {
         return ThreadLocal.withInitial(() -> {
@@ -115,6 +123,40 @@ public final class MessageDigests {
             result[2 * i + 1] = HEX_DIGITS[b & 0xf];
         }
         return result;
+    }
+
+    /**
+     * Updates the given digest with the given bytes reference and the returns the result of the digest.
+     *
+     * @param bytesReference bytes to add to digest
+     * @param digest         digest to update and return the result for
+     * @return digest result
+     */
+    public static byte[] digest(BytesReference bytesReference, MessageDigest digest) {
+        final BytesRefIterator iterator = bytesReference.iterator();
+        BytesRef ref;
+        try {
+            while ((ref = iterator.next()) != null) {
+                digest.update(ref.bytes, ref.offset, ref.length);
+            }
+        } catch (IOException e) {
+            throw new AssertionError("no actual IO happens here", e);
+        }
+        return digest.digest();
+    }
+
+    /**
+     * Reads bytes from the stream and updates the given digest. Returns the result of the digest.
+     * @return digest result
+     */
+    public static byte[] digest(InputStream stream, MessageDigest digest) throws IOException {
+        byte[] block = new byte[STREAM_DIGEST_BLOCK_SIZE];
+        int len = stream.read(block);
+        while (len > 0) {
+            digest.update(block, 0, len);
+            len = stream.read(block);
+        }
+        return digest.digest();
     }
 
 }

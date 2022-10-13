@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.ql.execution.search.AggRef;
 public final class GlobalCountRef extends AggRef {
     public static final GlobalCountRef INSTANCE = new GlobalCountRef();
 
+    private GlobalCountRef() {}
+
     @Override
     public String toString() {
         return "#_Total_Hits_#";

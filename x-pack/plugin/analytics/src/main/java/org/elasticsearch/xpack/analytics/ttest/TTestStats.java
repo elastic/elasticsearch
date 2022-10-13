@@ -54,8 +54,8 @@ public class TTestStats implements Writeable {
 
     public static class Reducer implements Consumer<TTestStats> {
         private long count = 0;
-        CompensatedSum compSum = new CompensatedSum(0, 0);
-        CompensatedSum compSumOfSqrs = new CompensatedSum(0, 0);
+        final CompensatedSum compSum = new CompensatedSum(0, 0);
+        final CompensatedSum compSumOfSqrs = new CompensatedSum(0, 0);
 
         @Override
         public void accept(TTestStats stat) {
@@ -74,9 +74,7 @@ public class TTestStats implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TTestStats that = (TTestStats) o;
-        return count == that.count &&
-            Double.compare(that.sum, sum) == 0 &&
-            Double.compare(that.sumOfSqrs, sumOfSqrs) == 0;
+        return count == that.count && Double.compare(that.sum, sum) == 0 && Double.compare(that.sumOfSqrs, sumOfSqrs) == 0;
     }
 
     @Override

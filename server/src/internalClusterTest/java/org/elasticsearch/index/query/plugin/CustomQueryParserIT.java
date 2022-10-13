@@ -10,6 +10,8 @@ package org.elasticsearch.index.query.plugin;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.DummyQueryBuilder;
+import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 

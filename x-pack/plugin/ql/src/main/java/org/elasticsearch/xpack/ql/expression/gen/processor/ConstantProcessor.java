@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ql.expression.gen.processor;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -26,7 +27,8 @@ public class ConstantProcessor implements Processor {
     enum Type {
         NAMED_WRITABLE,
         ZONEDDATETIME,
-        GENERIC
+        GENERIC,
+        VERSION // Version is in x-pack, so StreamInput/Output cannot manage it as a generic type
     }
 
     public ConstantProcessor(Object value) {
@@ -35,6 +37,8 @@ public class ConstantProcessor implements Processor {
             type = Type.NAMED_WRITABLE;
         } else if (value instanceof ZonedDateTime) {
             type = Type.ZONEDDATETIME;
+        } else if (value instanceof Version) {
+            type = Type.VERSION;
         } else {
             type = Type.GENERIC;
         }
@@ -43,18 +47,15 @@ public class ConstantProcessor implements Processor {
     public ConstantProcessor(StreamInput in) throws IOException {
         type = in.readEnum(Type.class);
         switch (type) {
-            case NAMED_WRITABLE:
-                constant = in.readNamedWriteable(ConstantNamedWriteable.class);
-                break;
-            case ZONEDDATETIME:
+            case NAMED_WRITABLE -> constant = in.readNamedWriteable(ConstantNamedWriteable.class);
+            case ZONEDDATETIME -> {
                 ZonedDateTime zdt;
                 ZoneId zoneId = in.readZoneId();
                 zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readLong()), zoneId);
                 constant = zdt.withNano(in.readInt());
-                break;
-            case GENERIC:
-                constant = in.readGenericValue();
-                break;
+            }
+            case VERSION -> constant = new Version(in.readString());
+            case GENERIC -> constant = in.readGenericValue();
         }
     }
 
@@ -62,18 +63,15 @@ public class ConstantProcessor implements Processor {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(type);
         switch (type) {
-            case NAMED_WRITABLE:
-                out.writeNamedWriteable((NamedWriteable) constant);
-                break;
-            case ZONEDDATETIME:
+            case NAMED_WRITABLE -> out.writeNamedWriteable((NamedWriteable) constant);
+            case ZONEDDATETIME -> {
                 ZonedDateTime zdt = (ZonedDateTime) constant;
                 out.writeZoneId(zdt.getZone());
                 out.writeLong(zdt.toInstant().toEpochMilli());
                 out.writeInt(zdt.getNano());
-                break;
-            case GENERIC:
-                out.writeGenericValue(constant);
-                break;
+            }
+            case VERSION -> out.writeString(constant.toString());
+            case GENERIC -> out.writeGenericValue(constant);
         }
     }
 

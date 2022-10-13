@@ -13,15 +13,17 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -33,8 +35,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortValue;
-import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics.MetricValue;
+import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,7 +77,8 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     ) throws IOException {
         super(name, context, parent, metadata);
         this.size = size;
-        this.metrics = new TopMetricsAggregator.Metrics(metricValues);
+        // In case of failure we are releasing this objects outside therefore we need to set it at the end.
+        TopMetricsAggregator.Metrics metrics = new TopMetricsAggregator.Metrics(metricValues);
         /*
          * If we're only collecting a single value then only provided *that*
          * value to the sort so that swaps and loads are just a little faster
@@ -83,13 +86,11 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
          */
         BucketedSort.ExtraData values = metrics.values.length == 1 ? metrics.values[0] : metrics;
         this.sort = context.buildBucketedSort(sort, size, values);
+        this.metrics = metrics;
     }
 
     @Override
     public boolean hasMetric(String name) {
-        if (size != 1) {
-            throw new IllegalArgumentException("[top_metrics] can only the be target if [size] is [1] but was [" + size + "]");
-        }
         for (MetricValues values : metrics.values) {
             if (values.name.equals(name)) {
                 return true;
@@ -100,14 +101,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public double metric(String name, long owningBucketOrd) {
-        assert size == 1;
-        /*
-         * Since size is always 1 we know that the index into the values
-         * array is same same as the bucket ordinal. Also, this will always
-         * be called after we've collected a bucket, so it won't just fetch
-         * garbage.
-         */
-        return metrics.metric(name, owningBucketOrd);
+        return metrics.metric(name, owningBucketOrd * size);
     }
 
     @Override
@@ -117,10 +111,10 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         assert sub.isNoop() : "Expected noop but was " + sub.toString();
 
-        BucketedSort.Leaf leafSort = sort.forLeaf(ctx);
+        BucketedSort.Leaf leafSort = sort.forLeaf(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollector() {
             @Override
@@ -230,7 +224,9 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         }
 
         abstract boolean needsScores();
+
         abstract double doubleValue(long index);
+
         abstract InternalTopMetrics.MetricValue metricValue(long index) throws IOException;
     }
 
@@ -288,6 +284,9 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         public double doubleValue(long index) {
+            if (index < 0 || index >= values.size()) {
+                return Double.NaN;
+            }
             return values.get(index);
         }
 
@@ -352,7 +351,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         public double doubleValue(long index) {
-            if (empty.isEmpty(index)) {
+            if (empty.isEmpty(index) || index < 0 || index >= values.size()) {
                 return Double.NaN;
             }
             return values.get(index);
@@ -398,20 +397,30 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     /**
-     * Loads metrics for whole numbers.
+     * Loads metrics fields with segment ordinals.
      */
-    static class GlobalOrdsValues extends CollectingMetricValues {
+    static class SegmentOrdsValues extends CollectingMetricValues {
         private final ValuesSource.Bytes.WithOrdinals valuesSource;
-        private SortedSetDocValues globalOrds;
-        private LongArray values;
+        /**
+         * Reference to the segment's doc values so we can convert the
+         * {@link #segmentOrds} into strings on the way out.
+         */
+        private ObjectArray<SortedSetDocValues> segmentResolve;
+        /**
+         * Terms ordinal in the segment.
+         */
+        private LongArray segmentOrds;
 
-        GlobalOrdsValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
+        SegmentOrdsValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
             super(bigArrays, name, config);
-            if (false == config.hasGlobalOrdinals()) {
-                throw new IllegalArgumentException("top_metrics can only collect bytes that have global ordinals");
+            if (false == config.hasOrdinals()) {
+                throw new IllegalArgumentException(
+                    "top_metrics can only collect bytes that have segment ordinals but " + config.getDescription() + " does not"
+                );
             }
-            this.valuesSource = (ValuesSource.Bytes.WithOrdinals) config.getValuesSource();
-            values = bigArrays.newLongArray(size, false);
+            valuesSource = (ValuesSource.Bytes.WithOrdinals) config.getValuesSource();
+            segmentResolve = bigArrays.newObjectArray(size);
+            segmentOrds = bigArrays.newLongArray(size, false);
         }
 
         @Override
@@ -421,43 +430,48 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         public MetricValue metricValue(long index) throws IOException {
-            if (globalOrds == null) {
-                // We didn't collect a single segment.
-                return null;
-            }
-            long ord = values.get(index);
+            long ord = segmentOrds.get(index);
             if (ord == -1) {
                 return null;
             }
-            return new MetricValue(config.format(), SortValue.from(BytesRef.deepCopyOf(globalOrds.lookupOrd(ord))));
+            SortedSetDocValues resolve = segmentResolve.get(index);
+            return new MetricValue(config.format(), SortValue.from(BytesRef.deepCopyOf(resolve.lookupOrd(ord))));
         }
 
         @Override
         public void swap(long lhs, long rhs) {
-            long tmp = values.get(lhs);
-            values.set(lhs, values.get(rhs));
-            values.set(rhs, tmp);
+            SortedSetDocValues tempSegmentResolve = segmentResolve.get(lhs);
+            segmentResolve.set(lhs, segmentResolve.get(rhs));
+            segmentResolve.set(rhs, tempSegmentResolve);
+            long tmpSegmentOrd = segmentOrds.get(lhs);
+            segmentOrds.set(lhs, segmentOrds.get(rhs));
+            segmentOrds.set(rhs, tmpSegmentOrd);
         }
 
         @Override
         public Loader loader(LeafReaderContext ctx) throws IOException {
-            globalOrds = valuesSource.globalOrdinalsValues(ctx);
+            SortedSetDocValues segmentOrdValues = valuesSource.ordinalsValues(ctx);
             // For now just return the value that sorts first.
             return (index, doc) -> {
-                if (false == globalOrds.advanceExact(doc)) {
-                    values.set(index, -1);
+                if (index >= segmentResolve.size()) {
+                    segmentResolve = bigArrays.grow(segmentResolve, index + 1);
+                }
+                if (index >= segmentOrds.size()) {
+                    segmentOrds = bigArrays.grow(segmentOrds, index + 1);
+                }
+                if (false == segmentOrdValues.advanceExact(doc)) {
+                    segmentResolve.set(index, null);
+                    segmentOrds.set(index, -1);
                     return;
                 }
-                if (index >= values.size()) {
-                    values = bigArrays.grow(values, index + 1);
-                }
-                values.set(index, globalOrds.nextOrd());
+                segmentResolve.set(index, segmentOrdValues);
+                segmentOrds.set(index, segmentOrdValues.nextOrd());
             };
         }
 
         @Override
         public void close() {
-            Releasables.close(values);
+            Releasables.close(segmentResolve, segmentOrds);
         }
     }
 

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.manual;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
@@ -42,8 +42,8 @@ public class ManualTriggerEvent extends TriggerEvent {
         builder.endObject();
     }
 
-    public static ManualTriggerEvent parse(TriggerService triggerService, String watchId, String context, XContentParser parser) throws
-            IOException {
+    public static ManualTriggerEvent parse(TriggerService triggerService, String watchId, String context, XContentParser parser)
+        throws IOException {
         TriggerEvent parsedTriggerEvent = triggerService.parseTriggerEvent(watchId, context, parser);
         return new ManualTriggerEvent(context, parsedTriggerEvent);
     }

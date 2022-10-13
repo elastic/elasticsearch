@@ -26,8 +26,7 @@ public class InternalScrollSearchRequest extends TransportRequest {
 
     private Scroll scroll;
 
-    public InternalScrollSearchRequest() {
-    }
+    public InternalScrollSearchRequest() {}
 
     public InternalScrollSearchRequest(SearchScrollRequest request, ShardSearchContextId contextId) {
         this.contextId = contextId;

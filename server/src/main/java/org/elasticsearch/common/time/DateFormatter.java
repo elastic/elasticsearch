@@ -8,18 +8,18 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.joda.time.DateTime;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 public interface DateFormatter {
 
@@ -37,14 +37,6 @@ public interface DateFormatter {
      */
     default long parseMillis(String input) {
         return DateFormatters.from(parse(input)).toInstant().toEpochMilli();
-    }
-
-    /**
-     * Parse the given input into a Joda {@link DateTime}.
-     */
-    default DateTime parseJoda(String input) {
-        ZonedDateTime dateTime = ZonedDateTime.from(parse(input));
-        return new DateTime(dateTime.toInstant().toEpochMilli(), DateUtils.zoneIdToDateTimeZone(dateTime.getZone()));
     }
 
     /**
@@ -80,14 +72,6 @@ public interface DateFormatter {
     }
 
     /**
-     * Return the given Joda {@link DateTime} formatted with this format.
-     */
-    default String formatJoda(DateTime dateTime) {
-        return format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(dateTime.getMillis()),
-            DateUtils.dateTimeZoneToZoneId(dateTime.getZone())));
-    }
-
-    /**
      * A name based format for this formatter. Can be one of the registered formatters like <code>epoch_millis</code> or
      * a configured format like <code>HH:mm:ss</code>
      *
@@ -117,6 +101,10 @@ public interface DateFormatter {
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
+        return forPattern(input, Version.CURRENT);
+    }
+
+    static DateFormatter forPattern(String input, Version supportedVersion) {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
@@ -126,18 +114,30 @@ public interface DateFormatter {
             input = input.substring(1);
         }
 
-        List<DateFormatter> formatters = new ArrayList<>();
-        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
-            if (Strings.hasLength(pattern) == false) {
-                throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
+        List<String> patterns = splitCombinedPatterns(input);
+        List<DateFormatter> formatters = patterns.stream().map(p -> {
+            // make sure we still support camel case for indices created before 8.0
+            if (supportedVersion.before(Version.V_8_0_0)) {
+                return LegacyFormatNames.camelCaseToSnakeCase(p);
             }
-            formatters.add(DateFormatters.forPattern(pattern));
-        }
+            return p;
+        }).map(DateFormatters::forPattern).collect(Collectors.toList());
 
         if (formatters.size() == 1) {
             return formatters.get(0);
         }
 
         return JavaDateFormatter.combined(input, formatters);
+    }
+
+    static List<String> splitCombinedPatterns(String input) {
+        List<String> patterns = new ArrayList<>();
+        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
+            if (Strings.hasLength(pattern) == false) {
+                throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
+            }
+            patterns.add(pattern);
+        }
+        return patterns;
     }
 }

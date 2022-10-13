@@ -38,7 +38,7 @@ public class RelevantScriptFeatureExtractor implements FeatureExtractor {
             // Get anything that is a letter, or anything complex enough warranting a check (more than one UTF-8 byte).
             // cp > Byte.MAX_VALUE works as the first 127 codepoints are the same as the ASCII encoding,
             // which is the same as one UTF-8 byte.
-            if(Character.isLetter(cp) || cp > Byte.MAX_VALUE) {
+            if (Character.isLetter(cp) || cp > Byte.MAX_VALUE) {
                 ScriptDetector.Script script = ScriptDetector.Script.fromCodePoint(cp);
                 counts.computeIfAbsent(script, (s) -> Counter.newCounter()).addAndGet(1);
                 totalCount.addAndGet(1L);

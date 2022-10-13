@@ -37,8 +37,13 @@ public class FieldValueFactorFunction extends ScoreFunction {
     private final Double missing;
     private final IndexNumericFieldData indexFieldData;
 
-    public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, Double missing,
-            IndexNumericFieldData indexFieldData) {
+    public FieldValueFactorFunction(
+        String field,
+        float boostFactor,
+        Modifier modifierType,
+        Double missing,
+        IndexNumericFieldData indexFieldData
+    ) {
         super(CombineFunction.MULTIPLY);
         this.field = field;
         this.boostFactor = boostFactor;
@@ -50,7 +55,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
         final SortedNumericDoubleValues values;
-        if(indexFieldData == null) {
+        if (indexFieldData == null) {
             values = FieldData.emptySortedNumericDoubles();
         } else {
             values = this.indexFieldData.load(ctx).getDoubleValues();
@@ -73,8 +78,12 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 double val = value * boostFactor;
                 double result = modifier.apply(val);
                 if (result < 0f) {
-                    String message = "field value function must not produce negative scores, but got: " +
-                            "[" + result + "] for field value: [" + value + "]";
+                    String message = "field value function must not produce negative scores, but got: "
+                        + "["
+                        + result
+                        + "] for field value: ["
+                        + value
+                        + "]";
                     if (modifier == Modifier.LN) {
                         message += "; consider using ln1p or ln2p instead of ln to avoid negative scores";
                     } else if (modifier == Modifier.LOG) {
@@ -91,9 +100,16 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 String defaultStr = missing != null ? "?:" + missing : "";
                 double score = score(docId, subQueryScore.getValue().floatValue());
                 return Explanation.match(
-                        (float) score,
-                        String.format(Locale.ROOT,
-                                "field value function: %s(doc['%s'].value%s * factor=%s)", modifierStr, field, defaultStr, boostFactor));
+                    (float) score,
+                    String.format(
+                        Locale.ROOT,
+                        "field value function: %s(doc['%s'].value%s * factor=%s)",
+                        modifierStr,
+                        field,
+                        defaultStr,
+                        boostFactor
+                    )
+                );
             }
         };
     }
@@ -106,9 +122,9 @@ public class FieldValueFactorFunction extends ScoreFunction {
     @Override
     protected boolean doEquals(ScoreFunction other) {
         FieldValueFactorFunction fieldValueFactorFunction = (FieldValueFactorFunction) other;
-        return this.boostFactor == fieldValueFactorFunction.boostFactor &&
-                Objects.equals(this.field, fieldValueFactorFunction.field) &&
-                Objects.equals(this.modifier, fieldValueFactorFunction.modifier);
+        return this.boostFactor == fieldValueFactorFunction.boostFactor
+            && Objects.equals(this.field, fieldValueFactorFunction.field)
+            && Objects.equals(this.modifier, fieldValueFactorFunction.modifier);
     }
 
     @Override

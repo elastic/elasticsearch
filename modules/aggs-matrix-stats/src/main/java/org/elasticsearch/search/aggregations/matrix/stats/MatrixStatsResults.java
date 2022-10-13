@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,6 +40,18 @@ class MatrixStatsResults implements Writeable {
         this.results = stats.clone();
         this.correlation = new HashMap<>();
         this.compute();
+    }
+
+    /** creates and computes the result from the provided stats, scaling as necessary given the sampling context */
+    MatrixStatsResults(RunningStats stats, SamplingContext samplingContext) {
+        this.results = stats.clone();
+        this.correlation = new HashMap<>();
+        this.compute();
+        // Note: it is important to scale counts AFTER compute as scaling before could introduce bias
+        this.results.docCount = samplingContext.scaleUp(this.results.docCount);
+        for (String field : this.results.counts.keySet()) {
+            this.results.counts.computeIfPresent(field, (k, v) -> samplingContext.scaleUp(v));
+        }
     }
 
     /** creates a results object from the given stream */
@@ -189,7 +202,7 @@ class MatrixStatsResults implements Writeable {
             // update skewness
             results.skewness.put(fieldName, Math.sqrt(results.docCount) * results.skewness.get(fieldName) / Math.pow(var, 1.5D));
             // update kurtosis
-            results.kurtosis.put(fieldName, (double)results.docCount * results.kurtosis.get(fieldName) / (var * var));
+            results.kurtosis.put(fieldName, (double) results.docCount * results.kurtosis.get(fieldName) / (var * var));
             // update variances
             results.variances.put(fieldName, results.variances.get(fieldName) / nM1);
         }
@@ -224,8 +237,7 @@ class MatrixStatsResults implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MatrixStatsResults that = (MatrixStatsResults) o;
-        return Objects.equals(results, that.results) &&
-            Objects.equals(correlation, that.correlation);
+        return Objects.equals(results, that.results) && Objects.equals(correlation, that.correlation);
     }
 
     @Override

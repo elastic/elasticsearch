@@ -51,7 +51,6 @@ public class StDistancePipe extends BinaryPipe {
         }
 
         StDistancePipe other = (StDistancePipe) obj;
-        return Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right());
+        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
     }
 }

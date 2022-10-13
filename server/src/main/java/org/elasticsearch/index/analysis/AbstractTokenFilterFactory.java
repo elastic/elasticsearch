@@ -8,29 +8,19 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
 
-public abstract class AbstractTokenFilterFactory extends AbstractIndexComponent implements TokenFilterFactory {
+public abstract class AbstractTokenFilterFactory implements TokenFilterFactory {
 
     private final String name;
 
-    protected final Version version;
-
-    public AbstractTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings) {
-        super(indexSettings);
+    public AbstractTokenFilterFactory(String name, Settings settings) {
         this.name = name;
-        this.version = Analysis.parseAnalysisVersion(indexSettings, settings, logger);
+        Analysis.checkForDeprecatedVersion(name, settings);
     }
 
     @Override
     public String name() {
         return this.name;
-    }
-
-    public final Version version() {
-        return version;
     }
 }

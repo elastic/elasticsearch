@@ -3,7 +3,7 @@
   - do:
       index:
         index:   <date-index-{now/d}>
-        id:      1
+        id:      "1"
         refresh: true
         body:    { foo: bar }
 

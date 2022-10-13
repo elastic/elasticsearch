@@ -10,10 +10,9 @@ package org.elasticsearch.script.mustache;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
 import com.github.mustachejava.MustacheFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
@@ -30,6 +29,8 @@ import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Main entry point handling template registration, compilation and
@@ -52,12 +53,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * @return a compiled template object for later execution.
      * */
     @Override
-    public <T> T compile(
-        String templateName,
-        String templateSource,
-        ScriptContext<T> context,
-        Map<String, String> options
-    ) {
+    public <T> T compile(String templateName, String templateSource, ScriptContext<T> context, Map<String, String> options) {
         if (context.instanceClazz.equals(TemplateScript.class) == false) {
             throw new IllegalArgumentException("mustache engine does not know how to handle context [" + context.name + "]");
         }
@@ -119,7 +115,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
                     return null;
                 });
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("Error running {}", template), e);
+                logger.error(() -> format("Error running %s", template), e);
                 throw new GeneralScriptException("Error running " + template, e);
             }
             return writer.toString();

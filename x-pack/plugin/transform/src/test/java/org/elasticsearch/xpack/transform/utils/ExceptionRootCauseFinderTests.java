@@ -31,7 +31,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 1
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure("the_index", "id", new MapperParsingException("mapper parsing error"))
@@ -40,7 +40,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 2
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure("the_index", "id", new ResourceNotFoundException("resource not found error"))
@@ -49,7 +49,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 3
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure("the_index", "id", new IllegalArgumentException("illegal argument error"))
@@ -58,7 +58,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 4 not irrecoverable
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure("the_index", "id", new EsRejectedExecutionException("es rejected execution"))
@@ -67,7 +67,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 5 not irrecoverable
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure("the_index", "id", new TranslogException(new ShardId("the_index", "uid", 0), "translog error"))
@@ -76,7 +76,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 6
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure(
@@ -89,7 +89,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 7
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure(
@@ -102,7 +102,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 8 not irrecoverable
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure(
@@ -115,7 +115,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         // 9 not irrecoverable
         bulkItemResponses.put(
             id,
-            new BulkItemResponse(
+            BulkItemResponse.failure(
                 id++,
                 OpType.INDEX,
                 new BulkItemResponse.Failure(

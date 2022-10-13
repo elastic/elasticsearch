@@ -12,5 +12,3 @@ archivesBaseName = 'preallocate'
 dependencies {
   compileOnly project(":server")
 }
-
-tasks.named("testingConventions").configure { enabled = false }

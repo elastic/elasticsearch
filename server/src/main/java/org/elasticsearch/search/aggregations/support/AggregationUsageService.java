@@ -34,8 +34,9 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
         public void registerAggregationUsage(String aggregationName, String valuesSourceType) {
             Map<String, LongAdder> subAgg = aggs.computeIfAbsent(aggregationName, k -> new HashMap<>());
             if (subAgg.put(valuesSourceType, new LongAdder()) != null) {
-                throw new IllegalArgumentException("stats for aggregation [" + aggregationName + "][" + valuesSourceType +
-                    "] already registered");
+                throw new IllegalArgumentException(
+                    "stats for aggregation [" + aggregationName + "][" + valuesSourceType + "] already registered"
+                );
             }
         }
 

@@ -1,6 +1,6 @@
 [[error-file-path]]
 [discrete]
-=== JVM fatal error log setting
+==== JVM fatal error log setting
 
 By default, {es} configures the JVM to write fatal error logs
 to the default logging directory. On <<rpm,RPM>> and <<deb,Debian>> packages,
@@ -9,4 +9,4 @@ directory is located under the root of the {es} installation.
 
 These are logs produced by the JVM when it encounters a fatal error, such as a
 segmentation fault. If this path is not suitable for receiving logs,
-modify the `-XX:ErrorFile=...` entry in <<jvm-options,`jvm.options`>>.
+modify the `-XX:ErrorFile=...` entry in <<set-jvm-options,`jvm.options`>>.

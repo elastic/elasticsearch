@@ -1,0 +1,141 @@
+---
+"Test valid job config":
+  - do:
+      ml.validate:
+        body:  >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
+            },
+            "data_description": {
+              "format": "xcontent",
+              "time_field": "time",
+              "time_format": "yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { acknowledged: true }
+
+---
+"Test invalid job config":
+  - do:
+      catch: /.data_description. failed to parse field .format./
+      ml.validate:
+        body:  >
+          {
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
+            },
+            "data_description": {
+              "format": "wrong",
+              "time_field": "time",
+              "time_format": "yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+---
+"Test valid job config with job ID":
+  - do:
+      ml.validate:
+        body:  >
+          {
+            "job_id": "validate-job-config-with-job-id",
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
+            },
+            "data_description": {
+              "format": "xcontent",
+              "time_field": "time",
+              "time_format": "yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { acknowledged: true }
+
+---
+"Test job config that is invalid only because of the job ID":
+  - do:
+      catch: /Invalid job_id; '_' can contain lowercase alphanumeric \(a-z and 0-9\), hyphens or underscores; must start and end with alphanumeric/
+      ml.validate:
+        body:  >
+          {
+            "job_id": "_",
+            "analysis_config": {
+              "bucket_span": "1h",
+              "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
+            },
+            "data_description": {
+              "format": "xcontent",
+              "time_field": "time",
+              "time_format": "yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+---
+"Test job config is invalid because model snapshot id set":
+
+  - do:
+      catch: /illegal_argument_exception/
+      ml.validate:
+        body:  >
+          {
+            "model_snapshot_id": "wont-create-with-this-setting",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      catch: /The job is configured with fields \[model_snapshot_id\] that are illegal to set at job creation/
+      ml.validate:
+        body:  >
+          {
+            "model_snapshot_id": "wont-create-with-this-setting",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+---
+"Test job config with duplicate detector configurations":
+
+  - do:
+      catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
+      ml.validate:
+        body:  >
+          {
+            "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [
+                    {"function":"max", "field_name":"responsetime"},
+                    {"function":"max", "field_name":"responsetime"}
+                ]
+            },
+            "data_description": {
+                "time_field": "@timestamp"
+            }
+          }
+
+  - do:
+      catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
+      ml.validate:
+        body:  >
+          {
+            "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [
+                    {"function":"max", "field_name":"responsetime", "detector_index": 0},
+                    {"function":"max", "field_name":"responsetime", "detector_index": 1}
+                ]
+            },
+            "data_description": {
+                "time_field": "@timestamp"
+            }
+          }

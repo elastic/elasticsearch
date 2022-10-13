@@ -1,0 +1,139 @@
+---
+"Test that index segments are sorted on timestamp field if @timestamp field is defined in mapping":
+  - skip:
+      version: " - 7.99.99"
+      reason: "sorting segments was added in 7.16"
+      features: allowed_warnings
+
+  - do:
+      indices.create:
+        index: test_index1
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  # 1st segment
+  - do:
+      index:
+        index: test_index1
+        body: { "foo": "bar1", "@timestamp": "2021-08-01" }
+        refresh: true
+
+  # 2nd segment
+  - do:
+      index:
+        index: test_index1
+        body: { "foo": "bar2", "@timestamp": "2021-08-02" }
+        refresh: true
+
+  # test that segments are sorted by @timestamp DESC
+  - do:
+      search:
+        index: test_index1
+        body:
+          fields: [{ "field":"@timestamp", "format":"yyyy-MM-dd" }]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.@timestamp: ["2021-08-02"] }
+  - match: { hits.hits.1.fields.@timestamp: ["2021-08-01"] }
+
+---
+"Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added":
+  - skip:
+      version: " - 7.99.99"
+      reason: "sorting segments was added in 7.16"
+      features: allowed_warnings
+
+  - do:
+      indices.create:
+        index: test_index2
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  # 1st segment
+  - do:
+      index:
+        index: test_index2
+        body: { "foo": "bar1", "@timestamp": "2021-08-01" }
+        refresh: true
+
+  # 2nd segment
+  - do:
+      index:
+        index: test_index2
+        body: { "foo": "bar2", "@timestamp": "2021-08-02" }
+        refresh: true
+
+  # test that segments are NOT sorted by @timestamp DESC as the field was not
+  - do:
+      search:
+        index: test_index2
+        body:
+          fields: [{ "field":"@timestamp", "format":"yyyy-MM-dd" }]
+  - match: { hits.hits.0.fields.@timestamp: ["2021-08-01"] }
+  - match: { hits.hits.1.fields.@timestamp: ["2021-08-02"] }
+
+  # test that after we reopen the index, segments are sorted by @timestamp DESC
+  - do:
+      indices.close:
+        index: test_index2
+  - is_true: acknowledged
+  - do:
+      indices.open:
+        index: test_index2
+  - is_true: acknowledged
+  - do:
+      search:
+        index: test_index2
+        body:
+          fields: [{ "field":"@timestamp", "format":"yyyy-MM-dd" }]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.@timestamp: ["2021-08-02"] }
+  - match: { hits.hits.1.fields.@timestamp: ["2021-08-01"] }
+
+---
+"Test if segments are missing @timestamp field we don't get errors":
+  - skip:
+      version: " - 7.99.99"
+      reason: "sorting segments was added in 7.16"
+      features: allowed_warnings
+
+  - do:
+      indices.create:
+        index: test_index3
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  # 1st segment missing @timestamp field
+  - do:
+      index:
+        index: test_index3
+        body: { "foo": "bar1"}
+        refresh: true
+
+  # 2nd segment
+  - do:
+      index:
+        index: test_index3
+        body: { "foo": "bar2", "@timestamp": "2021-08-02" }
+        refresh: true
+
+  - do:
+      search:
+        index: test_index3
+        body:
+          fields: [{ "field":"@timestamp", "format":"yyyy-MM-dd" }]
+  - match: { hits.hits.0.fields.@timestamp: ["2021-08-02"] }
+  - is_false: hits.hits.1.fields.@timestamp

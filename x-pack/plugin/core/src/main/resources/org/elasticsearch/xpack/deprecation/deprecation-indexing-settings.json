@@ -2,6 +2,8 @@
   "template": {
     "settings": {
       "index": {
+        "auto_expand_replicas" : "0-1",
+        "hidden" : true,
         "lifecycle": {
           "name": ".deprecation-indexing-ilm-policy"
         },
@@ -13,7 +15,7 @@
     }
   },
   "_meta": {
-    "description": "default settings for ES deprecation logs index template installed by x-pack",
+    "description": "default settings for Stack deprecation logs index template installed by x-pack",
     "managed": true
   },
   "version": ${xpack.deprecation.indexing.template.version}

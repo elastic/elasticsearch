@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ql.expression.function;
 
 import org.elasticsearch.xpack.ql.session.Configuration;
 
-
 /**
  * Strategy indicating the type of resolution to apply for resolving the actual function definition in a pluggable way.
  */

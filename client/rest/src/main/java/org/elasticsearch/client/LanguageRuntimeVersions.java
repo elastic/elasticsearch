@@ -34,7 +34,7 @@ class LanguageRuntimeVersions {
         StringBuilder s = new StringBuilder();
         String version;
 
-        version= kotlinVersion();
+        version = kotlinVersion();
         if (version != null) {
             s.append(",kt=").append(version);
         }
@@ -63,7 +63,7 @@ class LanguageRuntimeVersions {
     }
 
     public static String kotlinVersion() {
-        //KotlinVersion.CURRENT.toString()
+        // KotlinVersion.CURRENT.toString()
         return keepMajorMinor(getStaticField("kotlin.KotlinVersion", "CURRENT"));
     }
 

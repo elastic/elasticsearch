@@ -11,6 +11,7 @@ import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.script.BytesRefSortScript;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.NumberSortScript;
@@ -26,7 +27,10 @@ import static java.util.Collections.singletonList;
 
 public class VersionFieldDocValuesExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(VersionFieldDocValuesExtension.class, "whitelist.txt");
+    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+        VersionFieldDocValuesExtension.class,
+        "org.elasticsearch.xpack.versionfield.txt"
+    );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
@@ -38,6 +42,7 @@ public class VersionFieldDocValuesExtension implements PainlessExtension {
         whitelist.put(FieldScript.CONTEXT, list);
         whitelist.put(NumberSortScript.CONTEXT, list);
         whitelist.put(StringSortScript.CONTEXT, list);
+        whitelist.put(BytesRefSortScript.CONTEXT, list);
         return whitelist;
     }
 }

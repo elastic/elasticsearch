@@ -1,0 +1,42 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test put watch with a reporting interval":
+  - do:
+      watcher.put_watch:
+        id: "my_watch_with_reporting_interval"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "actions": {
+              "email_admin": {
+                "email": {
+                  "to": "example@example.com",
+                  "subject": "Monitoring Report",
+                  "attachments": {
+                    "report_csv": {
+                      "reporting": {
+                        "url": "https://example.com",
+                        "retries": 10,
+                        "interval": "66s"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch_with_reporting_interval" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch_with_reporting_interval"
+  - match: { found : true}
+  - match: { _id: "my_watch_with_reporting_interval" }
+  - match: { watch.actions.email_admin.email.attachments.report_csv.reporting.interval: "66s" }

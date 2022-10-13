@@ -10,8 +10,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
@@ -21,15 +23,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
-
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
-    private static final String BASIC_AUTH_VALUE =
-            basicAuthHeaderValue("test_user", SecuritySettingsSourceField.TEST_PASSWORD);
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
+        "test_user",
+        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD)
+    );
 
-    protected static final Version UPGRADE_FROM_VERSION =
-        Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+
+    protected static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -66,22 +69,23 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
+        return true;
+    }
+
     enum ClusterType {
         OLD,
         MIXED,
         UPGRADED;
 
         public static ClusterType parse(String value) {
-            switch (value) {
-                case "old_cluster":
-                    return OLD;
-                case "mixed_cluster":
-                    return MIXED;
-                case "upgraded_cluster":
-                    return UPGRADED;
-                default:
-                    throw new AssertionError("unknown cluster type: " + value);
-            }
+            return switch (value) {
+                case "old_cluster" -> OLD;
+                case "mixed_cluster" -> MIXED;
+                case "upgraded_cluster" -> UPGRADED;
+                default -> throw new AssertionError("unknown cluster type: " + value);
+            };
         }
     }
 
@@ -90,14 +94,14 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
+            .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
 
-                // increase the timeout here to 90 seconds to handle long waits for a green
-                // cluster health. the waits for green need to be longer than a minute to
-                // account for delayed shards
-                .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+            // increase the timeout here to 90 seconds to handle long waits for a green
+            // cluster health. the waits for green need to be longer than a minute to
+            // account for delayed shards
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
 
-                .build();
+            .build();
     }
 
     protected Collection<String> templatesToWaitFor() {

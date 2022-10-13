@@ -7,13 +7,14 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.time.ZoneId;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
 
@@ -25,11 +26,11 @@ public abstract class BaseDateTimeParseFunction extends BinaryDateTimeFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = isString(left(), sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isString(left(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
-        resolution = isString(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
+        resolution = isString(right(), sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }

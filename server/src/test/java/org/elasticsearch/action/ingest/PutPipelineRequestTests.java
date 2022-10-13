@@ -12,11 +12,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -41,14 +41,14 @@ public class PutPipelineRequestTests extends ESTestCase {
         XContentBuilder pipelineBuilder = XContentBuilder.builder(xContentType.xContent());
         pipelineBuilder.startObject().field(Pipeline.DESCRIPTION_KEY, "some random set of processors");
         pipelineBuilder.startArray(Pipeline.PROCESSORS_KEY);
-        //Start first processor
+        // Start first processor
         pipelineBuilder.startObject();
         pipelineBuilder.startObject("set");
         pipelineBuilder.field("field", "foo");
         pipelineBuilder.field("value", "bar");
         pipelineBuilder.endObject();
         pipelineBuilder.endObject();
-        //End first processor
+        // End first processor
         pipelineBuilder.endArray();
         pipelineBuilder.endObject();
         PutPipelineRequest request = new PutPipelineRequest("1", BytesReference.bytes(pipelineBuilder), xContentType);

@@ -1,12 +1,11 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[autoscaling-get-autoscaling-policy]]
 === Get autoscaling policy API
 ++++
 <titleabbrev>Get autoscaling policy</titleabbrev>
 ++++
 
-include::../autoscaling-designed-for-note.asciidoc[]
+NOTE: {cloud-only}
 
 Get autoscaling policy.
 

@@ -20,9 +20,7 @@ public class SecurityUtils {
 
     static Settings secureClientSettings() {
         String token = basicAuthHeaderValue("test-admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     static void setRunAsHeader(Request request, String user) {

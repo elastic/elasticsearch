@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoade
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
 import org.junit.Before;
 import org.opensaml.saml.common.SignableSAMLObject;
 import org.opensaml.saml.saml2.core.Issuer;
@@ -28,6 +27,8 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.when;
 public class SamlObjectSignerTests extends IdpSamlTestCase {
 
     private SamlFactory samlFactory;
+
     @Before
     public void setupState() {
         SamlInit.initialize();
@@ -61,9 +63,7 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
             // verify with correct credential
             SignatureValidator.validate(signedRequest.getSignature(), credential);
             // fail with incorrect credential
-            expectThrows(SignatureException.class,
-                () -> SignatureValidator.validate(signedRequest.getSignature(), alternateCredential)
-            );
+            expectThrows(SignatureException.class, () -> SignatureValidator.validate(signedRequest.getSignature(), alternateCredential));
         }
     }
 
@@ -83,9 +83,7 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
             // verify with correct credential
             SignatureValidator.validate(signedResponse.getSignature(), credential);
             // fail with incorrect credential
-            expectThrows(SignatureException.class,
-                () -> SignatureValidator.validate(signedResponse.getSignature(), alternateCredential)
-            );
+            expectThrows(SignatureException.class, () -> SignatureValidator.validate(signedResponse.getSignature(), alternateCredential));
         }
     }
 
@@ -120,7 +118,7 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
 
     private LogoutRequest createLogoutRequest(String entityId) {
         final LogoutRequest request = samlFactory.buildObject(LogoutRequest.class, LogoutRequest.DEFAULT_ELEMENT_NAME);
-        request.setNotOnOrAfter(DateTime.now().plusMinutes(15));
+        request.setNotOnOrAfter(Instant.now().plus(Duration.ofMinutes(15)));
 
         final NameID nameID = samlFactory.buildObject(NameID.class, NameID.DEFAULT_ELEMENT_NAME);
         nameID.setFormat(NameIDType.TRANSIENT);
@@ -135,7 +133,7 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
 
     private Response createAuthnResponse(String entityId) {
         final Response response = samlFactory.buildObject(Response.class, Response.DEFAULT_ELEMENT_NAME);
-        final DateTime now = DateTime.now();
+        final Instant now = Instant.now();
         response.setIssueInstant(now);
         response.setID(randomAlphaOfLength(24));
 

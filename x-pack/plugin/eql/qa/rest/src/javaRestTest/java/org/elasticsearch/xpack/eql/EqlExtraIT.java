@@ -11,7 +11,7 @@ import org.elasticsearch.test.eql.EqlExtraSpecTestCase;
 
 public class EqlExtraIT extends EqlExtraSpecTestCase {
 
-    public EqlExtraIT(String query, String name, long[] eventIds) {
-        super(query, name, eventIds);
+    public EqlExtraIT(String query, String name, long[] eventIds, String[] joinKeys) {
+        super(query, name, eventIds, joinKeys);
     }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
-
 /**
  * Factory for the classic ML categorization tokenizer, as implemented in the ML C++ code.
  *

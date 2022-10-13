@@ -1,0 +1,352 @@
+---
+"Test exists query on aggregate metric field":
+  - skip:
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
+
+  - do:
+      indices.create:
+        index:  aggregate_metric_test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max]
+                default_metric: max
+
+  - do:
+      index:
+        index:  aggregate_metric_test
+        id:     "1"
+        body:
+          metric:
+            min: 18.2
+            max: 100
+        refresh: true
+
+  - do:
+      search:
+        index: aggregate_metric_test
+        body:
+          query:
+            exists:
+              field: metric
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: aggregate_metric_test
+        body:
+          query:
+            exists:
+              field: metric.min
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: aggregate_metric_test
+        body:
+          query:
+            exists:
+              field: metric.nonexistent_key
+
+  - match: { hits.total.value: 0 }
+
+---
+"Test term query on aggregate metric field":
+  - skip:
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max]
+                default_metric: max
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          metric:
+            min: 18.2
+            max: 100
+        refresh: true
+
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        body:
+          metric:
+            min: 50
+            max: 1000
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              metric:
+                value: 1000
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              metric:
+                value: 100
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              metric.min:
+                value: 50
+
+  - match: { hits.total.value: 0 }
+
+
+---
+"Test range query on aggregate metric field":
+  - skip:
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max]
+                default_metric: max
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          metric:
+            min: 18.2
+            max: 100
+        refresh: true
+
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        body:
+          metric:
+            min: 50
+            max: 1000
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              metric:
+                gte: 900
+                lte: 1000
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              metric:
+                gte: 90
+                lte: 200
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              metric.min:
+                gte: 10
+                lte: 40
+
+  - match: { hits.total.value: 0 }
+
+---
+"Sort":
+  - skip:
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max]
+                default_metric: max
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          metric:
+            min: 18.2
+            max: 3000
+        refresh: true
+
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        body:
+          metric:
+            min: 50
+            max: 1000
+        refresh: true
+
+  - do:
+      index:
+        index:  test
+        id:     "3"
+        body:
+          metric:
+            min: 150
+            max: 5000
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { metric: asc } ]
+
+  - match: { "hits.total.value": 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "3" }
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { metric: desc } ]
+
+  - match: { "hits.total.value": 3 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "2" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          sort: [ { metric.max: asc } ]
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          sort: [ { metric.min: desc } ]
+
+---
+"Test fields api":
+  - skip:
+      version: "- 8.3.99"
+      reason: "Breaking change introduced in 8.4.0"
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max, sum, value_count]
+                default_metric: sum
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          metric:
+            min: 10
+            max: 100
+            sum: 200
+            value_count: 5
+        refresh: true
+
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        body:
+          metric:
+            min: 50
+            max: 1000
+            sum: 5000
+            value_count: 10
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          fields: [ metric ]
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.metric.0.min: 10 }
+  - match: { hits.hits.0.fields.metric.0.max: 100 }
+  - match: { hits.hits.0.fields.metric.0.sum: 200 }
+  - match: { hits.hits.0.fields.metric.0.value_count: 5 }
+  - match: { hits.hits.1.fields.metric.0.min: 50 }
+  - match: { hits.hits.1.fields.metric.0.max: 1000 }
+  - match: { hits.hits.1.fields.metric.0.sum: 5000 }
+  - match: { hits.hits.1.fields.metric.0.value_count: 10 }

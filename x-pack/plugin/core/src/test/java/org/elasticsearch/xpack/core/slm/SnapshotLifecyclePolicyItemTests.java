@@ -13,24 +13,30 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy;
 import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.createRandomPolicyMetadata;
+import static org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy;
 
 public class SnapshotLifecyclePolicyItemTests extends AbstractWireSerializingTestCase<SnapshotLifecyclePolicyItem> {
 
     public static SnapshotLifecyclePolicyItem.SnapshotInProgress randomSnapshotInProgress() {
-        return rarely() ? null : new SnapshotLifecyclePolicyItem.SnapshotInProgress(
-            new SnapshotId("name-" + randomAlphaOfLength(3), "uuid-" + randomAlphaOfLength(3)),
-            randomFrom(SnapshotsInProgress.State.values()),
-            randomNonNegativeLong(),
-            randomBoolean() ? null : "failure!");
+        return rarely()
+            ? null
+            : new SnapshotLifecyclePolicyItem.SnapshotInProgress(
+                new SnapshotId("name-" + randomAlphaOfLength(3), "uuid-" + randomAlphaOfLength(3)),
+                randomFrom(SnapshotsInProgress.State.values()),
+                randomNonNegativeLong(),
+                randomBoolean() ? null : "failure!"
+            );
     }
 
     @Override
     protected SnapshotLifecyclePolicyItem createTestInstance() {
         String policyId = randomAlphaOfLengthBetween(5, 10);
-        return new SnapshotLifecyclePolicyItem(createRandomPolicyMetadata(policyId), randomSnapshotInProgress(),
-            SnapshotLifecycleStatsTests.randomPolicyStats(policyId));
+        return new SnapshotLifecyclePolicyItem(
+            createRandomPolicyMetadata(policyId),
+            randomSnapshotInProgress(),
+            SnapshotLifecycleStatsTests.randomPolicyStats(policyId)
+        );
     }
 
     @Override
@@ -38,65 +44,78 @@ public class SnapshotLifecyclePolicyItemTests extends AbstractWireSerializingTes
         switch (between(0, 6)) {
             case 0:
                 String newPolicyId = randomValueOtherThan(instance.getPolicy().getId(), () -> randomAlphaOfLengthBetween(5, 10));
-                return new SnapshotLifecyclePolicyItem(randomSnapshotLifecyclePolicy(newPolicyId),
+                return new SnapshotLifecyclePolicyItem(
+                    randomSnapshotLifecyclePolicy(newPolicyId),
                     instance.getVersion(),
                     instance.getModifiedDate(),
                     instance.getLastSuccess(),
                     instance.getLastFailure(),
                     instance.getSnapshotInProgress(),
-                    instance.getPolicyStats());
+                    instance.getPolicyStats()
+                );
             case 1:
-                return new SnapshotLifecyclePolicyItem(instance.getPolicy(),
+                return new SnapshotLifecyclePolicyItem(
+                    instance.getPolicy(),
                     randomValueOtherThan(instance.getVersion(), ESTestCase::randomNonNegativeLong),
                     instance.getModifiedDate(),
                     instance.getLastSuccess(),
                     instance.getLastFailure(),
                     instance.getSnapshotInProgress(),
-                    instance.getPolicyStats());
+                    instance.getPolicyStats()
+                );
             case 2:
-                return new SnapshotLifecyclePolicyItem(instance.getPolicy(),
+                return new SnapshotLifecyclePolicyItem(
+                    instance.getPolicy(),
                     instance.getVersion(),
                     randomValueOtherThan(instance.getModifiedDate(), ESTestCase::randomNonNegativeLong),
                     instance.getLastSuccess(),
                     instance.getLastFailure(),
                     instance.getSnapshotInProgress(),
-                    instance.getPolicyStats());
+                    instance.getPolicyStats()
+                );
             case 3:
-                return new SnapshotLifecyclePolicyItem(instance.getPolicy(),
+                return new SnapshotLifecyclePolicyItem(
+                    instance.getPolicy(),
                     instance.getVersion(),
                     instance.getModifiedDate(),
-                    randomValueOtherThan(instance.getLastSuccess(),
-                        SnapshotInvocationRecordTests::randomSnapshotInvocationRecord),
+                    randomValueOtherThan(instance.getLastSuccess(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord),
                     instance.getLastFailure(),
                     instance.getSnapshotInProgress(),
-                    instance.getPolicyStats());
+                    instance.getPolicyStats()
+                );
             case 4:
-                return new SnapshotLifecyclePolicyItem(instance.getPolicy(),
+                return new SnapshotLifecyclePolicyItem(
+                    instance.getPolicy(),
                     instance.getVersion(),
                     instance.getModifiedDate(),
                     instance.getLastSuccess(),
-                    randomValueOtherThan(instance.getLastFailure(),
-                        SnapshotInvocationRecordTests::randomSnapshotInvocationRecord),
+                    randomValueOtherThan(instance.getLastFailure(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord),
                     instance.getSnapshotInProgress(),
-                    instance.getPolicyStats());
+                    instance.getPolicyStats()
+                );
             case 5:
-                return new SnapshotLifecyclePolicyItem(instance.getPolicy(),
+                return new SnapshotLifecyclePolicyItem(
+                    instance.getPolicy(),
                     instance.getVersion(),
                     instance.getModifiedDate(),
                     instance.getLastSuccess(),
                     instance.getLastFailure(),
-                    randomValueOtherThan(instance.getSnapshotInProgress(),
-                        SnapshotLifecyclePolicyItemTests::randomSnapshotInProgress),
-                    instance.getPolicyStats());
+                    randomValueOtherThan(instance.getSnapshotInProgress(), SnapshotLifecyclePolicyItemTests::randomSnapshotInProgress),
+                    instance.getPolicyStats()
+                );
             case 6:
-                return new SnapshotLifecyclePolicyItem(instance.getPolicy(),
+                return new SnapshotLifecyclePolicyItem(
+                    instance.getPolicy(),
                     instance.getVersion(),
                     instance.getModifiedDate(),
                     instance.getLastSuccess(),
                     instance.getLastFailure(),
                     instance.getSnapshotInProgress(),
-                    randomValueOtherThan(instance.getPolicyStats(),
-                        () -> SnapshotLifecycleStatsTests.randomPolicyStats(instance.getPolicy().getId())));
+                    randomValueOtherThan(
+                        instance.getPolicyStats(),
+                        () -> SnapshotLifecycleStatsTests.randomPolicyStats(instance.getPolicy().getId())
+                    )
+                );
             default:
                 throw new AssertionError("failure, got illegal switch case");
         }

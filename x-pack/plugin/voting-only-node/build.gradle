@@ -1,9 +1,9 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-voting-only-node'
   description 'Elasticsearch Expanded Pack Plugin - Voting-only node'
-  classname 'org.elasticsearch.cluster.coordination.VotingOnlyNodePlugin'
+  classname 'org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePlugin'
   extendedPlugins = ['x-pack-core']
 }
 

@@ -22,7 +22,6 @@ import java.util.concurrent.ConcurrentMap;
 
 public class RecoveryRequestTrackerTests extends ESTestCase {
 
-
     private TestThreadPool threadPool;
 
     @Override

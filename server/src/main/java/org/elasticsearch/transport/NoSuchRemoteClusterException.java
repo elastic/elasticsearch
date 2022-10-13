@@ -20,7 +20,7 @@ import java.io.IOException;
 public final class NoSuchRemoteClusterException extends ResourceNotFoundException {
 
     public NoSuchRemoteClusterException(String clusterName) {
-        //No node available for cluster
+        // No node available for cluster
         super("no such remote cluster: [" + clusterName + "]");
     }
 

@@ -30,8 +30,7 @@ import java.util.List;
  */
 public class ShardsCollector extends Collector {
 
-    public ShardsCollector(final ClusterService clusterService,
-                           final XPackLicenseState licenseState) {
+    public ShardsCollector(final ClusterService clusterService, final XPackLicenseState licenseState) {
         super(ShardMonitoringDoc.TYPE, clusterService, null, licenseState);
     }
 
@@ -41,9 +40,8 @@ public class ShardsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
-                                                  final long interval,
-                                                  final ClusterState clusterState) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState)
+        throws Exception {
         final List<MonitoringDoc> results = new ArrayList<>(1);
         if (clusterState != null) {
             RoutingTable routingTable = clusterState.routingTable();

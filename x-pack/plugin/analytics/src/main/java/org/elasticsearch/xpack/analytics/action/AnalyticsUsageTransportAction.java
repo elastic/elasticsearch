@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.analytics.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,21 +27,41 @@ public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAct
     private final Client client;
 
     @Inject
-    public AnalyticsUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         Client client) {
-        super(XPackUsageFeatureAction.ANALYTICS.name(), transportService, clusterService,
-            threadPool, actionFilters, indexNameExpressionResolver);
+    public AnalyticsUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client
+    ) {
+        super(
+            XPackUsageFeatureAction.ANALYTICS.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         AnalyticsStatsAction.Request statsRequest = new AnalyticsStatsAction.Request();
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        client.execute(AnalyticsStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r ->
-                listener.onResponse(new XPackUsageFeatureResponse(new AnalyticsFeatureSetUsage(true, true, r))),
-            listener::onFailure));
+        client.execute(
+            AnalyticsStatsAction.INSTANCE,
+            statsRequest,
+            ActionListener.wrap(
+                r -> listener.onResponse(new XPackUsageFeatureResponse(new AnalyticsFeatureSetUsage(true, true, r))),
+                listener::onFailure
+            )
+        );
     }
 }

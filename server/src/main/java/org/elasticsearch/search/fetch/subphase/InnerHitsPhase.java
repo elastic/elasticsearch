@@ -19,7 +19,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -35,7 +35,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext searchContext) {
-        if (searchContext.innerHits() == null) {
+        if (searchContext.innerHits() == null || searchContext.innerHits().getInnerHits().isEmpty()) {
             return null;
         }
         Map<String, InnerHitsContext.InnerHitSubContext> innerHits = searchContext.innerHits().getInnerHits();
@@ -48,15 +48,14 @@ public final class InnerHitsPhase implements FetchSubPhase {
             @Override
             public void process(HitContext hitContext) throws IOException {
                 SearchHit hit = hitContext.hit();
-                SourceLookup rootLookup = searchContext.getRootSourceLookup(hitContext);
-                hitExecute(innerHits, hit, rootLookup);
+                Source rootSource = searchContext.getRootSource(hitContext);
+                hitExecute(innerHits, hit, rootSource);
             }
         };
     }
 
-    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits,
-                            SearchHit hit,
-                            SourceLookup rootLookup) throws IOException {
+    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, SearchHit hit, Source rootSource)
+        throws IOException {
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHits.entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = entry.getValue();
             TopDocsAndMaxScore topDoc = innerHitsContext.topDocs(hit);
@@ -70,9 +69,9 @@ public final class InnerHitsPhase implements FetchSubPhase {
             for (int j = 0; j < topDoc.topDocs.scoreDocs.length; j++) {
                 docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;
             }
-            innerHitsContext.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
+            innerHitsContext.docIdsToLoad(docIdsToLoad);
             innerHitsContext.setRootId(hit.getId());
-            innerHitsContext.setRootLookup(rootLookup);
+            innerHitsContext.setRootLookup(rootSource);
 
             fetchPhase.execute(innerHitsContext);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();
@@ -81,8 +80,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
                 ScoreDoc scoreDoc = topDoc.topDocs.scoreDocs[j];
                 SearchHit searchHitFields = internalHits[j];
                 searchHitFields.score(scoreDoc.score);
-                if (scoreDoc instanceof FieldDoc) {
-                    FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+                if (scoreDoc instanceof FieldDoc fieldDoc) {
                     searchHitFields.sortValues(fieldDoc.fields, innerHitsContext.sort().formats);
                 }
             }

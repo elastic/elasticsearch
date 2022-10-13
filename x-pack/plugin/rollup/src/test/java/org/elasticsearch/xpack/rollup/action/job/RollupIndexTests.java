@@ -24,6 +24,7 @@ import static org.mockito.Mockito.when;
 
 public class RollupIndexTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90661")
     public void testValidateMatchingField() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
@@ -44,6 +45,7 @@ public class RollupIndexTests extends ESTestCase {
         assertThat(builders.size(), equalTo(1));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/90661")
     public void testValidateFieldMatchingNotAggregatable() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
@@ -59,7 +61,7 @@ public class RollupIndexTests extends ESTestCase {
     }
 
     private String getRandomType() {
-        int n = randomIntBetween(0,8);
+        int n = randomIntBetween(0, 8);
         if (n == 0) {
             return "keyword";
         } else if (n == 1) {

@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import static org.hamcrest.Matchers.is;
 
-public class PerPartitionCategorizationConfigTests extends AbstractSerializingTestCase<PerPartitionCategorizationConfig> {
+public class PerPartitionCategorizationConfigTests extends AbstractXContentSerializingTestCase<PerPartitionCategorizationConfig> {
 
     public void testConstructorDefaults() {
         assertThat(new PerPartitionCategorizationConfig().isEnabled(), is(false));
@@ -22,8 +22,10 @@ public class PerPartitionCategorizationConfigTests extends AbstractSerializingTe
     }
 
     public void testValidation() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new PerPartitionCategorizationConfig(false, true));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new PerPartitionCategorizationConfig(false, true)
+        );
 
         assertThat(e.getMessage(), is("stop_on_warn cannot be true in per_partition_categorization when enabled is false"));
     }

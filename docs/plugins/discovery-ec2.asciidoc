@@ -114,7 +114,7 @@ The available settings for the EC2 discovery plugin are as follows.
 `discovery.ec2.read_timeout`::
 
     The socket timeout for connections to EC2,
-    {ref}/common-options.html#time-units[including the units]. For example, a
+    {time-units}[including the units]. For example, a
     value of `60s` specifies a 60-second timeout. Defaults to 50 seconds.
 
 `discovery.ec2.groups`::

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 
@@ -55,15 +55,22 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
         if (truncateDateField == null) {
             List<String> similar = Part.findSimilar((String) truncateTo);
             if (similar.isEmpty()) {
-                throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
-                    Part.values(), truncateTo);
+                throw new SqlIllegalArgumentException(
+                    "A value of {} or their aliases is required; received [{}]",
+                    Part.values(),
+                    truncateTo
+                );
             } else {
-                throw new SqlIllegalArgumentException("Received value [{}] is not valid date part for truncation; " +
-                    "did you mean {}?", truncateTo, similar);
+                throw new SqlIllegalArgumentException(
+                    "Received value [{}] is not valid date part for truncation; " + "did you mean {}?",
+                    truncateTo,
+                    similar
+                );
             }
         }
 
-        if (timestamp instanceof ZonedDateTime == false && timestamp instanceof IntervalYearMonth == false
+        if (timestamp instanceof ZonedDateTime == false
+            && timestamp instanceof IntervalYearMonth == false
             && timestamp instanceof IntervalDayTime == false) {
             throw new SqlIllegalArgumentException("A date/datetime/interval is required; received [{}]", timestamp);
         }

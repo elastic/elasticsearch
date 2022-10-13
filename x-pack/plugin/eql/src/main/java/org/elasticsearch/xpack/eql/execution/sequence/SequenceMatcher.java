@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
@@ -26,9 +28,13 @@ import java.util.TreeSet;
  */
 public class SequenceMatcher {
 
+    private static final String CB_INFLIGHT_LABEL = "sequence_inflight";
+    private static final String CB_COMPLETED_LABEL = "sequence_completed";
+
     private final Logger log = LogManager.getLogger(SequenceMatcher.class);
 
     static class Stats {
+
         long seen = 0;
         long ignored = 0;
         long rejectionMaxspan = 0;
@@ -36,11 +42,14 @@ public class SequenceMatcher {
 
         @Override
         public String toString() {
-            return LoggerMessageFormat.format(null, "Stats: Seen [{}]/Ignored [{}]/Rejected {Maxspan [{}]/Until [{}]}",
-                    seen,
-                    ignored,
-                    rejectionMaxspan,
-                    rejectionUntil);
+            return LoggerMessageFormat.format(
+                null,
+                "Stats: Seen [{}]/Ignored [{}]/Rejected {Maxspan [{}]/Until [{}]}",
+                seen,
+                ignored,
+                rejectionMaxspan,
+                rejectionUntil
+            );
         }
 
         public void clear() {
@@ -63,17 +72,23 @@ public class SequenceMatcher {
     // Set of completed sequences - separate to avoid polluting the other stages
     // It is a set since matches are ordered at insertion time based on the ordinal of the first entry
     private final Set<Sequence> completed;
-    private final long maxSpanInMillis;
+    private final long maxSpanInNanos;
 
     private final boolean descending;
 
     private final Limit limit;
-    private boolean headLimit = false;
+    private final CircuitBreaker circuitBreaker;
 
     private final Stats stats = new Stats();
 
+    private boolean headLimit = false;
+
+    // circuit breaker accounting
+    private long prevRamBytesUsedInFlight = 0;
+    private long prevRamBytesUsedCompleted = 0;
+
     @SuppressWarnings("rawtypes")
-    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit) {
+    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit, CircuitBreaker circuitBreaker) {
         this.numberOfStages = stages;
         this.completionStage = stages - 1;
 
@@ -82,10 +97,10 @@ public class SequenceMatcher {
         this.keyToSequences = new KeyToSequences(completionStage);
         this.completed = new TreeSet<>();
 
-        this.maxSpanInMillis = maxSpan.millis();
+        this.maxSpanInNanos = maxSpan.nanos();
 
-        // limit
         this.limit = limit;
+        this.circuitBreaker = circuitBreaker;
     }
 
     private void trackSequence(Sequence sequence) {
@@ -121,13 +136,17 @@ public class SequenceMatcher {
             }
         }
 
+        boolean matched;
         // check tail limit
         if (tailLimitReached()) {
             log.trace("(Tail) Limit reached {}", stats);
-            return false;
+            matched = false;
+        } else {
+            log.trace("{}", stats);
+            matched = true;
         }
-        log.trace("{}", stats);
-        return true;
+        trackMemory();
+        return matched;
     }
 
     private boolean tailLimitReached() {
@@ -167,7 +186,7 @@ public class SequenceMatcher {
         //
 
         // maxspan
-        if (maxSpanInMillis > 0 && (ordinal.timestamp() - sequence.startOrdinal().timestamp() > maxSpanInMillis)) {
+        if (maxSpanInNanos > 0 && ordinal.timestamp().delta(sequence.startOrdinal().timestamp()) > maxSpanInNanos) {
             stats.rejectionMaxspan++;
             return;
         }
@@ -283,13 +302,48 @@ public class SequenceMatcher {
         keyToSequences.clear();
         stageToKeys.clear();
         completed.clear();
+        clearCircuitBreaker();
+    }
+
+    // protected for testing purposes
+    protected long ramBytesUsedInFlight() {
+        return RamUsageEstimator.sizeOf(keyToSequences) + RamUsageEstimator.sizeOf(stageToKeys);
+    }
+
+    // protected for testing purposes
+    protected long ramBytesUsedCompleted() {
+        return RamUsageEstimator.sizeOfCollection(completed);
+    }
+
+    private void clearCircuitBreaker() {
+        circuitBreaker.addWithoutBreaking(-prevRamBytesUsedInFlight - prevRamBytesUsedCompleted);
+        prevRamBytesUsedInFlight = 0;
+        prevRamBytesUsedCompleted = 0;
+    }
+
+    // The method is called at the end of match() which is called for every sub query in the sequence query
+    // and for each subquery every "fetch_size" docs. Doing RAM accounting on object creation is
+    // expensive, so we just calculate the difference in bytes of the total memory that the matcher's
+    // structure occupy for the in-flight tracking of sequences, as well as for the list of completed
+    // sequences.
+    private void trackMemory() {
+        long newRamBytesUsedInFlight = ramBytesUsedInFlight();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(newRamBytesUsedInFlight - prevRamBytesUsedInFlight, CB_INFLIGHT_LABEL);
+        prevRamBytesUsedInFlight = newRamBytesUsedInFlight;
+
+        long newRamBytesUsedCompleted = ramBytesUsedCompleted();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(newRamBytesUsedCompleted - prevRamBytesUsedCompleted, CB_COMPLETED_LABEL);
+        prevRamBytesUsedCompleted = newRamBytesUsedCompleted;
     }
 
     @Override
     public String toString() {
-        return LoggerMessageFormat.format(null, "Tracking [{}] keys with [{}] completed and {} in-flight",
-                keyToSequences,
-                completed.size(),
-                stageToKeys);
+        return LoggerMessageFormat.format(
+            null,
+            "Tracking [{}] keys with [{}] completed and {} in-flight",
+            keyToSequences,
+            completed.size(),
+            stageToKeys
+        );
     }
 }

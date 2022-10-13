@@ -14,10 +14,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 
@@ -44,16 +43,15 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
     public void testCustomDateFormatsWithNowFunctions() throws IOException {
         createIndex();
         String[] docs = new String[customFormats.length];
-        String zID = JdbcIntegrationTestCase.randomKnownTimeZone();
+        String zID = randomZone().getId();
         StringBuilder datesConditions = new StringBuilder();
 
         for (int i = 0; i < customFormats.length; i++) {
             String field = "date_" + i;
-            docs[i] = "{\""
-                + field
-                + "\":\""
-                + DateTimeFormatter.ofPattern(customFormats[i], Locale.ROOT).format(DateUtils.nowWithMillisResolution())
-                + "\"}";
+            String format = DateTimeFormatter.ofPattern(customFormats[i], Locale.ROOT).format(DateUtils.nowWithMillisResolution());
+            docs[i] = formatted("""
+                {"%s":"%s"}
+                """, field, format);
             datesConditions.append(i > 0 ? " OR " : "").append(field + randomFrom(operators) + randomFrom(nowFunctions));
         }
 
@@ -64,7 +62,8 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
         request.setEntity(new StringEntity(query(query).mode(Mode.PLAIN).timeZone(zID).toString(), ContentType.APPLICATION_JSON));
 
         Response response = client().performRequest(request);
-        String expectedJsonSnippet = "{\"columns\":[{\"name\":\"c\",\"type\":\"long\"}],\"rows\":[[";
+        String expectedJsonSnippet = """
+            {"columns":[{"name":"c","type":"long"}],"rows":[[""";
         try (InputStream content = response.getEntity().getContent()) {
             String actualJson = new BytesArray(content.readAllBytes()).utf8ToString();
             // we just need to get a response that's not a date parsing error

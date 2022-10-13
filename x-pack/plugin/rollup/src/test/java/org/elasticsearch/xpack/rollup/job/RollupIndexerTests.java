@@ -47,4 +47,3 @@ public class RollupIndexerTests extends ESTestCase {
         assertThat(value, equalTo(histogram.getInterval()));
     }
 }
-

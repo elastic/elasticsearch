@@ -12,11 +12,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class MergeStats implements Writeable, ToXContentFragment {
 
@@ -54,9 +55,51 @@ public class MergeStats implements Writeable, ToXContentFragment {
         totalBytesPerSecAutoThrottle = in.readVLong();
     }
 
-    public void add(long totalMerges, long totalMergeTime, long totalNumDocs, long totalSizeInBytes,
-                        long currentMerges, long currentNumDocs, long currentSizeInBytes,
-                        long stoppedTimeMillis, long throttledTimeMillis, double mbPerSecAutoThrottle) {
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MergeStats that = (MergeStats) o;
+        return total == that.total
+            && totalTimeInMillis == that.totalTimeInMillis
+            && totalNumDocs == that.totalNumDocs
+            && totalSizeInBytes == that.totalSizeInBytes
+            && current == that.current
+            && currentNumDocs == that.currentNumDocs
+            && currentSizeInBytes == that.currentSizeInBytes
+            && totalStoppedTimeInMillis == that.totalStoppedTimeInMillis
+            && totalThrottledTimeInMillis == that.totalThrottledTimeInMillis
+            && totalBytesPerSecAutoThrottle == that.totalBytesPerSecAutoThrottle;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            total,
+            totalTimeInMillis,
+            totalNumDocs,
+            totalSizeInBytes,
+            current,
+            currentNumDocs,
+            currentSizeInBytes,
+            totalStoppedTimeInMillis,
+            totalThrottledTimeInMillis,
+            totalBytesPerSecAutoThrottle
+        );
+    }
+
+    public void add(
+        long totalMerges,
+        long totalMergeTime,
+        long totalNumDocs,
+        long totalSizeInBytes,
+        long currentMerges,
+        long currentNumDocs,
+        long currentSizeInBytes,
+        long stoppedTimeMillis,
+        long throttledTimeMillis,
+        double mbPerSecAutoThrottle
+    ) {
         this.total += totalMerges;
         this.totalTimeInMillis += totalMergeTime;
         this.totalNumDocs += totalNumDocs;

@@ -33,7 +33,7 @@ public class SubQueryAlias extends UnaryPlan {
     }
 
     @Override
-    protected SubQueryAlias replaceChild(LogicalPlan newChild) {
+    public SubQueryAlias replaceChild(LogicalPlan newChild) {
         return new SubQueryAlias(source(), newChild, alias);
     }
 
@@ -44,10 +44,7 @@ public class SubQueryAlias extends UnaryPlan {
     @Override
     public List<Attribute> output() {
         if (output == null) {
-            output = alias == null ? child().output() :
-                child().output().stream()
-                .map(e -> e.withQualifier(alias))
-                .collect(toList());
+            output = alias == null ? child().output() : child().output().stream().map(e -> e.withQualifier(alias)).collect(toList());
         }
         return output;
     }

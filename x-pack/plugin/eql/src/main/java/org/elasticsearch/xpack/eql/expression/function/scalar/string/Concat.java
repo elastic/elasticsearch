@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.StringJoiner;
 
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.ConcatFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -46,7 +47,7 @@ public class Concat extends ScalarFunction {
 
         TypeResolution resolution = TypeResolution.TYPE_RESOLVED;
         for (Expression value : values) {
-            resolution = isExact(value, sourceText(), Expressions.ParamOrdinal.DEFAULT);
+            resolution = isExact(value, sourceText(), DEFAULT);
 
             if (resolution.unresolved()) {
                 return resolution;

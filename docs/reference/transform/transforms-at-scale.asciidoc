@@ -47,7 +47,7 @@ where most work is being done. The **Stats** interface of the
 **{transforms-cap}** page in {kib} contains information that covers three main 
 areas: indexing, searching, and processing time (alternatively, you can use the 
 <<get-transform-stats, {transforms} stats API>>). If, for example, the results 
-show that the highest proportion of  time is spent on search, then prioritize 
+show that the highest proportion of time is spent on search, then prioritize 
 efforts on optimizing the search query of the {transform}. {transforms-cap} also 
 has https://esrally.readthedocs.io[Rally support] that makes it possible to run 
 performance checks on {transforms} configurations if it is required. If you 
@@ -154,26 +154,20 @@ extracted or computed at search time. While these fields provide flexibility in
 how you access your data, they increase performance costs at search time. If 
 {transform} performance using runtime fields or scripted fields is a concern, 
 you may wish to consider using indexed fields instead. For performance reasons, 
-we do not recommend using a runtime field as the time field that synchs a 
+we do not recommend using a runtime field as the time field that synchronizes a 
 {ctransform}. 
 
 
 [discrete]
 [[index-sorting-group-by-ordering]]
-== 8. Use index sorting and `group_by` ordering (search, process)
+== 8. Use index sorting (search, process)
 
-If you use more than one `group_by` field in your {transform}, then the order of 
-the fields in conjunction with the use of <<index-modules-index-sorting>> may 
-improve runtime.
-
-Index sorting enables you to store documents on disk in a specific order which 
-can improve query efficiency. The ideal sorting logic depends on your use case, 
-but the rule of thumb may be to sort the fields in descending order (high to low 
-cardinality) starting with the time-based fields. Then put the time-based 
-components first in the `group_by` if you have any, and then apply the same 
-order to your `group_by` fields as configured for index sorting. Index sorting 
-can be defined only once at index creation. If you don't already have index 
-sorting on the index that you want to use as a source, consider reindexing it to 
+Index sorting enables you to store documents on disk in a specific order which
+can improve query efficiency. The ideal sorting logic depends on your use case,
+but the rule of thumb may be to sort the fields in descending order (high to low
+cardinality) starting with the time-based fields. Index sorting
+can be defined only once at index creation. If you don't already have index
+sorting on the index that you want to use as a source, consider reindexing it to
 a new, sorted index.
 
 

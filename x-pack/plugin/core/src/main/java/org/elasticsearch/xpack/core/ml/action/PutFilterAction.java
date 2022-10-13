@@ -13,16 +13,15 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
-
 
 public class PutFilterAction extends ActionType<PutFilterAction.Response> {
 
@@ -41,8 +40,9 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
                 filter.setId(filterId);
             } else if (Strings.isNullOrEmpty(filterId) == false && filterId.equals(filter.getId()) == false) {
                 // If we have both URI and body filter ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(),
-                        filter.getId(), filterId));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(), filter.getId(), filterId)
+                );
             }
             return new Request(filter.build());
         }
@@ -101,8 +101,7 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
 
         private MlFilter filter;
 
-        Response() {
-        }
+        Response() {}
 
         Response(StreamInput in) throws IOException {
             super(in);

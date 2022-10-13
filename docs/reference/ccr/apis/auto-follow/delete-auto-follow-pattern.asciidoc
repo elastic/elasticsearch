@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ccr-delete-auto-follow-pattern]]
 === Delete auto-follow pattern API
 ++++

@@ -43,9 +43,8 @@ public class SearchIndexNameMatcherTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {
-        Settings.Builder settings = settings(Version.CURRENT).
-                put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        Settings.Builder settings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
         return IndexMetadata.builder(index).settings(settings);
     }
 

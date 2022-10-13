@@ -10,16 +10,16 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.index.query.IntervalsSourceProvider.Combine;
 
-public class CombineIntervalsSourceProviderTests extends AbstractSerializingTestCase<Combine> {
+public class CombineIntervalsSourceProviderTests extends AbstractXContentSerializingTestCase<Combine> {
 
     @Override
     protected Combine createTestInstance() {
@@ -33,24 +33,15 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
         int maxGaps = instance.getMaxGaps();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
         switch (between(0, 3)) {
-            case 0:
-                subSources = subSources == null ?
-                    IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1) :
-                    null;
-                break;
-            case 1:
-                ordered = ordered == false;
-                break;
-            case 2:
-                maxGaps++;
-                break;
-            case 3:
-                filter = filter == null ?
-                    IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean()) :
-                    FilterIntervalsSourceProviderTests.mutateFilter(filter);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> subSources = subSources == null
+                ? IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1)
+                : null;
+            case 1 -> ordered = ordered == false;
+            case 2 -> maxGaps++;
+            case 3 -> filter = filter == null
+                ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
+                : FilterIntervalsSourceProviderTests.mutateFilter(filter);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new Combine(subSources, ordered, maxGaps, filter);
     }

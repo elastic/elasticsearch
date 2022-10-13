@@ -8,10 +8,9 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.metrics.ParsedStats;
-
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 public class ParsedStatsBucket extends ParsedStats implements StatsBucket {
 
@@ -21,7 +20,10 @@ public class ParsedStatsBucket extends ParsedStats implements StatsBucket {
     }
 
     private static final ObjectParser<ParsedStatsBucket, Void> PARSER = new ObjectParser<>(
-            ParsedStatsBucket.class.getSimpleName(), true, ParsedStatsBucket::new);
+        ParsedStatsBucket.class.getSimpleName(),
+        true,
+        ParsedStatsBucket::new
+    );
 
     static {
         declareStatsFields(PARSER);

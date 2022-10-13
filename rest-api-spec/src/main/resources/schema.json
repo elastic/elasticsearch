@@ -6,12 +6,12 @@
         "Api": {
             "type": "object",
             "propertyNames": {
-                "pattern": "^[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?$"
+                "pattern": "^(?:[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?|_internal\\.[a-z]+?(_[a-z]+)*)$"
             },
             "minProperties": 1,
             "maxProperties": 1,
             "patternProperties": {
-                "^[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?$": {
+                "^(?:[a-z]+?(_[a-z]+)*(\\.[a-z]+?(_[a-z]+)*)?|_internal\\.[a-z]+?(_[a-z]+)*)$": {
                     "$ref": "#/definitions/Components"
                 }
             },
@@ -276,6 +276,14 @@
                 "required": {
                     "type": "boolean",
                     "title": "Whether the parameter is required"
+                },
+                "visibility": {
+                    "type": "string",
+                    "enum": ["private", "feature_flag", "public"]
+                },
+                "feature_flag": {
+                    "type": "string",
+                    "title": "If visibility of the API is set to `feature_flag` this documents the feature_flag to use"
                 }
             },
             "required": [

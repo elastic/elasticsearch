@@ -10,10 +10,6 @@ package org.elasticsearch.xpack.transform.checkpoint;
 import org.elasticsearch.ElasticsearchException;
 
 class CheckpointException extends ElasticsearchException {
-    CheckpointException(String msg, Object... params) {
-        super(msg, null, params);
-    }
-
     CheckpointException(String msg, Throwable cause, Object... params) {
         super(msg, cause, params);
     }

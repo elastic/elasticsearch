@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-retry-policy]]
 === Retry policy execution API
 ++++

@@ -8,13 +8,17 @@
 
 package org.elasticsearch.test;
 
-import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -25,6 +29,7 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Random;
 import java.util.Set;
 
@@ -52,14 +57,19 @@ public abstract class TestCluster implements Closeable {
     /**
      * This method should be executed before each test to reset the cluster to its initial state.
      */
-    public void beforeTest(Random random) throws IOException, InterruptedException {
-        this.random = new Random(random.nextLong());
+    public void beforeTest(Random randomGenerator) throws IOException, InterruptedException {
+        this.random = new Random(randomGenerator.nextLong());
     }
 
     /**
      * Wipes any data that a test can leave behind: indices, templates (except exclude templates) and repositories
      */
     public void wipe(Set<String> excludeTemplates) {
+        // First delete data streams, because composable index templates can't be deleted if these templates are still used by data streams.
+        wipeAllDataStreams();
+        wipeAllComposableIndexTemplates(excludeTemplates);
+        wipeAllComponentTemplates(excludeTemplates);
+
         wipeIndices("_all");
         wipeAllTemplates(excludeTemplates);
         wipeRepositories();
@@ -68,8 +78,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * Assertions that should run before the cluster is wiped should be called in this method
      */
-    public void beforeIndexDeletion() throws Exception {
-    }
+    public void beforeIndexDeletion() throws Exception {}
 
     /**
      * This method checks all the things that need to be checked after each test
@@ -124,8 +133,12 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             try {
                 // include wiping hidden indices!
-                assertAcked(client().admin().indices().prepareDelete(indices)
-                    .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)));
+                assertAcked(
+                    client().admin()
+                        .indices()
+                        .prepareDelete(indices)
+                        .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false))
+                );
             } catch (IndexNotFoundException e) {
                 // ignore
             } catch (IllegalArgumentException e) {
@@ -133,12 +146,12 @@ public abstract class TestCluster implements Closeable {
                 // which is the case in the CloseIndexDisableCloseAllTests
                 if ("_all".equals(indices[0])) {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
-                    ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();
+                    ArrayList<String> concreteIndices = new ArrayList<>();
                     for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
                         concreteIndices.add(indexMetadata.getIndex().getName());
                     }
                     if (concreteIndices.isEmpty() == false) {
-                        assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
+                        assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(new String[0])));
                     }
                 }
             }
@@ -172,7 +185,7 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             // if nothing is provided, delete all
             if (templates.length == 0) {
-                templates = new String[]{"*"};
+                templates = new String[] { "*" };
             }
             for (String template : templates) {
                 try {
@@ -191,7 +204,7 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             // if nothing is provided, delete all
             if (repositories.length == 0) {
-                repositories = new String[]{"*"};
+                repositories = new String[] { "*" };
             }
             for (String repository : repositories) {
                 try {
@@ -199,6 +212,56 @@ public abstract class TestCluster implements Closeable {
                 } catch (RepositoryMissingException ex) {
                     // ignore
                 }
+            }
+        }
+    }
+
+    public void wipeAllDataStreams() {
+        if (size() > 0) {
+            var request = new DeleteDataStreamAction.Request("*");
+            request.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+            try {
+                assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, request).actionGet());
+            } catch (IllegalStateException e) {
+                // Ignore if action isn't registered, because data streams is a module and
+                // if the delete action isn't registered then there no data streams to delete.
+                if (e.getMessage().startsWith("failed to find action") == false) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    public void wipeAllComposableIndexTemplates(Set<String> excludeTemplates) {
+        if (size() > 0) {
+            var templates = client().execute(GetComposableIndexTemplateAction.INSTANCE, new GetComposableIndexTemplateAction.Request("*"))
+                .actionGet()
+                .indexTemplates()
+                .keySet()
+                .stream()
+                .filter(template -> excludeTemplates.contains(template) == false)
+                .toArray(String[]::new);
+
+            if (templates.length != 0) {
+                var request = new DeleteComposableIndexTemplateAction.Request(templates);
+                assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, request).actionGet());
+            }
+        }
+    }
+
+    public void wipeAllComponentTemplates(Set<String> excludeTemplates) {
+        if (size() > 0) {
+            var templates = client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request("*"))
+                .actionGet()
+                .getComponentTemplates()
+                .keySet()
+                .stream()
+                .filter(template -> excludeTemplates.contains(template) == false)
+                .toArray(String[]::new);
+
+            if (templates.length != 0) {
+                var request = new DeleteComponentTemplateAction.Request(templates);
+                assertAcked(client().execute(DeleteComponentTemplateAction.INSTANCE, request).actionGet());
             }
         }
     }

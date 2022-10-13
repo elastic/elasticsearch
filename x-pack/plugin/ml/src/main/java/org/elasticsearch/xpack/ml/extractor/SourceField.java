@@ -42,7 +42,7 @@ public class SourceField extends AbstractField {
                     List<Object> asList = (List<Object>) values;
                     return asList.toArray(new Object[0]);
                 } else {
-                    return new Object[]{values};
+                    return new Object[] { values };
                 }
             }
         }
@@ -55,8 +55,7 @@ public class SourceField extends AbstractField {
         if (nextLevel instanceof Map<?, ?>) {
             return (Map<String, Object>) source.get(key);
         }
-        if (nextLevel instanceof List<?>) {
-            List<?> asList = (List<?>) nextLevel;
+        if (nextLevel instanceof List<?> asList) {
             if (asList.isEmpty() == false) {
                 Object firstElement = asList.get(0);
                 if (firstElement instanceof Map<?, ?>) {

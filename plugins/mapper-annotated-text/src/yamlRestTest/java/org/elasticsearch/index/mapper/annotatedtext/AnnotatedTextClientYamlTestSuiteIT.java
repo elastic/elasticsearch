@@ -25,4 +25,3 @@ public class AnnotatedTextClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
         return createParameters();
     }
 }
-

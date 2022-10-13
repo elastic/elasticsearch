@@ -63,12 +63,12 @@ public class ArrayUtilsTests extends ESTestCase {
     }
 
     public void testConcat() {
-        assertArrayEquals(new String[]{"a", "b", "c", "d"}, ArrayUtils.concat(new String[]{"a", "b"}, new String[]{"c", "d"}));
+        assertArrayEquals(new String[] { "a", "b", "c", "d" }, ArrayUtils.concat(new String[] { "a", "b" }, new String[] { "c", "d" }));
         int firstSize = randomIntBetween(0, 10);
         String[] first = new String[firstSize];
         ArrayList<String> sourceOfTruth = new ArrayList<>();
         for (int i = 0; i < firstSize; i++) {
-            first[i] = randomRealisticUnicodeOfCodepointLengthBetween(0,10);
+            first[i] = randomRealisticUnicodeOfCodepointLengthBetween(0, 10);
             sourceOfTruth.add(first[i]);
         }
         int secondSize = randomIntBetween(0, 10);

@@ -19,10 +19,9 @@ public class PolishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Polish
     private final PolishAnalyzer analyzer;
 
     public PolishAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         analyzer = new PolishAnalyzer(PolishAnalyzer.getDefaultStopSet());
-        analyzer.setVersion(version);
     }
 
     @Override

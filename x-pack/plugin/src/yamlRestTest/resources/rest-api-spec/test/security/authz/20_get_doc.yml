@@ -1,0 +1,281 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "mixed_role"
+        body:  >
+            {
+              "indices": [
+                { "names": ["only_read"], "privileges": ["read"] },
+                { "names": ["only_index"], "privileges": ["index"] },
+                { "names": ["only_delete"], "privileges": ["delete"] },
+                { "names": ["read_write"], "privileges": ["read", "write"] },
+                { "names": ["everything"], "privileges": ["all"] }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "mixed_role" ],
+            "full_name" : "user with mixed privileges to multiple indices"
+          }
+
+  - do:
+      indices.create:
+        index: only_read
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+  - do:
+      indices.create:
+        index: only_index
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+  - do:
+      indices.create:
+        index: only_delete
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+  - do:
+      indices.create:
+        index: read_write
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+  - do:
+      indices.create:
+        index: everything
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "only_read", "_id": "1"}}'
+            - '{"name": "doc1"}'
+            - '{"index": {"_index": "only_index", "_id": "2"}}'
+            - '{"name": "doc2"}'
+            - '{"index": {"_index": "only_delete", "_id": "3"}}'
+            - '{"name": "doc3"}'
+            - '{"index": {"_index": "read_write", "_id": "4"}}'
+            - '{"name": "doc4"}'
+            - '{"index": {"_index": "everything", "_id": "5"}}'
+            - '{"name": "doc5"}'
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "mixed_role"
+        ignore: 404
+
+---
+"Test get a document when authorized":
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      get:
+        id: "1"
+        index: only_read
+
+  - match: { _index: only_read }
+  - match: { _id: "1" }
+  - match: { _source.name: "doc1" }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      get:
+        id: "4"
+        index: read_write
+  - match: { _index: read_write }
+  - match: { _id: "4" }
+  - match: { _source.name: "doc4" }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      get:
+        id: "5"
+        index: everything
+  - match: { _index: everything }
+  - match: { _id: "5" }
+  - match: { _source.name: "doc5" }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      mget:
+        body:
+            docs:
+              - { _index: "only_read", _id: "1" }
+              - { _index: "read_write", _id: "4" }
+              - { _index: "everything", _id: "5" }
+  - match: { docs.0._index: "only_read" }
+  - match: { docs.0._id: "1" }
+  - match: { docs.0._source.name: "doc1" }
+  - match: { docs.1._index: "read_write" }
+  - match: { docs.1._id: "4" }
+  - match: { docs.1._source.name: "doc4" }
+  - match: { docs.2._index: "everything"}
+  - match: { docs.2._id: "5" }
+  - match: { docs.2._source.name: "doc5" }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      mget:
+        body:
+            docs:
+              - { _index: "only_read", _id: "1" }
+  - match: { docs.0._index: "only_read"}
+  - match: { docs.0._id: "1" }
+  - match: { docs.0._source.name: "doc1" }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      mget:
+        body:
+            docs:
+              - { _index: "read_write", _id: "4" }
+  - match: { docs.0._index: read_write}
+  - match: { docs.0._id: "4" }
+  - match: { docs.0._source.name: "doc4" }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      mget:
+        body:
+            docs:
+              - { _index: "everything", _id: "5" }
+  - match: { docs.0._index: "everything"}
+  - match: { docs.0._id: "5" }
+  - match: { docs.0._source.name: "doc5" }
+
+---
+"Test get a document when not allowed":
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      get:
+        id: "2"
+        index: only_index
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      get:
+        id: "3"
+        index: only_delete
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      mget:
+        body:
+            docs:
+              - { _index: "only_index", _id: "2" }
+              - { _index: "only_delete", _id: "3" }
+  - match: { docs.0._index: "only_index"}
+  - match: { docs.0._id: "2" }
+  - match: { docs.0.error.type: "security_exception" }
+  - match: { docs.1._index: "only_delete"}
+  - match: { docs.1._id: "3" }
+  - match: { docs.1.error.type: "security_exception" }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      mget:
+        body:
+            docs:
+              - { _index: "only_index", _id: "2" }
+  - match: { docs.0._index: "only_index"}
+  - match: { docs.0._id: "2" }
+  - match: { docs.0.error.type: "security_exception" }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      mget:
+        body:
+            docs:
+              - { _index: "only_delete", _id: "3" }
+  - match: { docs.0._index: "only_delete"}
+  - match: { docs.0._id: "3" }
+  - match: { docs.0.error.type: "security_exception" }
+
+---
+"Test mget documents when only some are allowed":
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      mget:
+        body:
+            docs:
+              - { _index: "only_read"  , _id: "1" }
+              - { _index: "only_index" , _id: "2" }
+              - { _index: "only_delete", _id: "3" }
+              - { _index: "read_write" , _id: "4" }
+              - { _index: "everything" , _id: "5" }
+
+  - match: { docs.0._index: "only_read" }
+  - match: { docs.0._id: "1" }
+  - match: { docs.0._source.name: "doc1" }
+  - match: { docs.1._index: "only_index"}
+  - match: { docs.1._id: "2" }
+  - match: { docs.1.error.type: "security_exception" }
+  - match: { docs.2._index: "only_delete"}
+  - match: { docs.2._id: "3" }
+  - match: { docs.2.error.type: "security_exception" }
+  - match: { docs.3._index: "read_write" }
+  - match: { docs.3._id: "4" }
+  - match: { docs.3._source.name: "doc4" }
+  - match: { docs.4._index: "everything" }
+  - match: { docs.4._id: "5" }
+  - match: { docs.4._source.name: "doc5" }
+

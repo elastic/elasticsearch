@@ -1,0 +1,42 @@
+{
+  "ml.delete_trained_model":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-trained-models.html",
+      "description":"Deletes an existing trained inference model that is currently not referenced by an ingest pipeline."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/{model_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The ID of the trained model to delete"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the amount of time to wait for the model to be deleted.",
+        "default": "30s"
+      },
+      "force":{
+        "type":"boolean",
+        "required":false,
+        "description":"True if the model should be forcefully deleted"
+      }
+    }
+  }
+}

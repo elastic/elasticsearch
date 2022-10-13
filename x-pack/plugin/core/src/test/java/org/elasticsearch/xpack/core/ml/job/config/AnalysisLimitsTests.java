@@ -9,13 +9,12 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.io.IOException;
@@ -25,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLimits> {
+public class AnalysisLimitsTests extends AbstractXContentSerializingTestCase<AnalysisLimits> {
 
     @Override
     protected AnalysisLimits createTestInstance() {
@@ -33,8 +32,10 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
     }
 
     public static AnalysisLimits createRandomized() {
-        return new AnalysisLimits(randomBoolean() ? (long) randomIntBetween(1, 1000000) : null,
-                randomBoolean() ? randomNonNegativeLong() : null);
+        return new AnalysisLimits(
+            randomBoolean() ? (long) randomIntBetween(1, 1000000) : null,
+            randomBoolean() ? randomNonNegativeLong() : null
+        );
     }
 
     @Override
@@ -49,8 +50,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenNegativeNumber() throws IOException {
         String json = "{\"model_memory_limit\": -1}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
         assertThat(e.getCause(), notNullValue());
         assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = -1"));
@@ -58,8 +58,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenZero() throws IOException {
         String json = "{\"model_memory_limit\": 0}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
         assertThat(e.getCause(), notNullValue());
         assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
@@ -67,8 +66,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenPositiveNumber() throws IOException {
         String json = "{\"model_memory_limit\": 2048}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
 
         AnalysisLimits limits = AnalysisLimits.STRICT_PARSER.apply(parser, null);
 
@@ -77,8 +75,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenNegativeString() throws IOException {
         String json = "{\"model_memory_limit\":\"-4MB\"}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
         // the root cause is wrapped in an intermediate ElasticsearchParseException
         assertThat(e.getCause(), instanceOf(ElasticsearchParseException.class));
@@ -88,8 +85,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenZeroString() throws IOException {
         String json = "{\"model_memory_limit\":\"0MB\"}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
         assertThat(e.getCause(), notNullValue());
         assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
@@ -97,8 +93,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenLessThanOneMBString() throws IOException {
         String json = "{\"model_memory_limit\":\"1000Kb\"}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
         XContentParseException e = expectThrows(XContentParseException.class, () -> AnalysisLimits.STRICT_PARSER.apply(parser, null));
         assertThat(e.getCause(), notNullValue());
         assertThat(e.getCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
@@ -106,8 +101,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenStringMultipleOfMBs() throws IOException {
         String json = "{\"model_memory_limit\":\"4g\"}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
 
         AnalysisLimits limits = AnalysisLimits.STRICT_PARSER.apply(parser, null);
 
@@ -116,8 +110,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testParseModelMemoryLimitGivenStringNonMultipleOfMBs() throws IOException {
         String json = "{\"model_memory_limit\":\"1300kb\"}";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json);
 
         AnalysisLimits limits = AnalysisLimits.STRICT_PARSER.apply(parser, null);
 
@@ -138,7 +131,6 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         assertTrue(analysisLimits2.equals(analysisLimits1));
     }
 
-
     public void testEquals_GivenDifferentModelMemoryLimit() {
         AnalysisLimits analysisLimits1 = new AnalysisLimits(10L, 20L);
         AnalysisLimits analysisLimits2 = new AnalysisLimits(11L, 20L);
@@ -147,7 +139,6 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         assertFalse(analysisLimits2.equals(analysisLimits1));
     }
 
-
     public void testEquals_GivenDifferentCategorizationExamplesLimit() {
         AnalysisLimits analysisLimits1 = new AnalysisLimits(10L, 20L);
         AnalysisLimits analysisLimits2 = new AnalysisLimits(10L, 21L);
@@ -155,7 +146,6 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         assertFalse(analysisLimits1.equals(analysisLimits2));
         assertFalse(analysisLimits2.equals(analysisLimits1));
     }
-
 
     public void testHashCode_GivenEqual() {
         AnalysisLimits analysisLimits1 = new AnalysisLimits(5555L, 3L);
@@ -166,8 +156,12 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     public void testVerify_GivenNegativeCategorizationExamplesLimit() {
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new AnalysisLimits(1L, -1L));
-        String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW,
-                AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT, 0, -1L);
+        String errorMessage = Messages.getMessage(
+            Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW,
+            AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT,
+            0,
+            -1L
+        );
         assertEquals(errorMessage, e.getMessage());
     }
 
@@ -182,30 +176,30 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         Long memoryModelLimit = instance.getModelMemoryLimit();
         Long categorizationExamplesLimit = instance.getCategorizationExamplesLimit();
         switch (between(0, 1)) {
-        case 0:
-            if (memoryModelLimit == null) {
-                memoryModelLimit = randomNonNegativeLong();
-            } else {
-                if (randomBoolean()) {
-                    memoryModelLimit = null;
+            case 0:
+                if (memoryModelLimit == null) {
+                    memoryModelLimit = randomNonNegativeLong();
                 } else {
-                    memoryModelLimit += between(1, 10000);
+                    if (randomBoolean()) {
+                        memoryModelLimit = null;
+                    } else {
+                        memoryModelLimit += between(1, 10000);
+                    }
                 }
-            }
-            break;
-        case 1:
-            if (categorizationExamplesLimit == null) {
-                categorizationExamplesLimit = randomNonNegativeLong();
-            } else {
-                if (randomBoolean()) {
-                    categorizationExamplesLimit = null;
+                break;
+            case 1:
+                if (categorizationExamplesLimit == null) {
+                    categorizationExamplesLimit = randomNonNegativeLong();
                 } else {
-                    categorizationExamplesLimit += between(1, 10000);
+                    if (randomBoolean()) {
+                        categorizationExamplesLimit = null;
+                    } else {
+                        categorizationExamplesLimit += between(1, 10000);
+                    }
                 }
-            }
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new AnalysisLimits(memoryModelLimit, categorizationExamplesLimit);
     }

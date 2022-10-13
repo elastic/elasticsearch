@@ -13,9 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.function.IntConsumer;
@@ -24,12 +24,17 @@ import java.util.function.IntConsumer;
  * An aggregation service that creates instances of {@link MultiBucketConsumer}.
  * The consumer is used by {@link BucketsAggregator} and {@link InternalMultiBucketAggregation} to limit the number of buckets created
  * in {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
- * The limit can be set by changing the `search.max_buckets` cluster setting and defaults to 65535.
+ * The limit can be set by changing the `search.max_buckets` cluster setting and defaults to 65536.
  */
 public class MultiBucketConsumerService {
-    public static final int DEFAULT_MAX_BUCKETS = 65535;
-    public static final Setting<Integer> MAX_BUCKET_SETTING =
-        Setting.intSetting("search.max_buckets", DEFAULT_MAX_BUCKETS, 0, Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final int DEFAULT_MAX_BUCKETS = 65536;
+    public static final Setting<Integer> MAX_BUCKET_SETTING = Setting.intSetting(
+        "search.max_buckets",
+        DEFAULT_MAX_BUCKETS,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private final CircuitBreaker breaker;
 
@@ -103,9 +108,14 @@ public class MultiBucketConsumerService {
             if (value != 0) {
                 count += value;
                 if (count > limit) {
-                    throw new TooManyBucketsException("Trying to create too many buckets. Must be less than or equal to: [" + limit
-                        + "] but was [" + count + "]. This limit can be set by changing the [" +
-                        MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", limit);
+                    throw new TooManyBucketsException(
+                        "Trying to create too many buckets. Must be less than or equal to: ["
+                            + limit
+                            + "] but this number of buckets was exceeded. This limit can be set by changing the ["
+                            + MAX_BUCKET_SETTING.getKey()
+                            + "] cluster level setting.",
+                        limit
+                    );
                 }
             }
             // check parent circuit breaker every 1024 calls

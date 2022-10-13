@@ -38,7 +38,7 @@ public interface InternalFactory<T> {
         }
 
         @Override
-        public T get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException {
+        public T get(Errors errors, InternalContext context, Dependency<?> dependency) {
             return object;
         }
 
@@ -56,6 +56,5 @@ public interface InternalFactory<T> {
      * @throws org.elasticsearch.common.inject.internal.ErrorsException
      *          if a value cannot be provided
      */
-    T get(Errors errors, InternalContext context, Dependency<?> dependency)
-            throws ErrorsException;
+    T get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException;
 }

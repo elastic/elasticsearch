@@ -12,9 +12,9 @@ transformed documents to your data stream or index.
 
 image::images/ingest/ingest-process.svg[Ingest pipeline diagram,align="center"]
 
-You can create and manage ingest pipelines using {kib}'s **Ingest Node
-Pipelines** feature or the <<ingest-apis,ingest APIs>>. {es} stores pipelines in
-the <<cluster-state,cluster state>>.
+You can create and manage ingest pipelines using {kib}'s **Ingest Pipelines**
+feature or the <<ingest-apis,ingest APIs>>. {es} stores pipelines in the
+<<cluster-state,cluster state>>.
 
 [discrete]
 [[ingest-prerequisites]]
@@ -27,7 +27,7 @@ with the `ingest` role. For heavy ingest loads, we recommend creating
 
 * If the {es} security features are enabled, you must have the `manage_pipeline`
 <<privileges-list-cluster,cluster privilege>> to manage ingest pipelines. To use
-{kib}'s **Ingest Node Pipelines** feature, you also need the
+{kib}'s **Ingest Pipelines** feature, you also need the
 `cluster:monitor/nodes/info` cluster privileges.
 
 * Pipelines including the `enrich` processor require additional setup. See
@@ -35,20 +35,26 @@ with the `ingest` role. For heavy ingest loads, we recommend creating
 
 [discrete]
 [[create-manage-ingest-pipelines]]
-== Create and manage pipelines
+=== Create and manage pipelines
 
-In {kib}, open the main menu and click **Stack Management** > **Ingest Node
+In {kib}, open the main menu and click **Stack Management > Ingest
 Pipelines**. From the list view, you can:
 
 * View a list of your pipelines and drill down into details
 * Edit or clone existing pipelines
 * Delete pipelines
 
-To create a new pipeline, click **Create a pipeline**. For an example tutorial,
-see <<common-log-format-example>>.
-
 [role="screenshot"]
-image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines list view,align="center"]
+image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Pipelines list view,align="center"]
+
+To create a pipeline, click **Create pipeline > New pipeline**. For an example
+tutorial, see <<common-log-format-example>>.
+
+TIP: The **New pipeline from CSV** option lets you use a CSV to create an ingest
+pipeline that maps custom data to the {ecs-ref}[Elastic Common Schema (ECS)].
+Mapping your custom data to ECS makes the data easier to search and lets you
+reuse visualizations from other datasets. To get started, check
+{ecs-ref}/ecs-converting.html[Map custom data to ECS].
 
 You can also use the <<ingest-apis,ingest APIs>> to create and manage pipelines.
 The following <<put-pipeline-api,create pipeline API>> request creates
@@ -60,16 +66,18 @@ in the order specified.
 ----
 PUT _ingest/pipeline/my-pipeline
 {
-  "description": "My pipeline description",
+  "description": "My optional pipeline description",
   "processors": [
     {
       "set": {
+        "description": "My optional processor description",
         "field": "my-long-field",
         "value": 10
       }
     },
     {
       "set": {
+        "description": "Set 'my-boolean-field' to true",
         "field": "my-boolean-field",
         "value": true
       }
@@ -85,6 +93,29 @@ PUT _ingest/pipeline/my-pipeline
 // TESTSETUP
 
 [discrete]
+[[manage-pipeline-versions]]
+=== Manage pipeline versions
+
+When you create or update a pipeline, you can specify an optional `version`
+integer. You can use this version number with the
+<<put-pipeline-api-query-params,`if_version`>> parameter to conditionally
+update the pipeline. When the `if_version` parameter is specified, a successful
+update increments the pipeline's version.
+
+[source,console]
+----
+PUT _ingest/pipeline/my-pipeline-id
+{
+  "version": 1,
+  "processors": [ ... ]
+}
+----
+// TEST[s/\.\.\./{"lowercase": {"field":"my-keyword-field"}}/]
+
+To unset the `version` number using the API, replace or update the pipeline
+without specifying the `version` parameter.
+
+[discrete]
 [[test-pipeline]]
 === Test a pipeline
 
@@ -97,12 +128,44 @@ the pipeline**.
 image::images/ingest/test-a-pipeline.png[Test a pipeline in Kibana,align="center"]
 
 You can also test pipelines using the <<simulate-pipeline-api,simulate pipeline
-API>>.
+API>>. You can specify a configured pipeline in the request path. For example,
+the following request tests `my-pipeline`.
 
 [source,console]
 ----
 POST _ingest/pipeline/my-pipeline/_simulate
 {
+  "docs": [
+    {
+      "_source": {
+        "my-keyword-field": "FOO"
+      }
+    },
+    {
+      "_source": {
+        "my-keyword-field": "BAR"
+      }
+    }
+  ]
+}
+----
+
+Alternatively, you can specify a pipeline and its processors in the request
+body.
+
+[source,console]
+----
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "processors": [
+      {
+        "lowercase": {
+          "field": "my-keyword-field"
+        }
+      }
+    ]
+  },
   "docs": [
     {
       "_source": {
@@ -128,13 +191,12 @@ The API returns transformed documents:
       "doc": {
         "_index": "_index",
         "_id": "_id",
+        "_version": "-3",
         "_source": {
-          "my-long-field": 10,
-          "my-boolean-field": true,
           "my-keyword-field": "foo"
         },
         "_ingest": {
-          "timestamp": "2099-02-30T22:30:03.187Z"
+          "timestamp": "2099-03-07T11:04:03.000Z"
         }
       }
     },
@@ -142,21 +204,20 @@ The API returns transformed documents:
       "doc": {
         "_index": "_index",
         "_id": "_id",
+        "_version": "-3",
         "_source": {
-          "my-long-field": 10,
-          "my-boolean-field": true,
           "my-keyword-field": "bar"
         },
         "_ingest": {
-          "timestamp": "2099-02-30T22:30:03.188Z"
+          "timestamp": "2099-03-07T11:04:04.000Z"
         }
       }
     }
   ]
 }
 ----
-// TESTRESPONSE[s/"2099-02-30T22:30:03.187Z"/$body.docs.0.doc._ingest.timestamp/]
-// TESTRESPONSE[s/"2099-02-30T22:30:03.188Z"/$body.docs.1.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2099-03-07T11:04:03.000Z"/$body.docs.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2099-03-07T11:04:04.000Z"/$body.docs.1.doc._ingest.timestamp/]
 
 [discrete]
 [[add-pipeline-to-indexing-request]]
@@ -175,10 +236,12 @@ POST my-data-stream/_doc?pipeline=my-pipeline
 
 PUT my-data-stream/_bulk?pipeline=my-pipeline
 { "create":{ } }
-{ "@timestamp": "2099-03-08T11:04:05.000Z", "my-keyword-field" : "foo" }
+{ "@timestamp": "2099-03-07T11:04:06.000Z", "my-keyword-field": "foo" }
 { "create":{ } }
-{ "@timestamp": "2099-03-08T11:06:07.000Z", "my-keyword-field" : "bar" }
+{ "@timestamp": "2099-03-07T11:04:07.000Z", "my-keyword-field": "bar" }
 ----
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
 
 You can also use the `pipeline` parameter with the <<docs-update-by-query,update
 by query>> or <<docs-reindex,reindex>> APIs.
@@ -199,15 +262,16 @@ POST _reindex
   }
 }
 ----
-// TEST[continued]
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
 
 [discrete]
 [[set-default-pipeline]]
 === Set a default pipeline
 
 Use the <<index-default-pipeline,`index.default_pipeline`>> index setting to set
-a default pipeline. {es} applies this pipeline if no `pipeline` parameter
-is specified.
+a default pipeline. {es} applies this pipeline to indexing requests if no
+`pipeline` parameter is specified.
 
 [discrete]
 [[set-final-pipeline]]
@@ -216,6 +280,171 @@ is specified.
 Use the <<index-final-pipeline,`index.final_pipeline`>> index setting to set a
 final pipeline. {es} applies this pipeline after the request or default
 pipeline, even if neither is specified.
+
+[discrete]
+[[pipelines-for-beats]]
+=== Pipelines for {beats}
+
+To add an ingest pipeline to an Elastic Beat, specify the `pipeline`
+parameter under `output.elasticsearch` in `<BEAT_NAME>.yml`. For example,
+for {filebeat}, you'd specify `pipeline` in `filebeat.yml`.
+
+[source,yaml]
+----
+output.elasticsearch:
+  hosts: ["localhost:9200"]
+  pipeline: my-pipeline
+----
+
+[discrete]
+[[pipelines-for-fleet-elastic-agent]]
+=== Pipelines for {fleet} and {agent}
+
+{agent} integrations ship with default ingest pipelines that preprocess and enrich data before indexing.
+{fleet-guide}/index.html[{fleet}] applies these pipelines using <<index-templates,index
+templates>> that include <<set-default-pipeline,pipeline index settings>>. {es}
+matches these templates to your {fleet} data streams based on the
+{fleet-guide}/data-streams.html#data-streams-naming-scheme[stream's naming
+scheme].
+
+Each default integration pipeline calls a nonexistent, unversioned `@custom` ingest pipeline.
+If unaltered, this pipeline call has no effect on your data. However, you can modify this call to
+create custom pipelines for integrations that persist across upgrades.
+Refer to {fleet-guide}/data-streams-pipeline-tutorial.html[Tutorial: Transform data with custom ingest pipelines] to learn more.
+
+{fleet} doesn't provide a default ingest pipeline for the **Custom logs** integration,
+but you can specify a pipeline for this integration using an 
+<<pipeline-custom-logs-index-template,index template>> or a
+<<pipeline-custom-logs-configuration,custom configuration>>.
+
+[[pipeline-custom-logs-index-template]]
+**Option 1: Index template**
+
+// tag::create-name-custom-logs-pipeline[]
+. <<create-manage-ingest-pipelines,Create>> and <<test-pipeline,test>> your
+ingest pipeline. Name your pipeline `logs-<dataset-name>-default`. This makes
+tracking the pipeline for your integration easier.
++
+--
+For example, the following request creates a pipeline for the `my-app` dataset.
+The pipeline's name is `logs-my_app-default`.
+
+[source,console]
+----
+PUT _ingest/pipeline/logs-my_app-default
+{
+  "description": "Pipeline for `my_app` dataset",
+  "processors": [ ... ]
+}
+----
+// TEST[s/\.\.\./{"lowercase": {"field":"my-keyword-field"}}/]
+--
+// end::create-name-custom-logs-pipeline[]
+
+. Create an <<index-templates,index template>> that includes your pipeline in
+the <<index-default-pipeline,`index.default_pipeline`>> or
+<<index-final-pipeline,`index.final_pipeline`>> index setting. Ensure the
+template is <<create-index-template,data stream enabled>>. The
+template's index pattern should match `logs-<dataset-name>-*`.
++
+--
+You can create this template using {kib}'s <<manage-index-templates,**Index
+Management**>> feature or the <<indices-put-template,create index template
+API>>.
+
+For example, the following request creates a template matching `logs-my_app-*`.
+The template uses a component template that contains the
+`index.default_pipeline` index setting.
+
+[source,console]
+----
+# Creates a component template for index settings
+PUT _component_template/logs-my_app-settings
+{
+  "template": {
+    "settings": {
+      "index.default_pipeline": "logs-my_app-default",
+      "index.lifecycle.name": "logs"
+    }
+  }
+}
+
+# Creates an index template matching `logs-my_app-*`
+PUT _index_template/logs-my_app-template
+{
+  "index_patterns": ["logs-my_app-*"],
+  "data_stream": { },
+  "priority": 500,
+  "composed_of": ["logs-my_app-settings", "logs-my_app-mappings"]
+}
+----
+// TEST[continued]
+// TEST[s/, "logs-my_app-mappings"//]
+--
+// tag::name-custom-logs-dataset[]
+. When adding or editing your **Custom logs** integration in {fleet},
+click **Configure integration > Custom log file > Advanced options**.
+
+. In **Dataset name**, specify your dataset's name. {fleet} will add new data
+for the integration to the resulting `logs-<dataset-name>-default` data stream.
++
+For example, if your dataset's name was `my_app`, {fleet} adds new data to the
+`logs-my_app-default` data stream.
+// end::name-custom-logs-dataset[]
++
+[role="screenshot"]
+image::images/ingest/custom-logs.png[Set up custom log integration in Fleet,align="center"]
+
+. Use the <<indices-rollover-index,rollover API>> to roll over your data stream.
+This ensures {es} applies the index template and its pipeline settings to any
+new data for the integration.
++
+--
+////
+[source,console]
+----
+PUT _data_stream/logs-my_app-default
+----
+// TEST[continued]
+////
+
+[source,console]
+----
+POST logs-my_app-default/_rollover/
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE _data_stream/*
+DELETE _index_template/*
+----
+// TEST[continued]
+////
+--
+
+[[pipeline-custom-logs-configuration]]
+**Option 2: Custom configuration**
+
+include::ingest.asciidoc[tag=create-name-custom-logs-pipeline]
+
+include::ingest.asciidoc[tag=name-custom-logs-dataset]
+
+. In **Custom Configurations**, specify your pipeline in the `pipeline` policy
+setting.
++
+[role="screenshot"]
+image::images/ingest/custom-logs-pipeline.png[Custom pipeline configuration for custom log integration,align="center"]
+
+**{agent} standalone**
+
+If you run {agent} standalone, you can apply pipelines using an
+<<index-templates,index template>> that includes the
+<<index-default-pipeline,`index.default_pipeline`>> or
+<<index-final-pipeline,`index.final_pipeline`>> index setting. Alternatively,
+you can specify the `pipeline` policy setting in your `elastic-agent.yml`
+configuration. See {fleet-guide}/install-standalone-elastic-agent.html[Install standalone {agent}s].
 
 [discrete]
 [[access-source-fields]]
@@ -270,11 +499,13 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "dot_expander": {
+        "description": "Expand 'my-object-field.my-property'",
         "field": "my-object-field.my-property"
       }
     },
     {
       "set": {
+        "description": "Set 'my-object-field.my-property' to 10",
         "field": "my-object-field.my-property",
         "value": 10
       }
@@ -284,10 +515,10 @@ PUT _ingest/pipeline/my-pipeline
 ----
 
 [[template-snippets]]
-To access field values, enclose the field name in double curly brackets `{{ }}`
-to create a https://mustache.github.io[Mustache] template snippet. You can use
-template snippets to dynamically set field names. The following processor sets a
-field name as the `service` field value.
+Several processor parameters support https://mustache.github.io[Mustache]
+template snippets. To access field values in a template snippet, enclose the
+field name in triple curly brackets:`{{{field-name}}}`. You can use template
+snippets to dynamically set field names.
 
 [source,console]
 ----
@@ -296,8 +527,9 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "set": {
-        "field": "{{service}}",
-        "value": "{{code}}"
+        "description": "Set dynamic '<service>' field to 'code' value",
+        "field": "{{{service}}}",
+        "value": "{{{code}}}"
       }
     }
   ]
@@ -313,19 +545,18 @@ Processors can access the following metadata fields by name:
 * `_index`
 * `_id`
 * `_routing`
-
-For example, the following `set` processor sets the document's routing value as
-the `geoip.country_iso_code` field value.
+* `_dynamic_templates`
 
 [source,console]
 ----
 PUT _ingest/pipeline/my-pipeline
 {
-  "processors" : [
+  "processors": [
     {
-      "set" : {
+      "set": {
+        "description": "Set '_routing' to 'geoip.country_iso_code' value",
         "field": "_routing",
-        "value": "{{geoip.country_iso_code}}"
+        "value": "{{{geoip.country_iso_code}}}"
       }
     }
   ]
@@ -333,10 +564,34 @@ PUT _ingest/pipeline/my-pipeline
 ----
 
 Use a Mustache template snippet to access metadata field values. For example,
-`{{_routing}}` retrieves a document's routing value.
+`{{{_routing}}}` retrieves a document's routing value.
+
+[source,console]
+----
+PUT _ingest/pipeline/my-pipeline
+{
+  "processors": [
+    {
+      "set": {
+        "description": "Use geo_point dynamic template for address field",
+        "field": "_dynamic_templates",
+        "value": {
+          "address": "geo_point"
+        }
+      }
+    }
+  ]
+}
+----
+
+The set processor above tells ES to use the dynamic template named `geo_point`
+for the field `address` if this field is not defined in the mapping of the index
+yet. This processor overrides the dynamic template for the field `address` if
+already defined in the bulk request, but has no effect on other dynamic
+templates defined in the bulk request.
 
 WARNING: If you <<create-document-ids-automatically,automatically generate>>
-document IDs, you cannot use `{{_id}}` in a processor. {es} assigns
+document IDs, you cannot use `{{{_id}}}` in a processor. {es} assigns
 auto-generated `_id` values after ingest.
 
 [discrete]
@@ -361,8 +616,9 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "set": {
-        "field": "received",
-        "value": "{{_ingest.timestamp}}"
+        "description": "Index the ingest timestamp as 'event.ingested'",
+        "field": "event.ingested",
+        "value": "{{{_ingest.timestamp}}}"
       }
     }
   ]
@@ -371,7 +627,7 @@ PUT _ingest/pipeline/my-pipeline
 
 [discrete]
 [[handling-pipeline-failures]]
-=== Handing pipeline failures
+=== Handling pipeline failures
 
 A pipeline's processors run sequentially. By default, pipeline processing stops
 when one of these processors fails or encounters an error.
@@ -386,8 +642,9 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "rename": {
-        "field": "foo",
-        "target_field": "bar",
+        "description": "Rename 'provider' to 'cloud.provider'",
+        "field": "provider",
+        "target_field": "cloud.provider",
         "ignore_failure": true
       }
     }
@@ -397,7 +654,7 @@ PUT _ingest/pipeline/my-pipeline
 
 Use the `on_failure` parameter to specify a list of processors to run
 immediately after a processor failure. If `on_failure` is specified, {es}
-afterward runs the pipeline's remaining processors , even if the `on_failure`
+afterward runs the pipeline's remaining processors, even if the `on_failure`
 configuration is empty.
 
 [source,console]
@@ -407,13 +664,15 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "rename": {
-        "field": "foo",
-        "target_field": "bar",
+        "description": "Rename 'provider' to 'cloud.provider'",
+        "field": "provider",
+        "target_field": "cloud.provider",
         "on_failure": [
           {
             "set": {
+              "description": "Set 'error.message'",
               "field": "error.message",
-              "value": "field \"foo\" does not exist, cannot rename to \"bar\"",
+              "value": "Field 'provider' does not exist. Cannot rename to 'cloud.provider'",
               "override": false
             }
           }
@@ -433,17 +692,20 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "rename": {
-        "field": "foo",
-        "target_field": "bar",
+        "description": "Rename 'provider' to 'cloud.provider'",
+        "field": "provider",
+        "target_field": "cloud.provider",
         "on_failure": [
           {
             "set": {
+              "description": "Set 'error.message'",
               "field": "error.message",
-              "value": "field \"foo\" does not exist, cannot rename to \"bar\"",
+              "value": "Field 'provider' does not exist. Cannot rename to 'cloud.provider'",
               "override": false,
               "on_failure": [
                 {
                   "set": {
+                    "description": "Set 'error.message.multi'",
                     "field": "error.message.multi",
                     "value": "Document encountered multiple ingest errors",
                     "override": true
@@ -459,7 +721,9 @@ PUT _ingest/pipeline/my-pipeline
 }
 ----
 
-You can also specify `on_failure` for a pipeline.
+You can also specify `on_failure` for a pipeline. If a processor without an
+`on_failure` value fails, {es} uses this pipeline-level parameter as a fallback.
+{es} will not attempt to run the pipeline's remaining processors.
 
 [source,console]
 ----
@@ -469,8 +733,35 @@ PUT _ingest/pipeline/my-pipeline
   "on_failure": [
     {
       "set": {
+        "description": "Index document to 'failed-<index>'",
         "field": "_index",
-        "value": "failed-{{ _index }}"
+        "value": "failed-{{{ _index }}}"
+      }
+    }
+  ]
+}
+----
+// TEST[s/\.\.\./{"lowercase": {"field":"my-keyword-field"}}/]
+
+Additional information about the pipeline failure may be available in the
+document metadata fields `on_failure_message`, `on_failure_processor_type`,
+`on_failure_processor_tag`, and `on_failure_pipeline`. These fields are
+accessible only from within an `on_failure` block.
+
+The following example uses the metadata fields to include information about
+pipeline failures in documents.
+
+[source,console]
+----
+PUT _ingest/pipeline/my-pipeline
+{
+  "processors": [ ... ],
+  "on_failure": [
+    {
+      "set": {
+        "description": "Record error information",
+        "field": "error_information",
+        "value": "Processor {{ _ingest.on_failure_processor_type }} with tag {{ _ingest.on_failure_processor_tag }} in pipeline {{ _ingest.on_failure_pipeline }} failed with message {{ _ingest.on_failure_message }}"
       }
     }
   ]
@@ -490,9 +781,6 @@ IMPORTANT: `if` condition scripts run in Painless's
 {painless}/painless-ingest-processor-context.html[ingest processor context]. In
 `if` conditions, `ctx` values are read-only.
 
-The following <<drop-processor,`drop`>> processor uses an `if` condition to drop
-documents with a `network_name` of `Guest`.
-
 [source,console]
 ----
 PUT _ingest/pipeline/my-pipeline
@@ -500,17 +788,18 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "drop": {
-        "if": "ctx?.network_name == 'Guest'"
+        "description": "Drop documents with 'network.name' of 'Guest'",
+        "if": "ctx?.network?.name == 'Guest'"
       }
     }
   ]
 }
 ----
 
-If the static `script.painless.regex.enabled` cluster setting is enabled, you
-can use regular expressions in your `if` condition scripts. For supported
-syntax, see the {painless}/painless-regexes.html[Painless regexes]
-documentation.
+If the <<script-painless-regex-enabled,`script.painless.regex.enabled`>> cluster
+setting is enabled, you can use regular expressions in your `if` condition
+scripts. For supported syntax, see {painless}/painless-regexes.html[Painless
+regular expressions].
 
 TIP: If possible, avoid using regular expressions. Expensive regular expressions
 can slow indexing speeds.
@@ -522,8 +811,9 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "set": {
-        "if": "ctx.href?.url =~ /^http[^s]/",
-        "field": "href.insecure",
+        "description": "If 'url.scheme' is 'http', set 'url.insecure' to true",
+        "if": "ctx.url?.scheme =~ /^http[^s]/",
+        "field": "url.insecure",
         "value": true
       }
     }
@@ -545,6 +835,7 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "drop": {
+        "description": "Drop documents that don't contain 'prod' tag",
         "if": """
             Collection tags = ctx.tags;
             if(tags != null){
@@ -567,7 +858,7 @@ You can also specify a <<modules-scripting-stored-scripts,stored script>> as the
 
 [source,console]
 ----
-PUT _scripts/my-stored-script
+PUT _scripts/my-prod-tag-script
 {
   "script": {
     "lang": "painless",
@@ -590,12 +881,22 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "drop": {
-        "if": { "id": "my-stored-script" }
+        "description": "Drop documents that don't contain 'prod' tag",
+        "if": { "id": "my-prod-tag-script" }
       }
     }
   ]
 }
 ----
+
+////
+[source,console]
+----
+DELETE _scripts/my-prod-tag-script
+DELETE _ingest/pipeline/my-pipeline
+----
+// TEST[continued]
+////
 
 Incoming documents often contain object fields. If a processor script attempts
 to access a field whose parent object does not exist, {es} returns a
@@ -617,6 +918,7 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "drop": {
+        "description": "Drop documents that contain 'network.name' of 'Guest'",
         "if": "ctx.network?.name != null && ctx.network.name.contains('Guest')"
       }
     }
@@ -634,9 +936,6 @@ pipeline as the <<set-default-pipeline,default pipeline>> in an
 <<index-templates,index template>> used to configure multiple data streams or
 indices.
 
-The following pipeline applies different pipelines to incoming documents based
-on the `service.name` field value.
-
 [source,console]
 ----
 PUT _ingest/pipeline/one-pipeline-to-rule-them-all
@@ -644,18 +943,21 @@ PUT _ingest/pipeline/one-pipeline-to-rule-them-all
   "processors": [
     {
       "pipeline": {
+        "description": "If 'service.name' is 'apache_httpd', use 'httpd_pipeline'",
         "if": "ctx.service?.name == 'apache_httpd'",
         "name": "httpd_pipeline"
       }
     },
     {
       "pipeline": {
+        "description": "If 'service.name' is 'syslog', use 'syslog_pipeline'",
         "if": "ctx.service?.name == 'syslog'",
         "name": "syslog_pipeline"
       }
     },
     {
       "fail": {
+        "description": "If 'service.name' is not 'apache_httpd' or 'syslog', return a failure message",
         "if": "ctx.service?.name != 'apache_httpd' && ctx.service?.name != 'syslog'",
         "message": "This pipeline requires service.name to be either `syslog` or `apache_httpd`"
       }

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -24,11 +24,7 @@ public final class URLDecodeProcessor extends AbstractStringProcessor<String> {
     }
 
     public static String apply(String value) {
-        try {
-            return URLDecoder.decode(value, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            throw new IllegalArgumentException("Could not URL-decode value.", e);
-        }
+        return URLDecoder.decode(value, StandardCharsets.UTF_8);
     }
 
     @Override
@@ -48,8 +44,14 @@ public final class URLDecodeProcessor extends AbstractStringProcessor<String> {
         }
 
         @Override
-        protected URLDecodeProcessor newProcessor(String tag, String description, Map<String, Object> config, String field,
-                                                  boolean ignoreMissing, String targetField) {
+        protected URLDecodeProcessor newProcessor(
+            String tag,
+            String description,
+            Map<String, Object> config,
+            String field,
+            boolean ignoreMissing,
+            String targetField
+        ) {
             return new URLDecodeProcessor(tag, description, field, ignoreMissing, targetField);
         }
     }

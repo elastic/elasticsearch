@@ -1,0 +1,143 @@
+setup:
+    - skip:
+        features:
+          - "allowed_warnings_regex"
+
+    - do:
+        indices.put_template:
+          name: test-legacy-1
+          body:
+            order: 12
+            version: 3
+            index_patterns: foo*
+
+    - do:
+        indices.put_template:
+          name: test-legacy-2
+          body:
+            order: 45
+            version: 6
+            index_patterns:
+              - bar*
+              - baz*
+
+    - do:
+        cluster.put_component_template:
+          name: test-component-template
+          body:
+            template:
+              settings:
+                number_of_shards: 1
+                number_of_replicas: 0
+
+    - do:
+        indices.put_index_template:
+          name: test-composable-1
+          body:
+            index_patterns:
+              - quux*
+            priority: 78
+            version: 9
+            composed_of:
+              - test-component-template
+        allowed_warnings_regex:
+          - ".*index template .* has index patterns .* matching patterns from existing older templates.*"
+
+    - do:
+        indices.put_index_template:
+          name: test-composable-2
+          body:
+            index_patterns:
+              - gruly*
+            priority: 99
+            version: 1
+            composed_of:
+              - test-component-template
+        allowed_warnings_regex:
+          - ".*index template .* has index patterns .* matching patterns from existing older templates.*"
+---
+"Matching all templates":
+
+    - do:
+        cat.templates:
+            h: [name]
+            s: [name]
+
+    - match:
+        $body: /test-composable-1\ntest-composable-2\ntest-legacy-1\ntest-legacy-2\n/
+
+    - do:
+        cat.templates:
+            name: "*"
+            h: [name]
+            s: [name]
+
+    - match:
+        $body: /test-composable-1\ntest-composable-2\ntest-legacy-1\ntest-legacy-2\n/
+
+---
+"Matching no templates":
+
+    - do:
+        cat.templates:
+            name: "nonexistent"
+            h: [name]
+            s: [name]
+
+    - match:
+        $body: /^$/
+
+---
+"Matching single names":
+
+    - do:
+        cat.templates:
+            name: "test-legacy-1"
+            h: [name]
+            s: [name]
+
+    - match:
+        $body: /^test-legacy-1\n$/
+
+
+    - do:
+        cat.templates:
+            name: "test-composable-2"
+            h: [name]
+            s: [name]
+
+    - match:
+        $body: /^test-composable-2\n$/
+
+---
+"Matching single patterns":
+
+    - do:
+        cat.templates:
+            name: "test-legacy-*"
+            h: [name]
+            s: [name]
+
+    - match:
+        $body: /^test-legacy-1\ntest-legacy-2\n$/
+
+
+    - do:
+        cat.templates:
+            name: "test-*-2"
+            h: [name]
+            s: [name]
+
+    - match:
+        $body: /^test-composable-2\ntest-legacy-2\n$/
+
+
+---
+"Reject request containing comma":
+  - skip:
+      version: " - 7.15.99"
+      reason: "validation only added in 7.16.0"
+  - do:
+      catch:  bad_request
+      cat.templates:
+        name: test1,test2

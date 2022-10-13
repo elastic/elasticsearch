@@ -24,17 +24,22 @@ public class SourceTests extends ESTestCase {
             l -> new Source(
                 randomValueOtherThan(l.source().getLineNumber(), () -> between(1, Integer.MAX_VALUE)),
                 l.source().getColumnNumber() - 1,
-                l.text()),
+                l.text()
+            ),
             l -> new Source(
                 l.source().getLineNumber(),
                 randomValueOtherThan(l.source().getColumnNumber() - 1, () -> between(1, Integer.MAX_VALUE)),
-                l.text()));
+                l.text()
+            )
+        );
         return randomFrom(options).apply(source);
     }
 
     public void testEqualsAndHashCode() {
-        checkEqualsAndHashCode(randomSource(),
-                l -> new Source(l.source().getLineNumber(), l.source().getColumnNumber() - 1, l.text()),
-            SourceTests::mutate);
+        checkEqualsAndHashCode(
+            randomSource(),
+            l -> new Source(l.source().getLineNumber(), l.source().getColumnNumber() - 1, l.text()),
+            SourceTests::mutate
+        );
     }
 }

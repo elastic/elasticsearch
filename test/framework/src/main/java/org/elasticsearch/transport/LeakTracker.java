@@ -12,10 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
@@ -38,8 +38,7 @@ public final class LeakTracker {
 
     public static final LeakTracker INSTANCE = new LeakTracker();
 
-    private LeakTracker() {
-    }
+    private LeakTracker() {}
 
     /**
      * Track the given object.
@@ -72,13 +71,13 @@ public final class LeakTracker {
 
     public static final class Leak<T> extends WeakReference<Object> {
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
+        @SuppressWarnings({ "unchecked", "rawtypes" })
         private static final AtomicReferenceFieldUpdater<Leak<?>, Record> headUpdater =
-                (AtomicReferenceFieldUpdater) AtomicReferenceFieldUpdater.newUpdater(Leak.class, Record.class, "head");
+            (AtomicReferenceFieldUpdater) AtomicReferenceFieldUpdater.newUpdater(Leak.class, Record.class, "head");
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
+        @SuppressWarnings({ "unchecked", "rawtypes" })
         private static final AtomicIntegerFieldUpdater<Leak<?>> droppedRecordsUpdater =
-                (AtomicIntegerFieldUpdater) AtomicIntegerFieldUpdater.newUpdater(Leak.class, "droppedRecords");
+            (AtomicIntegerFieldUpdater) AtomicIntegerFieldUpdater.newUpdater(Leak.class, "droppedRecords");
 
         @SuppressWarnings("unused")
         private volatile Record head;
@@ -179,7 +178,7 @@ public final class LeakTracker {
             buf.append("Recent access records: ").append('\n');
 
             int i = 1;
-            Set<String> seen = new HashSet<>(present);
+            Set<String> seen = Sets.newHashSetWithExpectedSize(present);
             for (; oldHead != Record.BOTTOM; oldHead = oldHead.next) {
                 String s = oldHead.toString();
                 if (seen.add(s)) {
@@ -194,19 +193,16 @@ public final class LeakTracker {
             }
 
             if (duped > 0) {
-                buf.append(": ")
-                        .append(duped)
-                        .append(" leak records were discarded because they were duplicates")
-                        .append('\n');
+                buf.append(": ").append(duped).append(" leak records were discarded because they were duplicates").append('\n');
             }
 
             if (dropped > 0) {
                 buf.append(": ")
-                        .append(dropped)
-                        .append(" leak records were discarded because the leak record count is targeted to ")
-                        .append(TARGET_RECORDS)
-                        .append('.')
-                        .append('\n');
+                    .append(dropped)
+                    .append(" leak records were discarded because the leak record count is targeted to ")
+                    .append(TARGET_RECORDS)
+                    .append('.')
+                    .append('\n');
             }
             buf.setLength(buf.length() - "\n".length());
             return buf.toString();

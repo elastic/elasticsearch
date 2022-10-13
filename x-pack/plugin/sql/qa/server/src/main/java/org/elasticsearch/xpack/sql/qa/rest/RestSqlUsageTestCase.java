@@ -12,8 +12,8 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.FeatureMetric;
@@ -27,9 +27,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_STATS_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_QUERY_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_STATS_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_TRANSLATE_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.query;
 
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
@@ -59,11 +59,14 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
 
     private Map<String, Integer> baseMetrics = new HashMap<String, Integer>();
     private Integer baseClientTypeTotalQueries = 0;
+    private Integer baseClientTypePagingQueries = 0;
     private Integer baseClientTypeFailedQueries = 0;
     private Integer baseAllTotalQueries = 0;
+    private Integer baseAllPagingQueries = 0;
     private Integer baseAllFailedQueries = 0;
     private Integer baseTranslateRequests = 0;
     private String clientType;
+    private String mode;
     private boolean ignoreClientType;
 
     /**
@@ -87,6 +90,16 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             clientType = ClientType.REST.toString();
         }
 
+        if (clientType.equals(ClientType.JDBC.toString())) {
+            mode = Mode.JDBC.toString();
+        } else if (clientType.startsWith(ClientType.ODBC.toString())) {
+            mode = Mode.ODBC.toString();
+        } else if (clientType.equals(ClientType.CLI.toString())) {
+            mode = Mode.CLI.toString();
+        } else {
+            mode = Mode.PLAIN.toString();
+        }
+
         for (Map perNodeStats : nodesListStats) {
             Map featuresMetrics = (Map) ((Map) perNodeStats.get("stats")).get("features");
             Map queriesMetrics = (Map) ((Map) perNodeStats.get("stats")).get("queries");
@@ -96,8 +109,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
 
             // initialize the "base" metric values with whatever values are already recorded on ES
             baseClientTypeTotalQueries = ((Map<String, Integer>) queriesMetrics.get(clientType)).get("total");
+            baseClientTypePagingQueries = ((Map<String, Integer>) queriesMetrics.get(clientType)).get("paging");
             baseClientTypeFailedQueries = ((Map<String, Integer>) queriesMetrics.get(clientType)).get("failed");
             baseAllTotalQueries = ((Map<String, Integer>) queriesMetrics.get("_all")).get("total");
+            baseAllPagingQueries = ((Map<String, Integer>) queriesMetrics.get("_all")).get("paging");
             baseAllFailedQueries = ((Map<String, Integer>) queriesMetrics.get("_all")).get("failed");
             baseTranslateRequests = ((Map<String, Integer>) queriesMetrics.get("translate")).get("count");
         }
@@ -224,6 +239,47 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
     }
 
+    public void testScrollUsage() throws IOException {
+        index(testData);
+
+        String cursor = runSql("SELECT page_count, name FROM library ORDER BY page_count", randomIntBetween(1, testData.size()));
+        int scrollRequests = 0;
+
+        while (cursor != null) {
+            cursor = scroll(cursor);
+            scrollRequests++;
+        }
+
+        Map<String, Object> responseAsMap = getStats();
+        assertClientTypeQueryMetric(baseClientTypeTotalQueries + scrollRequests + 1, responseAsMap, "total");
+        assertClientTypeQueryMetric(baseClientTypePagingQueries + scrollRequests, responseAsMap, "paging");
+
+        assertAllQueryMetric(baseAllTotalQueries + scrollRequests + 1, responseAsMap, "total");
+        assertAllQueryMetric(baseAllPagingQueries + scrollRequests, responseAsMap, "paging");
+
+        assertFeatureMetric(baseMetrics.get("orderby") + 1, responseAsMap, "orderby");
+    }
+
+    // test for bug https://github.com/elastic/elasticsearch/issues/81502
+    public void testUsageOfQuerySortedByAggregationResult() throws IOException {
+        index(testData);
+
+        String cursor = runSql("SELECT SUM(page_count), name FROM library GROUP BY 2 ORDER BY 1", 1);
+
+        Map<String, Object> responseAsMap = getStats();
+        assertClientTypeQueryMetric(baseClientTypeTotalQueries + 1, responseAsMap, "total");
+        assertClientTypeQueryMetric(baseClientTypePagingQueries, responseAsMap, "paging");
+        assertAllQueryMetric(baseAllTotalQueries + 1, responseAsMap, "total");
+        assertAllQueryMetric(baseAllPagingQueries, responseAsMap, "paging");
+
+        scroll(cursor);
+        responseAsMap = getStats();
+        assertClientTypeQueryMetric(baseClientTypeTotalQueries + 2, responseAsMap, "total");
+        assertClientTypeQueryMetric(baseClientTypePagingQueries + 1, responseAsMap, "paging");
+        assertAllQueryMetric(baseAllTotalQueries + 2, responseAsMap, "total");
+        assertAllQueryMetric(baseAllPagingQueries + 1, responseAsMap, "paging");
+    }
+
     private void assertClientTypeAndAllQueryMetrics(int clientTypeTotalQueries, int allTotalQueries, Map<String, Object> responseAsMap)
         throws IOException {
         assertClientTypeQueryMetric(clientTypeTotalQueries, responseAsMap, "total");
@@ -244,8 +300,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (IndexDocument doc : docs) {
-            bulk.append("{\"index\":{}}\n");
-            bulk.append("{\"condition\":\"" + doc.condition + "\",\"name\":\"" + doc.name + "\",\"page_count\":" + doc.pageCount + "}\n");
+            bulk.append(formatted("""
+                {"index":{}}
+                {"condition":"%s","name":"%s","page_count":%s}
+                """, doc.condition, doc.name, doc.pageCount));
         }
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);
@@ -277,17 +335,16 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    private void runSql(String sql) throws IOException {
-        Mode mode = Mode.PLAIN;
-        if (clientType.equals(ClientType.JDBC.toString())) {
-            mode = Mode.JDBC;
-        } else if (clientType.startsWith(ClientType.ODBC.toString())) {
-            mode = Mode.ODBC;
-        } else if (clientType.equals(ClientType.CLI.toString())) {
-            mode = Mode.CLI;
-        }
+    private String runSql(String sql) throws IOException {
+        return runSql(sql, null);
+    }
 
-        runSql(mode.toString(), clientType, sql);
+    private String scroll(String cursor) throws IOException {
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        request.setEntity(
+            new StringEntity(RestSqlTestCase.cursor(cursor).mode(mode).clientId(clientType).toString(), ContentType.APPLICATION_JSON)
+        );
+        return (String) BaseRestSqlTestCase.toMap(client().performRequest(request), mode).get("cursor");
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -302,7 +359,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertEquals(expected, actualMetricValue);
     }
 
-    private void runSql(String mode, String restClient, String sql) throws IOException {
+    private String runSql(String sql, Integer fetchSize) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
@@ -318,11 +375,11 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         }
         request.setEntity(
             new StringEntity(
-                query(sql).mode(mode).clientId(ignoreClientType ? StringUtils.EMPTY : restClient).toString(),
+                query(sql).fetchSize(fetchSize).mode(mode).clientId(ignoreClientType ? StringUtils.EMPTY : clientType).toString(),
                 ContentType.APPLICATION_JSON
             )
         );
-        client().performRequest(request);
+        return (String) BaseRestSqlTestCase.toMap(client().performRequest(request), mode).get("cursor");
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.core.textstructure.structurefinder;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class FieldStatsTests extends AbstractSerializingTestCase<FieldStats> {
+public class FieldStatsTests extends AbstractXContentSerializingTestCase<FieldStats> {
 
     @Override
     protected FieldStats createTestInstance() {

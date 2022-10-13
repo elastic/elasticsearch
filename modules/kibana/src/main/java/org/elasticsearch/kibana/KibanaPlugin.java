@@ -27,6 +27,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .setAliasName(".kibana")
         .setType(Type.EXTERNAL_UNMANAGED)
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
+        .setAllowsTemplates()
         .build();
 
     public static final SystemIndexDescriptor REPORTING_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
@@ -37,14 +38,14 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .build();
 
     public static final SystemIndexDescriptor APM_AGENT_CONFIG_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(".apm-agent-configuration")
+        .setIndexPattern(".apm-agent-configuration*")
         .setDescription("system index for APM agent configuration")
         .setType(Type.EXTERNAL_UNMANAGED)
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
         .build();
 
     public static final SystemIndexDescriptor APM_CUSTOM_LINK_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(".apm-custom-link")
+        .setIndexPattern(".apm-custom-link*")
         .setDescription("system index for APM custom links")
         .setType(Type.EXTERNAL_UNMANAGED)
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)

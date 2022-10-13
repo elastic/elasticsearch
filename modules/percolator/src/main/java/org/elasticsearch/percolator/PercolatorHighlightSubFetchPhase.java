@@ -22,6 +22,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,8 +63,9 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             public void process(HitContext hit) throws IOException {
                 boolean singlePercolateQuery = percolateQueries.size() == 1;
                 for (PercolateQuery percolateQuery : percolateQueries) {
-                    String fieldName = singlePercolateQuery ? PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX :
-                        PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
+                    String fieldName = singlePercolateQuery
+                        ? PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX
+                        : PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
                     IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
                     PercolateQuery.QueryStore queryStore = percolateQuery.getQueryStore();
 
@@ -83,8 +85,9 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             HitContext subContext = new HitContext(
                                 new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
                                 percolatorLeafReaderContext,
-                                slot);
-                            subContext.sourceLookup().setSource(document);
+                                slot
+                            );
+                            subContext.setSourceLookup(new SourceLookup(new SourceLookup.BytesSourceProvider(document)));
                             // force source because MemoryIndex does not store fields
                             SearchHighlightContext highlight = new SearchHighlightContext(fetchContext.highlight().fields(), true);
                             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext, highlight, query);
@@ -97,8 +100,9 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                                     } else {
                                         hlFieldName = percolateQuery.getName() + "_" + entry.getKey();
                                     }
-                                    hit.hit().getHighlightFields().put(hlFieldName,
-                                        new HighlightField(hlFieldName, entry.getValue().fragments()));
+                                    hit.hit()
+                                        .getHighlightFields()
+                                        .put(hlFieldName, new HighlightField(hlFieldName, entry.getValue().fragments()));
                                 } else {
                                     // In case multiple documents are being percolated we need to identify to which document
                                     // a highlight belongs to.
@@ -108,8 +112,9 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                                     } else {
                                         hlFieldName = percolateQuery.getName() + "_" + slot + "_" + entry.getKey();
                                     }
-                                    hit.hit().getHighlightFields().put(hlFieldName,
-                                        new HighlightField(hlFieldName, entry.getValue().fragments()));
+                                    hit.hit()
+                                        .getHighlightFields()
+                                        .put(hlFieldName, new HighlightField(hlFieldName, entry.getValue().fragments()));
                                 }
                             }
                         }
@@ -128,7 +133,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
             @Override
             public void visitLeaf(Query query) {
                 if (query instanceof PercolateQuery) {
-                    queries.add((PercolateQuery)query);
+                    queries.add((PercolateQuery) query);
                 }
             }
         });

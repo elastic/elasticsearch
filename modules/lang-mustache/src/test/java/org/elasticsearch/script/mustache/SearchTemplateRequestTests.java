@@ -37,10 +37,10 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
     protected SearchTemplateRequest mutateInstance(SearchTemplateRequest instance) throws IOException {
         List<Consumer<SearchTemplateRequest>> mutators = new ArrayList<>();
 
-        mutators.add(request -> request.setScriptType(
-            randomValueOtherThan(request.getScriptType(), () -> randomFrom(ScriptType.values()))));
-        mutators.add(request -> request.setScript(
-            randomValueOtherThan(request.getScript(), () -> randomAlphaOfLength(50))));
+        mutators.add(
+            request -> request.setScriptType(randomValueOtherThan(request.getScriptType(), () -> randomFrom(ScriptType.values())))
+        );
+        mutators.add(request -> request.setScript(randomValueOtherThan(request.getScript(), () -> randomAlphaOfLength(50))));
 
         mutators.add(request -> {
             Map<String, Object> mutatedScriptParams = new HashMap<>(request.getScriptParams());
@@ -53,15 +53,20 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
         mutators.add(request -> request.setExplain(request.isExplain() == false));
         mutators.add(request -> request.setSimulate(request.isSimulate() == false));
 
-        mutators.add(request -> request.setRequest(randomValueOtherThan(request.getRequest(),
-                () -> RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource))));
+        mutators.add(
+            request -> request.setRequest(
+                randomValueOtherThan(
+                    request.getRequest(),
+                    () -> RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource)
+                )
+            )
+        );
 
         SearchTemplateRequest mutatedInstance = copyInstance(instance);
         Consumer<SearchTemplateRequest> mutator = randomFrom(mutators);
         mutator.accept(mutatedInstance);
         return mutatedInstance;
     }
-
 
     public static SearchTemplateRequest createRandomRequest() {
         SearchTemplateRequest request = new SearchTemplateRequest();
@@ -78,8 +83,7 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
         request.setProfile(randomBoolean());
         request.setSimulate(randomBoolean());
 
-        request.setRequest(RandomSearchRequestGenerator.randomSearchRequest(
-            SearchSourceBuilder::searchSource));
+        request.setRequest(RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource));
         return request;
     }
 }

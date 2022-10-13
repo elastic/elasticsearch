@@ -1,0 +1,5 @@
+pr: 88735
+summary: Add source fallback for keyword fields using operation
+area: Mapping
+type: enhancement
+issues: []

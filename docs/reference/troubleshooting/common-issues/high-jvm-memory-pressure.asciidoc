@@ -1,0 +1,95 @@
+[[high-jvm-memory-pressure]]
+=== High JVM memory pressure
+
+High JVM memory usage can degrade cluster performance and trigger
+<<circuit-breaker-errors,circuit breaker errors>>. To prevent this, we recommend
+taking steps to reduce memory pressure if a node's JVM memory usage consistently
+exceeds 85%.
+
+[discrete]
+[[diagnose-high-jvm-memory-pressure]]
+==== Diagnose high JVM memory pressure
+
+**Check JVM memory pressure**
+
+include::{es-repo-dir}/tab-widgets/jvm-memory-pressure-widget.asciidoc[]
+
+**Check garbage collection logs**
+
+As memory usage increases, garbage collection becomes more frequent and takes
+longer. You can track the frequency and length of garbage collection events in
+<<logging,`elasticsearch.log`>>. For example, the following event states {es}
+spent more than 50% (21 seconds) of the last 40 seconds performing garbage
+collection.
+
+[source,log]
+----
+[timestamp_short_interval_from_last][INFO ][o.e.m.j.JvmGcMonitorService] [node_id] [gc][number] overhead, spent [21s] collecting in the last [40s]
+----
+
+[discrete]
+[[reduce-jvm-memory-pressure]]
+==== Reduce JVM memory pressure
+
+**Reduce your shard count**
+
+Every shard uses memory. In most cases, a small set of large shards uses fewer
+resources than many small shards. For tips on reducing your shard count, see
+<<size-your-shards>>.
+
+[[avoid-expensive-searches]]
+**Avoid expensive searches**
+
+Expensive searches can use large amounts of memory. To better track expensive
+searches on your cluster, enable <<index-modules-slowlog,slow logs>>.
+
+Expensive searches may have a large <<paginate-search-results,`size` argument>>,
+use aggregations with a large number of buckets, or include
+<<query-dsl-allow-expensive-queries,expensive queries>>. To prevent expensive
+searches, consider the following setting changes:
+
+* Lower the `size` limit using the
+<<index-max-result-window,`index.max_result_window`>> index setting.
+
+* Decrease the maximum number of allowed aggregation buckets using the
+<<search-settings-max-buckets,search.max_buckets>> cluster setting.
+
+* Disable expensive queries using the
+<<query-dsl-allow-expensive-queries,`search.allow_expensive_queries`>> cluster
+setting.
+
+[source,console]
+----
+PUT _settings
+{
+  "index.max_result_window": 5000
+}
+
+PUT _cluster/settings
+{
+  "persistent": {
+    "search.max_buckets": 20000,
+    "search.allow_expensive_queries": false
+  }
+}
+----
+// TEST[s/^/PUT my-index\n/]
+
+**Prevent mapping explosions**
+
+Defining too many fields or nesting fields too deeply can lead to
+<<mapping-limit-settings,mapping explosions>> that use large amounts of memory.
+To prevent mapping explosions, use the <<mapping-settings-limit,mapping limit
+settings>> to limit the number of field mappings.
+
+**Spread out bulk requests**
+
+While more efficient than individual requests, large <<docs-bulk,bulk indexing>>
+or <<search-multi-search,multi-search>> requests can still create high JVM
+memory pressure. If possible, submit smaller requests and allow more time
+between them.
+
+**Upgrade node memory**
+
+Heavy indexing and search loads can cause high JVM memory pressure. To better
+handle heavy workloads, upgrade your nodes to increase their memory capacity.

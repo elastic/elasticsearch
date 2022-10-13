@@ -1,0 +1,61 @@
+# Integration tests for error_query
+#
+
+---
+"Error query":
+    - skip:
+        features: [ "allowed_warnings" ]
+
+    - do:
+        indices.create:
+            index: test_exception
+            body:
+              settings:
+                index.number_of_shards: 2
+
+    - do:
+        indices.create:
+          index: test_warning
+          body:
+            settings:
+              index.number_of_shards: 2
+
+    - do:
+        search:
+          index: test*
+          body:
+            query:
+              "error_query": { "indices": [ { name: "test_exception", shard_ids: [ 1 ], error_type: "exception", message: "boom" }, { name: "test_warning", error_type: "warning", message: "Watch out!" } ] }
+        allowed_warnings:
+          - "[test_warning][0] Watch out!"
+          - "[test_warning][1] Watch out!"
+
+    - match:  { hits.total.value:                                                       0 }
+    - match:  { _shards.total:                                                          4 }
+    - match:  { _shards.successful:                                                     3 }
+    - match:  { _shards.failed:                                                         1 }
+    - length: { _shards.failures:                                                       1 }
+    - match:  { _shards.failures.0.index:                                "test_exception" }
+    - match:  { _shards.failures.0.shard:                                               1 }
+    - match:  { _shards.failures.0.reason.caused_by.reason:    "[test_exception][1] boom" }
+
+    - do:
+        search:
+          index: test*
+          body:
+            query:
+              "error_query": { "indices": [ { name: "test_exception", error_type: "exception", message: "boom" }, { name: "test_warning", shard_ids: [ 1 ], error_type: "warning", message: "Watch out!" } ] }
+        allowed_warnings:
+          - "[test_warning][1] Watch out!"
+
+    - match:  { hits.total.value:                                                       0 }
+    - match:  { _shards.total:                                                          4 }
+    - match:  { _shards.successful:                                                     2 }
+    - match:  { _shards.failed:                                                         2 }
+    - length: { _shards.failures:                                                       2 }
+    - match:  { _shards.failures.0.index:                                "test_exception" }
+    - match:  { _shards.failures.0.shard:                                               0 }
+    - match:  { _shards.failures.0.reason.caused_by.reason:    "[test_exception][0] boom" }
+    - match:  { _shards.failures.1.index:                                "test_exception" }
+    - match:  { _shards.failures.1.shard:                                               1 }
+    - match:  { _shards.failures.1.reason.caused_by.reason:    "[test_exception][1] boom" }

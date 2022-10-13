@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -259,6 +261,41 @@ public class RecoveryTargetTests extends ESTestCase {
         long recoveredBytes = 0;
         long sourceThrottling = Index.UNKNOWN;
         long targetThrottling = Index.UNKNOWN;
+
+        List<FileDetail> filesToRecoverFromSnapshot = randomSubsetOf(filesToRecover);
+        for (FileDetail fileDetail : filesToRecoverFromSnapshot) {
+            if (bytesToRecover <= 0) {
+                break;
+            }
+
+            final long throttledOnTarget = rarely() ? randomIntBetween(10, 200) : 0;
+            if (targetThrottling == Index.UNKNOWN) {
+                targetThrottling = throttledOnTarget;
+            } else {
+                targetThrottling += throttledOnTarget;
+            }
+            index.addTargetThrottling(throttledOnTarget);
+
+            if (fileDetail.length() <= bytesToRecover && randomBoolean()) {
+                index.addRecoveredFromSnapshotBytesToFile(fileDetail.name(), fileDetail.length());
+                fileDetail.addRecoveredFromSnapshotBytes(fileDetail.length());
+
+                assertThat(fileDetail.recovered(), is(equalTo(fileDetail.length())));
+                assertThat(fileDetail.recoveredFromSnapshot(), is(equalTo(fileDetail.length())));
+                assertThat(fileDetail.fullyRecovered(), is(equalTo(true)));
+
+                bytesToRecover -= fileDetail.length();
+                recoveredBytes += fileDetail.length();
+                filesToRecover.remove(fileDetail);
+            } else {
+                long bytesRecoveredFromSnapshot = randomLongBetween(0, fileDetail.length());
+                index.addRecoveredFromSnapshotBytesToFile(fileDetail.name(), bytesRecoveredFromSnapshot);
+                index.resetRecoveredBytesOfFile(fileDetail.name());
+                fileDetail.addRecoveredFromSnapshotBytes(bytesRecoveredFromSnapshot);
+                fileDetail.resetRecoveredBytes();
+            }
+        }
+
         while (bytesToRecover > 0) {
             FileDetail file = randomFrom(filesToRecover);
             final long toRecover = Math.min(bytesToRecover, randomIntBetween(1, (int) (file.length() - file.recovered())));
@@ -322,16 +359,16 @@ public class RecoveryTargetTests extends ESTestCase {
             assertThat((double) index.recoveredFilesPercent(), equalTo(100.0));
             assertThat((double) index.recoveredBytesPercent(), equalTo(100.0));
         } else {
-            assertThat((double) index.recoveredFilesPercent(),
-                    closeTo(100.0 * index.recoveredFileCount() / index.totalRecoverFiles(), 0.1));
-            assertThat((double) index.recoveredBytesPercent(),
-                    closeTo(100.0 * index.recoveredBytes() / index.totalRecoverBytes(), 0.1));
+            assertThat(
+                (double) index.recoveredFilesPercent(),
+                closeTo(100.0 * index.recoveredFileCount() / index.totalRecoverFiles(), 0.1)
+            );
+            assertThat((double) index.recoveredBytesPercent(), closeTo(100.0 * index.recoveredBytes() / index.totalRecoverBytes(), 0.1));
         }
     }
 
     public void testStageSequenceEnforcement() {
-        final DiscoveryNode discoveryNode = new DiscoveryNode("1", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
-            Version.CURRENT);
+        final DiscoveryNode discoveryNode = new DiscoveryNode("1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final AssertionError error = expectThrows(AssertionError.class, () -> {
             Stage[] stages = Stage.values();
             int i = randomIntBetween(0, stages.length - 1);
@@ -339,10 +376,17 @@ public class RecoveryTargetTests extends ESTestCase {
             Stage t = stages[i];
             stages[i] = stages[j];
             stages[j] = t;
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),
-                randomBoolean(), ShardRoutingState.INITIALIZING);
-            RecoveryState state = new RecoveryState(shardRouting, discoveryNode,
-                shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                new ShardId("bla", "_na_", 0),
+                discoveryNode.getId(),
+                randomBoolean(),
+                ShardRoutingState.INITIALIZING
+            );
+            RecoveryState state = new RecoveryState(
+                shardRouting,
+                discoveryNode,
+                shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null
+            );
             for (Stage stage : stages) {
                 if (stage == Stage.FINALIZE) {
                     state.getIndex().setFileDetailsComplete();
@@ -356,10 +400,17 @@ public class RecoveryTargetTests extends ESTestCase {
         int i = randomIntBetween(1, stages.length - 1);
         ArrayList<Stage> list = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(stages, 0, i)));
         list.addAll(Arrays.asList(stages));
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),
-            randomBoolean(), ShardRoutingState.INITIALIZING);
-        RecoveryState state = new RecoveryState(shardRouting, discoveryNode,
-            shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId("bla", "_na_", 0),
+            discoveryNode.getId(),
+            randomBoolean(),
+            ShardRoutingState.INITIALIZING
+        );
+        RecoveryState state = new RecoveryState(
+            shardRouting,
+            discoveryNode,
+            shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null
+        );
         for (Stage stage : list) {
             state.setStage(stage);
             if (stage == Stage.INDEX) {

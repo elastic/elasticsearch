@@ -46,7 +46,8 @@ public class TokenMetadataTests extends ESTestCase {
         final List<KeyAndTimestamp> keyAndTimestampList = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             keyAndTimestampList.add(
-                new KeyAndTimestamp(new SecureString(randomAlphaOfLengthBetween(1, 12).toCharArray()), randomNonNegativeLong()));
+                new KeyAndTimestamp(new SecureString(randomAlphaOfLengthBetween(1, 12).toCharArray()), randomNonNegativeLong())
+            );
         }
         return keyAndTimestampList;
     }

@@ -60,10 +60,10 @@ public abstract class NameResolver {
             for (String token : tokens) {
                 if (Regex.isSimpleMatchPattern(token)) {
                     List<String> expanded = keys().stream()
-                            .filter(key -> Regex.simpleMatch(token, key))
-                            .map(this::lookup)
-                            .flatMap(List::stream)
-                            .collect(Collectors.toList());
+                        .filter(key -> Regex.simpleMatch(token, key))
+                        .map(this::lookup)
+                        .flatMap(List::stream)
+                        .collect(Collectors.toList());
                     if (expanded.isEmpty() && allowNoMatch == false) {
                         throw notFoundExceptionSupplier.apply(token);
                     }

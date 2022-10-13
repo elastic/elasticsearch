@@ -63,7 +63,7 @@ public class ActivateWatchRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (watchId == null){
+        if (watchId == null) {
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
         } else if (WatcherUtils.isValidId(watchId) == false) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
@@ -73,8 +73,6 @@ public class ActivateWatchRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return activate ?
-                "activate [" + watchId + "]" :
-                "deactivate [" + watchId + "]";
+        return activate ? "activate [" + watchId + "]" : "deactivate [" + watchId + "]";
     }
 }

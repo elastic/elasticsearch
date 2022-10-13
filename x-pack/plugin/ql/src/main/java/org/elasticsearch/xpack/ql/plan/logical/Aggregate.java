@@ -34,7 +34,7 @@ public class Aggregate extends UnaryPlan {
     }
 
     @Override
-    protected Aggregate replaceChild(LogicalPlan newChild) {
+    public Aggregate replaceChild(LogicalPlan newChild) {
         return new Aggregate(source(), newChild, groupings, aggregates);
     }
 
@@ -73,7 +73,7 @@ public class Aggregate extends UnaryPlan {
 
         Aggregate other = (Aggregate) obj;
         return Objects.equals(groupings, other.groupings)
-                && Objects.equals(aggregates, other.aggregates)
-                && Objects.equals(child(), other.child());
+            && Objects.equals(aggregates, other.aggregates)
+            && Objects.equals(child(), other.child());
     }
 }

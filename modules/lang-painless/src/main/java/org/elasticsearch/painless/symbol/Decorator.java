@@ -39,7 +39,7 @@ public class Decorator {
 
     @SuppressWarnings("unchecked")
     public <T extends Decoration> T put(int identifier, T decoration) {
-        return (T)decorations.get(identifier).put(decoration.getClass(), decoration);
+        return (T) decorations.get(identifier).put(decoration.getClass(), decoration);
     }
 
     public <T extends Decoration> T remove(int identifier, Class<T> type) {
@@ -86,5 +86,13 @@ public class Decorator {
         }
 
         return false;
+    }
+
+    public Map<Class<? extends Decoration>, Decoration> getAllDecorations(int identifier) {
+        return decorations.get(identifier);
+    }
+
+    public Set<Class<? extends Condition>> getAllConditions(int identifier) {
+        return conditions.get(identifier);
     }
 }

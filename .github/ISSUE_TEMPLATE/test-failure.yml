@@ -1,0 +1,52 @@
+name: Test Failure
+description: A test failure in CI
+labels: [">test-failure","needs:triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Please fill out the following information, and ensure you have attempted to reproduce locally
+  - type: input
+    id: link
+    attributes:
+      label: CI Link
+      description: A link to a Gradle buildscan (preferred) or Jenkins job with the failure
+    validations:
+      required: true
+  - type: input
+    id: repro_line
+    attributes:
+      label: Repro line
+      description: The reproduce line from the build output
+    validations:
+      required: true
+  - type: dropdown
+    id: reproducible
+    attributes:
+      label: Does it reproduce?
+      options:
+        - "Yes"
+        - "No"
+        - "Didn't try"
+    validations:
+      required: true
+  - type: input
+    id: branches
+    attributes:
+      label: Applicable branches
+      description: Branch names this failure has occurred on 
+    validations:
+      required: true
+  - type: input
+    id: history
+    attributes:
+      label: Failure history
+      description: Link to build stats and possible indication of when this started failing and how often
+    validations:
+      required: false
+  - type: textarea
+    id: excerpt
+    attributes:
+      label: Failure excerpt
+      description: The error or exception that occurs
+    validations:
+      required: true

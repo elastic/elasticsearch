@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 
 [[get-async-eql-status-api]]
 === Get async EQL status API

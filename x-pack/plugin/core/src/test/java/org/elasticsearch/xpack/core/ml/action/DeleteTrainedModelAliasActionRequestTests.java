@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction.Request;
 
-
 public class DeleteTrainedModelAliasActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override

@@ -8,8 +8,8 @@
 
 configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.elasticsearch.plugin' // for modules which publish client jars
-  apply plugin: 'elasticsearch.testclusters'
-  apply plugin: 'elasticsearch.esplugin'
+  apply plugin: 'elasticsearch.internal-testclusters'
+  apply plugin: 'elasticsearch.internal-es-plugin'
 
   esplugin {
     // for local ES plugins, the name of the plugin is the same as the directory
@@ -21,8 +21,5 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
   }
   if (project.file('src/main/bin').exists()) {
     throw new InvalidModelException("Modules cannot contain bin files")
-  }
-  if (project.file('src/main/config').exists()) {
-    throw new InvalidModelException("Modules cannot contain config files")
   }
 }

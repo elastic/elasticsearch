@@ -1,5 +1,4 @@
-[role="xpack"]
-[[ml-rare-functions]]
+["appendix",role="exclude",id="ml-rare-functions"]
 = Rare functions
 
 The rare functions detect values that occur rarely in time or rarely for a

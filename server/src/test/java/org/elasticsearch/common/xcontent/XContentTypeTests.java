@@ -8,6 +8,8 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ParsedMediaType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -83,68 +85,66 @@ public class XContentTypeTests extends ESTestCase {
 
     public void testFromRubbish() throws Exception {
         assertThat(XContentType.fromMediaType(null), nullValue());
-        expectThrows(IllegalArgumentException.class, ()->XContentType.fromMediaType(""));
-        expectThrows(IllegalArgumentException.class, ()->XContentType.fromMediaType("gobbly;goop"));
+        expectThrows(IllegalArgumentException.class, () -> XContentType.fromMediaType(""));
+        expectThrows(IllegalArgumentException.class, () -> XContentType.fromMediaType("gobbly;goop"));
         assertThat(XContentType.fromMediaType("text/plain"), nullValue());
     }
 
     public void testVersionedMediaType() {
         String version = String.valueOf(randomNonNegativeByte());
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version),
-            equalTo(XContentType.VND_JSON));
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+cbor;compatible-with=" + version),
-            equalTo(XContentType.VND_CBOR));
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+smile;compatible-with=" + version),
-            equalTo(XContentType.VND_SMILE));
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+yaml;compatible-with=" + version),
-            equalTo(XContentType.VND_YAML));
-        assertThat(XContentType.fromMediaType("application/json"),
-            equalTo(XContentType.JSON));
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version),
-            equalTo(XContentType.VND_JSON));
+        assertThat(
+            XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version),
+            equalTo(XContentType.VND_JSON)
+        );
+        assertThat(
+            XContentType.fromMediaType("application/vnd.elasticsearch+cbor;compatible-with=" + version),
+            equalTo(XContentType.VND_CBOR)
+        );
+        assertThat(
+            XContentType.fromMediaType("application/vnd.elasticsearch+smile;compatible-with=" + version),
+            equalTo(XContentType.VND_SMILE)
+        );
+        assertThat(
+            XContentType.fromMediaType("application/vnd.elasticsearch+yaml;compatible-with=" + version),
+            equalTo(XContentType.VND_YAML)
+        );
+        assertThat(XContentType.fromMediaType("application/json"), equalTo(XContentType.JSON));
+        assertThat(
+            XContentType.fromMediaType("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version),
+            equalTo(XContentType.VND_JSON)
+        );
 
-
-        assertThat(XContentType.fromMediaType("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version),
-            equalTo(XContentType.VND_JSON));
-        assertThat(XContentType.fromMediaType("APPLICATION/JSON"),
-            equalTo(XContentType.JSON));
+        assertThat(
+            XContentType.fromMediaType("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version),
+            equalTo(XContentType.VND_JSON)
+        );
+        assertThat(XContentType.fromMediaType("APPLICATION/JSON"), equalTo(XContentType.JSON));
     }
 
     public void testVersionParsing() {
         byte version = randomNonNegativeByte();
-        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+json;compatible-with=" + version),
-            equalTo(version));
-        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+cbor;compatible-with=" + version),
-            equalTo(version));
-        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+smile;compatible-with=" + version),
-            equalTo(version));
-        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version),
-            equalTo(version));
-        assertThat(XContentType.parseVersion("application/json"),
-            nullValue());
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+json;compatible-with=" + version), equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+cbor;compatible-with=" + version), equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+smile;compatible-with=" + version), equalTo(version));
+        assertThat(XContentType.parseVersion("application/vnd.elasticsearch+x-ndjson;compatible-with=" + version), equalTo(version));
+        assertThat(XContentType.parseVersion("application/json"), nullValue());
 
+        assertThat(XContentType.parseVersion("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version), equalTo(version));
+        assertThat(XContentType.parseVersion("APPLICATION/JSON"), nullValue());
 
-        assertThat(XContentType.parseVersion("APPLICATION/VND.ELASTICSEARCH+JSON;COMPATIBLE-WITH=" + version),
-            equalTo(version));
-        assertThat(XContentType.parseVersion("APPLICATION/JSON"),
-            nullValue());
-
-        //validation is done when parsing a MediaType
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + ".0"),
-            is(nullValue()));
-        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + "_sth"),
-            nullValue());
+        // validation is done when parsing a MediaType
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + ".0"), is(nullValue()));
+        assertThat(XContentType.fromMediaType("application/vnd.elasticsearch+json;compatible-with=" + version + "_sth"), nullValue());
     }
 
     public void testUnrecognizedParameters() {
-        //unrecognised parameters are ignored
+        // unrecognised parameters are ignored
         String version = String.valueOf(randomNonNegativeByte());
 
-        assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version),
-            is(XContentType.JSON));
+        assertThat(XContentType.fromMediaType("application/json;compatible-with=" + version), is(XContentType.JSON));
         // TODO do not allow parsing unrecognized parameter value https://github.com/elastic/elasticsearch/issues/63080
         // assertThat(XContentType.parseVersion("application/json;compatible-with=123"),
-        //   is(nullValue()));
+        // is(nullValue()));
     }
 
     public void testParsedMediaTypeImmutability() {
@@ -153,11 +153,11 @@ public class XContentTypeTests extends ESTestCase {
 
         ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(XContentType.JSON, Map.of("charset", "utf-8"));
         assertThat(xContentTypeJson.getParameters(), is(anEmptyMap()));
-        assertThat(parsedMediaType.getParameters(), equalTo(Map.of("charset","utf-8")));
+        assertThat(parsedMediaType.getParameters(), equalTo(Map.of("charset", "utf-8")));
 
         Map<String, String> parameters = new HashMap<>(Map.of("charset", "utf-8"));
         parsedMediaType = ParsedMediaType.parseMediaType(XContentType.JSON, parameters);
         parameters.clear();
-        assertThat(parsedMediaType.getParameters(), equalTo(Map.of("charset","utf-8")));
+        assertThat(parsedMediaType.getParameters(), equalTo(Map.of("charset", "utf-8")));
     }
 }

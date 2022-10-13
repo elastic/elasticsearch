@@ -51,7 +51,6 @@ public class ConcatFunctionPipe extends BinaryPipe {
         }
 
         ConcatFunctionPipe other = (ConcatFunctionPipe) obj;
-        return Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right());
+        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
     }
 }

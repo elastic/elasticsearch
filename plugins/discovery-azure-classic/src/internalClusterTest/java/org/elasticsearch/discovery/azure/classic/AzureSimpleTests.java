@@ -16,15 +16,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
-    numDataNodes = 0,
-    numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
 
     public void testOneNodeShouldRunUsingPrivateIp() {
         Settings.Builder settings = Settings.builder()
-                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
-                .put(Discovery.HOST_TYPE_SETTING.getKey(), "private_ip");
+            .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
+            .put(Discovery.HOST_TYPE_SETTING.getKey(), "private_ip");
 
         final String node1 = internalCluster().startNode(settings);
         registerAzureNode(node1);
@@ -36,8 +34,8 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
 
     public void testOneNodeShouldRunUsingPublicIp() {
         Settings.Builder settings = Settings.builder()
-                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
-                .put(Discovery.HOST_TYPE_SETTING.getKey(), "public_ip");
+            .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
+            .put(Discovery.HOST_TYPE_SETTING.getKey(), "public_ip");
 
         final String node1 = internalCluster().startNode(settings);
         registerAzureNode(node1);
@@ -49,8 +47,8 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
 
     public void testOneNodeShouldRunUsingWrongSettings() {
         Settings.Builder settings = Settings.builder()
-                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
-                .put(Discovery.HOST_TYPE_SETTING.getKey(), "do_not_exist");
+            .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
+            .put(Discovery.HOST_TYPE_SETTING.getKey(), "do_not_exist");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(settings));
         assertThat(e.getMessage(), containsString("invalid value for host type [do_not_exist]"));

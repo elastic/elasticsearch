@@ -1,2 +1,0 @@
-include ":libs:elasticsearch-core"
-include ":test:logger-usage"

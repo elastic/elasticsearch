@@ -8,16 +8,16 @@
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoLineAggregationBuilderTests extends AbstractSerializingTestCase<GeoLineAggregationBuilder> {
+public class GeoLineAggregationBuilderTests extends AbstractXContentSerializingTestCase<GeoLineAggregationBuilder> {
 
     @Override
     protected GeoLineAggregationBuilder doParseInstance(XContentParser parser) throws IOException {
@@ -40,14 +40,9 @@ public class GeoLineAggregationBuilderTests extends AbstractSerializingTestCase<
 
     @Override
     protected GeoLineAggregationBuilder createTestInstance() {
-        MultiValuesSourceFieldConfig pointConfig = new MultiValuesSourceFieldConfig.Builder()
-            .setFieldName(randomAlphaOfLength(5))
-            .build();
-        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder()
-            .setFieldName(randomAlphaOfLength(6)).build();
-        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name")
-            .point(pointConfig)
-            .sort(sortConfig);
+        MultiValuesSourceFieldConfig pointConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(randomAlphaOfLength(5)).build();
+        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(randomAlphaOfLength(6)).build();
+        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name").point(pointConfig).sort(sortConfig);
         if (randomBoolean()) {
             SortOrder sortOrder = randomFrom(SortOrder.values());
             lineAggregationBuilder.sortOrder(sortOrder);
@@ -62,16 +57,13 @@ public class GeoLineAggregationBuilderTests extends AbstractSerializingTestCase<
     }
 
     public void testInvalidSize() {
-        MultiValuesSourceFieldConfig pointConfig = new MultiValuesSourceFieldConfig.Builder()
-            .setFieldName(randomAlphaOfLength(5))
-            .build();
-        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder()
-            .setFieldName(randomAlphaOfLength(6)).build();
-        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name")
-            .point(pointConfig)
-            .sort(sortConfig);
+        MultiValuesSourceFieldConfig pointConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(randomAlphaOfLength(5)).build();
+        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(randomAlphaOfLength(6)).build();
+        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name").point(pointConfig).sort(sortConfig);
         expectThrows(IllegalArgumentException.class, () -> lineAggregationBuilder.size(0));
-        expectThrows(IllegalArgumentException.class,
-            () -> lineAggregationBuilder.size(GeoLineAggregationBuilder.MAX_PATH_SIZE + randomIntBetween(1, 10)));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> lineAggregationBuilder.size(GeoLineAggregationBuilder.MAX_PATH_SIZE + randomIntBetween(1, 10))
+        );
     }
 }

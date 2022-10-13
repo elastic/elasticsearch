@@ -37,6 +37,7 @@ public class ClusterName implements Writeable {
     public ClusterName(StreamInput input) throws IOException {
         this(input.readString());
     }
+
     public ClusterName(String value) {
         this.value = value.intern();
     }

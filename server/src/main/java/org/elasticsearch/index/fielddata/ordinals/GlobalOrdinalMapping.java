@@ -17,7 +17,8 @@ import org.apache.lucene.util.LongValues;
 import java.io.IOException;
 
 /**
- * A {@link SortedSetDocValues} implementation that returns ordinals that are global.
+ * A {@link SortedSetDocValues} implementation that returns global ordinals
+ * instead of segment ordinals.
  */
 final class GlobalOrdinalMapping extends SortedSetDocValues {
 
@@ -56,6 +57,11 @@ final class GlobalOrdinalMapping extends SortedSetDocValues {
         } else {
             return getGlobalOrd(segmentOrd);
         }
+    }
+
+    @Override
+    public int docValueCount() {
+        return values.docValueCount();
     }
 
     @Override

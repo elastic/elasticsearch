@@ -7,7 +7,7 @@ Elasticsearch on any RPM-based system such as OpenSuSE, SLES, Centos, Red Hat,
 and Oracle Enterprise.
 
 NOTE: RPM install is not supported on distributions with old versions of RPM,
-such as SLES 11 and CentOS 5.  Please see <<targz>> instead.
+such as SLES 11 and CentOS 5. Please see <<targz>> instead.
 
 include::license.asciidoc[]
 
@@ -123,6 +123,11 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
+// Set a `distro` attribute so we can reuse files containing anchors
+:distro: rpm
+[id="rpm-security-configuration"]
+include::package-security.asciidoc[]
+
 ifdef::include-xpack[]
 [role="xpack"]
 [[rpm-enable-indices]]
@@ -132,10 +137,14 @@ include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
-[[rpm-running-systemd]]
+[id="{distro}-running-systemd"]
 include::systemd.asciidoc[]
 
 [[rpm-check-running]]
+
+:es-config:       /etc/elasticsearch
+:slash:        /
+
 include::check-running.asciidoc[]
 
 [[rpm-configuring]]
@@ -150,7 +159,9 @@ include::sysconfig-file.asciidoc[]
 
 NOTE: Distributions that use `systemd` require that system resource limits be
 configured via `systemd` rather than via the `/etc/sysconfig/elasticsearch`
-file.  See <<systemd>> for more information.
+file. See <<systemd>> for more information.
+
+include::connect-clients.asciidoc[]
 
 [[rpm-layout]]
 ==== Directory layout of RPM
@@ -183,9 +194,14 @@ locations for an RPM-based system:
   | /etc/sysconfig/elasticsearch
  d|
 
+| conf
+| Generated TLS keys and certificates for the transport and http layer.
+| /etc/elasticsearch/certs
+d|
+
 | data
   | The location of the data files of each index / shard allocated
-    on the node. Can hold multiple locations.
+    on the node.
   | /var/lib/elasticsearch
   | path.data
 
@@ -213,4 +229,5 @@ locations for an RPM-based system:
 
 |=======================================================================
 
+include::security-files-reference.asciidoc[]
 include::next-steps.asciidoc[]

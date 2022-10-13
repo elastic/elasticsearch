@@ -21,7 +21,6 @@ public abstract class NamedExpression extends Expression {
     private final NameId id;
     private final boolean synthetic;
 
-
     public NamedExpression(Source source, String name, List<Expression> children, NameId id) {
         this(source, name, children, id, false);
     }
@@ -63,14 +62,14 @@ public abstract class NamedExpression extends Expression {
 
         NamedExpression other = (NamedExpression) obj;
         return Objects.equals(synthetic, other.synthetic)
-                /*
-                 * It is important that the line below be `name`
-                 * and not `name()` because subclasses might override
-                 * `name()` in ways that are not compatible with
-                 * equality. Specifically the `Unresolved` subclasses.
-                 */
-                && Objects.equals(name, other.name)
-                && Objects.equals(children(), other.children());
+            /*
+             * It is important that the line below be `name`
+             * and not `name()` because subclasses might override
+             * `name()` in ways that are not compatible with
+             * equality. Specifically the `Unresolved` subclasses.
+             */
+            && Objects.equals(name, other.name)
+            && Objects.equals(children(), other.children());
     }
 
     @Override

@@ -26,7 +26,4 @@ public class EmptyConfigUpdateTests extends AbstractWireSerializingTestCase<Empt
         return new EmptyConfigUpdate();
     }
 
-    public void testToConfig() {
-        expectThrows(UnsupportedOperationException.class, () -> new EmptyConfigUpdate().toConfig());
-    }
 }

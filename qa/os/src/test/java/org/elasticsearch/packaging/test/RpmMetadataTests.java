@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import junit.framework.TestCase;
+
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
@@ -34,11 +35,11 @@ public class RpmMetadataTests extends PackagingTestCase {
 
         final Shell.Result deps = sh.run("rpm -qpR " + getDistributionFile(distribution()));
 
-        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(deps.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^/bin/bash\\s*$").matcher(deps.stdout()).find());
 
         final Shell.Result conflicts = sh.run("rpm -qp --conflicts " + getDistributionFile(distribution()));
 
         String oppositePackageName = "elasticsearch-oss";
-        TestCase.assertTrue(Pattern.compile("(?m)^" + oppositePackageName + "\\s*$").matcher(conflicts.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^" + oppositePackageName + "\\s*$").matcher(conflicts.stdout()).find());
     }
 }

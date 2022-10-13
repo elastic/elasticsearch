@@ -1,0 +1,28 @@
+{
+  "security.saml_invalidate":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-saml-invalidate.html",
+      "description":"Consumes a SAML LogoutRequest"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/saml/invalidate",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"The LogoutRequest message",
+      "required":true
+    }
+  }
+}

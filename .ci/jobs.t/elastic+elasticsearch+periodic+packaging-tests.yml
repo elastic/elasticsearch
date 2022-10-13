@@ -1,0 +1,27 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+periodic+packaging-tests
+    display-name: "elastic / elasticsearch # %BRANCH% - packaging tests"
+    description: "Testing of the Elasticsearch %BRANCH% branch packaging tests.\n"
+    project-type: multijob
+    node: master
+    vault: []
+    scm:
+      - git:
+          wipe-workspace: false
+    builders:
+      - multijob:
+          name: Packaging tests
+          projects:
+            - name: elastic+elasticsearch+%BRANCH%+multijob+packaging-tests-unix
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+multijob+packaging-tests-windows
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+multijob+packaging-tests-upgrade
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true

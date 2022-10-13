@@ -10,20 +10,25 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -40,15 +45,10 @@ public class RoutingAllocation {
 
     private final AllocationDeciders deciders;
 
+    @Nullable
     private final RoutingNodes routingNodes;
 
-    private final Metadata metadata;
-
-    private final RoutingTable routingTable;
-
-    private final DiscoveryNodes nodes;
-
-    private final ImmutableOpenMap<String, ClusterState.Custom> customs;
+    private final ClusterState clusterState;
 
     private final ClusterInfo clusterInfo;
 
@@ -67,29 +67,91 @@ public class RoutingAllocation {
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
+    private final ResizeSourceIndexSettingsUpdater resizeSourceIndexUpdater = new ResizeSourceIndexSettingsUpdater();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-        nodesChangedObserver, indexMetadataUpdater, restoreInProgressUpdater
+        nodesChangedObserver,
+        indexMetadataUpdater,
+        restoreInProgressUpdater,
+        resizeSourceIndexUpdater
     );
 
+    private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
+
+    @Nullable
+    private final DesiredNodes desiredNodes;
+
+    // Tracks the sizes of the searchable snapshots that aren't yet registered in ClusterInfo by their cluster node id
+    private final Map<String, Long> unaccountedSearchableSnapshotSizes;
+
+    public RoutingAllocation(
+        AllocationDeciders deciders,
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime
+    ) {
+        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+    }
 
     /**
      * Creates a new {@link RoutingAllocation}
-     *  @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
-     * @param routingNodes Routing nodes in the current cluster
+     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes Routing nodes in the current cluster or {@code null} if using those in the given cluster state
      * @param clusterState cluster state before rerouting
+     * @param clusterInfo information about node disk usage and shard disk usage
+     * @param shardSizeInfo information about snapshot shard sizes
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
-    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo,
-                             SnapshotShardSizeInfo shardSizeInfo, long currentNanoTime) {
+    public RoutingAllocation(
+        AllocationDeciders deciders,
+        @Nullable RoutingNodes routingNodes,
+        ClusterState clusterState,
+        @Nullable ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime
+    ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
-        this.metadata = clusterState.metadata();
-        this.routingTable = clusterState.routingTable();
-        this.nodes = clusterState.nodes();
-        this.customs = clusterState.customs();
+        this.clusterState = clusterState;
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
+        this.nodeReplacementTargets = nodeReplacementTargets(clusterState);
+        this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+        this.unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
+    }
+
+    private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {
+        Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets = new HashMap<>();
+        for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
+            if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
+                nodeReplacementTargets.put(shutdown.getTargetNodeName(), shutdown);
+            }
+        }
+        return Map.copyOf(nodeReplacementTargets);
+    }
+
+    private static Map<String, Long> unaccountedSearchableSnapshotSizes(ClusterState clusterState, ClusterInfo clusterInfo) {
+        Map<String, Long> unaccountedSearchableSnapshotSizes = new HashMap<>();
+        if (clusterInfo != null) {
+            for (RoutingNode node : clusterState.getRoutingNodes()) {
+                DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
+                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
+                long totalSize = 0;
+                for (ShardRouting shard : node.started()) {
+                    if (shard.getExpectedShardSize() > 0
+                        && clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
+                        && reservedSpace.containsShardId(shard.shardId()) == false
+                        && clusterInfo.getShardSize(shard) == null) {
+                        totalSize += shard.getExpectedShardSize();
+                    }
+                }
+                if (totalSize > 0) {
+                    unaccountedSearchableSnapshotSizes.put(node.nodeId(), totalSize);
+                }
+            }
+        }
+        return Collections.unmodifiableMap(unaccountedSearchableSnapshotSizes);
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -110,7 +172,7 @@ public class RoutingAllocation {
      * @return current routing table
      */
     public RoutingTable routingTable() {
-        return routingTable;
+        return clusterState.routingTable();
     }
 
     /**
@@ -118,7 +180,10 @@ public class RoutingAllocation {
      * @return routing nodes
      */
     public RoutingNodes routingNodes() {
-        return routingNodes;
+        if (routingNodes != null) {
+            return routingNodes;
+        }
+        return clusterState.getRoutingNodes();
     }
 
     /**
@@ -126,7 +191,7 @@ public class RoutingAllocation {
      * @return Metadata of routing nodes
      */
     public Metadata metadata() {
-        return metadata;
+        return clusterState.metadata();
     }
 
     /**
@@ -134,7 +199,7 @@ public class RoutingAllocation {
      * @return discovery nodes
      */
     public DiscoveryNodes nodes() {
-        return nodes;
+        return clusterState.nodes();
     }
 
     public ClusterInfo clusterInfo() {
@@ -145,12 +210,25 @@ public class RoutingAllocation {
         return shardSizeInfo;
     }
 
-    public <T extends ClusterState.Custom> T custom(String key) {
-        return (T)customs.get(key);
+    @Nullable
+    public DesiredNodes desiredNodes() {
+        return desiredNodes;
     }
 
-    public ImmutableOpenMap<String, ClusterState.Custom> getCustoms() {
-        return customs;
+    /**
+     * Returns a map of target node name to replacement shutdown
+     */
+    public Map<String, SingleNodeShutdownMetadata> replacementTargetShutdowns() {
+        return this.nodeReplacementTargets;
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends ClusterState.Custom> T custom(String key) {
+        return (T) clusterState.customs().get(key);
+    }
+
+    public Map<String, ClusterState.Custom> getCustoms() {
+        return clusterState.getCustoms();
     }
 
     public void ignoreDisable(boolean ignoreDisable) {
@@ -232,7 +310,8 @@ public class RoutingAllocation {
      * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
     public Metadata updateMetadataWithRoutingChanges(RoutingTable newRoutingTable) {
-        return indexMetadataUpdater.applyChanges(metadata, newRoutingTable);
+        Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable);
+        return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);
     }
 
     /**
@@ -279,6 +358,13 @@ public class RoutingAllocation {
      */
     public void setHasPendingAsyncFetch() {
         this.hasPendingAsyncFetch = true;
+    }
+
+    /**
+     * Returns an approximation of the size (in bytes) of the unaccounted searchable snapshots before the allocation
+     */
+    public long unaccountedSearchableSnapshotSize(RoutingNode routingNode) {
+        return unaccountedSearchableSnapshotSizes.getOrDefault(routingNode.nodeId(), 0L);
     }
 
     public enum DebugMode {

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.plugins.spi;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.List;
 

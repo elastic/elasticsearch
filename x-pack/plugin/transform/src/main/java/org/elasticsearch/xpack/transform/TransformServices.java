@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.transform;
 
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.util.Objects;
 
@@ -25,18 +25,18 @@ public final class TransformServices {
     private final TransformConfigManager configManager;
     private final TransformCheckpointService checkpointService;
     private final TransformAuditor auditor;
-    private final SchedulerEngine schedulerEngine;
+    private final TransformScheduler scheduler;
 
     public TransformServices(
-        TransformConfigManager transformConfigManager,
-        TransformCheckpointService checkpointProvider,
-        TransformAuditor transformAuditor,
-        SchedulerEngine schedulerEngine
+        TransformConfigManager configManager,
+        TransformCheckpointService checkpointService,
+        TransformAuditor auditor,
+        TransformScheduler scheduler
     ) {
-        this.configManager = Objects.requireNonNull(transformConfigManager);
-        this.checkpointService = Objects.requireNonNull(checkpointProvider);
-        this.auditor = Objects.requireNonNull(transformAuditor);
-        this.schedulerEngine = Objects.requireNonNull(schedulerEngine);
+        this.configManager = Objects.requireNonNull(configManager);
+        this.checkpointService = Objects.requireNonNull(checkpointService);
+        this.auditor = Objects.requireNonNull(auditor);
+        this.scheduler = Objects.requireNonNull(scheduler);
     }
 
     public TransformConfigManager getConfigManager() {
@@ -51,7 +51,7 @@ public final class TransformServices {
         return auditor;
     }
 
-    public SchedulerEngine getSchedulerEngine() {
-        return schedulerEngine;
+    public TransformScheduler getScheduler() {
+        return scheduler;
     }
 }

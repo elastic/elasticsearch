@@ -9,14 +9,16 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 
 /**
  * Snapshots status request builder
  */
-public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBuilder<SnapshotsStatusRequest,
-        SnapshotsStatusResponse, SnapshotsStatusRequestBuilder> {
+public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBuilder<
+    SnapshotsStatusRequest,
+    SnapshotsStatusResponse,
+    SnapshotsStatusRequestBuilder> {
 
     /**
      * Constructs the new snapshot status request

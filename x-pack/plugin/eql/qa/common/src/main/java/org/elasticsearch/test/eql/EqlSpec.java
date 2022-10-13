@@ -19,6 +19,7 @@ public class EqlSpec {
     private String[] tags;
     private String query;
     private long[] expectedEventIds;
+    private String[] joinKeys;
 
     public String name() {
         return name;
@@ -68,16 +69,12 @@ public class EqlSpec {
         this.expectedEventIds = expectedEventIds;
     }
 
-    public EqlSpec withSensitivity(boolean caseSensitive) {
-        EqlSpec spec = new EqlSpec();
-        spec.name = name;
-        spec.description = description;
-        spec.note = note;
-        spec.tags = tags;
-        spec.query = query;
-        spec.expectedEventIds = expectedEventIds;
+    public String[] joinKeys() {
+        return joinKeys;
+    }
 
-        return spec;
+    public void joinKeys(String[] joinKeys) {
+        this.joinKeys = joinKeys;
     }
 
     @Override
@@ -94,6 +91,10 @@ public class EqlSpec {
 
         if (expectedEventIds != null) {
             str = appendWithComma(str, "expected_event_ids", Arrays.toString(expectedEventIds));
+        }
+
+        if (joinKeys != null) {
+            str = appendWithComma(str, "join_keys", Arrays.toString(joinKeys));
         }
         return str;
     }

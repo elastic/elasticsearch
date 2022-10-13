@@ -20,6 +20,8 @@ import org.elasticsearch.common.Numbers;
  */
 public class Murmur3Hasher {
 
+    public static final String METHOD = "MurmurHash3";
+
     private final long seed;
     private final byte[] remainder = new byte[16];
     private int remainderLength = 0;
@@ -90,8 +92,8 @@ public class Murmur3Hasher {
         return hash;
     }
 
-    public String getAlgorithm() {
-        return "MurmurHash3_x64_128";
+    public static String getAlgorithm() {
+        return METHOD;
     }
 
     /**

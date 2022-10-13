@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="gold"]
 [[search-aggregations-metrics-geo-line]]
 === Geo-Line Aggregation
 ++++

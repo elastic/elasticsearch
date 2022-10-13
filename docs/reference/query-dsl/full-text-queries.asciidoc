@@ -1,9 +1,9 @@
 [[full-text-queries]]
 == Full text queries
 
-The full text queries enable you to search <<analysis,analyzed text fields>> such as the 
-body of an email. The query string is processed using the same analyzer that was applied to 
-the field during indexing. 
+The full text queries enable you to search <<analysis,analyzed text fields>> such as the
+body of an email. The query string is processed using the same analyzer that was applied to
+the field during indexing.
 
 The queries in this group are:
 
@@ -21,12 +21,15 @@ the last term, which is matched as a `prefix` query
 
 <<query-dsl-match-query-phrase,`match_phrase` query>>::
 Like the `match` query but used for matching exact phrases or word proximity matches.
-    
+
 <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix` query>>::
 Like the `match_phrase` query, but does a wildcard search on the final word.
-  
+
 <<query-dsl-multi-match-query,`multi_match` query>>::
 The multi-field version of the `match` query.
+
+<<query-dsl-combined-fields-query,`combined_fields` query>>::
+Matches over multiple fields as if they had been indexed into one combined field.
 
 <<query-dsl-query-string-query,`query_string` query>>::
 Supports the compact Lucene <<query-string-syntax,query string syntax>>,
@@ -47,6 +50,8 @@ include::match-bool-prefix-query.asciidoc[]
 include::match-phrase-query.asciidoc[]
 
 include::match-phrase-prefix-query.asciidoc[]
+
+include::combined-fields-query.asciidoc[]
 
 include::multi-match-query.asciidoc[]
 

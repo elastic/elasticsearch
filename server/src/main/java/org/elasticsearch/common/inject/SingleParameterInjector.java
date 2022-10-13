@@ -48,8 +48,7 @@ class SingleParameterInjector<T> {
     /**
      * Returns an array of parameter values.
      */
-    static Object[] getAll(Errors errors, InternalContext context,
-                           SingleParameterInjector<?>[] parameterInjectors) throws ErrorsException {
+    static Object[] getAll(Errors errors, InternalContext context, SingleParameterInjector<?>[] parameterInjectors) throws ErrorsException {
         if (parameterInjectors == null) {
             return NO_ARGUMENTS;
         }

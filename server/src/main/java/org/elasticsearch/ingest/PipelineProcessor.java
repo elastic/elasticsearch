@@ -18,11 +18,19 @@ public class PipelineProcessor extends AbstractProcessor {
     public static final String TYPE = "pipeline";
 
     private final TemplateScript.Factory pipelineTemplate;
+    private final boolean ignoreMissingPipeline;
     private final IngestService ingestService;
 
-    PipelineProcessor(String tag, String description, TemplateScript.Factory pipelineTemplate, IngestService ingestService) {
+    PipelineProcessor(
+        String tag,
+        String description,
+        TemplateScript.Factory pipelineTemplate,
+        boolean ignoreMissingPipeline,
+        IngestService ingestService
+    ) {
         super(tag, description);
         this.pipelineTemplate = pipelineTemplate;
+        this.ignoreMissingPipeline = ignoreMissingPipeline;
         this.ingestService = ingestService;
     }
 
@@ -33,27 +41,34 @@ public class PipelineProcessor extends AbstractProcessor {
         if (pipeline != null) {
             ingestDocument.executePipeline(pipeline, handler);
         } else {
-            handler.accept(null,
-                new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']'));
+            if (ignoreMissingPipeline) {
+                handler.accept(ingestDocument, null);
+            } else {
+                handler.accept(
+                    null,
+                    new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']')
+                );
+            }
         }
-    }
-
-    @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     Pipeline getPipeline(IngestDocument ingestDocument) {
         return ingestService.getPipeline(getPipelineToCallName(ingestDocument));
     }
 
-    String getPipelineToCallName(IngestDocument ingestDocument){
+    String getPipelineToCallName(IngestDocument ingestDocument) {
         return ingestDocument.renderTemplate(this.pipelineTemplate);
     }
 
     @Override
     public String getType() {
         return TYPE;
+    }
+
+    @Override
+    public boolean isAsync() {
+        // the pipeline processor always presents itself as async
+        return true;
     }
 
     TemplateScript.Factory getPipelineTemplate() {
@@ -69,11 +84,27 @@ public class PipelineProcessor extends AbstractProcessor {
         }
 
         @Override
-        public PipelineProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                        String description, Map<String, Object> config) throws Exception {
-            TemplateScript.Factory pipelineTemplate =
-                ConfigurationUtils.readTemplateProperty(TYPE, processorTag, config, "name", ingestService.getScriptService());
-            return new PipelineProcessor(processorTag, description, pipelineTemplate, ingestService);
+        public PipelineProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
+            TemplateScript.Factory pipelineTemplate = ConfigurationUtils.readTemplateProperty(
+                TYPE,
+                processorTag,
+                config,
+                "name",
+                ingestService.getScriptService()
+            );
+            boolean ignoreMissingPipeline = ConfigurationUtils.readBooleanProperty(
+                TYPE,
+                processorTag,
+                config,
+                "ignore_missing_pipeline",
+                false
+            );
+            return new PipelineProcessor(processorTag, description, pipelineTemplate, ignoreMissingPipeline, ingestService);
         }
     }
 }

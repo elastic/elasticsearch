@@ -34,9 +34,12 @@ final class ScriptedSimilarityProvider implements TriFunction<Settings, Version,
             weightScriptFactory = scriptService.compile(weightScript, SimilarityWeightScript.CONTEXT);
         }
         return new ScriptedSimilarity(
-                weightScript == null ? null : weightScript.toString(),
-                        weightScriptFactory == null ? null : weightScriptFactory::newInstance,
-                                script.toString(), scriptFactory::newInstance, discountOverlaps);
+            weightScript == null ? null : weightScript.toString(),
+            weightScriptFactory == null ? null : weightScriptFactory::newInstance,
+            script.toString(),
+            scriptFactory::newInstance,
+            discountOverlaps
+        );
     }
 
 }

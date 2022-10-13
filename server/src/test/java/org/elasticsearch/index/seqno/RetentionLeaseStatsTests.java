@@ -29,14 +29,15 @@ public class RetentionLeaseStatsTests extends ESSingleNodeTestCase {
 
     public void testRetentionLeaseStats() throws InterruptedException {
         final Settings settings = Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .build();
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .build();
         createIndex("index", settings);
         ensureGreen("index");
-        final IndexShard primary =
-                node().injector().getInstance(IndicesService.class).getShardOrNull(new ShardId(resolveIndex("index"), 0));
+        final IndexShard primary = node().injector()
+            .getInstance(IndicesService.class)
+            .getShardOrNull(new ShardId(resolveIndex("index"), 0));
         final int length = randomIntBetween(0, 8);
         final Map<String, RetentionLease> currentRetentionLeases = new HashMap<>();
         for (int i = 0; i < length; i++) {
@@ -52,8 +53,10 @@ public class RetentionLeaseStatsTests extends ESSingleNodeTestCase {
         final IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("index").execute().actionGet();
         assertThat(indicesStats.getShards(), arrayWithSize(1));
         final RetentionLeaseStats retentionLeaseStats = indicesStats.getShards()[0].getRetentionLeaseStats();
-        assertThat(RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(retentionLeaseStats.retentionLeases()),
-            equalTo(currentRetentionLeases));
+        assertThat(
+            RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(retentionLeaseStats.retentionLeases()),
+            equalTo(currentRetentionLeases)
+        );
     }
 
 }

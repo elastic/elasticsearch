@@ -103,7 +103,7 @@ public class StartsWithFunctionPipe extends Pipe {
 
         StartsWithFunctionPipe other = (StartsWithFunctionPipe) obj;
         return Objects.equals(input, other.input)
-                && Objects.equals(pattern, other.pattern)
-                && Objects.equals(isCaseSensitive, other.isCaseSensitive);
+            && Objects.equals(pattern, other.pattern)
+            && Objects.equals(isCaseSensitive, other.isCaseSensitive);
     }
 }

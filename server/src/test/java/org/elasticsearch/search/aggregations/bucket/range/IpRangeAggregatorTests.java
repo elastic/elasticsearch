@@ -11,13 +11,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
@@ -36,7 +35,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
         return false;
     }
 
-    private static final Comparator<Tuple<BytesRef, BytesRef> > RANGE_COMPARATOR = (a, b) -> {
+    private static final Comparator<Tuple<BytesRef, BytesRef>> RANGE_COMPARATOR = (a, b) -> {
         int cmp = compare(a.v1(), b.v1(), 1);
         if (cmp == 0) {
             cmp = compare(a.v2(), b.v2(), -1);
@@ -45,11 +44,10 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
     };
 
     private static int compare(BytesRef a, BytesRef b, int m) {
-        return a == null
-            ? b == null ? 0 : -m
-            : b == null ? m : a.compareTo(b);
+        return a == null ? b == null ? 0 : -m : b == null ? m : a.compareTo(b);
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testRanges() throws Exception {
         boolean v4 = randomBoolean();
         IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg").field("field");
@@ -77,8 +75,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
         }
         Arrays.sort(requestedRanges, RANGE_COMPARATOR);
         int[] expectedCounts = new int[numRanges];
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             int numDocs = randomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
@@ -102,7 +99,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new IpFieldMapper.IpFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBinaryRange range = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldType);
+                InternalBinaryRange range = searchAndReduce(searcher, new AggTestConfig(builder, fieldType));
                 assertEquals(numRanges, range.getBuckets().size());
                 for (int i = 0; i < range.getBuckets().size(); i++) {
                     Tuple<BytesRef, BytesRef> expected = requestedRanges[i];
@@ -124,40 +121,36 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissingUnmapped() throws Exception {
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (int i = 0; i < 7; i++) {
                 Document doc = new Document();
                 w.addDocument(doc);
             }
 
-            IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg")
-                .field("field")
+            IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg").field("field")
                 .addRange(new IpRangeAggregationBuilder.Range("foo", "192.168.100.0", "192.168.100.255"))
                 .missing("192.168.100.42"); // Apparently we expect a string here
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBinaryRange range = searchAndReduce(searcher, new MatchAllDocsQuery(), builder);
+                InternalBinaryRange range = searchAndReduce(searcher, new AggTestConfig(builder));
                 assertEquals(1, range.getBuckets().size());
             }
         }
     }
 
     public void testMissingUnmappedBadType() throws Exception {
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (int i = 0; i < 7; i++) {
                 Document doc = new Document();
                 w.addDocument(doc);
             }
 
-            IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg")
-                .field("field")
+            IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg").field("field")
                 .addRange(new IpRangeAggregationBuilder.Range("foo", "192.168.100.0", "192.168.100.255"))
                 .missing(1234);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                expectThrows(IllegalArgumentException.class, () -> searchAndReduce(searcher, new MatchAllDocsQuery(), builder));
+                expectThrows(IllegalArgumentException.class, () -> { searchAndReduce(searcher, new AggTestConfig(builder)); });
             }
         }
     }

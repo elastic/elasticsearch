@@ -43,7 +43,6 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
     private static final DateTimeFormatter DAY_NAME_FORMATTER = DateTimeFormatter.ofPattern("EEEE", Locale.ROOT);
     private static final DateTimeFormatter MONTH_NAME_FORMATTER = DateTimeFormatter.ofPattern("MMMM", Locale.ROOT);
 
-
     private final NameExtractor extractor;
 
     public NamedDateTimeProcessor(NameExtractor extractor, ZoneId zoneId) {
@@ -86,8 +85,7 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
             return false;
         }
         NamedDateTimeProcessor other = (NamedDateTimeProcessor) obj;
-        return Objects.equals(extractor, other.extractor)
-                && Objects.equals(zoneId(), other.zoneId());
+        return Objects.equals(extractor, other.extractor) && Objects.equals(zoneId(), other.zoneId());
     }
 
     @Override

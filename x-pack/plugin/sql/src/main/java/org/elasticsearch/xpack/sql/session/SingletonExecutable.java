@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.util.Check;
 
@@ -42,12 +43,6 @@ public class SingletonExecutable implements Executable {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < values.length; i++) {
-            sb.append(output.get(i));
-            sb.append("=");
-            sb.append(values[i]);
-        }
-        return sb.toString();
+        return NodeUtils.limitedToString(output) + "," + NodeUtils.limitedToString(List.of(values));
     }
 }

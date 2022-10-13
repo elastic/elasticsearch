@@ -1,0 +1,44 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':client:rest-high-level')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+}
+
+testClusters.matching { it.name == 'javaRestTest' }.configureEach {
+  testDistribution = 'DEFAULT'
+  numberOfNodes = 2
+
+  extraConfigFile 'node.key', file('src/javaRestTest/resources/ssl/node.key')
+  extraConfigFile 'node.crt', file('src/javaRestTest/resources/ssl/node.crt')
+  extraConfigFile 'ca.crt', file('src/javaRestTest/resources/ssl/ca.crt')
+  extraConfigFile 'service_tokens', file('src/javaRestTest/resources/service_tokens')
+
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+
+  setting 'xpack.security.http.ssl.enabled', 'true'
+  setting 'xpack.security.http.ssl.certificate', 'node.crt'
+  setting 'xpack.security.http.ssl.key', 'node.key'
+  setting 'xpack.security.http.ssl.certificate_authorities', 'ca.crt'
+
+  setting 'xpack.security.transport.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.certificate', 'node.crt'
+  setting 'xpack.security.transport.ssl.key', 'node.key'
+  setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
+  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+
+  keystore 'bootstrap.password', 'x-pack-test-password'
+  keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'node-password'
+  keystore 'xpack.security.http.ssl.secure_key_passphrase', 'node-password'
+
+  rolesFile file('src/javaRestTest/resources/roles.yml')
+  user username: "test_admin", password: 'x-pack-test-password'
+  user username: "elastic/fleet-server", password: 'x-pack-test-password', role: "superuser"
+  user username: "service_account_manager", password: 'x-pack-test-password', role: "service_account_manager"
+}

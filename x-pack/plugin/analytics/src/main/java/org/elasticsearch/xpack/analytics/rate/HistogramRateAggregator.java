@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -36,9 +36,9 @@ public class HistogramRateAggregator extends AbstractRateAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(ctx);
+        final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -51,17 +51,10 @@ public class HistogramRateAggregator extends AbstractRateAggregator {
                         double sum = sums.get(bucket);
                         double compensation = compensations.get(bucket);
                         kahanSummation.reset(sum, compensation);
-                        final double value;
-                        switch (rateMode) {
-                            case SUM:
-                                value = sketch.value();
-                                break;
-                            case VALUE_COUNT:
-                                value = sketch.count();
-                                break;
-                            default:
-                                throw new IllegalArgumentException("Unsupported rate mode " + rateMode);
-                        }
+                        final double value = switch (rateMode) {
+                            case SUM -> sketch.value();
+                            case VALUE_COUNT -> sketch.count();
+                        };
                         kahanSummation.add(value);
                         compensations.set(bucket, kahanSummation.delta());
                         sums.set(bucket, kahanSummation.value());

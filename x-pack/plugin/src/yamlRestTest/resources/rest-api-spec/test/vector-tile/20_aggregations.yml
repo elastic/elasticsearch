@@ -1,0 +1,201 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      index:
+        index:  locations
+        body:
+          location: POINT(34.25 -21.76)
+          value: 1
+
+  - do:
+      indices.refresh: {}
+
+---
+"min agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.min_value:
+              min:
+                field: value
+
+---
+"max agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.max_value:
+              max:
+                field: value
+---
+"avg agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.avg_value:
+              avg:
+                field: value
+
+---
+"sum agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.sum_value:
+              sum:
+                field: value
+
+---
+"cardinality agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.cardinality_value:
+              cardinality:
+                field: value
+
+---
+"value count agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.value_count_value:
+              value_count:
+                field: value
+
+---
+"median absolute deviation agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.median_absolute_deviation_value:
+              median_absolute_deviation:
+                field: value
+
+---
+"stats agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.stats_values:
+              stats:
+                field: value
+
+---
+"extended stats agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.extended_stats_values:
+              extended_stats:
+                field: value
+
+---
+"percentile agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.percentiles_values:
+              percentiles:
+                field: value
+
+---
+"percentile rank agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.percentile_ranks_values:
+              percentile_ranks:
+                field: value
+                values: [5, 10]
+
+---
+"boxplot deviation agg":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          aggs:
+            test.boxplot_values:
+              boxplot:
+                field: value

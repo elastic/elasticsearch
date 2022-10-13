@@ -40,8 +40,9 @@ public class CustomHighlighter implements Highlighter {
         }
 
         List<Text> responses = new ArrayList<>();
-        responses.add(new Text(String.format(Locale.ENGLISH, "standard response for %s at position %s", field.field(),
-                cacheEntry.position)));
+        responses.add(
+            new Text(String.format(Locale.ENGLISH, "standard response for %s at position %s", field.field(), cacheEntry.position))
+        );
 
         if (field.fieldOptions().options() != null) {
             for (Map.Entry<String, Object> entry : field.fieldOptions().options().entrySet()) {
@@ -49,7 +50,7 @@ public class CustomHighlighter implements Highlighter {
             }
         }
 
-        return new HighlightField(fieldContext.fieldName, responses.toArray(new Text[]{}));
+        return new HighlightField(fieldContext.fieldName, responses.toArray(new Text[] {}));
     }
 
     @Override

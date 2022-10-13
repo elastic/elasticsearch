@@ -8,23 +8,20 @@
 
 package org.elasticsearch.action.admin.indices.shards;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Response for {@link IndicesShardStoresAction}
@@ -70,21 +67,21 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             }
 
             private static AllocationStatus fromId(byte id) {
-                switch (id) {
-                    case 0: return PRIMARY;
-                    case 1: return REPLICA;
-                    case 2: return UNUSED;
-                    default: throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
-                }
+                return switch (id) {
+                    case 0 -> PRIMARY;
+                    case 1 -> REPLICA;
+                    case 2 -> UNUSED;
+                    default -> throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
+                };
             }
 
             public String value() {
-                switch (id) {
-                    case 0: return "primary";
-                    case 1: return "replica";
-                    case 2: return "unused";
-                    default: throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
-                }
+                return switch (id) {
+                    case 0 -> "primary";
+                    case 1 -> "replica";
+                    case 2 -> "unused";
+                    default -> throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
+                };
             }
 
             private static AllocationStatus readFrom(StreamInput in) throws IOException {
@@ -233,37 +230,32 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
     }
 
-    private final ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses;
+    private final Map<String, Map<Integer, List<StoreStatus>>> storeStatuses;
     private final List<Failure> failures;
 
-    public IndicesShardStoresResponse(ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses,
-                                      List<Failure> failures) {
+    public IndicesShardStoresResponse(Map<String, Map<Integer, List<StoreStatus>>> storeStatuses, List<Failure> failures) {
         this.storeStatuses = storeStatuses;
         this.failures = failures;
     }
 
     IndicesShardStoresResponse() {
-        this(ImmutableOpenMap.of(), Collections.emptyList());
+        this(Map.of(), Collections.emptyList());
     }
 
     public IndicesShardStoresResponse(StreamInput in) throws IOException {
         super(in);
-        storeStatuses = in.readImmutableMap(StreamInput::readString, i -> {
-            int indexEntries = i.readVInt();
-            ImmutableOpenIntMap.Builder<List<StoreStatus>> shardEntries = ImmutableOpenIntMap.builder();
-            for (int shardCount = 0; shardCount < indexEntries; shardCount++) {
-                shardEntries.put(i.readInt(), i.readList(StoreStatus::new));
-            }
-            return shardEntries.build();
-        });
-        failures = Collections.unmodifiableList(in.readList(Failure::readFailure));
+        storeStatuses = in.readImmutableMap(
+            StreamInput::readString,
+            i -> i.readImmutableMap(StreamInput::readInt, j -> j.readImmutableList(StoreStatus::new))
+        );
+        failures = in.readImmutableList(Failure::readFailure);
     }
 
     /**
      * Returns {@link StoreStatus}s
      * grouped by their index names and shard ids.
      */
-    public ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> getStoreStatuses() {
+    public Map<String, Map<Integer, List<StoreStatus>>> getStoreStatuses() {
         return storeStatuses;
     }
 
@@ -277,13 +269,11 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(storeStatuses, StreamOutput::writeString, (o, v) -> {
-            o.writeVInt(v.size());
-            for (IntObjectCursor<List<StoreStatus>> shardStatusesEntry : v) {
-                o.writeInt(shardStatusesEntry.key);
-                o.writeCollection(shardStatusesEntry.value);
-            }
-        });
+        out.writeMap(
+            storeStatuses,
+            StreamOutput::writeString,
+            (o, v) -> o.writeMap(v, StreamOutput::writeInt, StreamOutput::writeCollection)
+        );
         out.writeList(failures);
     }
 
@@ -298,14 +288,14 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         builder.startObject(Fields.INDICES);
-        for (ObjectObjectCursor<String, ImmutableOpenIntMap<List<StoreStatus>>> indexShards : storeStatuses) {
-            builder.startObject(indexShards.key);
+        for (Map.Entry<String, Map<Integer, List<StoreStatus>>> indexShards : storeStatuses.entrySet()) {
+            builder.startObject(indexShards.getKey());
 
             builder.startObject(Fields.SHARDS);
-            for (IntObjectCursor<List<StoreStatus>> shardStatusesEntry : indexShards.value) {
-                builder.startObject(String.valueOf(shardStatusesEntry.key));
+            for (Map.Entry<Integer, List<StoreStatus>> shardStatusesEntry : indexShards.getValue().entrySet()) {
+                builder.startObject(String.valueOf(shardStatusesEntry.getKey()));
                 builder.startArray(Fields.STORES);
-                for (StoreStatus storeStatus : shardStatusesEntry.value) {
+                for (StoreStatus storeStatus : shardStatusesEntry.getValue()) {
                     builder.startObject();
                     storeStatus.toXContent(builder, params);
                     builder.endObject();

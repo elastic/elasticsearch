@@ -1,0 +1,20 @@
+// tag::cloud[]
+When you create a cluster, {ess} automatically registers a default
+{cloud}/ec-snapshot-restore.html[`found-snapshots`] repository. This repository
+supports {search-snaps}.
+
+The `found-snapshots` repository is specific to your cluster. To use another
+cluster's default repository, see
+{cloud}/ec_share_a_repository_across_clusters.html[Share a repository across
+clusters].
+
+You can also use any of the following custom repository types with {search-snaps}:
+
+* {cloud}/ec-gcs-snapshotting.html[Google Cloud Storage (GCS)]
+* {cloud}/ec-azure-snapshotting.html[Azure Blob Storage]
+* {cloud}/ec-aws-custom-repository.html[Amazon Web Services (AWS)]
+// end::cloud[]
+
+// tag::self-managed[]
+include::{es-repo-dir}/searchable-snapshots/index.asciidoc[tag=searchable-snapshot-repo-types]
+// end::self-managed[]

@@ -7,22 +7,21 @@
 
 package org.elasticsearch.xpack.monitoring.rest.action;
 
-import java.io.IOException;
-import java.util.List;
-
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsRequest;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsResponse;
+
+import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -30,9 +29,7 @@ public class RestMonitoringMigrateAlertsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_monitoring/migrate/alerts")
-        );
+        return List.of(new Route(POST, "/_monitoring/migrate/alerts"));
     }
 
     @Override
@@ -50,7 +47,7 @@ public class RestMonitoringMigrateAlertsAction extends BaseRestHandler {
         return new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(MonitoringMigrateAlertsResponse response, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, response.toXContent(builder, ToXContent.EMPTY_PARAMS));
+                return new RestResponse(RestStatus.OK, response.toXContent(builder, ToXContent.EMPTY_PARAMS));
             }
         };
     }

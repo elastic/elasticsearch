@@ -9,20 +9,20 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -33,6 +33,7 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.junit.Before;
 
@@ -40,7 +41,9 @@ import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
@@ -94,28 +97,28 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         if (randomBoolean()) {
             request.concurrency(between(1, 5));
-            blobStore.ensureMaxWriteConcurrency(request.getConcurrency());
+            blobStore.setMaxWriteConcurrency(request.getConcurrency());
         }
 
         if (randomBoolean()) {
             request.blobCount(between(1, 100));
-            blobStore.ensureMaxBlobCount(request.getBlobCount());
+            blobStore.setMaxBlobCount(request.getBlobCount());
         }
 
         if (request.getBlobCount() > 3 || randomBoolean()) {
             // only use the default blob size of 10MB if writing a small number of blobs, since this is all in-memory
             request.maxBlobSize(new ByteSizeValue(between(1, 2048)));
-            blobStore.ensureMaxBlobSize(request.getMaxBlobSize().getBytes());
+            blobStore.setMaxBlobSize(request.getMaxBlobSize().getBytes());
         }
 
         if (usually()) {
             request.maxTotalDataSize(
                 new ByteSizeValue(request.getMaxBlobSize().getBytes() + request.getBlobCount() - 1 + between(0, 1 << 20))
             );
-            blobStore.ensureMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
+            blobStore.setMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
         }
 
-        request.timeout(TimeValue.timeValueSeconds(5));
+        request.timeout(TimeValue.timeValueSeconds(20));
 
         final RepositoryAnalyzeAction.Response response = client().execute(RepositoryAnalyzeAction.INSTANCE, request)
             .actionGet(30L, TimeUnit.SECONDS);
@@ -153,9 +156,9 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
     private static BlobPath buildBlobPath(Settings settings) {
         final String basePath = settings.get(BASE_PATH_SETTING_KEY);
         if (basePath == null) {
-            return BlobPath.cleanPath();
+            return BlobPath.EMPTY;
         } else {
-            return BlobPath.cleanPath().add(basePath);
+            return BlobPath.EMPTY.add(basePath);
         }
     }
 
@@ -236,19 +239,19 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public void close() {}
 
-        public void ensureMaxWriteConcurrency(int concurrency) {
+        public void setMaxWriteConcurrency(int concurrency) {
             this.writeSemaphore = new Semaphore(concurrency);
         }
 
-        public void ensureMaxBlobCount(int maxBlobCount) {
+        public void setMaxBlobCount(int maxBlobCount) {
             this.maxBlobCount = maxBlobCount;
         }
 
-        public void ensureMaxBlobSize(long maxBlobSize) {
+        public void setMaxBlobSize(long maxBlobSize) {
             this.maxBlobSize = maxBlobSize;
         }
 
-        public void ensureMaxTotalBlobSize(long maxTotalBlobSize) {
+        public void setMaxTotalBlobSize(long maxTotalBlobSize) {
             this.maxTotalBlobSize = maxTotalBlobSize;
         }
     }
@@ -326,6 +329,22 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
+        public void writeMetadataBlob(
+            String blobName,
+            boolean failIfAlreadyExists,
+            boolean atomic,
+            CheckedConsumer<OutputStream, IOException> writer
+        ) throws IOException {
+            final BytesStreamOutput out = new BytesStreamOutput();
+            writer.accept(out);
+            if (atomic) {
+                writeBlobAtomic(blobName, out.bytes(), failIfAlreadyExists);
+            } else {
+                writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+            }
+        }
+
+        @Override
         public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
             writeBlobAtomic(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
         }
@@ -363,15 +382,15 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
-            blobs.keySet().removeAll(blobNames);
+        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
+            blobNames.forEachRemaining(blobs.keySet()::remove);
         }
 
         @Override
         public Map<String, BlobMetadata> listBlobs() {
             return blobs.entrySet()
                 .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> new PlainBlobMetadata(e.getKey(), e.getValue().length)));
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> new BlobMetadata(e.getKey(), e.getValue().length)));
         }
 
         @Override

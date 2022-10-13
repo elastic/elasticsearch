@@ -68,9 +68,20 @@ public class ArrayUtils {
      * Concatenates 2 arrays
      */
     public static <T> T[] concat(T[] one, T[] other, Class<T> clazz) {
+        @SuppressWarnings("unchecked")
         T[] target = (T[]) Array.newInstance(clazz, one.length + other.length);
         System.arraycopy(one, 0, target, 0, one.length);
         System.arraycopy(other, 0, target, one.length, other.length);
         return target;
+    }
+
+    /**
+     * Concat a string to a string array.
+     */
+    public static String[] append(String[] array, String added) {
+        final String[] updated = new String[array.length + 1];
+        System.arraycopy(array, 0, updated, 0, array.length);
+        updated[array.length] = added;
+        return updated;
     }
 }

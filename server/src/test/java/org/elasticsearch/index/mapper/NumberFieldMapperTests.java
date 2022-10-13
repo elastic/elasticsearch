@@ -11,37 +11,45 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
-import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.math.BigInteger;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
-public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
+public abstract class NumberFieldMapperTests extends MapperTestCase {
 
-    @Override
-    protected Set<String> types() {
-        return Set.of("byte", "short", "integer", "long", "float", "double", "half_float");
-    }
+    /**
+     * @return a List of OutOfRangeSpec to test for this number type
+     */
+    protected abstract List<OutOfRangeSpec> outOfRangeSpecs();
 
-    @Override
-    protected Set<String> wholeTypes() {
-        return Set.of("byte", "short", "integer", "long");
-    }
+    /**
+     * @return an appropriate value to use for a missing value for this number type
+     */
+    protected abstract Number missingValue();
 
-    @Override
-    protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "long");
+    /**
+     * @return does this mapper allow index time scripts
+     */
+    protected boolean allowsIndexTimeScript() {
+        return false;
     }
 
     @Override
@@ -50,10 +58,20 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("coerce", false),
-            m -> assertFalse(((NumberFieldMapper) m).coerce()));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
+        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
+
+        if (allowsIndexTimeScript()) {
+            checker.registerConflictCheck("script", b -> b.field("script", "foo"));
+            checker.registerUpdateCheck(b -> {
+                minimalMapping(b);
+                b.field("script", "test");
+                b.field("on_script_error", "fail");
+            }, b -> {
+                minimalMapping(b);
+                b.field("script", "test");
+                b.field("on_script_error", "continue");
+            }, m -> assertThat((m).onScriptError, equalTo("continue")));
+        }
     }
 
     @Override
@@ -70,9 +88,16 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertParseMinimalWarnings();
     }
 
-    @Override
-    public void doTestDefaults(String type) throws Exception {
-        XContentBuilder mapping = fieldMapping(b -> b.field("type", type));
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
+    public void testDefaults() throws Exception {
+        XContentBuilder mapping = fieldMapping(this::minimalMapping);
         DocumentMapper mapper = createDocumentMapper(mapping);
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
@@ -89,9 +114,11 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertFalse(dvField.fieldType().stored());
     }
 
-    @Override
-    public void doTestNotIndexed(String type) throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type).field("index", false)));
+    public void testNotIndexed() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -100,9 +127,11 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
     }
 
-    @Override
-    public void doTestNoDocValues(String type) throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type).field("doc_values", false)));
+    public void testNoDocValues() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -112,9 +141,11 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
     }
 
-    @Override
-    public void doTestStore(String type) throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type).field("store", true)));
+    public void testStore() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("store", true);
+        }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -129,9 +160,8 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(123, storedField.numericValue().doubleValue(), 0d);
     }
 
-    @Override
-    public void doTestCoerce(String type) throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
+    public void testCoerce() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "123")));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -142,40 +172,27 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
 
-        DocumentMapper mapper2 = createDocumentMapper(fieldMapping(b -> b.field("type", type).field("coerce", false)));
+        DocumentMapper mapper2 = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("coerce", false);
+        }));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper2.parse(source(b -> b.field("field", "123"))));
         assertThat(e.getCause().getMessage(), containsString("passed as String"));
     }
 
     @Override
-    protected void doTestDecimalCoerce(String type) throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "7.89")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        IndexableField pointField = fields[0];
-        assertEquals(7, pointField.numericValue().doubleValue(), 0d);
+    protected boolean supportsIgnoreMalformed() {
+        return true;
     }
 
-    public void testIgnoreMalformed() throws Exception {
-        for (String type : types()) {
-            DocumentMapper notIgnoring = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
-            DocumentMapper ignoring = createDocumentMapper(fieldMapping(b -> b.field("type", type).field("ignore_malformed", true)));
-            for (Object malformedValue : new Object[] { "a", Boolean.FALSE }) {
-                SourceToParse source = source(b -> b.field("field", malformedValue));
-                MapperParsingException e = expectThrows(MapperParsingException.class, () -> notIgnoring.parse(source));
-                if (malformedValue instanceof String) {
-                    assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
-                } else {
-                    assertThat(e.getCause().getMessage(), containsString("Current token"));
-                    assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
-                }
-
-                ParsedDocument doc = ignoring.parse(source);
-                IndexableField[] fields = doc.rootDoc().getFields("field");
-                assertEquals(0, fields.length);
-                assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
-            }
-        }
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue("a").errorMatches("For input string: \"a\""),
+            exampleMalformedValue(b -> b.value(false)).errorMatches(
+                both(containsString("Current token")).and(containsString("not numeric, can not use numeric value accessors"))
+            )
+        );
     }
 
     /**
@@ -183,27 +200,27 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
      */
     public void testIgnoreMalformedWithObject() throws Exception {
         SourceToParse malformed = source(b -> b.startObject("field").field("foo", "bar").endObject());
-        for (String type : types()) {
-            for (Boolean ignoreMalformed : new Boolean[] { true, false }) {
-                DocumentMapper mapper = createDocumentMapper(
-                    fieldMapping(b -> b.field("type", type).field("ignore_malformed", ignoreMalformed))
-                );
-                MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(malformed));
-                assertThat(e.getCause().getMessage(), containsString("Current token"));
-                assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
-            }
+        for (Boolean ignoreMalformed : new Boolean[] { true, false }) {
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("ignore_malformed", ignoreMalformed);
+            }));
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(malformed));
+            assertThat(e.getCause().getMessage(), containsString("Cannot parse object as number"));
         }
     }
 
-    @Override
-    protected void doTestNullValue(String type) throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
+    protected void testNullValue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(b -> b.nullField("field"));
         ParsedDocument doc = mapper.parse(source);
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
-        Object missing = Arrays.asList("float", "double", "half_float").contains(type) ? 123d : 123L;
-        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type).field("null_value", missing)));
+        Number missing = missingValue();
+        mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("null_value", missing);
+        }));
         doc = mapper.parse(source);
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -217,74 +234,218 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     public void testOutOfRangeValues() throws IOException {
-        final List<OutOfRangeSpec> inputs = Arrays.asList(
-            OutOfRangeSpec.of(NumberType.BYTE, "128", "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "is out of range for an integer"),
-            OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
-            OutOfRangeSpec.of(NumberType.LONG, "1e999999999", "out of range for a long"),
-
-            OutOfRangeSpec.of(NumberType.BYTE, "-129", "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, "-2147483649", "is out of range for an integer"),
-            OutOfRangeSpec.of(NumberType.LONG, "-9223372036854775809", "out of range for a long"),
-            OutOfRangeSpec.of(NumberType.LONG, "-1e999999999", "out of range for a long"),
-
-            OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of int"),
-            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
-
-            OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of int"),
-            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long"),
-
-            OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.FLOAT, "3.4028235E39", "[float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.DOUBLE, "1.7976931348623157E309", "[double] supports only finite values"),
-
-            OutOfRangeSpec.of(NumberType.HALF_FLOAT, "-65520", "[half_float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.FLOAT, "-3.4028235E39", "[float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.DOUBLE, "-1.7976931348623157E309", "[double] supports only finite values"),
-
-            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.FLOAT, Float.NaN, "[float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.DOUBLE, Double.NaN, "[double] supports only finite values"),
-
-            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.FLOAT, Float.POSITIVE_INFINITY, "[float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.DOUBLE, Double.POSITIVE_INFINITY, "[double] supports only finite values"),
-
-            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.NEGATIVE_INFINITY, "[half_float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.FLOAT, Float.NEGATIVE_INFINITY, "[float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.DOUBLE, Double.NEGATIVE_INFINITY, "[double] supports only finite values")
-        );
-
-        for(OutOfRangeSpec item: inputs) {
+        for (OutOfRangeSpec item : outOfRangeSpecs()) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", item.type.typeName())));
-            try {
-                mapper.parse(source(item::write));
-                fail("Mapper parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
-            } catch (MapperParsingException e) {
-                assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
-                    e.getCause().getMessage(), containsString(item.message));
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(item::write)));
+            assertThat(
+                "Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                e.getCause().getMessage(),
+                containsString(item.message)
+            );
+        }
+    }
+
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        // dimension = false is allowed
+        assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
+
+        // dimension = true is not allowed
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Parameter [time_series_dimension] cannot be set"));
+    }
+
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+
+        assertMetricType("gauge", NumberFieldMapper.NumberFieldType::getMetricType);
+        assertMetricType("counter", NumberFieldMapper.NumberFieldType::getMetricType);
+
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "histogram");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [histogram] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "unknown");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+    }
+
+    public void testMetricAndDocvalues() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "counter").field("doc_values", false);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
+    }
+
+    @Override
+    protected final Object generateRandomInputValue(MappedFieldType ft) {
+        Number n = randomNumber();
+        return randomBoolean() ? n : n.toString();
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+                if (context == LongFieldScript.CONTEXT) {
+                    return (T) LongFieldScript.PARSE_FROM_SOURCE;
+                }
+                if (context == DoubleFieldScript.CONTEXT) {
+                    return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
+                }
+                throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+            }
+
+            @Override
+            ScriptFactory emptyFieldScript() {
+                return null;
+            }
+
+            @Override
+            ScriptFactory nonEmptyFieldScript() {
+                return null;
+            }
+        };
+    }
+
+    public void testScriptableTypes() throws IOException {
+        if (allowsIndexTimeScript()) {
+            createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("script", "foo");
+            }));
+        } else {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("script", "foo");
+            })));
+            assertEquals("Failed to parse mapping: Unknown parameter [script] for mapper [field]", e.getMessage());
+        }
+    }
+
+    public void testAllowMultipleValuesField() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+
+        Mapper mapper = mapperService.mappingLookup().getMapper("field");
+        if (mapper instanceof NumberFieldMapper numberFieldMapper) {
+            numberFieldMapper.setAllowMultipleValues(false);
+        } else {
+            fail("mapper [" + mapper.getClass() + "] error, not number field");
+        }
+
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));
+    }
+
+    protected abstract Number randomNumber();
+
+    protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final Long nullValue = usually() ? null : randomNumber().longValue();
+        private final boolean coerce = rarely();
+
+        private final Function<Number, Number> round;
+        private final boolean ignoreMalformed;
+
+        protected NumberSyntheticSourceSupport(Function<Number, Number> round, boolean ignoreMalformed) {
+            this.round = round;
+            this.ignoreMalformed = ignoreMalformed;
+        }
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            if (randomBoolean()) {
+                Tuple<Object, Object> v = generateValue();
+                if (v.v2()instanceof Number n) {
+                    return new SyntheticSourceExample(v.v1(), round.apply(n), this::mapping);
+                }
+                // ignore_malformed value
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<Object, Object>> values = randomList(1, maxVals, this::generateValue);
+            List<Object> in = values.stream().map(Tuple::v1).toList();
+            List<Object> outList = values.stream()
+                .filter(v -> v.v2() instanceof Number)
+                .map(t -> round.apply((Number) t.v2()))
+                .sorted()
+                .collect(Collectors.toCollection(ArrayList::new));
+            values.stream().filter(v -> false == v.v2() instanceof Number).map(v -> v.v2()).forEach(outList::add);
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<Object, Object> generateValue() {
+            if (ignoreMalformed && randomBoolean()) {
+                List<Supplier<Object>> choices = List.of(() -> "a" + randomAlphaOfLength(3), ESTestCase::randomBoolean);
+                Object v = randomFrom(choices).get();
+                return Tuple.tuple(v, v);
+            }
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            Number n = randomNumber();
+            Object in = n;
+            Number out = n;
+            if (coerce && randomBoolean()) {
+                in = in.toString();
+            }
+            return Tuple.tuple(in, out);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            minimalMapping(b);
+            if (coerce) {
+                b.field("coerce", true);
+            }
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+            if (ignoreMalformed) {
+                b.field("ignore_malformed", true);
             }
         }
 
-        // the following two strings are in-range for a long after coercion
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long")));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "9223372036854775807.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
-        doc = mapper.parse(source(b -> b.field("field", "-9223372036854775808.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
-    }
-
-    public void testLongIndexingOutOfRange() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long").field("ignore_malformed", true)));
-        ParsedDocument doc = mapper.parse(
-            source(b -> b.rawField("field", new BytesArray("9223372036854775808").streamInput(), XContentType.JSON))
-        );
-        assertEquals(0, doc.rootDoc().getFields("field").length);
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
+                    b -> {
+                        minimalMapping(b);
+                        b.field("doc_values", false);
+                    }
+                )
+            );
+        }
     }
 }

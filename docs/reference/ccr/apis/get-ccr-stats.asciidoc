@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ccr-get-stats]]
 === Get {ccr} stats API
 [subs="attributes"]

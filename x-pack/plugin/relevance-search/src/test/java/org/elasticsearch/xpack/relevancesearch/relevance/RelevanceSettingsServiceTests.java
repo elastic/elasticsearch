@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.relevancesearch.relevance;
 
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.relevancesearch.relevance.boosts.AbstractScriptScoreBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.FunctionalBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ProximityBoost;
-import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ScriptScoreBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ValueBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettings;
 import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
@@ -28,7 +28,6 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         service = getInstanceFromNode(RelevanceSettingsService.class);
-        createIndex(RelevanceSettingsService.ENT_SEARCH_INDEX);
     }
 
     public void testParseFields() throws Exception {
@@ -62,9 +61,9 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
             )
         );
         RelevanceSettings settings = service.getRelevanceSettings(settingsId);
-        Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
+        Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
-        Map<String, List<ScriptScoreBoost>> expected = Collections.singletonMap(
+        Map<String, List<AbstractScriptScoreBoost>> expected = Collections.singletonMap(
             "world_heritage_site",
             Collections.singletonList(new ValueBoost("true", "multiply", 10f))
         );
@@ -87,9 +86,9 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
             )
         );
         RelevanceSettings settings = service.getRelevanceSettings(settingsId);
-        Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
+        Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
-        Map<String, List<ScriptScoreBoost>> expected = Collections.singletonMap(
+        Map<String, List<AbstractScriptScoreBoost>> expected = Collections.singletonMap(
             "visitors",
             Collections.singletonList(new FunctionalBoost("linear", "add", 5f))
         );
@@ -112,9 +111,9 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
             )
         );
         RelevanceSettings settings = service.getRelevanceSettings(settingsId);
-        Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
+        Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
-        Map<String, List<ScriptScoreBoost>> expected = Collections.singletonMap(
+        Map<String, List<AbstractScriptScoreBoost>> expected = Collections.singletonMap(
             "location",
             Collections.singletonList(new ProximityBoost("25.32, -80.93", "gaussian", 5f))
         );
@@ -144,9 +143,9 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
             )
         );
         RelevanceSettings settings = service.getRelevanceSettings(settingsId);
-        Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
+        Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
-        Map<String, List<ScriptScoreBoost>> expected = Map.of(
+        Map<String, List<AbstractScriptScoreBoost>> expected = Map.of(
             "location",
             Collections.singletonList(new ProximityBoost("25.32, -80.93", "gaussian", 5f)),
             "visitors",
@@ -179,9 +178,9 @@ public class RelevanceSettingsServiceTests extends ESSingleNodeTestCase {
             )
         );
         RelevanceSettings settings = service.getRelevanceSettings(settingsId);
-        Map<String, List<ScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
+        Map<String, List<AbstractScriptScoreBoost>> actual = settings.getQueryConfiguration().getScriptScores();
 
-        Map<String, List<ScriptScoreBoost>> expected = Map.of(
+        Map<String, List<AbstractScriptScoreBoost>> expected = Map.of(
             "visitors",
             List.of(new FunctionalBoost("linear", "add", 5f), new FunctionalBoost("logarithmic", "multiply", 3f))
         );

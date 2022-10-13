@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 
 import java.util.Objects;
 
-public class ValueBoost extends ScriptScoreBoost {
+public class ValueBoost extends AbstractScriptScoreBoost {
     private final String value;
     private Float factor;
 

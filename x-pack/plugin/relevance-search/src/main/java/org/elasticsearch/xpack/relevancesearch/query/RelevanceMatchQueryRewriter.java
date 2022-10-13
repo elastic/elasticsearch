@@ -51,16 +51,19 @@ public class RelevanceMatchQueryRewriter {
         this.queryFieldsResolver = queryFieldsResolver;
     }
 
+    private static String retrieveScriptSource(QueryConfiguration queryConfiguration) {
+        if (queryConfiguration != null) {
+            return queryConfiguration.getScriptSource();
+        }
+        return null;
+    }
+
     public Query rewriteQuery(RelevanceMatchQueryBuilder relevanceMatchQueryBuilder, SearchExecutionContext context) throws IOException {
         final QueryConfiguration queryConfiguration = getQueryConfiguration(relevanceMatchQueryBuilder.getRelevanceSettingsId());
 
         Map<String, Float> fieldsAndBoosts = retrieveFieldsAndBoosts(queryConfiguration, context);
         QueryBuilder queryBuilder = new CombinedFieldsQueryBuilder(relevanceMatchQueryBuilder.getQuery(), fieldsAndBoosts);
-
-        String scriptSource = retrieveScriptSource(queryConfiguration);
-        if (scriptSource != null) {
-            queryBuilder = QueryBuilders.scriptScoreQuery(queryBuilder, new Script(scriptSource));
-        }
+        queryBuilder = applyScriptScoring(queryConfiguration, queryBuilder);
         return applyCurations(queryBuilder, relevanceMatchQueryBuilder).toQuery(context);
     }
 
@@ -111,11 +114,12 @@ public class RelevanceMatchQueryRewriter {
         }
     }
 
-    private String retrieveScriptSource(QueryConfiguration queryConfiguration) {
-        if (queryConfiguration != null) {
-            return queryConfiguration.getScriptSource();
+    private QueryBuilder applyScriptScoring(QueryConfiguration queryConfiguration, QueryBuilder queryBuilder) {
+        String scriptSource = retrieveScriptSource(queryConfiguration);
+        if (scriptSource != null) {
+            queryBuilder = QueryBuilders.scriptScoreQuery(queryBuilder, new Script(scriptSource));
         }
-        return null;
+        return queryBuilder;
     }
 
     private Map<String, Float> retrieveFieldsAndBoosts(QueryConfiguration queryConfiguration, SearchExecutionContext context) {

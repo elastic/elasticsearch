@@ -17,7 +17,7 @@ import java.text.ParseException;
 import java.util.Locale;
 import java.util.Objects;
 
-public class ProximityBoost extends ScriptScoreBoost {
+public class ProximityBoost extends AbstractScriptScoreBoost {
     private final DateMathParser dateParser = DateFormatter.forPattern("date_optional_time||epoch_millis").toDateMathParser();
 
     private final String center;
@@ -26,36 +26,12 @@ public class ProximityBoost extends ScriptScoreBoost {
 
     public static final String TYPE = "proximity";
 
-    public enum JsDecayFunction {
-        decayNumericLinear,
-        decayNumericExp,
-        decayNumericGauss,
-        decayGeoLinear,
-        decayGeoExp,
-        decayGeoGauss,
-        decayDateLinear,
-        decayDateExp,
-        decayDateGauss
-    }
-
-    public enum CenterType {
-        Numeric,
-        Geo,
-        Date
-    }
-
-    public enum FunctionType {
-        linear,
-        exponential,
-        gaussian
-    }
-
     private CenterType centerType = null;
 
     public ProximityBoost(String center, String function, Float factor) {
-        super(TYPE, OperationType.add.toString());
+        super(TYPE, OperationType.ADD.toString());
         this.center = center;
-        this.function = FunctionType.valueOf(function);
+        this.function = FunctionType.valueOf(function.toUpperCase(Locale.ROOT));
         this.factor = factor;
         this.setCenterType();
     }
@@ -63,23 +39,15 @@ public class ProximityBoost extends ScriptScoreBoost {
     public void setCenterType() {
         centerType = null;
         if (isNumber()) {
-            centerType = CenterType.Numeric;
-            return;
-        }
-        if (isDate()) {
-            centerType = CenterType.Date;
-            return;
-        }
-        if (isGeo()) {
-            centerType = CenterType.Geo;
+            centerType = CenterType.NUMERIC;
+        } else if (isDate()) {
+            centerType = CenterType.DATE;
+        } else if (isGeo()) {
+            centerType = CenterType.GEO;
         }
     }
 
-    private NumberFormat getNumberFormat() {
-        return NumberFormat.getInstance(Locale.ROOT);
-    }
-
-    public boolean isGeo() {
+    boolean isGeo() {
         try {
             GeoUtils.parseFromString(center);
             return true;
@@ -88,7 +56,7 @@ public class ProximityBoost extends ScriptScoreBoost {
         }
     }
 
-    public boolean isNumber() {
+    boolean isNumber() {
         try {
             Double.valueOf(center);
             return true;
@@ -104,13 +72,49 @@ public class ProximityBoost extends ScriptScoreBoost {
         return false;
     }
 
-    public boolean isDate() {
+    private NumberFormat getNumberFormat() {
+        return NumberFormat.getInstance(Locale.ROOT);
+    }
+
+    boolean isDate() {
         try {
             dateParser.parse(center, () -> 0);
             return true;
         } catch (ElasticsearchParseException e) {
             return false;
         }
+    }
+
+    @Override
+    public String getSource(String field) {
+        try {
+            switch (this.centerType) {
+                case NUMERIC -> {
+                    return getNumericSource(field);
+                }
+                case GEO -> {
+                    return getGeoSource(field);
+                }
+                case DATE -> {
+                    return getDateSource(field);
+                }
+            }
+        } catch (ParseException e) {
+            return null;
+        }
+        return null;
+    }
+
+    private String getNumericSource(String field) throws ParseException {
+        Double scale = Math.max(Math.abs(getNumericCenter().doubleValue() / 2f), 1f);
+        String funcCall = format(
+            "{0}({1}, {2}, 0.0, 0.5, doc[''{3}''].value)",
+            getFunctionName(),
+            center, // origin
+            scale,
+            field
+        );
+        return format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
     }
 
     public String getCenter() {
@@ -152,54 +156,10 @@ public class ProximityBoost extends ScriptScoreBoost {
         return Objects.hash(type, center, function, factor);
     }
 
-    @Override
-    public String getSource(String field) {
-        try {
-            switch (this.centerType) {
-                case Numeric -> {
-                    return getNumericSource(field);
-                }
-                case Geo -> {
-                    return getGeoSource(field);
-                }
-                case Date -> {
-                    return getDateSource(field);
-                }
-            }
-        } catch (Exception e) {
-            return null;
-        }
-        return null;
-    }
-
-    private String getNumericSource(String field) throws ParseException {
-        Double scale = Math.max(Math.abs(getNumericCenter().doubleValue() / 2f), 1f);
-        JsDecayFunction jsFunc = JsDecayFunction.decayNumericLinear;
-        switch (this.function) {
-            case linear -> jsFunc = JsDecayFunction.decayNumericLinear;
-            case exponential -> jsFunc = JsDecayFunction.decayNumericExp;
-            case gaussian -> jsFunc = JsDecayFunction.decayNumericGauss;
-        }
-        String funcCall = format(
-            "{0}({1}, {2}, 0.0, 0.5, doc[''{3}''].value)",
-            jsFunc,
-            center, // origin
-            scale,
-            field
-        );
-        return format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
-    }
-
     private String getGeoSource(String field) {
-        JsDecayFunction jsFunc = JsDecayFunction.decayGeoLinear;
-        switch (this.function) {
-            case linear -> jsFunc = JsDecayFunction.decayGeoLinear;
-            case exponential -> jsFunc = JsDecayFunction.decayGeoExp;
-            case gaussian -> jsFunc = JsDecayFunction.decayGeoGauss;
-        }
         String funcCall = format(
             "{0}(''{1}'', ''{2}'', ''0km'', 0.5, doc[''{3}''].value)",
-            jsFunc,
+            getFunctionName(),
             center, // origin
             "1km",
             field
@@ -208,19 +168,49 @@ public class ProximityBoost extends ScriptScoreBoost {
     }
 
     private String getDateSource(String field) {
-        JsDecayFunction jsFunc = JsDecayFunction.decayDateLinear;
-        switch (this.function) {
-            case linear -> jsFunc = JsDecayFunction.decayDateLinear;
-            case exponential -> jsFunc = JsDecayFunction.decayDateExp;
-            case gaussian -> jsFunc = JsDecayFunction.decayDateGauss;
-        }
         String funcCall = format(
             "{0}(''{1}'', ''{2}'', ''0'', 0.5, doc[''{3}''].value)",
-            jsFunc,
+            getFunctionName(),
             getDateCenter(), // origin
             "1d",
             field
         );
         return format("{0} * ((doc[''{1}''].size() > 0) ? {2} : {3})", getFactor(), field, funcCall, constantFactor());
+    }
+
+    private String getFunctionName() {
+        return "decay" + centerType.getName() + function.getName();
+    }
+
+    public enum CenterType {
+        NUMERIC("Numeric"),
+        GEO("Geo"),
+        DATE("Date");
+
+        private final String name;
+
+        CenterType(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+    }
+
+    public enum FunctionType {
+        LINEAR("Linear"),
+        EXPONENTIAL("Exp"),
+        GAUSSIAN("Gauss");
+
+        private final String name;
+
+        FunctionType(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
     }
 }

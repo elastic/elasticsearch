@@ -7,24 +7,28 @@
 
 package org.elasticsearch.xpack.relevancesearch.relevance.boosts;
 
+import java.util.Locale;
 import java.util.Objects;
 
-public class FunctionalBoost extends ScriptScoreBoost {
+public class FunctionalBoost extends AbstractScriptScoreBoost {
     private final FunctionType function;
     private final Float factor;
 
     public static final String TYPE = "functional";
 
-    public enum FunctionType {
-        logarithmic,
-        exponential,
-        linear
-    }
-
     public FunctionalBoost(String function, String operation, Float factor) {
         super(TYPE, operation);
-        this.function = FunctionType.valueOf(function);
+        this.function = FunctionType.valueOf(function.toUpperCase(Locale.ROOT));
         this.factor = factor;
+    }
+
+    @Override
+    public String getSource(String field) {
+        return switch (function) {
+            case LOGARITHMIC -> format("{0} * Math.max(0.0001, Math.log(Math.max(0.0001, {1})))", factor, safeLogValue(field));
+            case EXPONENTIAL -> format("{0} * Math.exp({1})", factor, safeValue(field));
+            case LINEAR -> format("{0} * ({1})", factor, safeValue(field));
+        };
     }
 
     public FunctionType getFunction() {
@@ -51,13 +55,10 @@ public class FunctionalBoost extends ScriptScoreBoost {
         return Objects.hash(type, function, operation, factor);
     }
 
-    @Override
-    public String getSource(String field) {
-        return switch (function) {
-            case logarithmic -> format("{0} * Math.max(0.0001, Math.log(Math.max(0.0001, {1})))", factor, safeLogValue(field));
-            case exponential -> format("{0} * Math.exp({1})", factor, safeValue(field));
-            case linear -> format("{0} * ({1})", factor, safeValue(field));
-        };
+    public enum FunctionType {
+        LOGARITHMIC,
+        EXPONENTIAL,
+        LINEAR
     }
 
     private String safeLogValue(String field) {

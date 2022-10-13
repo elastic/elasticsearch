@@ -43,13 +43,19 @@ public abstract class AbstractSettingsService<S extends Settings> implements Set
 
     protected abstract String getSettingsPrefix();
 
-    public static class SettingsNotFoundException extends Exception {
+    public static class SettingsServiceException extends Exception {
+        public SettingsServiceException(String message) {
+            super(message);
+        }
+    }
+
+    public static class SettingsNotFoundException extends SettingsServiceException {
         public SettingsNotFoundException(String message) {
             super(message);
         }
     }
 
-    public static class InvalidSettingsException extends Exception {
+    public static class InvalidSettingsException extends SettingsServiceException {
         public InvalidSettingsException(String message) {
             super(message);
         }

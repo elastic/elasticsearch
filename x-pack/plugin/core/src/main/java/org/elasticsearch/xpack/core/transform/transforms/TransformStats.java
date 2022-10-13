@@ -14,21 +14,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Used as a wrapper for the objects returned from the stats endpoint.
@@ -53,34 +47,6 @@ public class TransformStats implements Writeable, ToXContentObject {
     private final TransformIndexerStats indexerStats;
     private final TransformCheckpointingInfo checkpointingInfo;
     private final TransformHealth health;
-
-    public static final ConstructingObjectParser<TransformStats, Void> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        true,
-        a -> new TransformStats(
-            (String) a[0],
-            (State) a[1],
-            (String) a[2],
-            (NodeAttributes) a[3],
-            (TransformIndexerStats) a[4],
-            (TransformCheckpointingInfo) a[5],
-            (TransformHealth) a[6]
-        )
-    );
-
-    static {
-        PARSER.declareString(constructorArg(), TransformField.ID);
-        PARSER.declareField(constructorArg(), p -> TransformStats.State.fromString(p.text()), STATE_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareString(optionalConstructorArg(), REASON_FIELD);
-        PARSER.declareField(optionalConstructorArg(), NodeAttributes.PARSER::apply, NODE_FIELD, ObjectParser.ValueType.OBJECT);
-        PARSER.declareObject(constructorArg(), (p, c) -> TransformIndexerStats.fromXContent(p), TransformField.STATS_FIELD);
-        PARSER.declareObject(constructorArg(), (p, c) -> TransformCheckpointingInfo.fromXContent(p), CHECKPOINTING_INFO_FIELD);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> TransformHealth.fromXContent(p), HEALTH_FIELD);
-    }
-
-    public static TransformStats fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
 
     public static TransformStats initialStats(String id) {
         return stoppedStats(id, new TransformIndexerStats());

@@ -11,63 +11,32 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 public class TransformHealthIssue implements Writeable, ToXContentObject {
 
-    public static final String NAME = "data_frame_transform_health_issue";
+    private static final String ISSUE = "issue";
+    private static final String DETAILS = "details";
+    private static final String COUNT = "count";
+    private static final String FIRST_OCCURRENCE = "first_occurrence";
+    private static final String FIRST_OCCURRENCE_HUMAN_READABLE = FIRST_OCCURRENCE + "_string";
 
     private final String issue;
     private final String details;
     private final int count;
     private final Instant firstOccurrence;
 
-    public static final ParseField ISSUE = new ParseField("issue");
-    public static final ParseField DETAILS = new ParseField("details");
-    public static final ParseField COUNT = new ParseField("count");
-    public static final ParseField FIRST_OCCURRENCE = new ParseField("first_occurrence");
-
-    public static final ConstructingObjectParser<TransformHealthIssue, Void> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        true,
-        a -> new TransformHealthIssue((String) a[0], (String) a[1], (Integer) a[2], (Instant) a[3])
-    );
-
-    static {
-        PARSER.declareString(constructorArg(), ISSUE);
-        PARSER.declareString(optionalConstructorArg(), DETAILS);
-        PARSER.declareIntOrNull(optionalConstructorArg(), 1, COUNT);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            p -> TimeUtils.parseTimeFieldToInstant(p, FIRST_OCCURRENCE.getPreferredName()),
-            FIRST_OCCURRENCE,
-            ObjectParser.ValueType.VALUE
-        );
-    }
-
-    public static TransformHealthIssue fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
-
     public TransformHealthIssue(String issue, String details, int count, Instant firstOccurrence) {
         this.issue = Objects.requireNonNull(issue);
         this.details = details;
         if (count < 1) {
-            throw new IllegalArgumentException("[count] must be greater than 1, got: " + count);
+            throw new IllegalArgumentException("[count] must be at least 1, got: " + count);
         }
         this.count = count;
         this.firstOccurrence = firstOccurrence != null ? firstOccurrence.truncatedTo(ChronoUnit.MILLIS) : null;
@@ -99,17 +68,13 @@ public class TransformHealthIssue implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ISSUE.getPreferredName(), issue);
+        builder.field(ISSUE, issue);
         if (Strings.isNullOrEmpty(details) == false) {
-            builder.field(DETAILS.getPreferredName(), details);
+            builder.field(DETAILS, details);
         }
-        builder.field(COUNT.getPreferredName(), count);
+        builder.field(COUNT, count);
         if (firstOccurrence != null) {
-            builder.timeField(
-                FIRST_OCCURRENCE.getPreferredName(),
-                FIRST_OCCURRENCE.getPreferredName() + "_string",
-                firstOccurrence.toEpochMilli()
-            );
+            builder.timeField(FIRST_OCCURRENCE, FIRST_OCCURRENCE_HUMAN_READABLE, firstOccurrence.toEpochMilli());
         }
         return builder.endObject();
     }

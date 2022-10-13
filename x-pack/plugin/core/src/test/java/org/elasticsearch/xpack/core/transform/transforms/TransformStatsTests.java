@@ -8,13 +8,9 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-import java.util.function.Predicate;
-
-public class TransformStatsTests extends AbstractXContentSerializingTestCase<TransformStats> {
+public class TransformStatsTests extends AbstractWireSerializingTestCase<TransformStats> {
 
     public static TransformStats randomTransformStats() {
         return new TransformStats(
@@ -29,11 +25,6 @@ public class TransformStatsTests extends AbstractXContentSerializingTestCase<Tra
     }
 
     @Override
-    protected TransformStats doParseInstance(XContentParser parser) throws IOException {
-        return TransformStats.fromXContent(parser);
-    }
-
-    @Override
     protected TransformStats createTestInstance() {
         return randomTransformStats();
     }
@@ -42,20 +33,4 @@ public class TransformStatsTests extends AbstractXContentSerializingTestCase<Tra
     protected Reader<TransformStats> instanceReader() {
         return TransformStats::new;
     }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    @Override
-    protected String[] getShuffleFieldsExceptions() {
-        return new String[] { "position" };
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.isEmpty() == false;
-    }
-
 }

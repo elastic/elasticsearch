@@ -9,23 +9,15 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
-public class TransformHealthTests extends AbstractXContentSerializingTestCase<TransformHealth> {
+public class TransformHealthTests extends AbstractWireSerializingTestCase<TransformHealth> {
 
     public static TransformHealth randomTransformHealth() {
         return new TransformHealth(
             randomFrom(HealthStatus.values()),
             randomBoolean() ? null : randomList(1, 10, TransformHealthIssueTests::randomTransformHealthIssue)
         );
-    }
-
-    @Override
-    protected TransformHealth doParseInstance(XContentParser parser) throws IOException {
-        return TransformHealth.fromXContent(parser);
     }
 
     @Override
@@ -36,10 +28,5 @@ public class TransformHealthTests extends AbstractXContentSerializingTestCase<Tr
     @Override
     protected TransformHealth createTestInstance() {
         return randomTransformHealth();
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
     }
 }

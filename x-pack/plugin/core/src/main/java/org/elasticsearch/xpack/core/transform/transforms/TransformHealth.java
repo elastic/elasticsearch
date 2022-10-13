@@ -12,52 +12,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 public class TransformHealth implements Writeable, ToXContentObject {
-
-    public static final String NAME = "data_frame_transform_health";
 
     public static final TransformHealth GREEN = new TransformHealth(HealthStatus.GREEN, null);
 
     public static final TransformHealth UNKNOWN = new TransformHealth(HealthStatus.UNKNOWN, null);
 
-    public static final ParseField STATUS = new ParseField("status");
-    public static final ParseField ISSUES = new ParseField("issues");
-
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<TransformHealth, Void> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        true,
-        a -> new TransformHealth((HealthStatus) a[0], (List<TransformHealthIssue>) a[1])
-    );
-
-    static {
-        PARSER.declareField(
-            constructorArg(),
-            p -> HealthStatus.valueOf(p.text().toUpperCase(Locale.ROOT)),
-            STATUS,
-            ObjectParser.ValueType.STRING
-        );
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> TransformHealthIssue.fromXContent(p), ISSUES);
-    }
-
-    public static TransformHealth fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
+    private static final String STATUS = "status";
+    private static final String ISSUES = "issues";
 
     private final HealthStatus status;
     private final List<TransformHealthIssue> issues;
@@ -83,9 +52,9 @@ public class TransformHealth implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(STATUS.getPreferredName(), status.xContentValue());
+        builder.field(STATUS, status.xContentValue());
         if (issues != null && issues.isEmpty() == false) {
-            builder.field(ISSUES.getPreferredName(), issues);
+            builder.field(ISSUES, issues);
         }
 
         return builder.endObject();

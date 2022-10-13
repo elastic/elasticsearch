@@ -183,7 +183,6 @@ that the {transform} is failing to keep up.
 
 `first_occurrence`::
     (Optional, date) The timestamp this issue occured for the first time.
-+
 
 ====
 //End health

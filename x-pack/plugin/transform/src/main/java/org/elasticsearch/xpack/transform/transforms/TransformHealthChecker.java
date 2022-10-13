@@ -34,24 +34,24 @@ public final class TransformHealthChecker {
         );
     }
 
-    public static TransformHealth checkTransform(TransformTask transformtask) {
+    public static TransformHealth checkTransform(TransformTask transformTask) {
         // quick check
-        if (TransformTaskState.FAILED.equals(transformtask.getState().getTaskState()) == false
-            && transformtask.getContext().getFailureCount() == 0
-            && transformtask.getContext().getStatePersistenceFailureCount() == 0) {
+        if (TransformTaskState.FAILED.equals(transformTask.getState().getTaskState()) == false
+            && transformTask.getContext().getFailureCount() == 0
+            && transformTask.getContext().getStatePersistenceFailureCount() == 0) {
             return TransformHealth.GREEN;
         }
 
-        final TransformContext transformContext = transformtask.getContext();
+        final TransformContext transformContext = transformTask.getContext();
         List<TransformHealthIssue> issues = new ArrayList<>();
         HealthStatus maxStatus = HealthStatus.GREEN;
 
-        if (TransformTaskState.FAILED.equals(transformtask.getState().getTaskState())) {
+        if (TransformTaskState.FAILED.equals(transformTask.getState().getTaskState())) {
             maxStatus = HealthStatus.RED;
             issues.add(
                 new TransformHealthIssue(
                     "Transform task state is [failed]",
-                    transformtask.getState().getReason(),
+                    transformTask.getState().getReason(),
                     1,
                     transformContext.getStateFailureTime()
                 )

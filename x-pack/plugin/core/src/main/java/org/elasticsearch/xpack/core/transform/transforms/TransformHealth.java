@@ -56,7 +56,6 @@ public class TransformHealth implements Writeable, ToXContentObject {
         if (issues != null && issues.isEmpty() == false) {
             builder.field(ISSUES, issues);
         }
-
         return builder.endObject();
     }
 

@@ -466,6 +466,24 @@ public class ExpressionTests extends ESTestCase {
         }
     }
 
+    public void testMultipleProjectPatterns() {
+        EsqlProject p = projectExpression("abc, xyz*, -foo, x=y, -bar, *");
+        List<?> projections = p.projections();
+        List<?> removals = p.removals();
+        assertThat(projections.size(), equalTo(4));
+        assertThat(removals.size(), equalTo(2));
+        assertThat(projections.get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) projections.get(0)).name(), equalTo("abc"));
+        assertThat(projections.get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) projections.get(1)).name(), equalTo("xyz*"));
+        assertThat(projections.get(2), instanceOf(Alias.class));
+        assertThat(projections.get(3), instanceOf(UnresolvedStar.class));
+        assertThat(removals.get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) removals.get(0)).name(), equalTo("-foo"));
+        assertThat(removals.get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) removals.get(1)).name(), equalTo("-bar"));
+    }
+
     public void testForbidWildcardProjectRename() {
         assertParsingException(
             () -> projectExpression("a*=b*"),

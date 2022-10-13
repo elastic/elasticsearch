@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedNamedExpression;
+import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -130,7 +130,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         for (EsqlBaseParser.ProjectClauseContext clause : ctx.projectClause()) {
             NamedExpression ne = this.visitProjectClause(clause);
-            if (ne instanceof UnresolvedNamedExpression == false && ne.name().startsWith(MINUS)) {
+            if (ne instanceof UnresolvedStar == false && ne.name().startsWith(MINUS)) {
                 if (ne.name().substring(1).equals(WILDCARD)) {// forbid "-*" kind of expression
                     throw new ParsingException(ne.source(), "Removing all fields is not allowed [{}]", ne.source().text());
                 }

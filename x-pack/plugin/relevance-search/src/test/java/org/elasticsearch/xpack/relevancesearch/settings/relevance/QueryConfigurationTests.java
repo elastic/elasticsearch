@@ -28,10 +28,7 @@ public class QueryConfigurationTests extends ESTestCase {
     public void testParsingFieldsAndBoostsWithInvalidBoost() {
         List<String> fields = List.of("foo^bar");
         QueryConfiguration queryConfiguration = new QueryConfiguration();
-        expectThrows(
-            RelevanceSettingsService.InvalidSettingsException.class,
-            () -> queryConfiguration.parseFieldsAndBoosts(fields)
-        );
+        expectThrows(RelevanceSettingsService.InvalidSettingsException.class, () -> queryConfiguration.parseFieldsAndBoosts(fields));
     }
 
 }

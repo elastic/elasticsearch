@@ -36,9 +36,7 @@ public class QueryConfiguration {
                     )
                 );
         } catch (NumberFormatException e) {
-            throw new RelevanceSettingsService.InvalidSettingsException(
-                "Invalid boost detected in relevance settings, must be numeric"
-            );
+            throw new RelevanceSettingsService.InvalidSettingsException("Invalid boost detected in relevance settings, must be numeric");
         }
     }
 }

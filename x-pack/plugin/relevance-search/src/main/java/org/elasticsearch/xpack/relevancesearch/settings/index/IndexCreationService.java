@@ -48,7 +48,6 @@ public class IndexCreationService implements ClusterStateListener {
         clusterService.addListener(this);
     }
 
-
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {

@@ -169,7 +169,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             return noopUpdateCount;
         }
 
-        public double getWriteLoadAverage() {
+        public double getWriteLoad() {
             return writeLoad;
         }
 

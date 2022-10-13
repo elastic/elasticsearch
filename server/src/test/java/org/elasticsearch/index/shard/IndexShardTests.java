@@ -4646,7 +4646,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         fakeClock.setSimulatedElapsedRelativeTime(TimeValue.ZERO);
         final IndexingStats indexingStatsBeforeIndexingDocs = replicaShard.indexingStats();
-        assertThat(indexingStatsBeforeIndexingDocs.getTotal().getWriteLoadAverage(), is(equalTo(0.0)));
+        assertThat(indexingStatsBeforeIndexingDocs.getTotal().getWriteLoad(), is(equalTo(0.0)));
 
         // Now simulate that each operation takes 1 second to complete.
         fakeClock.setSimulatedElapsedRelativeTime(TimeValue.timeValueSeconds(1));
@@ -4663,8 +4663,9 @@ public class IndexShardTests extends IndexShardTestCase {
             );
         }
 
+        fakeClock.setSimulatedElapsedRelativeTime(TimeValue.ZERO);
         final IndexingStats indexingStatsAfterIndexingDocs = replicaShard.indexingStats();
-        assertThat(indexingStatsAfterIndexingDocs.getTotal().getWriteLoadAverage(), is(equalTo(1.0)));
+        assertThat(indexingStatsAfterIndexingDocs.getTotal().getWriteLoad(), is(equalTo(1.0)));
 
         closeShards(primary, replicaShard);
     }

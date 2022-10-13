@@ -207,7 +207,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         refreshPolicy.writeTo(out);
         out.writeGenericMap(metadata);
         if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
-            out.writeOptionalCollection(remoteIndicesPrivileges);
+            out.writeCollection(remoteIndicesPrivileges);
         }
     }
 

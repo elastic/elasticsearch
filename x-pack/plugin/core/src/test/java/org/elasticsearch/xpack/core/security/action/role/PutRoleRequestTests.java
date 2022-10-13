@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
@@ -180,7 +181,7 @@ public class PutRoleRequestTests extends ESTestCase {
             assertThat(actual, equalTo(expected));
         } else {
             RoleDescriptorTests.assertRoleDescriptorsEqualExcludingRemoteIndices(actual, expected);
-            assertThat(actual.getRemoteIndicesPrivileges(), nullValue());
+            assertThat(actual.getRemoteIndicesPrivileges(), emptyArray());
         }
     }
 

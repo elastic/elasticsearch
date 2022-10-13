@@ -128,7 +128,7 @@ public class TransformStats implements Writeable, ToXContentObject {
         this.indexerStats = new TransformIndexerStats(in);
         this.checkpointingInfo = new TransformCheckpointingInfo(in);
 
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
             if (in.readBoolean()) {
                 this.health = new TransformHealth(in);
             } else {
@@ -172,7 +172,7 @@ public class TransformStats implements Writeable, ToXContentObject {
         }
         indexerStats.writeTo(out);
         checkpointingInfo.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
             if (health != null) {
                 out.writeBoolean(true);
                 health.writeTo(out);

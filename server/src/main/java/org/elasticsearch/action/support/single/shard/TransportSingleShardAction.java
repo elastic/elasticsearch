@@ -9,6 +9,7 @@
 package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -25,7 +26,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Nullable;
@@ -33,9 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -173,22 +171,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     clusterService.localNode(),
                     transportShardAction,
                     internalRequest.request(),
-                    new TransportResponseHandler<Response>() {
-                        @Override
-                        public Response read(StreamInput in) throws IOException {
-                            return reader.read(in);
-                        }
-
-                        @Override
-                        public void handleResponse(final Response response) {
-                            listener.onResponse(response);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            listener.onFailure(exp);
-                        }
-                    }
+                    new ActionListenerResponseHandler<>(listener, reader)
                 );
             } else {
                 perform(null);
@@ -241,23 +224,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     node,
                     transportShardAction,
                     internalRequest.request(),
-                    new TransportResponseHandler<Response>() {
-
-                        @Override
-                        public Response read(StreamInput in) throws IOException {
-                            return reader.read(in);
-                        }
-
-                        @Override
-                        public void handleResponse(final Response response) {
-                            listener.onResponse(response);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            onFailure(shardRouting, exp);
-                        }
-                    }
+                    new ActionListenerResponseHandler<>(listener, reader)
                 );
             }
         }

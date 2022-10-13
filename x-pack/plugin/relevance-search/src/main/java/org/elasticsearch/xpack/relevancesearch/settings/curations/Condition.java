@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.relevancesearch.relevance.curations;
+package org.elasticsearch.xpack.relevancesearch.settings.curations;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;

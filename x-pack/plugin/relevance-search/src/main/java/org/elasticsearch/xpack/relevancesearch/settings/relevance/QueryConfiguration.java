@@ -5,10 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.relevancesearch.relevance;
+package org.elasticsearch.xpack.relevancesearch.settings.relevance;
 
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 
 import java.util.List;
 import java.util.Map;
@@ -26,7 +25,7 @@ public class QueryConfiguration {
         this.fieldsAndBoosts = fieldsAndBoosts;
     }
 
-    public void parseFieldsAndBoosts(List<String> inputFields) throws RelevanceSettingsService.RelevanceSettingsInvalidException {
+    public void parseFieldsAndBoosts(List<String> inputFields) throws RelevanceSettingsService.InvalidSettingsException {
         try {
             this.fieldsAndBoosts = inputFields.stream()
                 .map(s -> s.split("\\^"))
@@ -37,9 +36,7 @@ public class QueryConfiguration {
                     )
                 );
         } catch (NumberFormatException e) {
-            throw new RelevanceSettingsService.RelevanceSettingsInvalidException(
-                "Invalid boost detected in relevance settings, must be numeric"
-            );
+            throw new RelevanceSettingsService.InvalidSettingsException("Invalid boost detected in relevance settings, must be numeric");
         }
     }
 }

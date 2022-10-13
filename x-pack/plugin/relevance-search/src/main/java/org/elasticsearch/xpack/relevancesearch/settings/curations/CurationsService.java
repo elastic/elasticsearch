@@ -5,9 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.relevancesearch.relevance.curations;
+package org.elasticsearch.xpack.relevancesearch.settings.curations;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.xpack.relevancesearch.settings.AbstractSettingsService;
 
 import java.util.Collections;
 import java.util.List;
@@ -16,9 +17,8 @@ import java.util.Map;
 /**
  * Manage relevance settings, retrieving and updating the corresponding documents in .ent-search index
  */
-public class CurationsService {
+public class CurationsService extends AbstractSettingsService<CurationSettings> {
 
-    public static final String ENT_SEARCH_INDEX = ".ent-search";
     public static final String CURATIONS_SETTINGS_PREFIX = "curations-";
     private static final String CONDITIONS_FIELD = "conditions";
     private static final String PINNED_DOCS_FIELD = "pinned_document_ids";
@@ -28,26 +28,11 @@ public class CurationsService {
     private static final String ID_ATTR = "_id";
     private static final String INDEX_ATTR = "_index";
 
-    private final Client client;
-
     public CurationsService(final Client client) {
-        this.client = client;
+        super(client);
     }
 
-    public CurationSettings getCurationsSettings(String curationId) throws CurationsSettingsNotFoundException {
-        // TODO cache relevance settings, including cache invalidation
-        final Map<String, Object> settingsContent = client.prepareGet(ENT_SEARCH_INDEX, CURATIONS_SETTINGS_PREFIX + curationId)
-            .get()
-            .getSource();
-
-        if (settingsContent == null) {
-            throw new CurationsSettingsNotFoundException("Curation settings " + curationId + " not found");
-        }
-
-        return parseCurationSettings(settingsContent);
-    }
-
-    private CurationSettings parseCurationSettings(Map<String, Object> source) throws IllegalArgumentException {
+    protected CurationSettings parseSettings(Map<String, Object> source) throws IllegalArgumentException {
         // TODO Probably worth to take a look into document mappers in case they can be used for parsing
         // see org/elasticsearch/index/mapper/DocumentParser.java
 
@@ -83,9 +68,13 @@ public class CurationsService {
         return Condition.buildCondition((String) sourceCondition.get(CONTEXT_ATTR), (String) sourceCondition.get(VALUE_ATTR));
     }
 
-    public static class CurationsSettingsNotFoundException extends Exception {
-        public CurationsSettingsNotFoundException(String message) {
-            super(message);
-        }
+    @Override
+    protected String getName() {
+        return "Curation";
+    }
+
+    @Override
+    protected String getSettingsPrefix() {
+        return CURATIONS_SETTINGS_PREFIX;
     }
 }

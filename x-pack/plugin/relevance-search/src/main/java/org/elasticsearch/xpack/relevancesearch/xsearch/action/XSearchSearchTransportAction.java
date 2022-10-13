@@ -38,7 +38,7 @@ public class XSearchSearchTransportAction extends HandledTransportAction<XSearch
 
     @Override
     protected void doExecute(Task task, XSearchSearchAction.Request request, ActionListener<XSearchSearchAction.Response> listener) {
-        // TODO - Translate the Xsearch query into a relevance query here
-
+        listener.onResponse(new XSearchSearchAction.Response("hello world"));
+        listener.onFailure(new UnsupportedOperationException("oh no!"));
     }
 }

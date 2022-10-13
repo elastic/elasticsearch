@@ -153,7 +153,7 @@ public class XSearchSearchAction extends ActionType<XSearchSearchAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field("hello world");
+            builder.field("response", response);
             builder.endObject();
             return builder;
         }

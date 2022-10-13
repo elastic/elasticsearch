@@ -68,6 +68,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     private static final String IMPACT_INGEST_AT_RISK_ID = "ingest_capability_at_risk";
     private static final String IMPACT_CLUSTER_STABILITY_AT_RISK_ID = "cluster_stability_at_risk";
     private static final String IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID = "cluster_functionality_unavailable";
+    private static final String IMPACT_DATA_NODE_WITHOUT_DISK_SPACE = "data_node_without_disk_space";
 
     private final ClusterService clusterService;
 
@@ -292,6 +293,26 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         )
                     );
                 }
+                // data nodes don't have space, but no indices had the write block in the cluster
+                if (hasUnhealthyDataNodes()) {
+                    impacts.add(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            IMPACT_INGEST_AT_RISK_ID,
+                            2,
+                            String.format(
+                                Locale.ROOT,
+                                "%d %s %s out of disk or running low on disk space. %s %s cannot be used to store data anymore.",
+                                dataNodes.size(),
+                                regularNoun("node", dataNodes.size()),
+                                are(dataNodes.size()),
+                                these(dataNodes.size()),
+                                regularNoun("node", dataNodes.size())
+                            ),
+                            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+                        )
+                    );
+                }
             }
             if (affectedRoles.contains(DiscoveryNodeRole.MASTER_ROLE)) {
                 impacts.add(
@@ -344,28 +365,44 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     );
                     affectedResources.add(indexResources);
                 }
-                diagnosisList.add(
-                    new Diagnosis(
-                        new Diagnosis.Definition(
-                            NAME,
-                            "add_disk_capacity_data_nodes",
-                            String.format(
-                                Locale.ROOT,
-                                "%d %s %s on nodes that have run or are likely to run out of disk space, "
-                                    + "this can temporarily disable writing on %s %s.",
-                                affectedIndices.size(),
-                                indices(affectedIndices.size()),
-                                regularVerb("reside", affectedIndices.size()),
-                                these(affectedIndices.size()),
-                                indices(affectedIndices.size())
+                if (affectedIndices.size() > 0) {
+                    diagnosisList.add(
+                        new Diagnosis(
+                            new Diagnosis.Definition(
+                                NAME,
+                                "add_disk_capacity_data_nodes",
+                                String.format(
+                                    Locale.ROOT,
+                                    "%d %s %s on nodes that have run or are likely to run out of disk space, "
+                                        + "this can temporarily disable writing on %s %s.",
+                                    affectedIndices.size(),
+                                    indices(affectedIndices.size()),
+                                    regularVerb("reside", affectedIndices.size()),
+                                    these(affectedIndices.size()),
+                                    indices(affectedIndices.size())
+                                ),
+                                "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
+                                    + "this. If you have already taken action please wait for the rebalancing to complete.",
+                                "https://ela.st/fix-data-disk"
                             ),
-                            "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
-                                + "this. If you have already taken action please wait for the rebalancing to complete.",
-                            "https://ela.st/fix-data-disk"
-                        ),
-                        affectedResources
-                    )
-                );
+                            affectedResources
+                        )
+                    );
+                } else {
+                    diagnosisList.add(
+                        new Diagnosis(
+                            new Diagnosis.Definition(
+                                NAME,
+                                "add_disk_capacity_data_nodes",
+                                "Disk is almost full.",
+                                "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
+                                    + "this. If you have already taken action please wait for the rebalancing to complete.",
+                                "https://ela.st/fix-data-disk"
+                            ),
+                            affectedResources
+                        )
+                    );
+                }
             }
             if (masterNodes.containsKey(HealthStatus.RED)) {
                 diagnosisList.add(createNonDataNodeDiagnosis(HealthStatus.RED, masterNodes.get(HealthStatus.RED), true));

@@ -206,17 +206,15 @@ public class SearchCancellationTests extends ESTestCase {
         cancelled.set(false); // Avoid exception during construction of the wrapper objects
         VectorValues vectorValues = searcher.getIndexReader().leaves().get(0).reader().getVectorValues(KNN_FIELD_NAME);
         cancelled.set(true);
+        // On the first doc when already canceled, it throws
         expectThrows(TaskCancelledException.class, vectorValues::nextDoc);
-        expectThrows(TaskCancelledException.class, vectorValues::vectorValue);
-        expectThrows(TaskCancelledException.class, vectorValues::binaryValue);
 
         cancelled.set(false); // Avoid exception during construction of the wrapper objects
         VectorValues uncancelledVectorValues = searcher.getIndexReader().leaves().get(0).reader().getVectorValues(KNN_FIELD_NAME);
         cancelled.set(true);
         searcher.removeQueryCancellation(cancellation);
+        // On the first doc when already canceled, it throws, but with the cancellation removed, it should not
         uncancelledVectorValues.nextDoc();
-        uncancelledVectorValues.vectorValue();
-        uncancelledVectorValues.binaryValue();
     }
 
     private static class PointValuesIntersectVisitor implements PointValues.IntersectVisitor {

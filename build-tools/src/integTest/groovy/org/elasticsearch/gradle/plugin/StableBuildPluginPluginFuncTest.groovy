@@ -46,17 +46,18 @@ class StableBuildPluginPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":pluginProperties").outcome == TaskOutcome.SUCCESS
-        props.get("classname") == null
 
         props.get("name") == "myplugin"
         props.get("version") == "1.2.3"
         props.get("description") == "test plugin"
-        props.get("modulename") == ""
         props.get("java.version") == Integer.toString(Runtime.version().feature())
         props.get("elasticsearch.version") == VersionProperties.elasticsearchVersion.toString()
-        props.get("extended.plugins") == ""
-        props.get("has.native.controller") == "false"
-        props.size() == 8
+
+        props.get("classname") == null
+        props.get("modulename") == null
+        props.get("extended.plugins") == null
+        props.get("has.native.controller") == null
+        props.size() == 5
 
     }
 

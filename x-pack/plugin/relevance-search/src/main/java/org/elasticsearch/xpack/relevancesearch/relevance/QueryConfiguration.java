@@ -8,12 +8,11 @@
 package org.elasticsearch.xpack.relevancesearch.relevance;
 
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.xpack.relevancesearch.relevance.boosts.ScriptScoreBoost;
+import org.elasticsearch.xpack.relevancesearch.relevance.boosts.AbstractScriptScoreBoost;
 import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
 
 import java.text.MessageFormat;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -23,7 +22,7 @@ public class QueryConfiguration {
 
     private Map<String, Float> fieldsAndBoosts;
 
-    public Map<String, List<ScriptScoreBoost>> scriptScores;
+    public Map<String, List<AbstractScriptScoreBoost>> scriptScores;
 
     public Map<String, Float> getFieldsAndBoosts() {
         return fieldsAndBoosts;
@@ -33,7 +32,7 @@ public class QueryConfiguration {
         this.fieldsAndBoosts = fieldsAndBoosts;
     }
 
-    public Map<String, List<ScriptScoreBoost>> getScriptScores() {
+    public Map<String, List<AbstractScriptScoreBoost>> getScriptScores() {
         return scriptScores;
     }
 
@@ -41,15 +40,15 @@ public class QueryConfiguration {
         if (scores == null) {
             return;
         }
-        Map<String, List<ScriptScoreBoost>> result = new HashMap<>();
-        for (String field : scores.keySet()) {
-            List<ScriptScoreBoost> fieldScores = new ArrayList<>();
-            for (Map<String, Object> boostProps : scores.get(field)) {
-                fieldScores.add(ScriptScoreBoost.parse(boostProps));
-            }
-            result.put(field, fieldScores);
-        }
-        this.scriptScores = result;
+
+        this.scriptScores = scores.entrySet()
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> e.getValue().stream().map(AbstractScriptScoreBoost::parse).collect(Collectors.toList())
+                )
+            );
     }
 
     public void parseFieldsAndBoosts(List<String> inputFields) throws RelevanceSettingsService.RelevanceSettingsInvalidException {
@@ -88,7 +87,7 @@ public class QueryConfiguration {
     public List<String> additiveScriptSources() {
         List<String> scriptSources = new ArrayList<>();
         for (String field : this.scriptScores.keySet()) {
-            for (ScriptScoreBoost boost : this.scriptScores.get(field)) {
+            for (AbstractScriptScoreBoost boost : this.scriptScores.get(field)) {
                 if (boost.isAdditive()) {
                     scriptSources.add(boost.getSource(field));
                 }
@@ -100,7 +99,7 @@ public class QueryConfiguration {
     public List<String> multiplicativeScriptSources() {
         List<String> scriptSources = new ArrayList<>();
         for (String field : this.scriptScores.keySet()) {
-            for (ScriptScoreBoost boost : this.scriptScores.get(field)) {
+            for (AbstractScriptScoreBoost boost : this.scriptScores.get(field)) {
                 if (boost.isMultiplicative()) {
                     scriptSources.add(boost.getSource(field));
                 }

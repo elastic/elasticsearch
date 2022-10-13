@@ -95,10 +95,8 @@ public class RelevanceMatchQueryRewriter {
                 RelevanceSettings relevanceSettings = relevanceSettingsService.getSettings(relevanceSettingsId);
                 QueryConfiguration queryConfiguration = relevanceSettings.getQueryConfiguration();
                 fieldsAndBoosts = queryConfiguration.getFieldsAndBoosts();
-            } catch (RelevanceSettingsService.SettingsNotFoundException e) {
-                throw new IllegalArgumentException("[relevance_match] query can't find search settings: " + relevanceSettingsId);
-            } catch (RelevanceSettingsService.InvalidSettingsException e) {
-                throw new IllegalArgumentException("[relevance_match] invalid relevance search settings for: " + relevanceSettingsId);
+            } catch (AbstractSettingsService.SettingsServiceException e) {
+                throw new IllegalArgumentException("[relevance_match] " + e.getMessage());
             }
         } else {
             Collection<String> fields = queryFieldsResolver.getQueryFields(context);
@@ -121,10 +119,8 @@ public class RelevanceMatchQueryRewriter {
                     queryBuilder = applyExcludedDocs(queryBuilder, curationSettings);
                 }
 
-            } catch (CurationsService.SettingsNotFoundException e) {
-                throw new IllegalArgumentException("[relevance_match] query cannot find curation settings: " + curationsSettingsId);
-            } catch (AbstractSettingsService.InvalidSettingsException e) {
-                throw new IllegalArgumentException("[relevance_match] invalid curation settings for: " + curationsSettingsId);
+            } catch (AbstractSettingsService.SettingsServiceException e) {
+                throw new IllegalArgumentException("[relevance_match] " + e.getMessage());
             }
         }
 

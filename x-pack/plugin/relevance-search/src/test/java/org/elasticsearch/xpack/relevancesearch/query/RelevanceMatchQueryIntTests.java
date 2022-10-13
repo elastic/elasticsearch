@@ -225,7 +225,7 @@ public class RelevanceMatchQueryIntTests extends ESSingleNodeTestCase {
 
         final SearchRequestBuilder searchRequestBuilder = client().prepareSearch(DOCUMENTS_INDEX).setQuery(relevanceMatchQueryBuilder);
 
-        final String expectedMsg = "[relevance_match] query can't find search settings: " + relevanceSettingsId;
+        final String expectedMsg = "[relevance_match] Relevance settings non-existing-settings not found";
         assertFailures(searchRequestBuilder, RestStatus.BAD_REQUEST, containsString(expectedMsg));
     }
 

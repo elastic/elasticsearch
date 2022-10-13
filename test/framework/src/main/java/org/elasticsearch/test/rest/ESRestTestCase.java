@@ -71,6 +71,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
+import javax.net.ssl.SSLContext;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -103,8 +104,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
@@ -1751,6 +1750,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
         request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
+        request.setJsonEntity("""
+            {
+              "indices": "*,-.ent-search"
+            }
+            """);
 
         final Response response = restClient.performRequest(request);
         assertThat(

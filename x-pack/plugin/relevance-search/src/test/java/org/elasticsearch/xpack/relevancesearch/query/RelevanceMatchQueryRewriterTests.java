@@ -18,6 +18,7 @@ import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.xpack.relevancesearch.settings.AbstractSettingsService;
 import org.elasticsearch.xpack.relevancesearch.settings.curations.Condition;
 import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationSettings;
+import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsGroup;
 import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsService;
 import org.elasticsearch.xpack.relevancesearch.settings.relevance.QueryConfiguration;
 import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettings;
@@ -41,7 +42,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
     private static final String HIDDEN_DOC_1_ID = "hiddenDoc1";
     private static final String HIDDEN_DOC_2_ID = "hiddenDoc2";
     private static final String HIDDEN_INDEX = "index2";
-    private static final String CURATION_SETTINGS_ID = "test-curation-settings";
+    private static final String CURATION_SETTINGS_GROUP_ID = "test-curation-settings";
     private static final String RELEVANCE_SETTINGS_ID = "test-relevance-settings";
     private static final String FIELD_1 = "field1";
     private static final String FIELD_2 = "field2";
@@ -219,7 +220,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
     private void setCurationsSettings(boolean withPinnedDocs, boolean withHiddenDocs, String queryToMatch)
         throws CurationsService.SettingsNotFoundException, AbstractSettingsService.InvalidSettingsException {
 
-        queryBuilder.setCurationsSettingsId(CURATION_SETTINGS_ID);
+        queryBuilder.setCurationsSettingsId(CURATION_SETTINGS_GROUP_ID);
 
         List<CurationSettings.DocumentReference> pinnedDocs = Collections.emptyList();
         if (withPinnedDocs) {
@@ -242,9 +243,15 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
             new Condition.QueryCondition(queryToMatch)
         );
 
-        CurationSettings curationSettings = new CurationSettings(pinnedDocs, hiddenDocs, conditions);
+        CurationSettings otherCurationSettings = new CurationSettings(
+            Collections.emptyList(),
+            Collections.emptyList(),
+            List.of((new Condition.QueryCondition("other query")))
+        );
+        CurationSettings matchingCurationSettings = new CurationSettings(pinnedDocs, hiddenDocs, conditions);
+        CurationsGroup curationsGroup = new CurationsGroup(List.of(otherCurationSettings, matchingCurationSettings));
 
-        when(curationsService.getSettings(CURATION_SETTINGS_ID)).thenReturn(curationSettings);
+        when(curationsService.getSettings(CURATION_SETTINGS_GROUP_ID)).thenReturn(curationsGroup);
     }
 
 }

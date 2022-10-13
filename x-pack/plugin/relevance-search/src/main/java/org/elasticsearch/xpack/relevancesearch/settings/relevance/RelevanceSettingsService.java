@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.relevancesearch.settings.relevance;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.relevancesearch.settings.AbstractSettingsService;
+import org.elasticsearch.xpack.relevancesearch.settings.index.IndexCreationService;
 
 import java.util.List;
 import java.util.Map;
@@ -24,7 +26,7 @@ public class RelevanceSettingsService extends AbstractSettingsService<RelevanceS
         super(client);
     }
 
-    protected RelevanceSettings parseSettings(Map<String, Object> source) throws InvalidSettingsException {
+    private static RelevanceSettings parseSettings(Map<String, Object> source) throws InvalidSettingsException {
 
         RelevanceSettings relevanceSettings = new RelevanceSettings();
         QueryConfiguration relevanceSettingsQueryConfiguration = new QueryConfiguration();
@@ -49,12 +51,21 @@ public class RelevanceSettingsService extends AbstractSettingsService<RelevanceS
     }
 
     @Override
-    protected String getName() {
-        return "Relevance";
-    }
+    public RelevanceSettings getSettings(String settingsId) throws SettingsNotFoundException, InvalidSettingsException {
+        {
+            // TODO cache relevance settings, including cache invalidation
+            Map<String, Object> settingsContent = null;
+            try {
+                settingsContent = client.prepareGet(ENT_SEARCH_INDEX, RELEVANCE_SETTINGS_PREFIX + settingsId).get().getSource();
+            } catch (IndexNotFoundException e) {
+                IndexCreationService.ensureInternalIndex(client);
+            }
 
-    @Override
-    protected String getSettingsPrefix() {
-        return RELEVANCE_SETTINGS_PREFIX;
+            if (settingsContent == null) {
+                throw new SettingsNotFoundException("Relevance settings " + settingsId + " not found");
+            }
+
+            return parseSettings(settingsContent);
+        }
     }
 }

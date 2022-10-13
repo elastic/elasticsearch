@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.relevancesearch.settings.curations;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.settings.Settings;
 
 import java.util.List;
@@ -32,6 +33,10 @@ public record CurationSettings(List<DocumentReference> pinnedDocs, List<Document
             this.index = index;
         }
 
+    }
+
+    public boolean match(RelevanceMatchQueryBuilder relevanceMatchQueryBuilder) {
+        return conditions().stream().anyMatch(c -> c.match(relevanceMatchQueryBuilder));
     }
 
 }

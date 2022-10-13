@@ -115,9 +115,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final Map<String, MappedFieldType> runtimeMappings;
     private Predicate<String> allowedFields;
 
-    /**
-     * Build a {@linkplain SearchExecutionContext}.
-     */
+    private final String searchEngineName;
+
     public SearchExecutionContext(
         int shardId,
         int shardRequestIndex,
@@ -142,6 +141,56 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this(
             shardId,
             shardRequestIndex,
+            null,
+            indexSettings,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            mappingLookup,
+            similarityService,
+            scriptService,
+            parserConfiguration,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            runtimeMappings
+        );
+    }
+
+    /**
+     * Build a {@linkplain SearchExecutionContext}.
+     */
+    public SearchExecutionContext(
+        int shardId,
+        int shardRequestIndex,
+        String searchEngineName,
+        IndexSettings indexSettings,
+        BitsetFilterCache bitsetFilterCache,
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        MappingLookup mappingLookup,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        XContentParserConfiguration parserConfiguration,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        Map<String, Object> runtimeMappings
+    ) {
+        this(
+            shardId,
+            shardRequestIndex,
+            searchEngineName,
             indexSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
@@ -170,6 +219,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this(
             source.shardId,
             source.shardRequestIndex,
+            source.searchEngineName,
             source.indexSettings,
             source.bitsetFilterCache,
             source.indexFieldDataLookup,
@@ -194,6 +244,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private SearchExecutionContext(
         int shardId,
         int shardRequestIndex,
+        String searchEngineName,
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
@@ -216,6 +267,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         super(parserConfig, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
+        this.searchEngineName = searchEngineName;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
         this.mappingLookup = mappingLookup;
@@ -624,6 +676,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public int getShardId() {
         return shardId;
+    }
+
+    /**
+     * Returns the search engine name this context was created for.
+     */
+    public String getSearchEngineName() {
+        return searchEngineName;
     }
 
     /**

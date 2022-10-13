@@ -155,7 +155,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
 
     @Override
     protected Query doToQuery(final SearchExecutionContext context) throws IOException {
-        return queryRewriter.rewriteQuery(this, context);
+        return queryRewriter.rewriteQuery(this, context).toQuery(context);
     }
 
     String getCurationsSettingsId() {

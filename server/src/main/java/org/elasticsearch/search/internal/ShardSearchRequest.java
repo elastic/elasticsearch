@@ -90,6 +90,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     private final Version channelVersion;
 
+    @Nullable
+    private final String searchEngineName;
+
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
      * Use this to test if the mapping supports synthetic _source and to get a sense
@@ -143,6 +146,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             shardRequestIndex,
             numberOfShards,
             searchRequest.searchType(),
+            searchRequest.searchEngineName(),
             searchRequest.source(),
             searchRequest.requestCache(),
             aliasFilter,
@@ -186,6 +190,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             SearchType.QUERY_THEN_FETCH,
             null,
             null,
+            null,
             aliasFilter,
             1.0f,
             true,
@@ -206,6 +211,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         int shardRequestIndex,
         int numberOfShards,
         SearchType searchType,
+        String searchEngineName,
         SearchSourceBuilder source,
         Boolean requestCache,
         AliasFilter aliasFilter,
@@ -240,6 +246,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.waitForCheckpoint = waitForCheckpoint;
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
         this.forceSyntheticSource = forceSyntheticSource;
+        this.searchEngineName = searchEngineName;
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {
@@ -264,6 +271,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.waitForCheckpoint = clone.waitForCheckpoint;
         this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
         this.forceSyntheticSource = clone.forceSyntheticSource;
+        this.searchEngineName = clone.searchEngineName;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -323,6 +331,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
              */
             forceSyntheticSource = false;
         }
+
+        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            searchEngineName = in.readOptionalString();
+        } else {
+            searchEngineName = null;
+        }
+
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -388,6 +403,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                 throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
             }
         }
+
+        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            out.writeOptionalString(searchEngineName);
+        }
     }
 
     @Override
@@ -412,6 +431,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public SearchSourceBuilder source() {
         return source;
+    }
+
+    public String getSearchEngineName() {
+        return searchEngineName;
     }
 
     public AliasFilter getAliasFilter() {

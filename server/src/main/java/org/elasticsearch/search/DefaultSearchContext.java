@@ -164,6 +164,7 @@ final class DefaultSearchContext extends SearchContext {
         searchExecutionContext = indexService.newSearchExecutionContext(
             request.shardId().id(),
             request.shardRequestIndex(),
+            request.getSearchEngineName(),
             searcher,
             request::nowInMillis,
             shardTarget.getClusterAlias(),

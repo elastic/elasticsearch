@@ -38,8 +38,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.relevancesearch.query.QueryFieldsResolver;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
-import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
+import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsService;
+import org.elasticsearch.xpack.relevancesearch.settings.index.IndexCreationService;
+import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettingsService;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -55,6 +56,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
     }
 
     private final SetOnce<RelevanceMatchQueryRewriter> relevanceMatchQueryRewriter = new SetOnce<>();
+    private final SetOnce<IndexCreationService> indexCreationService = new SetOnce<>();
 
     @Override
     public List<RestHandler> getRestHandlers(
@@ -105,12 +107,15 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         AllocationDeciders allocationDeciders
     ) {
 
-        RelevanceSettingsService relevanceSettingsService = new RelevanceSettingsService(client, clusterService);
+        indexCreationService.set(new IndexCreationService(client, clusterService));
+        RelevanceSettingsService relevanceSettingsService = new RelevanceSettingsService(client);
         CurationsService curationsService = new CurationsService(client);
         QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
 
-        relevanceMatchQueryRewriter.set(new RelevanceMatchQueryRewriter(relevanceSettingsService, curationsService, queryFieldsResolver));
+        relevanceMatchQueryRewriter.set(
+            new RelevanceMatchQueryRewriter(clusterService, relevanceSettingsService, curationsService, queryFieldsResolver)
+        );
 
-        return List.of(relevanceMatchQueryRewriter.get());
+        return List.of(relevanceMatchQueryRewriter.get(), indexCreationService.get());
     }
 }

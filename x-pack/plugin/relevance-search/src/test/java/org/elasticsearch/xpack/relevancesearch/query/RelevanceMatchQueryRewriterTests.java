@@ -8,18 +8,20 @@
 package org.elasticsearch.xpack.relevancesearch.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
-import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
-import org.elasticsearch.xpack.relevancesearch.relevance.curations.Condition;
-import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationSettings;
-import org.elasticsearch.xpack.relevancesearch.relevance.curations.CurationsService;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettings;
-import org.elasticsearch.xpack.relevancesearch.relevance.settings.RelevanceSettingsService;
+import org.elasticsearch.xpack.relevancesearch.settings.AbstractSettingsService;
+import org.elasticsearch.xpack.relevancesearch.settings.curations.Condition;
+import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationSettings;
+import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsService;
+import org.elasticsearch.xpack.relevancesearch.settings.relevance.QueryConfiguration;
+import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettings;
+import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettingsService;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder;
 
 import java.io.IOException;
@@ -49,6 +51,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
     private RelevanceSettingsService relevanceSettingsService;
     private CurationsService curationsService;
     private QueryFieldsResolver queryFieldsResolver;
+    private ClusterService clusterService;
 
     private RelevanceMatchQueryBuilder queryBuilder;
 
@@ -63,8 +66,9 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         relevanceSettingsService = mock(RelevanceSettingsService.class);
         curationsService = mock(CurationsService.class);
         queryFieldsResolver = mock(QueryFieldsResolver.class);
+        clusterService = mock(ClusterService.class);
 
-        queryRewriter = new RelevanceMatchQueryRewriter(relevanceSettingsService, curationsService, queryFieldsResolver);
+        queryRewriter = new RelevanceMatchQueryRewriter(clusterService, relevanceSettingsService, curationsService, queryFieldsResolver);
     }
 
     public void testQueryWithoutRelevanceSettings() throws IOException {
@@ -75,7 +79,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         SearchExecutionContext context = createSearchExecutionContext();
         when(queryFieldsResolver.getQueryFields(context)).thenReturn(Set.of(AVAILABLE_FIELDS));
 
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = QueryBuilders.combinedFieldsQuery(queryText, AVAILABLE_FIELDS).toQuery(context);
 
@@ -90,14 +94,15 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         setRelevanceSettings();
 
         SearchExecutionContext context = createSearchExecutionContext();
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = QueryBuilders.combinedFieldsQuery(queryText, RELEVANCE_SETTINGS_FIELDS).toQuery(context);
 
         assertEquals(expectedQuery, obtainedQuery);
     }
 
-    public void testQueryWithCurationsPinnedAndHiddenDocs() throws IOException, CurationsService.CurationsSettingsNotFoundException {
+    public void testQueryWithCurationsPinnedAndHiddenDocs() throws IOException, AbstractSettingsService.SettingsNotFoundException,
+        AbstractSettingsService.InvalidSettingsException {
 
         final String queryText = "matching";
         queryBuilder.setQuery(queryText);
@@ -106,7 +111,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         setCurationsSettings(true, true, queryText);
 
         SearchExecutionContext context = createSearchExecutionContext();
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = new BoolQueryBuilder().should(
             new PinnedQueryBuilder(
@@ -130,7 +135,8 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         assertEquals(expectedQuery, obtainedQuery);
     }
 
-    public void testQueryWithCurationsNoHiddenDocs() throws IOException, CurationsService.CurationsSettingsNotFoundException {
+    public void testQueryWithCurationsNoHiddenDocs() throws IOException, AbstractSettingsService.SettingsNotFoundException,
+        AbstractSettingsService.InvalidSettingsException {
 
         final String queryText = "matching";
         queryBuilder.setQuery(queryText);
@@ -139,7 +145,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         setCurationsSettings(true, false, queryText);
 
         SearchExecutionContext context = createSearchExecutionContext();
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = new PinnedQueryBuilder(
             new CombinedFieldsQueryBuilder(queryText, RELEVANCE_SETTINGS_FIELDS),
@@ -150,7 +156,8 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         assertEquals(expectedQuery, obtainedQuery);
     }
 
-    public void testQueryWithCurationsNoPinnedDocs() throws IOException, CurationsService.CurationsSettingsNotFoundException {
+    public void testQueryWithCurationsNoPinnedDocs() throws IOException, AbstractSettingsService.SettingsNotFoundException,
+        AbstractSettingsService.InvalidSettingsException {
 
         final String queryText = "matching";
         queryBuilder.setQuery(queryText);
@@ -159,7 +166,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         setCurationsSettings(false, true, queryText);
 
         SearchExecutionContext context = createSearchExecutionContext();
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = new BoolQueryBuilder().should(new CombinedFieldsQueryBuilder(queryText, RELEVANCE_SETTINGS_FIELDS))
             .filter(
@@ -177,7 +184,8 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         assertEquals(expectedQuery, obtainedQuery);
     }
 
-    public void testQueryWithCurationDoesNotMatchQuery() throws IOException, CurationsService.CurationsSettingsNotFoundException {
+    public void testQueryWithCurationDoesNotMatchQuery() throws IOException, AbstractSettingsService.SettingsNotFoundException,
+        AbstractSettingsService.InvalidSettingsException {
 
         final String queryText = "matching";
         queryBuilder.setQuery(queryText);
@@ -186,7 +194,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         setCurationsSettings(true, true, "query that will not match");
 
         SearchExecutionContext context = createSearchExecutionContext();
-        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context);
+        Query obtainedQuery = queryRewriter.rewriteQuery(queryBuilder, context).toQuery(context);
 
         Query expectedQuery = QueryBuilders.combinedFieldsQuery(queryText, RELEVANCE_SETTINGS_FIELDS).toQuery(context);
 
@@ -202,15 +210,14 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
         relevanceSettings.setQueryConfiguration(queryConfiguration);
 
         try {
-            when(relevanceSettingsService.getRelevanceSettings(RELEVANCE_SETTINGS_ID)).thenReturn(relevanceSettings);
-        } catch (RelevanceSettingsService.RelevanceSettingsNotFoundException
-            | RelevanceSettingsService.RelevanceSettingsInvalidException e) {
+            when(relevanceSettingsService.getSettings(RELEVANCE_SETTINGS_ID)).thenReturn(relevanceSettings);
+        } catch (RelevanceSettingsService.SettingsNotFoundException | RelevanceSettingsService.InvalidSettingsException e) {
             // Can't happen at mock definition
         }
     }
 
     private void setCurationsSettings(boolean withPinnedDocs, boolean withHiddenDocs, String queryToMatch)
-        throws CurationsService.CurationsSettingsNotFoundException {
+        throws CurationsService.SettingsNotFoundException, AbstractSettingsService.InvalidSettingsException {
 
         queryBuilder.setCurationsSettingsId(CURATION_SETTINGS_ID);
 
@@ -237,7 +244,7 @@ public class RelevanceMatchQueryRewriterTests extends AbstractBuilderTestCase {
 
         CurationSettings curationSettings = new CurationSettings(pinnedDocs, hiddenDocs, conditions);
 
-        when(curationsService.getCurationsSettings(CURATION_SETTINGS_ID)).thenReturn(curationSettings);
+        when(curationsService.getSettings(CURATION_SETTINGS_ID)).thenReturn(curationSettings);
     }
 
 }

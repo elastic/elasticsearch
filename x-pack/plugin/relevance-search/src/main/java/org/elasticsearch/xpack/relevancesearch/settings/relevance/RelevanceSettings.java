@@ -5,11 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.relevancesearch.relevance.settings;
+package org.elasticsearch.xpack.relevancesearch.settings.relevance;
 
-import org.elasticsearch.xpack.relevancesearch.relevance.QueryConfiguration;
+import org.elasticsearch.xpack.relevancesearch.settings.Settings;
 
-public class RelevanceSettings {
+public class RelevanceSettings implements Settings {
 
     private QueryConfiguration queryConfiguration;
 

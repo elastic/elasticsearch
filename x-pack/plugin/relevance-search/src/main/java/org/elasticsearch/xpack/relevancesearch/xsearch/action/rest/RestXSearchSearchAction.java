@@ -23,7 +23,6 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-// TODO Suggestion from Aurelian: consider naming this GET because it isn't updating data, even though we do support POST
 public class RestXSearchSearchAction extends BaseRestHandler {
 
     public static final String REST_BASE_PATH = "/{index}/_xsearch";

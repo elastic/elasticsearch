@@ -424,13 +424,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     }
 
     private static class ExitableVectorValues extends FilterVectorValues {
-        private static final int DOCS_BETWEEN_TIMEOUT_CHECK = 1000;
-        private int docToCheck;
+        private int calls;
         private final QueryCancellation queryCancellation;
 
         ExitableVectorValues(VectorValues vectorValues, QueryCancellation queryCancellation) {
             super(vectorValues);
-            docToCheck = 0;
             this.queryCancellation = queryCancellation;
             this.queryCancellation.checkCancelled();
         }
@@ -438,33 +436,30 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public int advance(int target) throws IOException {
             final int advance = super.advance(target);
-            checkAndThrowWithSampling(advance);
+            checkAndThrowWithSampling();
             return advance;
         }
 
         @Override
         public int nextDoc() throws IOException {
             final int nextDoc = super.nextDoc();
-            checkAndThrowWithSampling(nextDoc);
+            checkAndThrowWithSampling();
             return nextDoc;
         }
 
-        private void checkAndThrowWithSampling(int nextDoc) {
-            if (nextDoc >= docToCheck) {
+        private void checkAndThrowWithSampling() {
+            if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
                 this.queryCancellation.checkCancelled();
-                docToCheck = nextDoc + DOCS_BETWEEN_TIMEOUT_CHECK;
             }
         }
 
         @Override
         public float[] vectorValue() throws IOException {
-            this.queryCancellation.checkCancelled();
             return in.vectorValue();
         }
 
         @Override
         public BytesRef binaryValue() throws IOException {
-            this.queryCancellation.checkCancelled();
             return in.binaryValue();
         }
     }

@@ -96,6 +96,11 @@ public class FetchProfiler implements FetchPhase.Profiler {
                     public Map<String, List<Object>> storedFields() {
                         return in.storedFields();
                     }
+
+                    @Override
+                    public boolean isEmpty() {
+                        return in.isEmpty();
+                    }
                 };
             }
 

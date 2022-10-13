@@ -9,6 +9,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -38,6 +39,7 @@ public class FetchContext {
     private final SearchContext searchContext;
     private final SearchLookup searchLookup;
     private final SourceLoader sourceLoader;
+    private final IdLoader idLoader;
 
     /**
      * Create a FetchContext based on a SearchContext
@@ -46,6 +48,7 @@ public class FetchContext {
         this.searchContext = searchContext;
         this.searchLookup = searchContext.getSearchExecutionContext().lookup();
         this.sourceLoader = searchContext.newSourceLoader();
+        this.idLoader = searchContext.getSearchExecutionContext().newIdLoader();
     }
 
     /**
@@ -207,10 +210,17 @@ public class FetchContext {
     }
 
     /**
-     * Loads source {@code _source} during a GET or {@code _search}.
+     * Loads {@code _source} during a GET or {@code _search}.
      */
     public SourceLoader sourceLoader() {
         return sourceLoader;
+    }
+
+    /**
+     * Loads {@code _id} during a {@code _search}.
+     */
+    public IdLoader idLoader() {
+        return idLoader;
     }
 
     /**

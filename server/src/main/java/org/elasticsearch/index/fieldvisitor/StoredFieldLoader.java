@@ -127,6 +127,11 @@ public abstract class StoredFieldLoader {
         public Map<String, List<Object>> storedFields() {
             return Collections.emptyMap();
         }
+
+        @Override
+        public boolean isEmpty() {
+            return true;
+        }
     }
 
     private static class ReaderStoredFieldLoader implements LeafStoredFieldLoader {
@@ -167,6 +172,11 @@ public abstract class StoredFieldLoader {
         @Override
         public Map<String, List<Object>> storedFields() {
             return visitor.fields();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return false;
         }
     }
 

@@ -371,7 +371,7 @@ public abstract class SearchContext implements Releasable {
     public abstract ReaderContext readerContext();
 
     /**
-     * Build something to load source {@code _source}.
+     * Build something to load {@code _source}.
      */
     public abstract SourceLoader newSourceLoader();
 }

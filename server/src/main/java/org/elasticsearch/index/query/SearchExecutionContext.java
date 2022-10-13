@@ -22,7 +22,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -420,8 +419,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     /**
      * Build something to load {@code _id}.
      */
-    public IdLoader newIdLoader(IndexRouting indexRouting) {
-        return mappingLookup.idLoader(indexRouting);
+    public IdLoader newIdLoader() {
+        return mappingLookup.idLoader(indexSettings.getIndexRouting());
     }
 
     /**

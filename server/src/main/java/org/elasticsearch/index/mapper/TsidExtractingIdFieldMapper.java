@@ -12,7 +12,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -25,10 +24,9 @@ import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -225,62 +223,59 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     @Override
     public IdLoader loader(IndexRouting indexRouting) {
-        return new IdLoader() {
-            @Override
-            public IdLoader.Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-                IndexRouting.ExtractFromSource sourceIndexRouting = (IndexRouting.ExtractFromSource) indexRouting;
+        return (reader, docIdsInLeaf) -> {
+            IndexRouting.ExtractFromSource sourceIndexRouting = (IndexRouting.ExtractFromSource) indexRouting;
 
-                long[] timestamps = new long[docIdsInLeaf.length];
-                SortedNumericDocValues timestampDv = reader.getSortedNumericDocValues(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-                for (int i = 0; i < docIdsInLeaf.length; i++) {
-                    if (false == timestampDv.advanceExact(docIdsInLeaf[i])) {
-                        throw new IllegalStateException("couldn't find doc value for @timestamp");
-                    }
-                    if (timestampDv.docValueCount() != 1) {
-                        throw new IllegalStateException("found more than one @timestamp");
-                    }
-                    timestamps[i] = timestampDv.nextValue();
+            long[] timestamps = new long[docIdsInLeaf.length];
+            SortedNumericDocValues timestampDv = reader.getSortedNumericDocValues(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+            for (int i = 0; i < docIdsInLeaf.length; i++) {
+                if (false == timestampDv.advanceExact(docIdsInLeaf[i])) {
+                    throw new IllegalStateException("couldn't find doc value for @timestamp");
                 }
+                if (timestampDv.docValueCount() != 1) {
+                    throw new IllegalStateException("found more than one @timestamp");
+                }
+                timestamps[i] = timestampDv.nextValue();
+            }
 
-                SortedDocValues tsidDv = reader.getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
-                String[] ids = new String[docIdsInLeaf.length];
-                if (false == tsidDv.advanceExact(docIdsInLeaf[0])) {
+            SortedDocValues tsidDv = reader.getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
+            String[] ids = new String[docIdsInLeaf.length];
+            if (false == tsidDv.advanceExact(docIdsInLeaf[0])) {
+                throw new IllegalStateException("couldn't find doc value for _tsid");
+            }
+            int ord = -1;
+            BytesRef tsid = null;
+            Map<String, Object> tsidDecoded = null;
+            for (int i = 0; i < docIdsInLeaf.length; i++) {
+                if (false == tsidDv.advanceExact(docIdsInLeaf[i])) {
                     throw new IllegalStateException("couldn't find doc value for _tsid");
                 }
-                int ord = -1;
-                BytesRef tsid = null;
-                Map<String, Object> tsidDecoded = null;
-                for (int i = 0; i < docIdsInLeaf.length; i++) {
-                    if (false == tsidDv.advanceExact(docIdsInLeaf[i])) {
-                        throw new IllegalStateException("couldn't find doc value for _tsid");
-                    }
-                    if (ord != tsidDv.ordValue()) {
-                        /*
-                         * We sort by _tsid so there should be long runs of the same ordinal.
-                         * And once we're past that run we'll never see it again.
-                         */
-                        ord = tsidDv.ordValue();
-                        tsid = tsidDv.lookupOrd(ord);
-                        tsidDecoded = TimeSeriesIdFieldMapper.decodeTsid(tsid);
-                    }
-                    ids[i] = sourceIndexRouting.createId(tsidDecoded, idSuffix(tsid, timestamps[i]));
+                if (ord != tsidDv.ordValue()) {
+                    /*
+                     * We sort by _tsid so there should be long runs of the same ordinal.
+                     * And once we're past that run we'll never see it again.
+                     */
+                    ord = tsidDv.ordValue();
+                    tsid = tsidDv.lookupOrd(ord);
+                    tsidDecoded = TimeSeriesIdFieldMapper.decodeTsid(tsid);
                 }
-
-                return new IdLoader.Leaf() {
-                    int idx = -1;
-
-                    @Override
-                    public String id(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                        idx++;
-                        if (docIdsInLeaf[idx] != docId) {
-                            throw new IllegalArgumentException(
-                                "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
-                            );
-                        }
-                        return ids[idx];
-                    }
-                };
+                ids[i] = sourceIndexRouting.createId(tsidDecoded, idSuffix(tsid, timestamps[i]));
             }
+
+            return new IdLoader.Leaf() {
+                int idx = -1;
+
+                @Override
+                public String id(LeafStoredFieldLoader storedFields, int docId) {
+                    idx++;
+                    if (docIdsInLeaf[idx] != docId) {
+                        throw new IllegalArgumentException(
+                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
+                        );
+                    }
+                    return ids[idx];
+                }
+            };
         };
     }
 }

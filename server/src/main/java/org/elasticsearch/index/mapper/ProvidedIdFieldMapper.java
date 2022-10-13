@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -31,7 +30,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -291,17 +289,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         return id;
     }
 
-    private static final IdLoader ID_LOADER = new IdLoader() {
-        @Override
-        public IdLoader.Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            return new IdLoader.Leaf() {
-                @Override
-                public String id(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                    return fieldsVisitor.id();
-                }
-            };
-        }
-    };
+    private static final IdLoader ID_LOADER = (reader, docIdsInLeaf) -> (storedFields, docId) -> storedFields.id();
 
     @Override
     public IdLoader loader(IndexRouting indexRouting) {

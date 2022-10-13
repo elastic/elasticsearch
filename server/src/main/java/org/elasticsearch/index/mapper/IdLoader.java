@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 
 import java.io.IOException;
 
@@ -28,10 +28,10 @@ public interface IdLoader {
     interface Leaf {
         /**
          * Load the {@code _id} for a document.
-         * @param fieldsVisitor field visitor populated with {@code _id} if it
+         * @param storedFields stored fields loader populated with {@code _id} if it
          *                      has been stored
          * @param docId the doc to load
          */
-        String id(FieldsVisitor fieldsVisitor, int docId) throws IOException;
+        String id(LeafStoredFieldLoader storedFields, int docId);
     }
 }

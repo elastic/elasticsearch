@@ -47,4 +47,8 @@ public interface LeafStoredFieldLoader {
      */
     Map<String, List<Object>> storedFields();
 
+    /**
+     * @return is this loader explicitly loading nothing?
+     */
+    boolean isEmpty();
 }

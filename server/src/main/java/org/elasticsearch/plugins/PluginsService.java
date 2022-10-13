@@ -466,7 +466,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Plugin plugin;
             if (bundle.pluginDescriptor().isStable()) {
                 stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
-             /*
+                /*
                 Contrary to old plugins we don't need an instance of the plugin here.
                 Stable plugin register components (like CharFilterFactory) in stable plugin registry, which is then used in AnalysisModule
                 when registering char filter factories and other analysis components.
@@ -490,7 +490,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                             + "])"
                     );
                 }
-                 plugin = loadPlugin(pluginClass, settings, configPath);
+                plugin = loadPlugin(pluginClass, settings, configPath);
             }
             loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
         } finally {

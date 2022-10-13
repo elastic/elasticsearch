@@ -44,7 +44,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -824,7 +823,7 @@ public class PluginsServiceTests extends ESTestCase {
             assertThat(pluginInfos.get(0).descriptor().getName(), equalTo("stable-plugin"));
             assertThat(pluginInfos.get(0).descriptor().isStable(), is(true));
 
-            //TODO should we add something to pluginInfos.get(0).pluginApiInfo() ?
+            // TODO should we add something to pluginInfos.get(0).pluginApiInfo() ?
         } finally {
             closePluginLoaders(pluginService);
         }

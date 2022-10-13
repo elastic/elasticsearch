@@ -18,6 +18,7 @@ import java.util.Properties;
 
 /** Utility methods for testing plugins */
 public class PluginTestUtil {
+
     public static void writePluginProperties(Path pluginDir, String... stringProps) throws IOException {
         writeProperties(pluginDir.resolve(PluginDescriptor.INTERNAL_DESCRIPTOR_FILENAME), stringProps);
     }

@@ -301,16 +301,16 @@ public class ApiKeyService {
         Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
-        final Instant created = clock.instant();
-        final Instant expiration = getApiKeyExpiration(created, request);
-        final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
-        final Version version = clusterService.state().nodes().getMinNodeVersion();
-
         if (TcpTransport.isUntrustedRemoteClusterEnabled()
             && (userRoleDescriptors.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges)
                 || request.getRoleDescriptors().stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges))) {
             throw new IllegalArgumentException("remote indices not supported for API keys");
         }
+
+        final Instant created = clock.instant();
+        final Instant expiration = getApiKeyExpiration(created, request);
+        final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
+        final Version version = clusterService.state().nodes().getMinNodeVersion();
 
         computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
             try (

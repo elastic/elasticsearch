@@ -209,7 +209,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         systemIndices.init(client, clusterService);
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
-        final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex) {
+        final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex, clusterService) {
             @Override
             void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
                 if (methodCalled.compareAndSet(false, true)) {

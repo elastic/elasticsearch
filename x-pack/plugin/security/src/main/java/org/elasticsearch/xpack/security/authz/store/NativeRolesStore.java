@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -24,6 +25,7 @@ import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -87,11 +89,20 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private final SecurityIndexManager securityIndex;
 
-    public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex) {
+    private final ClusterService clusterService;
+
+    public NativeRolesStore(
+        Settings settings,
+        Client client,
+        XPackLicenseState licenseState,
+        SecurityIndexManager securityIndex,
+        ClusterService clusterService
+    ) {
         this.settings = settings;
         this.client = client;
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -211,9 +222,16 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
-        } else {
-            innerPutRole(request, role, listener);
-        }
+        } else if (request.roleDescriptor().hasRemoteIndicesPrivileges()
+            && clusterService.state().nodes().getMinNodeVersion().before(Version.V_8_6_0)) {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "remote indices privileges only supported on clusters with all nodes on version [" + Version.V_8_6_0 + "] or higher"
+                    )
+                );
+            } else {
+                innerPutRole(request, role, listener);
+            }
     }
 
     // pkg-private for testing

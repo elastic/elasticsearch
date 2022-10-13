@@ -20,6 +20,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Reduces the number of allocations of a {@link TrainedModelAssignment}.
  */
@@ -101,10 +103,26 @@ public class AllocationReducer {
                 largestZoneAllocations,
                 allocationsToRemove
             )) {
+                logger.debug(
+                    () -> format(
+                        "[%s] removing assignment with [%s] allocations on node [%s]",
+                        assignment.getModelId(),
+                        smallestAssignmentInLargestZone.getValue(),
+                        smallestAssignmentInLargestZone.getKey()
+                    )
+                );
                 allocationsByNode.remove(smallestAssignmentInLargestZone.getKey());
                 allocationsByZone.computeIfPresent(largestZone, (k, v) -> v - smallestAssignmentInLargestZone.getValue());
                 totalRemainingAllocations -= smallestAssignmentInLargestZone.getValue();
             } else {
+                logger.debug(
+                    () -> format(
+                        "[%s] removing 1 allocation from assignment with [%s] allocations on node [%s]",
+                        assignment.getModelId(),
+                        smallestAssignmentInLargestZone.getValue(),
+                        smallestAssignmentInLargestZone.getKey()
+                    )
+                );
                 allocationsByNode.computeIfPresent(smallestAssignmentInLargestZone.getKey(), (k, v) -> v - 1);
                 allocationsByZone.computeIfPresent(largestZone, (k, v) -> v - 1);
                 totalRemainingAllocations -= 1;

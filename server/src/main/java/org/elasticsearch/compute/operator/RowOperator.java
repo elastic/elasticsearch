@@ -1,0 +1,69 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.compute.operator;
+
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ConstantIntBlock;
+import org.elasticsearch.compute.data.ConstantLongBlock;
+import org.elasticsearch.compute.data.Page;
+
+import java.util.List;
+
+public class RowOperator implements Operator {
+
+    private final List<Object> objects;
+
+    boolean finished;
+
+    public RowOperator(List<Object> objects) {
+        this.objects = objects;
+    }
+
+    @Override
+    public boolean needsInput() {
+        return false;
+    }
+
+    @Override
+    public void addInput(Page page) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void finish() {
+        finished = true;
+    }
+
+    @Override
+    public boolean isFinished() {
+        return finished;
+    }
+
+    @Override
+    public Page getOutput() {
+        Block[] blocks = new Block[objects.size()];
+        for (int i = 0; i < objects.size(); i++) {
+            Object object = objects.get(i);
+            if (object instanceof Integer intVal) {
+                blocks[i] = new ConstantIntBlock(intVal, 1);
+            } else if (object instanceof Long longVal) {
+                blocks[i] = new ConstantLongBlock(longVal, 1);
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        }
+        finished = true;
+        return new Page(blocks);
+    }
+
+    @Override
+    public void close() {
+
+    }
+}

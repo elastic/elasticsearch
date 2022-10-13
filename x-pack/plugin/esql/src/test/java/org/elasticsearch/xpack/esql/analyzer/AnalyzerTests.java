@@ -16,14 +16,18 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
+import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -34,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class AnalyzerTests extends ESTestCase {
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
-        Analyzer analyzer = new Analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
 
         assertEquals(
             new EsRelation(EMPTY, idx, false),
@@ -43,7 +47,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFailOnUnresolvedIndex() {
-        Analyzer analyzer = new Analyzer(IndexResolution.invalid("Unknown index [idx]"));
+        Analyzer analyzer = newAnalyzer(IndexResolution.invalid("Unknown index [idx]"));
 
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -55,7 +59,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testIndexWithClusterResolution() {
         EsIndex idx = new EsIndex("cluster:idx", Map.of());
-        Analyzer analyzer = new Analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
 
         assertEquals(
             new EsRelation(EMPTY, idx, false),
@@ -65,7 +69,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testAttributeResolution() {
         EsIndex idx = new EsIndex("idx", TypesTests.loadMapping("mapping-one-field.json"));
-        Analyzer analyzer = new Analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
 
         Eval eval = (Eval) analyzer.analyze(
             new Eval(
@@ -89,7 +93,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testAttributeResolutionOfChainedReferences() {
         EsIndex idx = new EsIndex("idx", TypesTests.loadMapping("mapping-one-field.json"));
-        Analyzer analyzer = new Analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
 
         Eval eval = (Eval) analyzer.analyze(
             new Eval(
@@ -122,7 +126,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRowAttributeResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
-        Analyzer analyzer = new Analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
 
         Eval eval = (Eval) analyzer.analyze(
             new Eval(
@@ -150,7 +154,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnresolvableAttribute() {
         EsIndex idx = new EsIndex("idx", TypesTests.loadMapping("mapping-one-field.json"));
-        Analyzer analyzer = new Analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
 
         VerificationException ve = expectThrows(
             VerificationException.class,
@@ -164,5 +168,11 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         assertThat(ve.getMessage(), containsString("Unknown column [emp_nos], did you mean [emp_no]?"));
+    }
+
+    private Analyzer newAnalyzer(IndexResolution indexResolution) {
+        FunctionRegistry functionRegistry = new FunctionRegistry();
+        Configuration configuration = new Configuration(ZoneOffset.UTC, null, null, x -> Collections.emptySet());
+        return new Analyzer(indexResolution, functionRegistry, configuration);
     }
 }

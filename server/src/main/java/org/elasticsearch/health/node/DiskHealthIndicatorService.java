@@ -344,29 +344,29 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 Set<String> affectedIndices = Sets.union(blockedIndices, indicesAtRisk);
 
                 if (affectedIndices.size() > 0) {
-                diagnosisList.add(
-                    new Diagnosis(
-                        new Diagnosis.Definition(
-                            NAME,
-                            "add_disk_capacity_data_nodes",
-                            String.format(
-                                Locale.ROOT,
-                                "%d %s %s on nodes that have run or are likely to run out of disk space, "
-                                    + "this can temporarily disable writing on %s %s.",
-                                affectedIndices.size(),
-                                indices(affectedIndices.size()),
-                                regularVerb("reside", affectedIndices.size()),
-                                these(affectedIndices.size()),
-                                indices(affectedIndices.size())
+                    diagnosisList.add(
+                        new Diagnosis(
+                            new Diagnosis.Definition(
+                                NAME,
+                                "add_disk_capacity_data_nodes",
+                                String.format(
+                                    Locale.ROOT,
+                                    "%d %s %s on nodes that have run or are likely to run out of disk space, "
+                                        + "this can temporarily disable writing on %s %s.",
+                                    affectedIndices.size(),
+                                    indices(affectedIndices.size()),
+                                    regularVerb("reside", affectedIndices.size()),
+                                    these(affectedIndices.size()),
+                                    indices(affectedIndices.size())
+                                ),
+                                "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
+                                    + "this. If you have already taken action please wait for the rebalancing to complete.",
+                                "https://ela.st/fix-data-disk"
                             ),
-                            "Enable autoscaling (if applicable), add disk capacity or free up disk space to resolve "
-                                + "this. If you have already taken action please wait for the rebalancing to complete.",
-                            "https://ela.st/fix-data-disk"
-                        ),
-                        dataNodes.stream().map(DiscoveryNode::getId).sorted().toList()
-                    )
-                );
-} else {
+                            dataNodes.stream().map(DiscoveryNode::getId).sorted().toList()
+                        )
+                    );
+                } else {
                     diagnosisList.add(
                         new Diagnosis(
                             new Diagnosis.Definition(

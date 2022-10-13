@@ -462,8 +462,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.diagnosisList().size(), is(1));
         Diagnosis diagnosis = result.diagnosisList().get(0);
         assertThat(diagnosis.definition().cause(), is("Disk is almost full."));
-        assertThat(diagnosis.affectedResources().size(), is(1));
-        assertThat(diagnosis.affectedResources().get(0).getNodes().size(), is(numberOfRedNodes));
+        assertThat(diagnosis.affectedResources().size(), is(numberOfRedNodes));
         Map<String, Object> details = xContentToMap(result.details());
         assertThat(details.get(NODES_WITH_ENOUGH_DISK_SPACE), equalTo(discoveryNodes.size() - numberOfRedNodes));
         assertThat(details.get(NODES_WITH_UNKNOWN_DISK_STATUS), equalTo(0));

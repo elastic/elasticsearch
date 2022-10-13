@@ -102,7 +102,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         @Nullable Map<String, Object> metadata,
         @Nullable Map<String, Object> transientMetadata
     ) {
-        this(name, clusterPrivileges, indicesPrivileges, null, null, runAs, metadata, transientMetadata, null);
+        this(name, clusterPrivileges, indicesPrivileges, null, null, runAs, metadata, transientMetadata, RemoteIndicesPrivileges.NONE);
     }
 
     public RoleDescriptor(
@@ -124,7 +124,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             runAs,
             metadata,
             transientMetadata,
-            null
+            RemoteIndicesPrivileges.NONE
         );
     }
 
@@ -337,9 +337,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         out.writeGenericMap(transientMetadata);
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
         ConfigurableClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
-        // TODO throw, possibly
         if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
             out.writeArray(remoteIndicesPrivileges);
+        } else if (hasRemoteIndicesPrivileges()) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before 8.6.0 can't remote indices privileges and attempted to send to [" + out.getVersion() + "]"
+            );
         }
     }
 

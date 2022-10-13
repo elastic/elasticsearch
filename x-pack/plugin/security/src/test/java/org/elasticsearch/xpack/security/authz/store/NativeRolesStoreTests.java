@@ -64,7 +64,6 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -327,10 +326,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         rolesStore.putRole(putRoleRequest, remoteIndicesRole, future);
         IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
-        assertThat(
-            e.getMessage(),
-            containsString("all nodes must have version [8.6.0] or higher to support remote indices privileges")
-        );
+        assertThat(e.getMessage(), containsString("all nodes must have version [8.6.0] or higher to support remote indices privileges"));
     }
 
     private ClusterService mockClusterServiceWithMinNodeVersion(Version version) {

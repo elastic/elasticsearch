@@ -136,6 +136,8 @@ testClusters.configureEach {
   setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
+
+  systemProperty 'es.untrusted_remote_cluster_feature_flag_registered', 'true'
 }
 
 if (BuildParams.inFipsJvm){

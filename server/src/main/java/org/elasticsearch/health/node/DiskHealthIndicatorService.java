@@ -151,7 +151,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         private final Set<DiscoveryNodeRole> affectedRoles = new HashSet<>();
         private final Set<String> indicesAtRisk;
         private final HealthStatus healthStatus;
-        private final HealthIndicatorDetails details;
+        private final Map<HealthStatus, Integer> healthStatusNodeCount;
 
         DiskHealthAnalyzer(Map<String, DiskHealthInfo> diskHealthByNode, ClusterState clusterState) {
             this.clusterState = clusterState;
@@ -191,7 +191,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             }
             indicesAtRisk = getIndicesForNodes(dataNodes, clusterState);
             healthStatus = mostSevereStatusSoFar;
-            details = createDetails(diskHealthByNode, blockedIndices);
+            healthStatusNodeCount = countNodesByHealthStatus(diskHealthByNode, clusterState);
         }
 
         public HealthStatus getHealthStatus() {
@@ -423,25 +423,32 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             if (explain == false) {
                 return HealthIndicatorDetails.EMPTY;
             }
-            return details;
-        }
-
-        private static HealthIndicatorDetails createDetails(Map<String, DiskHealthInfo> diskHealthInfoMap, Set<String> blockedIndices) {
-            Map<HealthStatus, Integer> healthNodesCount = new HashMap<>();
-            for (HealthStatus healthStatus : HealthStatus.values()) {
-                healthNodesCount.put(healthStatus, 0);
-            }
-            for (DiskHealthInfo diskHealthInfo : diskHealthInfoMap.values()) {
-                healthNodesCount.computeIfPresent(diskHealthInfo.healthStatus(), (key, oldCount) -> oldCount + 1);
-            }
             return ((builder, params) -> {
                 builder.startObject();
                 builder.field(INDICES_WITH_READONLY_BLOCK, blockedIndices.size());
                 for (HealthStatus healthStatus : HealthStatus.values()) {
-                    builder.field(getDetailsDisplayKey(healthStatus), healthNodesCount.get(healthStatus));
+                    builder.field(getDetailsDisplayKey(healthStatus), healthStatusNodeCount.get(healthStatus));
                 }
                 return builder.endObject();
             });
+        }
+
+        // Visible for testing
+        static Map<HealthStatus, Integer> countNodesByHealthStatus(
+            Map<String, DiskHealthInfo> diskHealthInfoMap,
+            ClusterState clusterState
+        ) {
+            Map<HealthStatus, Integer> counts = new HashMap<>();
+            for (HealthStatus healthStatus : HealthStatus.values()) {
+                counts.put(healthStatus, 0);
+            }
+            for (DiscoveryNode node : clusterState.getNodes()) {
+                HealthStatus healthStatus = diskHealthInfoMap.containsKey(node.getId())
+                    ? diskHealthInfoMap.get(node.getId()).healthStatus()
+                    : HealthStatus.UNKNOWN;
+                counts.computeIfPresent(healthStatus, (ignored, count) -> count + 1);
+            }
+            return counts;
         }
 
         private static String getDetailsDisplayKey(HealthStatus status) {

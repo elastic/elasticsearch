@@ -131,6 +131,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testBasicScenario() throws Exception {
+        List<String> backingIndices = new ArrayList<>(4);
         putComposableIndexTemplate("id1", List.of("metrics-foo*"));
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
@@ -144,25 +145,27 @@ public class DataStreamIT extends ESIntegTestCase {
             .actionGet();
         getDataStreamResponse.getDataStreams().sort(Comparator.comparing(dataStreamInfo -> dataStreamInfo.getDataStream().getName()));
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(2));
-        DataStream firstDataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
-        assertThat(firstDataStream.getName(), equalTo("metrics-bar"));
-        assertThat(firstDataStream.getTimeStampField().getName(), equalTo("@timestamp"));
-        assertThat(firstDataStream.getIndices().size(), equalTo(1));
-        assertThat(firstDataStream.getIndices().get(0).getName(), backingIndexEqualTo("metrics-bar", 1));
-        DataStream dataStream = getDataStreamResponse.getDataStreams().get(1).getDataStream();
-        assertThat(dataStream.getName(), equalTo("metrics-foo"));
-        assertThat(dataStream.getTimeStampField().getName(), equalTo("@timestamp"));
-        assertThat(dataStream.getIndices().size(), equalTo(1));
-        assertThat(dataStream.getIndices().get(0).getName(), backingIndexEqualTo("metrics-foo", 1));
+        DataStream barDataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
+        assertThat(barDataStream.getName(), equalTo("metrics-bar"));
+        assertThat(barDataStream.getTimeStampField().getName(), equalTo("@timestamp"));
+        assertThat(barDataStream.getIndices().size(), equalTo(1));
+        assertThat(barDataStream.getIndices().get(0).getName(), backingIndexEqualTo("metrics-bar", 1));
+        DataStream fooDataStream = getDataStreamResponse.getDataStreams().get(1).getDataStream();
+        assertThat(fooDataStream.getName(), equalTo("metrics-foo"));
+        assertThat(fooDataStream.getTimeStampField().getName(), equalTo("@timestamp"));
+        assertThat(fooDataStream.getIndices().size(), equalTo(1));
+        assertThat(fooDataStream.getIndices().get(0).getName(), backingIndexEqualTo("metrics-foo", 1));
 
-        String backingIndex = DataStream.getDefaultBackingIndexName("metrics-bar", 1);
+        String backingIndex = barDataStream.getIndices().get(0).getName();
+        backingIndices.add(backingIndex);
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
         Map<?, ?> mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
         assertThat(ObjectPath.eval("properties.@timestamp.type", mappings), is("date"));
 
-        backingIndex = DataStream.getDefaultBackingIndexName("metrics-foo", 1);
+        backingIndex = fooDataStream.getIndices().get(0).getName();
+        backingIndices.add(backingIndex);
         getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
@@ -177,22 +180,24 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyDocs("metrics-bar", numDocsBar, 1, 1);
         verifyDocs("metrics-foo", numDocsFoo, 1, 1);
 
-        RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("metrics-foo", null)).get();
-        assertThat(rolloverResponse.getNewIndex(), backingIndexEqualTo("metrics-foo", 2));
-        assertTrue(rolloverResponse.isRolledOver());
+        RolloverResponse fooRolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("metrics-foo", null)).get();
+        assertThat(fooRolloverResponse.getNewIndex(), backingIndexEqualTo("metrics-foo", 2));
+        assertTrue(fooRolloverResponse.isRolledOver());
 
-        rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("metrics-bar", null)).get();
-        assertThat(rolloverResponse.getNewIndex(), backingIndexEqualTo("metrics-bar", 2));
-        assertTrue(rolloverResponse.isRolledOver());
+        RolloverResponse barRolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("metrics-bar", null)).get();
+        assertThat(barRolloverResponse.getNewIndex(), backingIndexEqualTo("metrics-bar", 2));
+        assertTrue(barRolloverResponse.isRolledOver());
 
-        backingIndex = DataStream.getDefaultBackingIndexName("metrics-foo", 2);
+        backingIndex = fooRolloverResponse.getNewIndex();
+        backingIndices.add(backingIndex);
         getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
         mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
         assertThat(ObjectPath.eval("properties.@timestamp.type", mappings), is("date"));
 
-        backingIndex = DataStream.getDefaultBackingIndexName("metrics-bar", 2);
+        backingIndex = barRolloverResponse.getNewIndex();
+        backingIndices.add(backingIndex);
         getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
@@ -207,39 +212,21 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyDocs("metrics-bar", numDocsBar + numDocsBar2, 1, 2);
         verifyDocs("metrics-foo", numDocsFoo + numDocsFoo2, 1, 2);
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[] { "metrics-*" });
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("metrics-*");
         client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest).actionGet();
         getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(0));
 
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin()
-                .indices()
-                .getIndex(new GetIndexRequest().indices(DataStream.getDefaultBackingIndexName("metrics-bar", 1)))
-                .actionGet()
-        );
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin()
-                .indices()
-                .getIndex(new GetIndexRequest().indices(DataStream.getDefaultBackingIndexName("metrics-bar", 2)))
-                .actionGet()
-        );
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin()
-                .indices()
-                .getIndex(new GetIndexRequest().indices(DataStream.getDefaultBackingIndexName("metrics-foo", 1)))
-                .actionGet()
-        );
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin()
-                .indices()
-                .getIndex(new GetIndexRequest().indices(DataStream.getDefaultBackingIndexName("metrics-foo", 2)))
-                .actionGet()
-        );
+        for (String index : backingIndices) {
+            expectThrows(
+                IndexNotFoundException.class,
+                "Backing index '" + index + "' should have been deleted.",
+                () -> client().admin()
+                    .indices()
+                    .getIndex(new GetIndexRequest().indices(index))
+                    .actionGet()
+            );
+        }
     }
 
     public void testOtherWriteOps() throws Exception {
@@ -496,7 +483,7 @@ public class DataStreamIT extends ESIntegTestCase {
         for (Index index : backingIndices) {
             expectThrows(
                 IndexNotFoundException.class,
-                "Index '" + index.getName() + "' should have been deleted.",
+                "Backing index '" + index.getName() + "' should have been deleted.",
                 () -> client().admin().indices().getIndex(new GetIndexRequest().indices(index.getName())).actionGet()
             );
         }

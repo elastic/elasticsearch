@@ -85,7 +85,7 @@ public class EnrichPolicyRunner implements Runnable {
     private final ClusterService clusterService;
     private final Client client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final LongSupplier nowSupplier;
+    private final String targetIndexName;
     private final int fetchSize;
     private final int maxForceMergeAttempts;
 
@@ -97,7 +97,7 @@ public class EnrichPolicyRunner implements Runnable {
         ClusterService clusterService,
         Client client,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        LongSupplier nowSupplier,
+        String targetIndexName,
         int fetchSize,
         int maxForceMergeAttempts
     ) {
@@ -108,7 +108,7 @@ public class EnrichPolicyRunner implements Runnable {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = wrapClient(client, policyName, task, clusterService);
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
-        this.nowSupplier = Objects.requireNonNull(nowSupplier);
+        this.targetIndexName = targetIndexName;
         this.fetchSize = fetchSize;
         this.maxForceMergeAttempts = maxForceMergeAttempts;
     }
@@ -262,7 +262,7 @@ public class EnrichPolicyRunner implements Runnable {
         List<Map<String, String>> matchFieldMappings = mappings.stream()
             .map(map -> ObjectPath.<Map<String, String>>eval(matchFieldPath, map))
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+            .toList();
 
         Set<String> types = matchFieldMappings.stream().map(map -> map.get("type")).collect(Collectors.toSet());
         if (types.size() == 1) {
@@ -371,8 +371,6 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private void prepareAndCreateEnrichIndex(List<Map<String, Object>> mappings) {
-        long nowTimestamp = nowSupplier.getAsLong();
-        String enrichIndexName = EnrichPolicy.getIndexName(policyName, nowTimestamp);
         Settings enrichIndexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
@@ -381,14 +379,14 @@ public class EnrichPolicyRunner implements Runnable {
             // This disables eager global ordinals loading for all fields:
             .put("index.warmer.enabled", false)
             .build();
-        CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
+        CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(targetIndexName, enrichIndexSettings);
         createEnrichIndexRequest.mapping(resolveEnrichMapping(policy, mappings));
-        logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
+        logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, targetIndexName);
         enrichOriginClient().admin()
             .indices()
             .create(
                 createEnrichIndexRequest,
-                listener.delegateFailure((l, createIndexResponse) -> prepareReindexOperation(enrichIndexName))
+                listener.delegateFailure((l, createIndexResponse) -> prepareReindexOperation(targetIndexName))
             );
     }
 

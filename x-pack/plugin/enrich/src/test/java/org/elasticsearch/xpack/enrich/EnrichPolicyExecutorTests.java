@@ -193,7 +193,10 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         );
 
         ExecuteEnrichPolicyTask task = mock(ExecuteEnrichPolicyTask.class);
-        Exception e = expectThrows(ResourceNotFoundException.class, () -> testExecutor.runPolicyLocally(task, "my-policy", null));
+        Exception e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> testExecutor.runPolicyLocally(task, "my-policy", ".enrich-my-policy-123456789", null)
+        );
         assertThat(e.getMessage(), equalTo("policy [my-policy] does not exist"));
     }
 

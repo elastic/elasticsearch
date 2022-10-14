@@ -221,10 +221,7 @@ public class DataStreamIT extends ESIntegTestCase {
             expectThrows(
                 IndexNotFoundException.class,
                 "Backing index '" + index + "' should have been deleted.",
-                () -> client().admin()
-                    .indices()
-                    .getIndex(new GetIndexRequest().indices(index))
-                    .actionGet()
+                () -> client().admin().indices().getIndex(new GetIndexRequest().indices(index)).actionGet()
             );
         }
     }
@@ -300,7 +297,14 @@ public class DataStreamIT extends ESIntegTestCase {
             // TODO: remove when fixing the bug when an index matching a backing index name is created before the data stream is created
             createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName + "-baz");
             client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
-
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName + "-baz" });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), equalTo(1));
+            String backingIndex = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
+            assertThat(backingIndex, backingIndexEqualTo(dataStreamName + "-baz", 1));
             BulkRequest bulkRequest = new BulkRequest().add(
                 new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON),
                 new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).create(true),
@@ -312,11 +316,11 @@ public class DataStreamIT extends ESIntegTestCase {
                 new IndexRequest(dataStreamName + "-baz").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON),
                 new IndexRequest(dataStreamName + "-baz").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON).create(true),
                 // Non create ops directly against backing indices are allowed:
-                new DeleteRequest(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1), "_id"),
-                new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName + "-baz", 1)).source(
-                    "{\"@timestamp\": \"2020-12-12\"}",
-                    XContentType.JSON
-                ).id("_id").setIfSeqNo(1).setIfPrimaryTerm(1)
+                new DeleteRequest(backingIndex, "_id"),
+                new IndexRequest(backingIndex).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
+                    .id("_id")
+                    .setIfSeqNo(1)
+                    .setIfPrimaryTerm(1)
             );
             BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
             assertThat(bulkResponse.getItems(), arrayWithSize(11));
@@ -1015,7 +1019,11 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo("logs-foobar"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getTimeStampField().getName(), equalTo("@timestamp"));
         Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"));
-        assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp", expectedTimestampMapping);
+        assertBackingIndex(
+            getDataStreamResponse.getDataStreams().get(0).getDataStream().getWriteIndex().getName(),
+            "properties.@timestamp",
+            expectedTimestampMapping
+        );
     }
 
     public void testUpdateMappingViaDataStream() throws Exception {
@@ -1197,10 +1205,7 @@ public class DataStreamIT extends ESIntegTestCase {
         String backingIndex = indexResponse.getIndex();
 
         // Index doc with custom routing that targets the backing index
-        IndexRequest indexRequestWithRouting = new IndexRequest(backingIndex).source(
-            "@timestamp",
-            System.currentTimeMillis()
-        )
+        IndexRequest indexRequestWithRouting = new IndexRequest(backingIndex).source("@timestamp", System.currentTimeMillis())
             .opType(DocWriteRequest.OpType.INDEX)
             .routing("custom")
             .id(indexResponse.getId())

@@ -78,6 +78,10 @@ public class ComputeService {
                     targetShards.add(indexShard);
                 }
             }
+            if (targetShards.isEmpty()) {
+                listener.onResponse(List.of());
+                return;
+            }
             CountDown countDown = new CountDown(targetShards.size());
             for (IndexShard targetShard : targetShards) {
                 targetShard.awaitShardSearchActive(ignored -> {

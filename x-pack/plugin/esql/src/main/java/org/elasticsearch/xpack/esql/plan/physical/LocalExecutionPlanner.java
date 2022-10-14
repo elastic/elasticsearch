@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
@@ -34,7 +35,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.analyzer.Avg;
-import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -62,12 +63,32 @@ import java.util.stream.IntStream;
 public class LocalExecutionPlanner {
 
     private final List<IndexReaderReference> indexReaders;
-    // TODO: allow configuring the following fields
-    public static final int DEFAULT_TASK_CONCURRENCY = ThreadPool.searchThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY));
-    private final int bufferMaxPages = 500;
+    private static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
+        "task_concurrency",
+        ThreadPool.searchThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
+    );
+    private static final Setting<Integer> BUFFER_MAX_PAGES = Setting.intSetting("buffer_max_pages", 500);
+    private static final Setting<DataPartitioning> DATA_PARTITIONING = Setting.enumSetting(
+        DataPartitioning.class,
+        "data_partitioning",
+        DataPartitioning.SEGMENT
+    );
 
-    public LocalExecutionPlanner(List<IndexReaderReference> indexReaders) {
+    public final int taskConcurrency;
+    private final int bufferMaxPages;
+    private final DataPartitioning dataPartitioning;
+
+    public LocalExecutionPlanner(EsqlConfiguration configuration, List<IndexReaderReference> indexReaders) {
         this.indexReaders = indexReaders;
+        taskConcurrency = TASK_CONCURRENCY.get(configuration.pragmas());
+        bufferMaxPages = BUFFER_MAX_PAGES.get(configuration.pragmas());
+        dataPartitioning = DATA_PARTITIONING.get(configuration.pragmas());
+    }
+
+    public enum DataPartitioning {
+        SHARD,
+        SEGMENT,
+        DOC,
     }
 
     public record IndexReaderReference(IndexReader indexReader, ShardId shardId) {
@@ -131,9 +152,8 @@ public class LocalExecutionPlanner {
         } else if (node instanceof EsQueryExec esQuery) {
             Supplier<Operator> operatorFactory;
             Set<String> indices = Sets.newHashSet(esQuery.index().name());
-            PlanNode.LuceneSourceNode.Parallelism parallelism = PlanNode.LuceneSourceNode.Parallelism.SINGLE; // TODO: esQuery.parallelism
             Query query = new MatchAllDocsQuery(); // TODO: esQuery.query
-            if (parallelism == PlanNode.LuceneSourceNode.Parallelism.SINGLE) {
+            if (dataPartitioning == DataPartitioning.SHARD) {
                 context.setDriverInstanceCount(
                     Math.toIntExact(indexReaders.stream().filter(iRR -> indices.contains(iRR.shardId().getIndexName())).count())
                 );
@@ -142,7 +162,7 @@ public class LocalExecutionPlanner {
                     .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
                     .map(tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), query))
                     .iterator()::next;
-            } else if (parallelism == PlanNode.LuceneSourceNode.Parallelism.SEGMENT) {
+            } else if (dataPartitioning == DataPartitioning.SEGMENT) {
                 context.setDriverInstanceCount(
                     indexReaders.stream()
                         .filter(iRR -> indices.contains(iRR.shardId().getIndexName()))
@@ -154,19 +174,18 @@ public class LocalExecutionPlanner {
                     .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
                     .flatMap(tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), query).segmentSlice().stream())
                     .iterator()::next;
-            } else if (parallelism == PlanNode.LuceneSourceNode.Parallelism.DOC) {
+            } else if (dataPartitioning == DataPartitioning.DOC) {
                 context.setDriverInstanceCount(
                     indexReaders.stream()
                         .filter(iRR -> indices.contains(iRR.shardId().getIndexName()))
-                        .mapToInt(indexReader -> LuceneSourceOperator.numDocSlices(indexReader.indexReader(), DEFAULT_TASK_CONCURRENCY))
+                        .mapToInt(indexReader -> LuceneSourceOperator.numDocSlices(indexReader.indexReader(), taskConcurrency))
                         .sum()
                 );
                 operatorFactory = IntStream.range(0, indexReaders.size())
                     .mapToObj(i -> Tuple.tuple(i, indexReaders.get(i)))
                     .filter(tup -> indices.contains(tup.v2().shardId().getIndexName()))
                     .flatMap(
-                        tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), query).docSlice(DEFAULT_TASK_CONCURRENCY)
-                            .stream()
+                        tuple -> new LuceneSourceOperator(tuple.v2().indexReader(), tuple.v1(), query).docSlice(taskConcurrency).stream()
                     )
                     .iterator()::next;
             } else {
@@ -214,14 +233,8 @@ public class LocalExecutionPlanner {
                 source
             );
         } else if (node instanceof ExchangeExec exchangeExec) {
-            int driverInstances;
-            if (exchangeExec.getType() == ExchangeExec.Type.GATHER) {
-                driverInstances = 1;
-                context.setDriverInstanceCount(1);
-            } else {
-                driverInstances = DEFAULT_TASK_CONCURRENCY;
-                context.setDriverInstanceCount(driverInstances);
-            }
+            int driverInstances = exchangeExec.getType() == ExchangeExec.Type.GATHER ? 1 : taskConcurrency;
+            context.setDriverInstanceCount(driverInstances);
             Exchange ex = new Exchange(driverInstances, exchangeExec.getPartitioning().toExchange(), bufferMaxPages);
 
             LocalExecutionPlanContext subContext = context.createSubContext();

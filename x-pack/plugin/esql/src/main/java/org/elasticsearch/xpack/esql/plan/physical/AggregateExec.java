@@ -38,10 +38,7 @@ public class AggregateExec extends UnaryExec {
         List<? extends Expression> groupings,
         List<? extends NamedExpression> aggregates
     ) {
-        super(source, child);
-        this.groupings = groupings;
-        this.aggregates = aggregates;
-        this.mode = Mode.SINGLE;
+        this(source, child, groupings, aggregates, Mode.SINGLE);
     }
 
     public AggregateExec(

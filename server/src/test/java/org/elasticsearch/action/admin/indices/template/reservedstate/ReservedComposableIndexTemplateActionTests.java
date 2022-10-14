@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.reservedstate.ActionWithReservedState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
@@ -48,15 +50,21 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.reservedComponentName;
 import static org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction.reservedComposableIndexName;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 /**
  * A unit test class that tests {@link ReservedComposableIndexTemplateAction}
@@ -815,5 +823,141 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             // this should just work, no failure
             TransportPutComposableIndexTemplateAction.verifyIfUsingReservedComponentTemplates(request, withReservedState);
         }
+    }
+
+    public void testTemplatesWithReservedPrefix() throws Exception {
+        final String conflictingTemplateName = "validate_template";
+
+        // Reserve the validate_template name in the reserved metadata
+        String composableTemplate = String.format(Locale.ROOT, """
+            {
+              "composable_index_templates": {
+                "%s": {
+                    "index_patterns": ["te*", "bar*"],
+                    "template": {
+                      "settings": {
+                        "number_of_shards": 1
+                      },
+                      "mappings": {
+                        "_source": {
+                          "enabled": true
+                        },
+                        "properties": {
+                          "host_name": {
+                            "type": "keyword"
+                          },
+                          "created_at": {
+                            "type": "date",
+                            "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                          }
+                        }
+                      },
+                      "aliases": {
+                        "mydata": { }
+                      }
+                    },
+                    "priority": 500,
+                    "version": 3,
+                    "_meta": {
+                      "description": "my custom"
+                    }
+                  }
+                }
+              }
+            }""", conflictingTemplateName);
+
+        // add a non-reserved template into the cluster state that has a name of validate_template, but with the composable
+        // index name prefix.
+        Metadata metadata = Metadata.builder()
+            .indexTemplates(
+                Map.of(
+                    reservedComposableIndexName(conflictingTemplateName),
+                    new ComposableIndexTemplate(singletonList("foo*"), null, Collections.emptyList(), 1L, 1L, Collections.emptyMap())
+                )
+            )
+            .build();
+
+        ClusterService mockedClusterService = spy(clusterService);
+        MetadataIndexTemplateService mockedTemplateService = new MetadataIndexTemplateService(
+            mockedClusterService,
+            mock(MetadataCreateIndexService.class),
+            indicesService,
+            indexScopedSettings,
+            mock(NamedXContentRegistry.class),
+            mock(SystemIndices.class),
+            new IndexSettingProviders(Set.of())
+        );
+
+        ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).metadata(metadata).build();
+        doReturn(state).when(mockedClusterService).state();
+
+        // we should see the weird composable name prefixed 'validate_template'
+        assertThat(state.metadata().templatesV2(), allOf(aMapWithSize(1), hasKey(reservedComposableIndexName(conflictingTemplateName))));
+
+        TransformState prevState = new TransformState(state, Collections.emptySet());
+        var action = new ReservedComposableIndexTemplateAction(mockedTemplateService, indexScopedSettings);
+
+        TransformState updatedState = processJSON(action, prevState, composableTemplate);
+
+        // only one reserved key for 'validate_template'
+        assertThat(updatedState.keys(), containsInAnyOrder(reservedComposableIndexName(conflictingTemplateName)));
+        // we should find a template name with 'validate_template' and 'composable_index_template:validate_template'. The user had
+        // added that weird name 'composable_index_template:validate_template', using this prefix in the name shouldn't make us fail
+        // any reservation validation
+        assertThat(
+            updatedState.state().metadata().templatesV2(),
+            allOf(aMapWithSize(2), hasKey(reservedComposableIndexName(conflictingTemplateName)), hasKey(conflictingTemplateName))
+        );
+
+        Metadata withReservedMetadata = Metadata.builder(updatedState.state().metadata())
+            .put(
+                new ReservedStateMetadata.Builder("file_settings").putHandler(
+                    new ReservedStateHandlerMetadata(ReservedComposableIndexTemplateAction.NAME, updatedState.keys())
+                ).build()
+            )
+            .build();
+
+        // apply the modified keys to a cluster state, as the ReservedStateService would do
+        ClusterState withReservedState = new ClusterState.Builder(updatedState.state()).metadata(withReservedMetadata).build();
+
+        PutComposableIndexTemplateAction.Request pr = new PutComposableIndexTemplateAction.Request(conflictingTemplateName);
+
+        var putTemplateAction = new TransportPutComposableIndexTemplateAction(
+            mock(TransportService.class),
+            null,
+            null,
+            null,
+            mock(ActionFilters.class),
+            null
+        );
+
+        // Try fake REST modification request with validate_template, this will fail
+        var modifiedKeys = putTemplateAction.modifiedKeys(pr);
+        assertEquals(1, modifiedKeys.size());
+
+        var fakeAction = new ActionWithReservedState<PutComposableIndexTemplateAction.Request>() {
+        };
+        assertEquals(
+            "Failed to process request [validate_template] with errors: "
+                + "[[composable_index_template:validate_template] set as read-only by [file_settings]]",
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> fakeAction.validateForReservedState(
+                    withReservedState,
+                    ReservedComposableIndexTemplateAction.NAME,
+                    modifiedKeys,
+                    pr.name()
+                )
+            ).getMessage()
+        );
+
+        // Try fake REST modification request with the weird prefixed composable_index_template:validate_template, this will work, since
+        // the reserved keys for that name would be composable_index_template:composable_index_template:validate_template and it will not
+        // match our reserved state.
+        var prOK = new PutComposableIndexTemplateAction.Request(reservedComposableIndexName(conflictingTemplateName));
+        var modifiedKeysOK = putTemplateAction.modifiedKeys(prOK);
+        assertEquals(1, modifiedKeysOK.size());
+
+        fakeAction.validateForReservedState(withReservedState, ReservedComposableIndexTemplateAction.NAME, modifiedKeysOK, prOK.name());
     }
 }

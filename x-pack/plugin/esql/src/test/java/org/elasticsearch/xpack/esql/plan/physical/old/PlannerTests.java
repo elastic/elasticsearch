@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.physical;
+package org.elasticsearch.xpack.esql.plan.physical.old;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -32,9 +32,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.compute.transport.ComputeRequest;
-import org.elasticsearch.xpack.esql.plan.physical.old.OldLocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.plan.physical.old.OldLocalExecutionPlanner.IndexReaderReference;
-import org.elasticsearch.xpack.esql.plan.physical.old.PlanNode;
 import org.junit.After;
 import org.junit.Before;
 

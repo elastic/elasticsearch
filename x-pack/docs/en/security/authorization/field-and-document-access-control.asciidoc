@@ -25,9 +25,6 @@ grant wider access than intended. Each user has a single set of field level and
 document level permissions per data stream or index. See <<multiple-roles-dls-fls>>.
 =====================================================================
 
-NOTE: Document- and field-level security disables the
-{ref}/shard-request-cache.html[shard request cache].
-
 [[multiple-roles-dls-fls]]
 ==== Multiple roles with document and field level security
 

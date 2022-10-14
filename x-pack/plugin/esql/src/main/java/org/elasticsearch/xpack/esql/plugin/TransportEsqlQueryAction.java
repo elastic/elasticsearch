@@ -39,9 +39,9 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.session.Configuration;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -81,14 +81,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         // TODO: create more realistic function registry
         FunctionRegistry functionRegistry = new FunctionRegistry(FunctionRegistry.def(Avg.class, Avg::new, "AVG"));
-        Configuration configuration = new Configuration(
+        EsqlConfiguration configuration = new EsqlConfiguration(
             request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
             null,
             null,
-            x -> Collections.emptySet()
+            x -> Collections.emptySet(),
+            request.pragmas()
         );
         new EsqlSession(planExecutor.indexResolver(), functionRegistry, configuration).execute(request.query(), ActionListener.wrap(r -> {
-            runCompute(r, listener.map(pages -> {
+            runCompute(r, configuration, listener.map(pages -> {
                 List<ColumnInfo> columns = r.output().stream().map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType())).toList();
                 return new EsqlQueryResponse(columns, pagesToValues(pages));
             }));
@@ -110,7 +111,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return result;
     }
 
-    private void runCompute(PhysicalPlan physicalPlan, ActionListener<List<Page>> listener) throws IOException {
+    private void runCompute(PhysicalPlan physicalPlan, EsqlConfiguration configuration, ActionListener<List<Page>> listener)
+        throws IOException {
         Set<String> indexNames = physicalPlan.collect(l -> l instanceof EsQueryExec)
             .stream()
             .map(qe -> ((EsQueryExec) qe).index().name())
@@ -135,6 +137,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             searchContexts.stream().forEach(SearchContext::preProcess);
 
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
+                configuration,
                 searchContexts.stream()
                     .map(SearchContext::getSearchExecutionContext)
                     .map(

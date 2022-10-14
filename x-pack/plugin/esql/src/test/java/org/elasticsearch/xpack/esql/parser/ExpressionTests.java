@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
+import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -362,7 +362,7 @@ public class ExpressionTests extends ESTestCase {
             "a*b*c*a.b.*",
             "*a.b.c*b*c*a.b.*" };
         List<?> projections;
-        EsqlProject p;
+        ProjectReorderRenameRemove p;
         for (String e : exp) {
             p = projectExpression(e);
             projections = p.projections();
@@ -376,7 +376,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testWildcardProjectKeep() {
-        EsqlProject p = projectExpression("*");
+        ProjectReorderRenameRemove p = projectExpression("*");
         List<?> projections = p.projections();
         assertThat(projections.size(), equalTo(1));
         assertThat(p.removals().size(), equalTo(0));
@@ -406,7 +406,7 @@ public class ExpressionTests extends ESTestCase {
             "-*a.b.c*b*c*a.b.*" };
         List<?> removals;
         for (String e : exp) {
-            EsqlProject p = projectExpression(e);
+            ProjectReorderRenameRemove p = projectExpression(e);
             removals = p.removals();
             assertThat(removals.size(), equalTo(1));
             assertThat(p.projections().size(), equalTo(0));
@@ -424,7 +424,7 @@ public class ExpressionTests extends ESTestCase {
     public void testProjectKeepPatterns() {
         String[] exp = new String[] { "abc", "abc.xyz", "a.b.c.d.e" };
         List<?> projections;
-        EsqlProject p;
+        ProjectReorderRenameRemove p;
         for (String e : exp) {
             p = projectExpression(e);
             projections = p.projections();
@@ -439,7 +439,7 @@ public class ExpressionTests extends ESTestCase {
         String[] exp = new String[] { "-abc", "-abc.xyz", "-a.b.c.d.e" };
         List<?> removals;
         for (String e : exp) {
-            EsqlProject p = projectExpression(e);
+            ProjectReorderRenameRemove p = projectExpression(e);
             removals = p.removals();
             assertThat(removals.size(), equalTo(1));
             assertThat(p.projections().size(), equalTo(0));
@@ -453,7 +453,7 @@ public class ExpressionTests extends ESTestCase {
         String[] oldName = new String[] { "b", "a.c", "x.y", "a" };
         List<?> projections;
         for (int i = 0; i < newName.length; i++) {
-            EsqlProject p = projectExpression(newName[i] + "=" + oldName[i]);
+            ProjectReorderRenameRemove p = projectExpression(newName[i] + "=" + oldName[i]);
             projections = p.projections();
             assertThat(projections.size(), equalTo(1));
             assertThat(p.removals().size(), equalTo(0));
@@ -467,7 +467,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testMultipleProjectPatterns() {
-        EsqlProject p = projectExpression("abc, xyz*, -foo, x=y, -bar, *");
+        ProjectReorderRenameRemove p = projectExpression("abc, xyz*, -foo, x=y, -bar, *");
         List<?> projections = p.projections();
         List<?> removals = p.removals();
         assertThat(projections.size(), equalTo(4));
@@ -496,8 +496,8 @@ public class ExpressionTests extends ESTestCase {
         return ((Filter) plan).condition();
     }
 
-    private EsqlProject projectExpression(String e) {
-        return (EsqlProject) parser.createStatement("from a | project " + e);
+    private ProjectReorderRenameRemove projectExpression(String e) {
+        return (ProjectReorderRenameRemove) parser.createStatement("from a | project " + e);
     }
 
     private Literal l(Object value, DataType type) {

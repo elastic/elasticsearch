@@ -17,11 +17,11 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
-public class EsqlProject extends Project {
+public class ProjectReorderRenameRemove extends Project {
 
     private final List<? extends NamedExpression> removals;
 
-    public EsqlProject(
+    public ProjectReorderRenameRemove(
         Source source,
         LogicalPlan child,
         List<? extends NamedExpression> projections,
@@ -33,12 +33,12 @@ public class EsqlProject extends Project {
 
     @Override
     protected NodeInfo<Project> info() {
-        return NodeInfo.create(this, EsqlProject::new, child(), projections(), removals);
+        return NodeInfo.create(this, ProjectReorderRenameRemove::new, child(), projections(), removals);
     }
 
     @Override
     public Project replaceChild(LogicalPlan newChild) {
-        return new EsqlProject(source(), newChild, projections(), removals);
+        return new ProjectReorderRenameRemove(source(), newChild, projections(), removals);
     }
 
     public List<? extends NamedExpression> removals() {
@@ -60,7 +60,7 @@ public class EsqlProject extends Project {
         if (false == super.equals(obj)) {
             return false;
         }
-        EsqlProject other = (EsqlProject) obj;
+        ProjectReorderRenameRemove other = (ProjectReorderRenameRemove) obj;
         return Objects.equals(removals, other.removals);
     }
 }

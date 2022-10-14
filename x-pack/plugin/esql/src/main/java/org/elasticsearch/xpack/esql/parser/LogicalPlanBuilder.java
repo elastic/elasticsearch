@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.elasticsearch.xpack.esql.plan.logical.EsqlProject;
+import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -139,7 +139,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 projections.add(ne);
             }
         }
-        return input -> new EsqlProject(source(ctx), input, projections, removals);
+        return input -> new ProjectReorderRenameRemove(source(ctx), input, projections, removals);
     }
 
     private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {

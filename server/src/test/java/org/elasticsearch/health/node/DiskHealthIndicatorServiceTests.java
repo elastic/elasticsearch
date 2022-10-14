@@ -805,12 +805,90 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    public void testNodeHealthStatusCounts() {
+        {
+            // A bit of everything
+            int unknownCount = randomIntBetween(1, 10);
+            int greenCount = randomIntBetween(1, 10);
+            int yellowCount = randomIntBetween(1, 10);
+            int redCount = randomIntBetween(1, 10);
+            Set<DiscoveryNode> nodes = createNodes(unknownCount + greenCount + yellowCount + redCount, DiscoveryNodeRole.roles());
+            int i = 0;
+            Map<String, DiskHealthInfo> nodesDiskHealth = new HashMap<>();
+            for (DiscoveryNode node : nodes) {
+                HealthStatus status;
+                if (i < unknownCount) {
+                    status = HealthStatus.UNKNOWN;
+                } else if (i < unknownCount + greenCount) {
+                    status = HealthStatus.GREEN;
+                } else if (i < unknownCount + greenCount + yellowCount) {
+                    status = HealthStatus.YELLOW;
+                } else {
+                    status = HealthStatus.RED;
+                }
+                nodesDiskHealth.put(node.getId(), new DiskHealthInfo(status, randomFrom(DiskHealthInfo.Cause.values())));
+                i++;
+            }
+            ClusterState clusterState = createClusterState(Set.of(), nodes, Map.of());
+            Map<HealthStatus, Integer> counts = DiskHealthIndicatorService.DiskHealthAnalyzer.countNodesByHealthStatus(
+                nodesDiskHealth,
+                clusterState
+            );
+            assertThat(counts.get(HealthStatus.UNKNOWN), equalTo(unknownCount));
+            assertThat(counts.get(HealthStatus.GREEN), equalTo(greenCount));
+            assertThat(counts.get(HealthStatus.YELLOW), equalTo(yellowCount));
+            assertThat(counts.get(HealthStatus.RED), equalTo(redCount));
+        }
+        {
+            // No nodes
+            Map<HealthStatus, Integer> counts = DiskHealthIndicatorService.DiskHealthAnalyzer.countNodesByHealthStatus(
+                Map.of(),
+                ClusterState.EMPTY_STATE
+            );
+            assertThat(counts.get(HealthStatus.UNKNOWN), equalTo(0));
+            assertThat(counts.get(HealthStatus.GREEN), equalTo(0));
+            assertThat(counts.get(HealthStatus.YELLOW), equalTo(0));
+            assertThat(counts.get(HealthStatus.RED), equalTo(0));
+        }
+        {
+            // No disk health info, cluster state with nodes
+            Set<DiscoveryNode> nodes = createNodes(DiscoveryNodeRole.roles());
+            ClusterState clusterState = createClusterState(Set.of(), nodes, Map.of());
+            Map<HealthStatus, Integer> counts = DiskHealthIndicatorService.DiskHealthAnalyzer.countNodesByHealthStatus(
+                Map.of(),
+                clusterState
+            );
+            assertThat(counts.get(HealthStatus.UNKNOWN), equalTo(nodes.size()));
+            assertThat(counts.get(HealthStatus.GREEN), equalTo(0));
+            assertThat(counts.get(HealthStatus.YELLOW), equalTo(0));
+            assertThat(counts.get(HealthStatus.RED), equalTo(0));
+        }
+        {
+            // Disk health info for one node, no nodes in cluster state
+            Map<String, DiskHealthInfo> nodesDiskHealth = Map.of(
+                randomAlphaOfLength(10),
+                new DiskHealthInfo(randomFrom(HealthStatus.values()))
+            );
+            Map<HealthStatus, Integer> counts = DiskHealthIndicatorService.DiskHealthAnalyzer.countNodesByHealthStatus(
+                nodesDiskHealth,
+                ClusterState.EMPTY_STATE
+            );
+            assertThat(counts.get(HealthStatus.UNKNOWN), equalTo(0));
+            assertThat(counts.get(HealthStatus.GREEN), equalTo(0));
+            assertThat(counts.get(HealthStatus.YELLOW), equalTo(0));
+            assertThat(counts.get(HealthStatus.RED), equalTo(0));
+        }
+    }
+
     private Set<DiscoveryNode> createNodesWithAllRoles() {
         return createNodes(DiscoveryNodeRole.roles());
     }
 
     private Set<DiscoveryNode> createNodes(Set<DiscoveryNodeRole> roles) {
-        int numberOfNodes = randomIntBetween(1, 200);
+        return createNodes(randomIntBetween(1, 200), roles);
+    }
+
+    private Set<DiscoveryNode> createNodes(int numberOfNodes, Set<DiscoveryNodeRole> roles) {
         Set<DiscoveryNode> discoveryNodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes; i++) {
             discoveryNodes.add(

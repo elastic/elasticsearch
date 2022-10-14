@@ -1,0 +1,217 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.index.shard;
+
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
+public class IndexWriteLoad implements Writeable, ToXContentFragment {
+    public static final ParseField SHARDS_WRITE_LOAD_FIELD = new ParseField("shards_write_load");
+    public static final ParseField SHARDS_UPTIME_IN_MILLIS = new ParseField("shards_uptime_in_millis");
+    private static final Double UNKNOWN_LOAD = -1.0;
+    private static final long UNKNOWN_UPTIME = -1;
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<IndexWriteLoad, Void> PARSER = new ConstructingObjectParser<>(
+        "index_write_load_parser",
+        false,
+        (args, unused) -> IndexWriteLoad.create((List<Double>) args[0], (List<Long>) args[1])
+    );
+
+    static {
+        PARSER.declareDoubleArray(ConstructingObjectParser.constructorArg(), SHARDS_WRITE_LOAD_FIELD);
+        PARSER.declareLongArray(ConstructingObjectParser.constructorArg(), SHARDS_UPTIME_IN_MILLIS);
+    }
+
+    public static IndexWriteLoad create(List<Double> shardsWriteLoad, List<Long> shardsUptimeInMillis) {
+        if (shardsWriteLoad.size() != shardsUptimeInMillis.size()) {
+            throw new IllegalArgumentException(
+                "The same number of shards write load and shard uptime should be provided, but "
+                    + shardsWriteLoad
+                    + " "
+                    + shardsUptimeInMillis
+                    + " were provided"
+            );
+        }
+
+        if (shardsWriteLoad.isEmpty()) {
+            throw new IllegalArgumentException("At least one shard write load and uptime should be provided, but none was provided");
+        }
+
+        return new IndexWriteLoad(
+            shardsWriteLoad.stream().mapToDouble(shardLoad -> shardLoad).toArray(),
+            shardsUptimeInMillis.stream().mapToLong(shardUptime -> shardUptime).toArray()
+        );
+    }
+
+    @Nullable
+    public static IndexWriteLoad fromStats(IndexMetadata indexMetadata, @Nullable IndicesStatsResponse indicesStatsResponse) {
+        if (indicesStatsResponse == null) {
+            return null;
+        }
+
+        final IndexStats indexStats = indicesStatsResponse.getIndex(indexMetadata.getIndex().getName());
+        if (indexStats == null) {
+            return null;
+        }
+
+        final int numberOfShards = indexMetadata.getNumberOfShards();
+        final var indexWriteLoadBuilder = IndexWriteLoad.builder(numberOfShards);
+        final var indexShards = indexStats.getIndexShards();
+        for (IndexShardStats indexShardsStats : indexShards.values()) {
+            final var shardStats = Arrays.stream(indexShardsStats.getShards())
+                .filter(stats -> stats.getShardRouting().primary())
+                .findFirst()
+                // Fallback to a replica if for some reason we couldn't find the primary stats
+                .orElse(indexShardsStats.getAt(0));
+            final var indexingShardStats = shardStats.getStats().getIndexing().getTotal();
+            indexWriteLoadBuilder.withShardWriteLoad(
+                shardStats.getShardRouting().id(),
+                indexingShardStats.getWriteLoad(),
+                indexingShardStats.getTotalActiveTimeInMillis()
+            );
+        }
+        return indexWriteLoadBuilder.build();
+    }
+
+    private final double[] shardWriteLoadLoad;
+    private final long[] shardUptimeInMillis;
+
+    private IndexWriteLoad(double[] shardWriteLoadLoad, long[] shardUptimeInMillis) {
+        assert shardWriteLoadLoad.length == shardUptimeInMillis.length;
+        this.shardWriteLoadLoad = shardWriteLoadLoad;
+        this.shardUptimeInMillis = shardUptimeInMillis;
+    }
+
+    public IndexWriteLoad(StreamInput in) throws IOException {
+        this(in.readDoubleArray(), in.readLongArray());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeDoubleArray(shardWriteLoadLoad);
+        out.writeLongArray(shardUptimeInMillis);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(SHARDS_WRITE_LOAD_FIELD.getPreferredName(), shardWriteLoadLoad);
+        builder.field(SHARDS_UPTIME_IN_MILLIS.getPreferredName(), shardUptimeInMillis);
+        return builder;
+    }
+
+    public static IndexWriteLoad fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    @Nullable
+    public Double getWriteLoadForShard(int shardId) {
+        return getWriteLoadForShard(shardId, null);
+    }
+
+    public Double getWriteLoadForShard(int shardId, Double defaultValue) {
+        checkBounds(shardId);
+
+        double load = shardWriteLoadLoad[shardId];
+        if (load == UNKNOWN_LOAD) {
+            return defaultValue;
+        } else {
+            return load;
+        }
+    }
+
+    @Nullable
+    public Long getUptimeInMillisForShard(int shardId) {
+        return getUptimeInMillisForShard(shardId, null);
+    }
+
+    public Long getUptimeInMillisForShard(int shardId, Long defaultValue) {
+        checkBounds(shardId);
+
+        long uptime = shardUptimeInMillis[shardId];
+        if (uptime == UNKNOWN_UPTIME) {
+            return defaultValue;
+        } else {
+            return uptime;
+        }
+    }
+
+    // Visible for testing
+    public int numberOfShards() {
+        return shardWriteLoadLoad.length;
+    }
+
+    private void checkBounds(int shardId) {
+        if (shardId < 0 || shardId >= shardWriteLoadLoad.length) {
+            throw new IllegalArgumentException("Unexpected shard id " + shardId);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IndexWriteLoad that = (IndexWriteLoad) o;
+        return Arrays.equals(shardWriteLoadLoad, that.shardWriteLoadLoad) && Arrays.equals(shardUptimeInMillis, that.shardUptimeInMillis);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Arrays.hashCode(shardWriteLoadLoad);
+        result = 31 * result + Arrays.hashCode(shardUptimeInMillis);
+        return result;
+    }
+
+    public static Builder builder(int numShards) {
+        if (numShards <= 0) {
+            throw new IllegalArgumentException("A positive number of shards should be provided");
+        }
+        return new Builder(numShards);
+    }
+
+    public static class Builder {
+        final double[] shardWriteLoad;
+        final long[] uptimeInMillis;
+
+        private Builder(int numShards) {
+            this.shardWriteLoad = new double[numShards];
+            this.uptimeInMillis = new long[numShards];
+            Arrays.fill(shardWriteLoad, UNKNOWN_LOAD);
+            Arrays.fill(uptimeInMillis, UNKNOWN_UPTIME);
+        }
+
+        public void withShardWriteLoad(int shardId, double load, long uptimeInMillis) {
+            if (shardId >= this.shardWriteLoad.length) {
+                throw new IllegalArgumentException();
+            }
+
+            this.shardWriteLoad[shardId] = load;
+            this.uptimeInMillis[shardId] = uptimeInMillis;
+        }
+
+        public IndexWriteLoad build() {
+            return new IndexWriteLoad(shardWriteLoad, uptimeInMillis);
+        }
+    }
+}

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -72,6 +73,12 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, String> customMap = new HashMap<>();
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
+        IndexWriteLoad indexWriteLoad = randomBoolean()
+            ? IndexWriteLoad.create(
+                randomList(numShard, numShard, () -> randomDoubleBetween(0.0, 128.0, true)),
+                randomList(numShard, numShard, ESTestCase::randomNonNegativeLong)
+            )
+            : null;
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
@@ -98,6 +105,7 @@ public class IndexMetadataTests extends ESTestCase {
                     randomNonNegativeLong()
                 )
             )
+            .indexWriteLoad(indexWriteLoad)
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -126,6 +134,7 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
         assertEquals(metadata.getCustomData(), expectedCustom);
         assertEquals(metadata.getCustomData(), fromXContentMeta.getCustomData());
+        assertEquals(metadata.getWriteLoad(), fromXContentMeta.getWriteLoad());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -146,6 +155,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
+            assertEquals(metadata.getWriteLoad(), deserialized.getWriteLoad());
         }
     }
 
@@ -480,6 +490,18 @@ public class IndexMetadataTests extends ESTestCase {
             .build();
 
         assertThat(idxMeta2.getLifecyclePolicyName(), equalTo("some_policy"));
+    }
+
+    public void testBuildRejectsDifferentShardsWriteLoadCount() {
+        final var indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.builder("myindex").settings(indexSettings).indexWriteLoad(IndexWriteLoad.builder(2).build()).build()
+        );
     }
 
     private static Settings indexSettingsWithDataTier(String dataTier) {

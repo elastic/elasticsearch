@@ -145,7 +145,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 noopUpdates.count(),
                 isThrottled,
                 TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
-                timeSinceShardStartedInNanos > 0 ? (double) totalIndexingTimeSinceShardStarted / timeSinceShardStartedInNanos : 0
+                timeSinceShardStartedInNanos > 0 ? (double) totalIndexingTimeSinceShardStarted / timeSinceShardStartedInNanos : 0,
+                TimeUnit.NANOSECONDS.toMillis(timeSinceShardStartedInNanos)
             );
         }
     }

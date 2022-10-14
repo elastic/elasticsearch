@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  *
  * Allocation ids are added for shards that become active and removed for shards that stop being active.
  */
-public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRoutingChangesObserver {
+public class IndexMetadataUpdater implements RoutingChangesObserver {
     private final Map<ShardId, Updates> shardChanges = new HashMap<>();
 
     @Override

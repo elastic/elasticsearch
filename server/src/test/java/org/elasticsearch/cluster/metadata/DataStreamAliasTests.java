@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStreamAlias> {
+public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<DataStreamAlias> {
 
     @Override
     protected DataStreamAlias doParseInstance(XContentParser parser) throws IOException {

@@ -20,9 +20,3 @@ dependencies {
 }
 
 addQaCheckDependencies(project)
-
-tasks.named("test").configure {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
-}

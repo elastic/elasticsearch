@@ -358,10 +358,30 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      */
     public void initializeAsync(Executor executor) {
         if (routingNodes == null) {
-            executor.execute(this::getRoutingNodes);
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    getRoutingNodes();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of routing nodes for cluster state " + version();
+                }
+            });
         }
         if (metadata.indicesLookupInitialized() == false) {
-            executor.execute(metadata::getIndicesLookup);
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    metadata.getIndicesLookup();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of indices lookup for cluster state " + version();
+                }
+            });
         }
     }
 

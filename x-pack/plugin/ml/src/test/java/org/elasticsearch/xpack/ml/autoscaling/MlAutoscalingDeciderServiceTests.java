@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -21,14 +22,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
+import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
@@ -43,6 +47,8 @@ import static org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator.JVM_SIZE_K
 import static org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator.STATIC_JVM_UPPER_THRESHOLD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -206,6 +212,52 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
 
         // First call doesn't downscale as delay has not been satisfied
         assertThat(result.reason().summary(), containsString("Passing currently perceived capacity as no scaling changes are necessary"));
+    }
+
+    public void testScale_GivenUndeterminedMemory_ShouldReturnNullCapacity() {
+        MlAutoscalingDeciderService service = buildService();
+        service.onMaster();
+
+        String jobId = "a_job";
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        OpenJobPersistentTasksExecutorTests.addJobTask(jobId, randomFrom("ml-1", "ml-2"), JobState.OPENED, tasksBuilder);
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build());
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(buildNode("ml-1", ByteSizeValue.ofGb(4), 8))
+                    .add(buildNode("ml-2", ByteSizeValue.ofGb(4), 8))
+                    .build()
+            )
+            .metadata(metadata)
+            .build();
+
+        // Making the memory tracker return 0 for an AD job memory results to the decider return
+        // undetermined capacity.
+        when(mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId)).thenReturn(0L);
+
+        AutoscalingDeciderResult result = service.scale(
+            Settings.EMPTY,
+            new DeciderContext(
+                clusterState,
+                new AutoscalingCapacity(
+                    new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofGb(8), null),
+                    new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofGb(4), null)
+                )
+            )
+        );
+
+        assertThat(
+            result.reason().summary(),
+            containsString(
+                "[memory_decider] Passing currently perceived capacity as there are running analytics "
+                    + "and anomaly jobs or deployed models, but their assignment explanations are unexpected or their "
+                    + "memory usage estimates are inaccurate."
+            )
+        );
+        assertThat(result.requiredCapacity(), is(nullValue()));
     }
 
     private DiscoveryNode buildNode(String id, ByteSizeValue machineMemory, int allocatedProcessors) {

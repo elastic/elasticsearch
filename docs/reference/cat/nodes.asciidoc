@@ -6,8 +6,8 @@
 
 [IMPORTANT]
 ====
-cat APIs are only intended for human consumption using the command line or {kib} 
-console. They are _not_ intended for use by applications. For application 
+cat APIs are only intended for human consumption using the command line or {kib}
+console. They are _not_ intended for use by applications. For application
 consumption, use the <<cluster-nodes-info,nodes info API>>.
 ====
 
@@ -314,6 +314,12 @@ Time spent in suggest, such as `0`.
 
 `suggest.total`, `suto`, `suggestTotal`::
 Number of suggest operations, such as `0`.
+
+`mappings.total_count`, `mtc`, `mappingsTotalCount`::
+Number of mappings, including <<runtime,runtime>> and <<object,object>> fields.
+
+`mappings.total_estimated_overhead_in_bytes`, `mteo`, `mappingsTotalEstimatedOverheadInBytes`::
+Estimated heap overhead, in bytes, of mappings on this node, which allows for 1KiB of heap for every mapped field.
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]

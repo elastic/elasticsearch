@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.Diagnosis.Resource.Type;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
@@ -85,6 +86,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
+                            NAME,
+                            SlmHealthIndicatorService.AUTOMATION_DISABLED_IMPACT_ID,
                             3,
                             "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
                             List.of(ImpactArea.BACKUP)
@@ -203,6 +206,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
+                            NAME,
+                            SlmHealthIndicatorService.STALE_SNAPSHOTS_IMPACT_ID,
                             2,
                             "Some automated snapshots have not had a successful execution recently. Indices restored from affected "
                                 + "snapshots may not contain recent changes.",
@@ -220,7 +225,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                                     + "]",
                                 "Check the snapshot lifecycle policy for detailed failure info:\n- /_slm/policy/test-policy?human"
                             ),
-                            List.of("test-policy")
+                            List.of(new Diagnosis.Resource(Type.SLM_POLICY, List.of("test-policy")))
                         )
                     )
                 )

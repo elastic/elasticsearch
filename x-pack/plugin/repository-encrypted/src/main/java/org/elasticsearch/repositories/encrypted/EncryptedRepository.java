@@ -636,7 +636,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
 
         @Override
-        public void writeBlob(
+        public void writeMetadataBlob(
             String blobName,
             boolean failIfAlreadyExists,
             boolean atomic,

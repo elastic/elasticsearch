@@ -396,7 +396,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             });
         }
 
-        private static Map<HealthStatus, Integer> countNodesByHealthStatus(
+        // Visible for testing
+        static Map<HealthStatus, Integer> countNodesByHealthStatus(
             Map<String, DiskHealthInfo> diskHealthInfoMap,
             ClusterState clusterState
         ) {

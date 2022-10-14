@@ -219,10 +219,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
             return new Alias(src, newName, new UnresolvedAttribute(source(ctx.oldName), oldName));
         } else {
             String identifier = visitSourceIdentifier(ctx.sourceIdentifier(0));
-            if (identifier.equals(WILDCARD)) {
-                return new UnresolvedStar(src, null);
-            }
-            return new UnresolvedAttribute(src, identifier);
+            return identifier.equals(WILDCARD) ? new UnresolvedStar(src, null) : new UnresolvedAttribute(src, identifier);
         }
     }
 

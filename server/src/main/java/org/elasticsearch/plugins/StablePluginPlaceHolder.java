@@ -8,12 +8,10 @@
 
 package org.elasticsearch.plugins;
 
-public final class StablePluginPlaceHolder extends Plugin {
+class StablePluginPlaceHolder extends Plugin {
+    private final String name;
 
-    private final String pluginName;
-
-    StablePluginPlaceHolder(String pluginName) {
-        this.pluginName = pluginName;
+    StablePluginPlaceHolder(String name) {
+        this.name = name;
     }
-
 }

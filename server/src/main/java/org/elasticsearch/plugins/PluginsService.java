@@ -470,14 +470,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 Contrary to old plugins we don't need an instance of the plugin here.
                 Stable plugin register components (like CharFilterFactory) in stable plugin registry, which is then used in AnalysisModule
                 when registering char filter factories and other analysis components.
-
                 We don't have to support for settings, additional components and other methods
-                that are on org.elasticsearch.plugins.Plugin
+                that are in org.elasticsearch.plugins.Plugin
                 We need to pass a name though so that we can show that a plugin was loaded (via cluster state api)
                 This might need to be revisited once support for settings is added
                  */
                 plugin = new StablePluginPlaceHolder(bundle.plugin.getName());
             } else {
+
                 Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
                 if (pluginClassLoader != pluginClass.getClassLoader()) {
                     throw new IllegalStateException(
@@ -493,7 +493,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 plugin = loadPlugin(pluginClass, settings, configPath);
             }
             loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
-
         } finally {
             privilegedSetContextClassLoader(cl);
         }

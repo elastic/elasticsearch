@@ -82,9 +82,9 @@ public class StableApiWrappers {
             charFilterFactoryClass.getCanonicalName()
         );
 
-        Map<String, AnalysisModule.AnalysisProvider<T>> oldComponents = pluginInfosForExtensible.stream()
+        Map<String, AnalysisModule.AnalysisProvider<T>> oldApiComponents = pluginInfosForExtensible.stream()
             .collect(Collectors.toMap(PluginInfo::name, p -> analysisProviderWrapper(p, wrapper)));
-        return oldComponents;
+        return oldApiComponents;
     }
 
     @SuppressWarnings("unchecked")

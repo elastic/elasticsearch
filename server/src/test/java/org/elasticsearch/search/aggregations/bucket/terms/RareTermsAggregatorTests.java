@@ -365,19 +365,21 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("keyword");
 
-                    InternalGlobal result = searchAndReduce(indexSearcher, new AggTestConfig(globalBuilder, fieldType));
-                    InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
-                    assertThat(terms.getBuckets().size(), equalTo(3));
-                    for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
-                        InternalMultiBucketAggregation<?, ?> subTerms = bucket.getAggregations().get("sub_terms");
-                        assertThat(subTerms.getBuckets().size(), equalTo(1));
-                        MultiBucketsAggregation.Bucket subBucket = subTerms.getBuckets().get(0);
-                        InternalTopHits topHits = subBucket.getAggregations().get("top_hits");
-                        assertThat(topHits.getHits().getHits().length, equalTo(1));
-                        for (SearchHit hit : topHits.getHits()) {
-                            assertThat(hit.getScore(), greaterThan(0f));
+                    searchAndReduce(indexSearcher, new AggTestConfig(globalBuilder, agg -> {
+                        InternalGlobal result = (InternalGlobal) agg;
+                        InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
+                        assertThat(terms.getBuckets().size(), equalTo(3));
+                        for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
+                            InternalMultiBucketAggregation<?, ?> subTerms = bucket.getAggregations().get("sub_terms");
+                            assertThat(subTerms.getBuckets().size(), equalTo(1));
+                            MultiBucketsAggregation.Bucket subBucket = subTerms.getBuckets().get(0);
+                            InternalTopHits topHits = subBucket.getAggregations().get("top_hits");
+                            assertThat(topHits.getHits().getHits().length, equalTo(1));
+                            for (SearchHit hit : topHits.getHits()) {
+                                assertThat(hit.getScore(), greaterThan(0f));
+                            }
                         }
-                    }
+                    }, fieldType));
                 }
             }
         }
@@ -400,12 +402,13 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 );
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
                 try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
-                    AggTestConfig aggTestConfig = new AggTestConfig(nested, fieldType).withQuery(new FieldExistsQuery(PRIMARY_TERM_NAME));
                     // match root document only
-                    InternalNested result = searchAndReduce(newIndexSearcher(indexReader), aggTestConfig);
-                    InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
-                    assertThat(terms.getBuckets().size(), equalTo(1));
-                    assertThat(terms.getBuckets().get(0).getKeyAsString(), equalTo("8"));
+                    searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(nested, agg -> {
+                        InternalNested result = (InternalNested) agg;
+                        InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
+                        assertThat(terms.getBuckets().size(), equalTo(1));
+                        assertThat(terms.getBuckets().get(0).getKeyAsString(), equalTo("8"));
+                    }, fieldType).withQuery(new FieldExistsQuery(PRIMARY_TERM_NAME)));
                 }
 
             }
@@ -454,22 +457,21 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                                 )
                             );
                         } else {
-                            AggTestConfig aggTestConfig = new AggTestConfig(nested, fieldType).withQuery(
-                                new FieldExistsQuery(PRIMARY_TERM_NAME)
-                            );
                             // match root document only
-                            InternalNested result = searchAndReduce(newIndexSearcher(indexReader), aggTestConfig);
-                            InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
-                            assertThat(terms.getBuckets().size(), equalTo(2));
-                            long counter = 1;
-                            for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
-                                InternalTopHits topHits = bucket.getAggregations().get("top_hits");
-                                TotalHits hits = topHits.getHits().getTotalHits();
-                                assertNotNull(hits);
-                                assertThat(hits.value, equalTo(counter));
-                                assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
-                                counter += 1;
-                            }
+                            searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(nested, agg -> {
+                                InternalNested result = (InternalNested) agg;
+                                InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
+                                assertThat(terms.getBuckets().size(), equalTo(2));
+                                long counter = 1;
+                                for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
+                                    InternalTopHits topHits = bucket.getAggregations().get("top_hits");
+                                    TotalHits hits = topHits.getHits().getTotalHits();
+                                    assertNotNull(hits);
+                                    assertThat(hits.value, equalTo(counter));
+                                    assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
+                                    counter += 1;
+                                }
+                            }, fieldType).withQuery(new FieldExistsQuery(PRIMARY_TERM_NAME)));
                         }
                     }
                 }

@@ -146,15 +146,16 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
+                searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, agg -> {
+                    InternalNested nested = (InternalNested) agg;
+                    assertEquals(NESTED_AGG, nested.getName());
+                    assertEquals(0, nested.getDocCount());
 
-                assertEquals(NESTED_AGG, nested.getName());
-                assertEquals(0, nested.getDocCount());
-
-                Max max = (Max) nested.getProperty(MAX_AGG_NAME);
-                assertEquals(MAX_AGG_NAME, max.getName());
-                assertEquals(Double.NEGATIVE_INFINITY, max.value(), Double.MIN_VALUE);
-                assertFalse(AggregationInspectionHelper.hasValue(nested));
+                    Max max = (Max) nested.getProperty(MAX_AGG_NAME);
+                    assertEquals(MAX_AGG_NAME, max.getName());
+                    assertEquals(Double.NEGATIVE_INFINITY, max.value(), Double.MIN_VALUE);
+                    assertFalse(AggregationInspectionHelper.hasValue(nested));
+                }, fieldType));
             }
         }
     }
@@ -191,21 +192,25 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
-                assertEquals(expectedNestedDocs, nested.getDocCount());
+                int finalExpectedNestedDocs = expectedNestedDocs;
+                double finalExpectedMaxValue = expectedMaxValue;
+                searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, agg -> {
+                    InternalNested nested = (InternalNested) agg;
+                    assertEquals(finalExpectedNestedDocs, nested.getDocCount());
 
-                assertEquals(NESTED_AGG, nested.getName());
-                assertEquals(expectedNestedDocs, nested.getDocCount());
+                    assertEquals(NESTED_AGG, nested.getName());
+                    assertEquals(finalExpectedNestedDocs, nested.getDocCount());
 
-                Max max = (Max) nested.getProperty(MAX_AGG_NAME);
-                assertEquals(MAX_AGG_NAME, max.getName());
-                assertEquals(expectedMaxValue, max.value(), Double.MIN_VALUE);
+                    Max max = (Max) nested.getProperty(MAX_AGG_NAME);
+                    assertEquals(MAX_AGG_NAME, max.getName());
+                    assertEquals(finalExpectedMaxValue, max.value(), Double.MIN_VALUE);
 
-                if (expectedNestedDocs > 0) {
-                    assertTrue(AggregationInspectionHelper.hasValue(nested));
-                } else {
-                    assertFalse(AggregationInspectionHelper.hasValue(nested));
-                }
+                    if (finalExpectedNestedDocs > 0) {
+                        assertTrue(AggregationInspectionHelper.hasValue(nested));
+                    } else {
+                        assertFalse(AggregationInspectionHelper.hasValue(nested));
+                    }
+                }, fieldType));
             }
         }
     }
@@ -243,21 +248,25 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
-                assertEquals(expectedNestedDocs, nested.getDocCount());
+                int finalExpectedNestedDocs = expectedNestedDocs;
+                double finalExpectedMaxValue = expectedMaxValue;
+                searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, agg -> {
+                    InternalNested nested = (InternalNested) agg;
+                    assertEquals(finalExpectedNestedDocs, nested.getDocCount());
 
-                assertEquals(NESTED_AGG, nested.getName());
-                assertEquals(expectedNestedDocs, nested.getDocCount());
+                    assertEquals(NESTED_AGG, nested.getName());
+                    assertEquals(finalExpectedNestedDocs, nested.getDocCount());
 
-                Max max = (Max) nested.getProperty(MAX_AGG_NAME);
-                assertEquals(MAX_AGG_NAME, max.getName());
-                assertEquals(expectedMaxValue, max.value(), Double.MIN_VALUE);
+                    Max max = (Max) nested.getProperty(MAX_AGG_NAME);
+                    assertEquals(MAX_AGG_NAME, max.getName());
+                    assertEquals(finalExpectedMaxValue, max.value(), Double.MIN_VALUE);
 
-                if (expectedNestedDocs > 0) {
-                    assertTrue(AggregationInspectionHelper.hasValue(nested));
-                } else {
-                    assertFalse(AggregationInspectionHelper.hasValue(nested));
-                }
+                    if (finalExpectedNestedDocs > 0) {
+                        assertTrue(AggregationInspectionHelper.hasValue(nested));
+                    } else {
+                        assertFalse(AggregationInspectionHelper.hasValue(nested));
+                    }
+                }, fieldType));
             }
         }
     }
@@ -296,15 +305,19 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(sumAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
-                assertEquals(expectedNestedDocs, nested.getDocCount());
+                int finalExpectedNestedDocs = expectedNestedDocs;
+                double finalExpectedSum = expectedSum;
+                searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, agg -> {
+                    InternalNested nested = (InternalNested) agg;
+                    assertEquals(finalExpectedNestedDocs, nested.getDocCount());
 
-                assertEquals(NESTED_AGG, nested.getName());
-                assertEquals(expectedNestedDocs, nested.getDocCount());
+                    assertEquals(NESTED_AGG, nested.getName());
+                    assertEquals(finalExpectedNestedDocs, nested.getDocCount());
 
-                Sum sum = (Sum) ((InternalAggregation) nested).getProperty(SUM_AGG_NAME);
-                assertEquals(SUM_AGG_NAME, sum.getName());
-                assertEquals(expectedSum, sum.value(), Double.MIN_VALUE);
+                    Sum sum = (Sum) ((InternalAggregation) nested).getProperty(SUM_AGG_NAME);
+                    assertEquals(SUM_AGG_NAME, sum.getName());
+                    assertEquals(finalExpectedSum, sum.value(), Double.MIN_VALUE);
+                }, fieldType));
             }
         }
     }
@@ -376,17 +389,15 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 bq.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
-                InternalNested nested = searchAndReduce(
-                    newSearcher(indexReader, false, true),
-                    new AggTestConfig(nestedBuilder, fieldType).withQuery(new ConstantScoreQuery(bq.build()))
-                );
+                searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, agg -> {
+                    InternalNested nested = (InternalNested) agg;
+                    assertEquals(NESTED_AGG, nested.getName());
+                    // The bug manifests if 6 docs are returned, because currentRootDoc isn't reset the previous child docs from the first
+                    // segment are emitted as hits.
+                    assertEquals(4L, nested.getDocCount());
 
-                assertEquals(NESTED_AGG, nested.getName());
-                // The bug manifests if 6 docs are returned, because currentRootDoc isn't reset the previous child docs from the first
-                // segment are emitted as hits.
-                assertEquals(4L, nested.getDocCount());
-
-                assertTrue(AggregationInspectionHelper.hasValue(nested));
+                    assertTrue(AggregationInspectionHelper.hasValue(nested));
+                }, fieldType).withQuery(new ConstantScoreQuery(bq.build())));
             }
         }
     }
@@ -416,48 +427,46 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 termsBuilder.subAggregation(nestedBuilder);
 
-                Terms terms = searchAndReduce(
-                    newSearcher(indexReader, false, true),
-                    new AggTestConfig(termsBuilder, fieldType1, fieldType2)
-                );
+                searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(termsBuilder, agg -> {
+                    Terms terms = (Terms) agg;
+                    assertEquals(7, terms.getBuckets().size());
+                    assertEquals("authors", terms.getName());
 
-                assertEquals(7, terms.getBuckets().size());
-                assertEquals("authors", terms.getName());
+                    Terms.Bucket bucket = terms.getBuckets().get(0);
+                    assertEquals("d", bucket.getKeyAsString());
+                    Max numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(3, (int) numPages.value());
 
-                Terms.Bucket bucket = terms.getBuckets().get(0);
-                assertEquals("d", bucket.getKeyAsString());
-                Max numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(3, (int) numPages.value());
+                    bucket = terms.getBuckets().get(1);
+                    assertEquals("f", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(14, (int) numPages.value());
 
-                bucket = terms.getBuckets().get(1);
-                assertEquals("f", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(14, (int) numPages.value());
+                    bucket = terms.getBuckets().get(2);
+                    assertEquals("g", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(18, (int) numPages.value());
 
-                bucket = terms.getBuckets().get(2);
-                assertEquals("g", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(18, (int) numPages.value());
+                    bucket = terms.getBuckets().get(3);
+                    assertEquals("e", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(23, (int) numPages.value());
 
-                bucket = terms.getBuckets().get(3);
-                assertEquals("e", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(23, (int) numPages.value());
+                    bucket = terms.getBuckets().get(4);
+                    assertEquals("c", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(39, (int) numPages.value());
 
-                bucket = terms.getBuckets().get(4);
-                assertEquals("c", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(39, (int) numPages.value());
+                    bucket = terms.getBuckets().get(5);
+                    assertEquals("b", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(50, (int) numPages.value());
 
-                bucket = terms.getBuckets().get(5);
-                assertEquals("b", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(50, (int) numPages.value());
-
-                bucket = terms.getBuckets().get(6);
-                assertEquals("a", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(70, (int) numPages.value());
+                    bucket = terms.getBuckets().get(6);
+                    assertEquals("a", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(70, (int) numPages.value());
+                }, fieldType1, fieldType2));
 
                 // reverse order:
                 termsBuilder = new TermsAggregationBuilder("authors").userValueTypeHint(ValueType.STRING)
@@ -468,45 +477,46 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 termsBuilder.subAggregation(nestedBuilder);
 
-                terms = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(termsBuilder, fieldType1, fieldType2));
+                searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(termsBuilder, agg -> {
+                    Terms terms = (Terms) agg;
+                    assertEquals(7, terms.getBuckets().size());
+                    assertEquals("authors", terms.getName());
 
-                assertEquals(7, terms.getBuckets().size());
-                assertEquals("authors", terms.getName());
+                    Terms.Bucket bucket = terms.getBuckets().get(0);
+                    assertEquals("a", bucket.getKeyAsString());
+                    Max numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(70, (int) numPages.value());
 
-                bucket = terms.getBuckets().get(0);
-                assertEquals("a", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(70, (int) numPages.value());
+                    bucket = terms.getBuckets().get(1);
+                    assertEquals("b", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(50, (int) numPages.value());
 
-                bucket = terms.getBuckets().get(1);
-                assertEquals("b", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(50, (int) numPages.value());
+                    bucket = terms.getBuckets().get(2);
+                    assertEquals("c", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(39, (int) numPages.value());
 
-                bucket = terms.getBuckets().get(2);
-                assertEquals("c", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(39, (int) numPages.value());
+                    bucket = terms.getBuckets().get(3);
+                    assertEquals("e", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(23, (int) numPages.value());
 
-                bucket = terms.getBuckets().get(3);
-                assertEquals("e", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(23, (int) numPages.value());
+                    bucket = terms.getBuckets().get(4);
+                    assertEquals("g", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(18, (int) numPages.value());
 
-                bucket = terms.getBuckets().get(4);
-                assertEquals("g", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(18, (int) numPages.value());
+                    bucket = terms.getBuckets().get(5);
+                    assertEquals("f", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(14, (int) numPages.value());
 
-                bucket = terms.getBuckets().get(5);
-                assertEquals("f", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(14, (int) numPages.value());
-
-                bucket = terms.getBuckets().get(6);
-                assertEquals("d", bucket.getKeyAsString());
-                numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                assertEquals(3, (int) numPages.value());
+                    bucket = terms.getBuckets().get(6);
+                    assertEquals("d", bucket.getKeyAsString());
+                    numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                    assertEquals(3, (int) numPages.value());
+                }, fieldType1, fieldType2));
             }
         }
     }
@@ -554,19 +564,20 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(minAgg);
                 termsBuilder.subAggregation(nestedBuilder);
 
-                AggTestConfig aggTestConfig = new AggTestConfig(termsBuilder, fieldType1, fieldType2);
-                Terms terms = searchAndReduce(newSearcher(indexReader, false, true), aggTestConfig);
+                AggTestConfig aggTestConfig = new AggTestConfig(termsBuilder, agg -> {
+                    Terms terms = (Terms) agg;
+                    assertEquals(books.size(), terms.getBuckets().size());
+                    assertEquals("authors", terms.getName());
 
-                assertEquals(books.size(), terms.getBuckets().size());
-                assertEquals("authors", terms.getName());
-
-                for (int i = 0; i < books.size(); i++) {
-                    Tuple<String, int[]> book = books.get(i);
-                    Terms.Bucket bucket = terms.getBuckets().get(i);
-                    assertEquals(book.v1(), bucket.getKeyAsString());
-                    Min numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
-                    assertEquals(book.v2()[0], (int) numPages.value());
-                }
+                    for (int i = 0; i < books.size(); i++) {
+                        Tuple<String, int[]> book = books.get(i);
+                        Terms.Bucket bucket = terms.getBuckets().get(i);
+                        assertEquals(book.v1(), bucket.getKeyAsString());
+                        Min numPages = ((Nested) bucket.getAggregations().get("chapters")).getAggregations().get("num_pages");
+                        assertEquals(book.v2()[0], (int) numPages.value());
+                    }
+                }, fieldType1, fieldType2);
+                searchAndReduce(newSearcher(indexReader, false, true), aggTestConfig);
             }
         }
     }
@@ -650,34 +661,32 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("key");
                 MappedFieldType fieldType2 = new KeywordFieldMapper.KeywordFieldType("value");
 
-                Filter filter = searchAndReduce(
-                    newSearcher(indexReader, false, true),
-                    new AggTestConfig(filterAggregationBuilder, fieldType1, fieldType2).withQuery(Queries.newNonNestedFilter())
-                );
+                searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(filterAggregationBuilder, agg -> {
+                    Filter filter = (Filter) agg;
+                    assertEquals("filterAgg", filter.getName());
+                    assertEquals(3L, filter.getDocCount());
 
-                assertEquals("filterAgg", filter.getName());
-                assertEquals(3L, filter.getDocCount());
+                    InternalNested nested = filter.getAggregations().get(NESTED_AGG);
+                    assertEquals(6L, nested.getDocCount());
 
-                InternalNested nested = filter.getAggregations().get(NESTED_AGG);
-                assertEquals(6L, nested.getDocCount());
+                    StringTerms keyAgg = nested.getAggregations().get("key");
+                    assertEquals(2, keyAgg.getBuckets().size());
+                    Terms.Bucket key1 = keyAgg.getBuckets().get(0);
+                    assertEquals("key1", key1.getKey());
+                    StringTerms valueAgg = key1.getAggregations().get("value");
+                    assertEquals(3, valueAgg.getBuckets().size());
+                    assertEquals("a1", valueAgg.getBuckets().get(0).getKey());
+                    assertEquals("a2", valueAgg.getBuckets().get(1).getKey());
+                    assertEquals("a3", valueAgg.getBuckets().get(2).getKey());
 
-                StringTerms keyAgg = nested.getAggregations().get("key");
-                assertEquals(2, keyAgg.getBuckets().size());
-                Terms.Bucket key1 = keyAgg.getBuckets().get(0);
-                assertEquals("key1", key1.getKey());
-                StringTerms valueAgg = key1.getAggregations().get("value");
-                assertEquals(3, valueAgg.getBuckets().size());
-                assertEquals("a1", valueAgg.getBuckets().get(0).getKey());
-                assertEquals("a2", valueAgg.getBuckets().get(1).getKey());
-                assertEquals("a3", valueAgg.getBuckets().get(2).getKey());
-
-                Terms.Bucket key2 = keyAgg.getBuckets().get(1);
-                assertEquals("key2", key2.getKey());
-                valueAgg = key2.getAggregations().get("value");
-                assertEquals(3, valueAgg.getBuckets().size());
-                assertEquals("b1", valueAgg.getBuckets().get(0).getKey());
-                assertEquals("b2", valueAgg.getBuckets().get(1).getKey());
-                assertEquals("b3", valueAgg.getBuckets().get(2).getKey());
+                    Terms.Bucket key2 = keyAgg.getBuckets().get(1);
+                    assertEquals("key2", key2.getKey());
+                    valueAgg = key2.getAggregations().get("value");
+                    assertEquals(3, valueAgg.getBuckets().size());
+                    assertEquals("b1", valueAgg.getBuckets().get(0).getKey());
+                    assertEquals("b2", valueAgg.getBuckets().get(1).getKey());
+                    assertEquals("b3", valueAgg.getBuckets().get(2).getKey());
+                }, fieldType1, fieldType2).withQuery(Queries.newNonNestedFilter()));
             }
         }
     }
@@ -765,25 +774,27 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                InternalNested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
+                int finalExpectedNestedDocs = expectedNestedDocs;
+                searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, agg -> {
+                    InternalNested nested = (InternalNested) agg;
+                    assertEquals(finalExpectedNestedDocs, nested.getDocCount());
+                    assertEquals(NESTED_AGG, nested.getName());
+                    assertEquals(finalExpectedNestedDocs, nested.getDocCount());
 
-                assertEquals(expectedNestedDocs, nested.getDocCount());
-                assertEquals(NESTED_AGG, nested.getName());
-                assertEquals(expectedNestedDocs, nested.getDocCount());
+                    @SuppressWarnings("unchecked")
+                    InternalTerms<?, LongTerms.Bucket> terms = (InternalTerms<?, LongTerms.Bucket>) nested.getProperty("terms");
+                    assertNotNull(terms);
 
-                @SuppressWarnings("unchecked")
-                InternalTerms<?, LongTerms.Bucket> terms = (InternalTerms<?, LongTerms.Bucket>) nested.getProperty("terms");
-                assertNotNull(terms);
+                    for (LongTerms.Bucket bucket : terms.getBuckets()) {
+                        Max max = (Max) bucket.getAggregations().asMap().get(MAX_AGG_NAME);
+                        InternalSimpleValue bucketScript = (InternalSimpleValue) bucket.getAggregations().asMap().get("bucketscript");
+                        assertNotNull(max);
+                        assertNotNull(bucketScript);
+                        assertEquals(max.value(), -bucketScript.getValue(), Double.MIN_VALUE);
+                    }
 
-                for (LongTerms.Bucket bucket : terms.getBuckets()) {
-                    Max max = (Max) bucket.getAggregations().asMap().get(MAX_AGG_NAME);
-                    InternalSimpleValue bucketScript = (InternalSimpleValue) bucket.getAggregations().asMap().get("bucketscript");
-                    assertNotNull(max);
-                    assertNotNull(bucketScript);
-                    assertEquals(max.value(), -bucketScript.getValue(), Double.MIN_VALUE);
-                }
-
-                assertTrue(AggregationInspectionHelper.hasValue(nested));
+                    assertTrue(AggregationInspectionHelper.hasValue(nested));
+                }, fieldType));
             }
         }
     }

@@ -386,9 +386,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
                 IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-                Min min = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
-                assertEquals(2.0, min.value(), 0);
-                assertTrue(AggregationInspectionHelper.hasValue(min));
+                searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, agg -> {
+                    Min min = (Min) agg;
+                    assertEquals(2.0, min.value(), 0);
+                    assertTrue(AggregationInspectionHelper.hasValue(min));
+                }, fieldType));
             }
         }
     }
@@ -417,9 +419,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
                 IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-                Min min = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
-                assertEquals(-19.0, min.value(), 0);
-                assertTrue(AggregationInspectionHelper.hasValue(min));
+                searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, agg -> {
+                    Min min = (Min) agg;
+                    assertEquals(-19.0, min.value(), 0);
+                    assertTrue(AggregationInspectionHelper.hasValue(min));
+                }, fieldType));
             }
         }
     }

@@ -44,14 +44,16 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                assertTrue(Double.isInfinite(bounds.top));
-                assertTrue(Double.isInfinite(bounds.bottom));
-                assertTrue(Double.isInfinite(bounds.posLeft));
-                assertTrue(Double.isInfinite(bounds.posRight));
-                assertTrue(Double.isInfinite(bounds.negLeft));
-                assertTrue(Double.isInfinite(bounds.negRight));
-                assertFalse(AggregationInspectionHelper.hasValue(bounds));
+                searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                    InternalGeoBounds bounds = (InternalGeoBounds) agg;
+                    assertTrue(Double.isInfinite(bounds.top));
+                    assertTrue(Double.isInfinite(bounds.bottom));
+                    assertTrue(Double.isInfinite(bounds.posLeft));
+                    assertTrue(Double.isInfinite(bounds.posRight));
+                    assertTrue(Double.isInfinite(bounds.negLeft));
+                    assertTrue(Double.isInfinite(bounds.negRight));
+                    assertFalse(AggregationInspectionHelper.hasValue(bounds));
+                }, fieldType));
             }
         }
     }
@@ -69,14 +71,16 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                assertTrue(Double.isInfinite(bounds.top));
-                assertTrue(Double.isInfinite(bounds.bottom));
-                assertTrue(Double.isInfinite(bounds.posLeft));
-                assertTrue(Double.isInfinite(bounds.posRight));
-                assertTrue(Double.isInfinite(bounds.negLeft));
-                assertTrue(Double.isInfinite(bounds.negRight));
-                assertFalse(AggregationInspectionHelper.hasValue(bounds));
+                searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                    InternalGeoBounds bounds = (InternalGeoBounds) agg;
+                    assertTrue(Double.isInfinite(bounds.top));
+                    assertTrue(Double.isInfinite(bounds.bottom));
+                    assertTrue(Double.isInfinite(bounds.posLeft));
+                    assertTrue(Double.isInfinite(bounds.posRight));
+                    assertTrue(Double.isInfinite(bounds.negLeft));
+                    assertTrue(Double.isInfinite(bounds.negRight));
+                    assertFalse(AggregationInspectionHelper.hasValue(bounds));
+                }, fieldType));
             }
         }
     }
@@ -101,13 +105,15 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader reader = w.getReader()) {
                     IndexSearcher searcher = new IndexSearcher(reader);
-                    InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                    assertThat(bounds.top, equalTo(lat));
-                    assertThat(bounds.bottom, equalTo(lat));
-                    assertThat(bounds.posLeft, equalTo(lon >= 0 ? lon : Double.POSITIVE_INFINITY));
-                    assertThat(bounds.posRight, equalTo(lon >= 0 ? lon : Double.NEGATIVE_INFINITY));
-                    assertThat(bounds.negLeft, equalTo(lon >= 0 ? Double.POSITIVE_INFINITY : lon));
-                    assertThat(bounds.negRight, equalTo(lon >= 0 ? Double.NEGATIVE_INFINITY : lon));
+                    searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                        InternalGeoBounds bounds = (InternalGeoBounds) agg;
+                        assertThat(bounds.top, equalTo(lat));
+                        assertThat(bounds.bottom, equalTo(lat));
+                        assertThat(bounds.posLeft, equalTo(lon >= 0 ? lon : Double.POSITIVE_INFINITY));
+                        assertThat(bounds.posRight, equalTo(lon >= 0 ? lon : Double.NEGATIVE_INFINITY));
+                        assertThat(bounds.negLeft, equalTo(lon >= 0 ? Double.POSITIVE_INFINITY : lon));
+                        assertThat(bounds.negRight, equalTo(lon >= 0 ? Double.NEGATIVE_INFINITY : lon));
+                    }, fieldType));
                 }
             }
         }
@@ -176,14 +182,22 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                assertThat(bounds.top, closeTo(top, GEOHASH_TOLERANCE));
-                assertThat(bounds.bottom, closeTo(bottom, GEOHASH_TOLERANCE));
-                assertThat(bounds.posLeft, closeTo(posLeft, GEOHASH_TOLERANCE));
-                assertThat(bounds.posRight, closeTo(posRight, GEOHASH_TOLERANCE));
-                assertThat(bounds.negRight, closeTo(negRight, GEOHASH_TOLERANCE));
-                assertThat(bounds.negLeft, closeTo(negLeft, GEOHASH_TOLERANCE));
-                assertTrue(AggregationInspectionHelper.hasValue(bounds));
+                double finalTop = top;
+                double finalBottom = bottom;
+                double finalPosLeft = posLeft;
+                double finalPosRight = posRight;
+                double finalNegRight = negRight;
+                double finalNegLeft = negLeft;
+                searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                    InternalGeoBounds bounds = (InternalGeoBounds) agg;
+                    assertThat(bounds.top, closeTo(finalTop, GEOHASH_TOLERANCE));
+                    assertThat(bounds.bottom, closeTo(finalBottom, GEOHASH_TOLERANCE));
+                    assertThat(bounds.posLeft, closeTo(finalPosLeft, GEOHASH_TOLERANCE));
+                    assertThat(bounds.posRight, closeTo(finalPosRight, GEOHASH_TOLERANCE));
+                    assertThat(bounds.negRight, closeTo(finalNegRight, GEOHASH_TOLERANCE));
+                    assertThat(bounds.negLeft, closeTo(finalNegLeft, GEOHASH_TOLERANCE));
+                    assertTrue(AggregationInspectionHelper.hasValue(bounds));
+                }, fieldType));
             }
         }
     }

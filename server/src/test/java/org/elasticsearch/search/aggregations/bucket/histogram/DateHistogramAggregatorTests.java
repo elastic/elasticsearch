@@ -1176,11 +1176,12 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     configure.accept(aggregationBuilder);
                 }
 
-                InternalDateHistogram histogram = searchAndReduce(
+                searchAndReduce(
                     indexSearcher,
-                    new AggTestConfig(aggregationBuilder, fieldType).withMaxBuckets(maxBucket).withQuery(query)
+                    new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalDateHistogram) agg), fieldType).withMaxBuckets(
+                        maxBucket
+                    ).withQuery(query)
                 );
-                verify.accept(histogram);
             }
         }
     }

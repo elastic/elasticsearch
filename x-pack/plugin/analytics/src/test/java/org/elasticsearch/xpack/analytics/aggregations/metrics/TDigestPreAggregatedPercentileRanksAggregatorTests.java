@@ -72,24 +72,26 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
             MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("field", Collections.emptyMap());
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                PercentileRanks ranks = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                Iterator<Percentile> rankIterator = ranks.iterator();
-                Percentile rank = rankIterator.next();
-                assertEquals(0.1, rank.getValue(), 0d);
-                // TODO: Fix T-Digest: this assertion should pass but we currently get ~15
-                // https://github.com/elastic/elasticsearch/issues/14851
-                // assertThat(rank.getPercent(), Matchers.equalTo(0d));
-                rank = rankIterator.next();
-                assertEquals(0.5, rank.getValue(), 0d);
-                assertThat(rank.getPercent(), Matchers.greaterThan(0d));
-                assertThat(rank.getPercent(), Matchers.lessThan(100d));
-                rank = rankIterator.next();
-                assertEquals(12, rank.getValue(), 0d);
-                // TODO: Fix T-Digest: this assertion should pass but we currently get ~59
-                // https://github.com/elastic/elasticsearch/issues/14851
-                // assertThat(rank.getPercent(), Matchers.equalTo(100d));
-                assertFalse(rankIterator.hasNext());
-                assertTrue(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks) ranks)));
+                searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                    PercentileRanks ranks = (PercentileRanks) agg;
+                    Iterator<Percentile> rankIterator = ranks.iterator();
+                    Percentile rank = rankIterator.next();
+                    assertEquals(0.1, rank.getValue(), 0d);
+                    // TODO: Fix T-Digest: this assertion should pass but we currently get ~15
+                    // https://github.com/elastic/elasticsearch/issues/14851
+                    // assertThat(rank.getPercent(), Matchers.equalTo(0d));
+                    rank = rankIterator.next();
+                    assertEquals(0.5, rank.getValue(), 0d);
+                    assertThat(rank.getPercent(), Matchers.greaterThan(0d));
+                    assertThat(rank.getPercent(), Matchers.lessThan(100d));
+                    rank = rankIterator.next();
+                    assertEquals(12, rank.getValue(), 0d);
+                    // TODO: Fix T-Digest: this assertion should pass but we currently get ~59
+                    // https://github.com/elastic/elasticsearch/issues/14851
+                    // assertThat(rank.getPercent(), Matchers.equalTo(100d));
+                    assertFalse(rankIterator.hasNext());
+                    assertTrue(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks) ranks)));
+                }, fieldType));
             }
         }
     }

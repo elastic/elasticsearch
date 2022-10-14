@@ -268,11 +268,10 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_parent").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalParent result = searchAndReduce(
+        searchAndReduce(
             indexSearcher,
-            new AggTestConfig(aggregationBuilder, withJoinFields(fieldType)).withQuery(query)
+            new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalParent) agg), withJoinFields(fieldType)).withQuery(query)
         );
-        verify.accept(result);
     }
 
     private void testCaseTerms(Query query, IndexSearcher indexSearcher, Consumer<InternalParent> verify) throws IOException {
@@ -281,11 +280,10 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new TermsAggregationBuilder("value_terms").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalParent result = searchAndReduce(
+        searchAndReduce(
             indexSearcher,
-            new AggTestConfig(aggregationBuilder, withJoinFields(fieldType)).withQuery(query)
+            new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalParent) agg), withJoinFields(fieldType)).withQuery(query)
         );
-        verify.accept(result);
     }
 
     // run a terms aggregation on the number in child-documents, then a parent aggregation and then terms on the parent-number
@@ -299,11 +297,12 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         MappedFieldType subFieldType = new NumberFieldMapper.NumberFieldType("subNumber", NumberFieldMapper.NumberType.LONG);
-        LongTerms result = searchAndReduce(
+        searchAndReduce(
             indexSearcher,
-            new AggTestConfig(aggregationBuilder, withJoinFields(fieldType, subFieldType)).withQuery(query)
+            new AggTestConfig(aggregationBuilder, agg -> verify.accept((LongTerms) agg), withJoinFields(fieldType, subFieldType)).withQuery(
+                query
+            )
         );
-        verify.accept(result);
     }
 
     @Override

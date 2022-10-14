@@ -99,23 +99,25 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new IpFieldMapper.IpFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBinaryRange range = searchAndReduce(searcher, new AggTestConfig(builder, fieldType));
-                assertEquals(numRanges, range.getBuckets().size());
-                for (int i = 0; i < range.getBuckets().size(); i++) {
-                    Tuple<BytesRef, BytesRef> expected = requestedRanges[i];
-                    Range.Bucket bucket = range.getBuckets().get(i);
-                    if (expected.v1() == null) {
-                        assertNull(bucket.getFrom());
-                    } else {
-                        assertEquals(DocValueFormat.IP.format(expected.v1()), bucket.getFrom());
+                searchAndReduce(searcher, new AggTestConfig(builder, agg -> {
+                    InternalBinaryRange range = (InternalBinaryRange) agg;
+                    assertEquals(numRanges, range.getBuckets().size());
+                    for (int i = 0; i < range.getBuckets().size(); i++) {
+                        Tuple<BytesRef, BytesRef> expected = requestedRanges[i];
+                        Range.Bucket bucket = range.getBuckets().get(i);
+                        if (expected.v1() == null) {
+                            assertNull(bucket.getFrom());
+                        } else {
+                            assertEquals(DocValueFormat.IP.format(expected.v1()), bucket.getFrom());
+                        }
+                        if (expected.v2() == null) {
+                            assertNull(bucket.getTo());
+                        } else {
+                            assertEquals(DocValueFormat.IP.format(expected.v2()), bucket.getTo());
+                        }
+                        assertEquals(expectedCounts[i], bucket.getDocCount());
                     }
-                    if (expected.v2() == null) {
-                        assertNull(bucket.getTo());
-                    } else {
-                        assertEquals(DocValueFormat.IP.format(expected.v2()), bucket.getTo());
-                    }
-                    assertEquals(expectedCounts[i], bucket.getDocCount());
-                }
+                }, fieldType));
             }
         }
     }
@@ -132,8 +134,10 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 .missing("192.168.100.42"); // Apparently we expect a string here
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBinaryRange range = searchAndReduce(searcher, new AggTestConfig(builder));
-                assertEquals(1, range.getBuckets().size());
+                searchAndReduce(
+                    searcher,
+                    new AggTestConfig(builder, range -> assertEquals(1, ((InternalBinaryRange) range).getBuckets().size()))
+                );
             }
         }
     }

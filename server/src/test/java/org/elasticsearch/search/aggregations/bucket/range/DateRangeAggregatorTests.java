@@ -527,12 +527,14 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>> agg = searchAndReduce(
+                searchAndReduce(
                     indexSearcher,
-                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
+                    new AggTestConfig(
+                        aggregationBuilder,
+                        agg -> verify.accept((InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>>) agg),
+                        fieldType
+                    ).withQuery(query)
                 );
-                verify.accept(agg);
-
             }
         }
     }

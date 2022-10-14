@@ -224,33 +224,34 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                 .addUnboundedFrom(20);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> range = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(aggBuilder, defaultFieldType(HISTO_FIELD_NAME))
-                );
-                assertTrue(AggregationInspectionHelper.hasValue(range));
-                assertEquals(7, range.getBuckets().size());
+                searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                    InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> range = (InternalRange<
+                        ? extends InternalRange.Bucket,
+                        ? extends InternalRange>) agg;
+                    assertTrue(AggregationInspectionHelper.hasValue(range));
+                    assertEquals(7, range.getBuckets().size());
 
-                assertEquals(10, range.getBuckets().get(0).getDocCount());
-                assertEquals("*-0.0", range.getBuckets().get(0).getKey());
+                    assertEquals(10, range.getBuckets().get(0).getDocCount());
+                    assertEquals("*-0.0", range.getBuckets().get(0).getKey());
 
-                assertEquals(14, range.getBuckets().get(1).getDocCount());
-                assertEquals("0.0-10.0", range.getBuckets().get(1).getKey());
+                    assertEquals(14, range.getBuckets().get(1).getDocCount());
+                    assertEquals("0.0-10.0", range.getBuckets().get(1).getKey());
 
-                assertEquals(38, range.getBuckets().get(2).getDocCount());
-                assertEquals("0.0-20.0", range.getBuckets().get(2).getKey());
+                    assertEquals(38, range.getBuckets().get(2).getDocCount());
+                    assertEquals("0.0-20.0", range.getBuckets().get(2).getKey());
 
-                assertEquals(8, range.getBuckets().get(3).getDocCount());
-                assertEquals("5.0-10.0", range.getBuckets().get(3).getKey());
+                    assertEquals(8, range.getBuckets().get(3).getDocCount());
+                    assertEquals("5.0-10.0", range.getBuckets().get(3).getKey());
 
-                assertEquals(0, range.getBuckets().get(4).getDocCount());
-                assertEquals("7.0-10.0", range.getBuckets().get(4).getKey());
+                    assertEquals(0, range.getBuckets().get(4).getDocCount());
+                    assertEquals("7.0-10.0", range.getBuckets().get(4).getKey());
 
-                assertEquals(24, range.getBuckets().get(5).getDocCount());
-                assertEquals("10.0-20.0", range.getBuckets().get(5).getKey());
+                    assertEquals(24, range.getBuckets().get(5).getDocCount());
+                    assertEquals("10.0-20.0", range.getBuckets().get(5).getKey());
 
-                assertEquals(22, range.getBuckets().get(6).getDocCount());
-                assertEquals("20.0-*", range.getBuckets().get(6).getKey());
+                    assertEquals(22, range.getBuckets().get(6).getDocCount());
+                    assertEquals("20.0-*", range.getBuckets().get(6).getKey());
+                }, defaultFieldType(HISTO_FIELD_NAME)));
             }
         }
     }
@@ -284,24 +285,25 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
                 .addUnboundedFrom(20);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> range = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(aggBuilder, defaultFieldType(HISTO_FIELD_NAME))
-                );
-                assertTrue(AggregationInspectionHelper.hasValue(range));
-                assertEquals(4, range.getBuckets().size());
+                searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                    InternalRange<? extends InternalRange.Bucket, ? extends InternalRange> range = (InternalRange<
+                        ? extends InternalRange.Bucket,
+                        ? extends InternalRange>) agg;
+                    assertTrue(AggregationInspectionHelper.hasValue(range));
+                    assertEquals(4, range.getBuckets().size());
 
-                assertEquals(10, range.getBuckets().get(0).getDocCount());
-                assertEquals("*-0.0", range.getBuckets().get(0).getKey());
+                    assertEquals(10, range.getBuckets().get(0).getDocCount());
+                    assertEquals("*-0.0", range.getBuckets().get(0).getKey());
 
-                assertEquals(14, range.getBuckets().get(1).getDocCount());
-                assertEquals("0.0-10.0", range.getBuckets().get(1).getKey());
+                    assertEquals(14, range.getBuckets().get(1).getDocCount());
+                    assertEquals("0.0-10.0", range.getBuckets().get(1).getKey());
 
-                assertEquals(24, range.getBuckets().get(2).getDocCount());
-                assertEquals("10.0-20.0", range.getBuckets().get(2).getKey());
+                    assertEquals(24, range.getBuckets().get(2).getDocCount());
+                    assertEquals("10.0-20.0", range.getBuckets().get(2).getKey());
 
-                assertEquals(22, range.getBuckets().get(3).getDocCount());
-                assertEquals("20.0-*", range.getBuckets().get(3).getKey());
+                    assertEquals(22, range.getBuckets().get(3).getDocCount());
+                    assertEquals("20.0-*", range.getBuckets().get(3).getKey());
+                }, defaultFieldType(HISTO_FIELD_NAME)));
             }
         }
     }

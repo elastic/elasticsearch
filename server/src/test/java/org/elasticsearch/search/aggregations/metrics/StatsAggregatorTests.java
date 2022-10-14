@@ -222,14 +222,15 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             ) {
 
                 final IndexSearcher searcher = new IndexSearcher(multiReader);
-                final InternalStats stats = searchAndReduce(searcher, new AggTestConfig(builder, ft));
-
-                assertEquals(expected.count, stats.getCount(), 0);
-                assertEquals(expected.sum, stats.getSum(), TOLERANCE);
-                assertEquals(expected.max, stats.getMax(), 0);
-                assertEquals(expected.min, stats.getMin(), 0);
-                assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
-                assertTrue(AggregationInspectionHelper.hasValue(stats));
+                searchAndReduce(searcher, new AggTestConfig(builder, agg -> {
+                    final InternalStats stats = (InternalStats) agg;
+                    assertEquals(expected.count, stats.getCount(), 0);
+                    assertEquals(expected.sum, stats.getSum(), TOLERANCE);
+                    assertEquals(expected.max, stats.getMax(), 0);
+                    assertEquals(expected.min, stats.getMin(), 0);
+                    assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
+                    assertTrue(AggregationInspectionHelper.hasValue(stats));
+                }, ft));
             }
         }
     }

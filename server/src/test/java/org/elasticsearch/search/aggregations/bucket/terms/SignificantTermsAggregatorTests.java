@@ -128,72 +128,67 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd"
-                SignificantStringTerms terms = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
-                );
+                searchAndReduce(searcher, new AggTestConfig(sigAgg, agg -> {
+                    SignificantStringTerms terms = (SignificantStringTerms) agg;
+                    assertThat(terms.getSubsetSize(), equalTo(5L));
+                    assertEquals(1, terms.getBuckets().size());
+                    assertNull(terms.getBucketByKey("even"));
+                    assertNull(terms.getBucketByKey("common"));
+                    assertNotNull(terms.getBucketByKey("odd"));
 
-                assertThat(terms.getSubsetSize(), equalTo(5L));
-                assertEquals(1, terms.getBuckets().size());
-                assertNull(terms.getBucketByKey("even"));
-                assertNull(terms.getBucketByKey("common"));
-                assertNotNull(terms.getBucketByKey("odd"));
+                }, textFieldType).withQuery(new TermQuery(new Term("text", "odd"))));
 
                 // Search even
-                terms = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
-                );
+                searchAndReduce(searcher, new AggTestConfig(sigAgg, agg -> {
+                    SignificantStringTerms terms = (SignificantStringTerms) agg;
+                    assertThat(terms.getSubsetSize(), equalTo(5L));
+                    assertEquals(1, terms.getBuckets().size());
+                    assertNull(terms.getBucketByKey("odd"));
+                    assertNull(terms.getBucketByKey("common"));
+                    assertNotNull(terms.getBucketByKey("even"));
 
-                assertThat(terms.getSubsetSize(), equalTo(5L));
-                assertEquals(1, terms.getBuckets().size());
-                assertNull(terms.getBucketByKey("odd"));
-                assertNull(terms.getBucketByKey("common"));
-                assertNotNull(terms.getBucketByKey("even"));
+                }, textFieldType).withQuery(new TermQuery(new Term("text", "even"))));
 
                 // Search odd with regex includeexcludes
                 sigAgg.includeExclude(new IncludeExclude("o.d", null, null, null));
-                terms = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
-                );
-                assertThat(terms.getSubsetSize(), equalTo(5L));
-                assertEquals(1, terms.getBuckets().size());
-                assertNotNull(terms.getBucketByKey("odd"));
-                assertNull(terms.getBucketByKey("common"));
-                assertNull(terms.getBucketByKey("even"));
+                searchAndReduce(searcher, new AggTestConfig(sigAgg, agg -> {
+                    SignificantStringTerms terms = (SignificantStringTerms) agg;
+                    assertThat(terms.getSubsetSize(), equalTo(5L));
+                    assertEquals(1, terms.getBuckets().size());
+                    assertNotNull(terms.getBucketByKey("odd"));
+                    assertNull(terms.getBucketByKey("common"));
+                    assertNull(terms.getBucketByKey("even"));
 
+                }, textFieldType).withQuery(new TermQuery(new Term("text", "odd"))));
                 // Search with string-based includeexcludes
                 SortedSet<BytesRef> oddStrings = new TreeSet<>(Set.of(new BytesRef("odd"), new BytesRef("weird")));
                 SortedSet<BytesRef> evenStrings = new TreeSet<>(Set.of(new BytesRef("even"), new BytesRef("regular")));
 
                 sigAgg.includeExclude(new IncludeExclude(null, null, oddStrings, evenStrings));
                 sigAgg.significanceHeuristic(heuristic);
-                terms = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
-                );
-                assertThat(terms.getSubsetSize(), equalTo(5L));
-                assertEquals(1, terms.getBuckets().size());
-                assertNotNull(terms.getBucketByKey("odd"));
-                assertNull(terms.getBucketByKey("weird"));
-                assertNull(terms.getBucketByKey("common"));
-                assertNull(terms.getBucketByKey("even"));
-                assertNull(terms.getBucketByKey("regular"));
+                searchAndReduce(searcher, new AggTestConfig(sigAgg, agg -> {
+                    SignificantStringTerms terms = (SignificantStringTerms) agg;
+                    assertThat(terms.getSubsetSize(), equalTo(5L));
+                    assertEquals(1, terms.getBuckets().size());
+                    assertNotNull(terms.getBucketByKey("odd"));
+                    assertNull(terms.getBucketByKey("weird"));
+                    assertNull(terms.getBucketByKey("common"));
+                    assertNull(terms.getBucketByKey("even"));
+                    assertNull(terms.getBucketByKey("regular"));
+
+                }, textFieldType).withQuery(new TermQuery(new Term("text", "odd"))));
 
                 sigAgg.includeExclude(new IncludeExclude(null, null, evenStrings, oddStrings));
-                terms = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
-                );
-                assertThat(terms.getSubsetSize(), equalTo(5L));
-                assertEquals(0, terms.getBuckets().size());
-                assertNull(terms.getBucketByKey("odd"));
-                assertNull(terms.getBucketByKey("weird"));
-                assertNull(terms.getBucketByKey("common"));
-                assertNull(terms.getBucketByKey("even"));
-                assertNull(terms.getBucketByKey("regular"));
-
+                searchAndReduce(searcher, new AggTestConfig(sigAgg, agg -> {
+                    SignificantStringTerms terms = (SignificantStringTerms) agg;
+                    assertThat(terms.getSubsetSize(), equalTo(5L));
+                    assertEquals(0, terms.getBuckets().size());
+                    assertNull(terms.getBucketByKey("odd"));
+                    assertNull(terms.getBucketByKey("weird"));
+                    assertNull(terms.getBucketByKey("common"));
+                    assertNull(terms.getBucketByKey("even"));
+                    assertNull(terms.getBucketByKey("regular"));
+                }, textFieldType).withQuery(new TermQuery(new Term("text", "odd"))));
             }
         }
     }
@@ -238,14 +233,11 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
                 // Match all so background and foreground should be the same size
                 // randomly select the query, but both should hit the same docs, which is all of them.
-                InternalRandomSampler randomSampler = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(randomSamplerAggregationBuilder, textFieldType).withQuery(
-                        randomBoolean() ? new MatchAllDocsQuery() : new TermQuery(new Term("text", "common"))
-                    )
-                );
-                SignificantStringTerms terms = randomSampler.getAggregations().get("sig_text");
-                assertThat(Strings.toString(terms), terms.subsetSize, equalTo(terms.supersetSize));
+                searchAndReduce(searcher, new AggTestConfig(randomSamplerAggregationBuilder, agg -> {
+                    InternalRandomSampler randomSampler = (InternalRandomSampler) agg;
+                    SignificantStringTerms terms = randomSampler.getAggregations().get("sig_text");
+                    assertThat(Strings.toString(terms), terms.subsetSize, equalTo(terms.supersetSize));
+                }, textFieldType).withQuery(randomBoolean() ? new MatchAllDocsQuery() : new TermQuery(new Term("text", "common"))));
             }
         }
     }
@@ -287,28 +279,25 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd"
-                SignificantLongTerms terms = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(sigNumAgg, longFieldType).withQuery(new TermQuery(new Term("text", "odd")))
-                );
-                assertEquals(1, terms.getBuckets().size());
-                assertThat(terms.getSubsetSize(), equalTo(5L));
+                searchAndReduce(searcher, new AggTestConfig(sigNumAgg, agg -> {
+                    SignificantLongTerms terms = (SignificantLongTerms) agg;
+                    assertEquals(1, terms.getBuckets().size());
+                    assertThat(terms.getSubsetSize(), equalTo(5L));
 
-                assertNull(terms.getBucketByKey(Long.toString(EVEN_VALUE)));
-                assertNull(terms.getBucketByKey(Long.toString(COMMON_VALUE)));
-                assertNotNull(terms.getBucketByKey(Long.toString(ODD_VALUE)));
+                    assertNull(terms.getBucketByKey(Long.toString(EVEN_VALUE)));
+                    assertNull(terms.getBucketByKey(Long.toString(COMMON_VALUE)));
+                    assertNotNull(terms.getBucketByKey(Long.toString(ODD_VALUE)));
 
-                terms = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(sigNumAgg, longFieldType).withQuery(new TermQuery(new Term("text", "even")))
-                );
-                assertEquals(1, terms.getBuckets().size());
-                assertThat(terms.getSubsetSize(), equalTo(5L));
+                }, longFieldType).withQuery(new TermQuery(new Term("text", "odd"))));
+                searchAndReduce(searcher, new AggTestConfig(sigNumAgg, agg -> {
+                    SignificantLongTerms terms = (SignificantLongTerms) agg;
+                    assertEquals(1, terms.getBuckets().size());
+                    assertThat(terms.getSubsetSize(), equalTo(5L));
 
-                assertNull(terms.getBucketByKey(Long.toString(ODD_VALUE)));
-                assertNull(terms.getBucketByKey(Long.toString(COMMON_VALUE)));
-                assertNotNull(terms.getBucketByKey(Long.toString(EVEN_VALUE)));
-
+                    assertNull(terms.getBucketByKey(Long.toString(ODD_VALUE)));
+                    assertNull(terms.getBucketByKey(Long.toString(COMMON_VALUE)));
+                    assertNotNull(terms.getBucketByKey(Long.toString(EVEN_VALUE)));
+                }, longFieldType).withQuery(new TermQuery(new Term("text", "even"))));
             }
         }
     }
@@ -335,16 +324,14 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd"
-                SignificantTerms terms = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(sigAgg, textFieldType).withQuery(new TermQuery(new Term("text", "odd")))
-                );
-                assertEquals(0, terms.getBuckets().size());
+                searchAndReduce(searcher, new AggTestConfig(sigAgg, agg -> {
+                    SignificantTerms terms = (SignificantTerms) agg;
+                    assertEquals(0, terms.getBuckets().size());
 
-                assertNull(terms.getBucketByKey("even"));
-                assertNull(terms.getBucketByKey("common"));
-                assertNull(terms.getBucketByKey("odd"));
-
+                    assertNull(terms.getBucketByKey("even"));
+                    assertNull(terms.getBucketByKey("common"));
+                    assertNull(terms.getBucketByKey("odd"));
+                }, textFieldType).withQuery(new TermQuery(new Term("text", "odd"))));
             }
         }
     }
@@ -450,11 +437,11 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             addMixedTextDocs(w);
 
-            SignificantTermsAggregationBuilder agg = significantTerms("sig_text").field("text");
+            SignificantTermsAggregationBuilder foregroundAgg = significantTerms("sig_text").field("text");
             SignificantTermsAggregationBuilder backgroundAgg = significantTerms("sig_text").field("text");
 
             String executionHint = randomExecutionHint();
-            agg.executionHint(executionHint);
+            foregroundAgg.executionHint(executionHint);
             backgroundAgg.executionHint(executionHint);
 
             QueryBuilder backgroundFilter = QueryBuilders.termsQuery("text", "odd");
@@ -464,21 +451,18 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                SignificantTerms evenTerms = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(agg, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
-                );
-                SignificantTerms backgroundEvenTerms = searchAndReduce(
-                    searcher,
-                    new AggTestConfig(backgroundAgg, textFieldType).withQuery(new TermQuery(new Term("text", "even")))
-                );
-
-                assertFalse(evenTerms.getBuckets().isEmpty());
-                assertFalse(backgroundEvenTerms.getBuckets().isEmpty());
-                assertEquals(((InternalMappedSignificantTerms) evenTerms).getSubsetSize(), 5);
-                assertEquals(((InternalMappedSignificantTerms) evenTerms).getSupersetSize(), 10);
-                assertEquals(((InternalMappedSignificantTerms) backgroundEvenTerms).getSubsetSize(), 5);
-                assertEquals(((InternalMappedSignificantTerms) backgroundEvenTerms).getSupersetSize(), 5);
+                searchAndReduce(searcher, new AggTestConfig(foregroundAgg, agg -> {
+                    SignificantTerms evenTerms = (SignificantTerms) agg;
+                    assertFalse(evenTerms.getBuckets().isEmpty());
+                    assertEquals(((InternalMappedSignificantTerms) evenTerms).getSubsetSize(), 5);
+                    assertEquals(((InternalMappedSignificantTerms) evenTerms).getSupersetSize(), 10);
+                }, textFieldType).withQuery(new TermQuery(new Term("text", "even"))));
+                searchAndReduce(searcher, new AggTestConfig(backgroundAgg, agg -> {
+                    SignificantTerms backgroundEvenTerms = (SignificantTerms) agg;
+                    assertFalse(backgroundEvenTerms.getBuckets().isEmpty());
+                    assertEquals(((InternalMappedSignificantTerms) backgroundEvenTerms).getSubsetSize(), 5);
+                    assertEquals(((InternalMappedSignificantTerms) backgroundEvenTerms).getSupersetSize(), 5);
+                }, textFieldType).withQuery(new TermQuery(new Term("text", "even"))));
             }
         }
     }
@@ -505,8 +489,14 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f")
                         .executionHint(executionHint);
-                    SignificantStringTerms result = searchAndReduce(searcher, new AggTestConfig(request, keywordField("f")));
-                    assertThat(result.getSubsetSize(), equalTo(1L));
+                    searchAndReduce(
+                        searcher,
+                        new AggTestConfig(
+                            request,
+                            agg -> assertThat(((SignificantStringTerms) agg).getSubsetSize(), equalTo(1L)),
+                            keywordField("f")
+                        )
+                    );
                 }
             }
         }
@@ -525,8 +515,14 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f");
-                    SignificantLongTerms result = searchAndReduce(searcher, new AggTestConfig(request, longField("f")));
-                    assertThat(result.getSubsetSize(), equalTo(1L));
+                    searchAndReduce(
+                        searcher,
+                        new AggTestConfig(
+                            request,
+                            agg -> assertThat(((SignificantLongTerms) agg).getSubsetSize(), equalTo(1L)),
+                            longField("f")
+                        )
+                    );
                 }
             }
         }
@@ -557,8 +553,14 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f")
                         .executionHint(executionHint);
-                    SignificantStringTerms result = searchAndReduce(searcher, new AggTestConfig(request, keywordField("f")));
-                    assertThat(result.getSubsetSize(), equalTo(2L));
+                    searchAndReduce(
+                        searcher,
+                        new AggTestConfig(
+                            request,
+                            agg -> assertThat(((SignificantStringTerms) agg).getSubsetSize(), equalTo(2L)),
+                            keywordField("f")
+                        )
+                    );
                 }
             }
         }
@@ -579,8 +581,14 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f");
-                    SignificantLongTerms result = searchAndReduce(searcher, new AggTestConfig(request, longField("f")));
-                    assertThat(result.getSubsetSize(), equalTo(2L));
+                    searchAndReduce(
+                        searcher,
+                        new AggTestConfig(
+                            request,
+                            agg -> assertThat(((SignificantLongTerms) agg).getSubsetSize(), equalTo(2L)),
+                            longField("f")
+                        )
+                    );
                 }
             }
         }
@@ -621,28 +629,27 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                         .minDocCount(0)
                         .executionHint(executionHint)
                         .subAggregation(jRequest);
-                    SignificantStringTerms result = searchAndReduce(
-                        searcher,
-                        new AggTestConfig(request, keywordField("i"), keywordField("j"), keywordField("k"))
-                    );
-                    assertThat(result.getSubsetSize(), equalTo(1000L));
-                    for (int i = 0; i < 10; i++) {
-                        SignificantStringTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
-                        assertThat(iBucket.getDocCount(), equalTo(100L));
-                        SignificantStringTerms jAgg = iBucket.getAggregations().get("j");
-                        assertThat(jAgg.getSubsetSize(), equalTo(100L));
-                        for (int j = 0; j < 10; j++) {
-                            SignificantStringTerms.Bucket jBucket = jAgg.getBucketByKey(Integer.toString(j));
-                            assertThat(jBucket.getDocCount(), equalTo(10L));
-                            SignificantStringTerms kAgg = jBucket.getAggregations().get("k");
-                            assertThat(kAgg.getSubsetSize(), equalTo(10L));
-                            for (int k = 0; k < 10; k++) {
-                                SignificantStringTerms.Bucket kBucket = kAgg.getBucketByKey(Integer.toString(k));
-                                assertThat(jAgg.getSubsetSize(), equalTo(100L));
-                                assertThat(kBucket.getDocCount(), equalTo(1L));
+                    searchAndReduce(searcher, new AggTestConfig(request, agg -> {
+                        SignificantStringTerms result = (SignificantStringTerms) agg;
+                        assertThat(result.getSubsetSize(), equalTo(1000L));
+                        for (int i = 0; i < 10; i++) {
+                            SignificantStringTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
+                            assertThat(iBucket.getDocCount(), equalTo(100L));
+                            SignificantStringTerms jAgg = iBucket.getAggregations().get("j");
+                            assertThat(jAgg.getSubsetSize(), equalTo(100L));
+                            for (int j = 0; j < 10; j++) {
+                                SignificantStringTerms.Bucket jBucket = jAgg.getBucketByKey(Integer.toString(j));
+                                assertThat(jBucket.getDocCount(), equalTo(10L));
+                                SignificantStringTerms kAgg = jBucket.getAggregations().get("k");
+                                assertThat(kAgg.getSubsetSize(), equalTo(10L));
+                                for (int k = 0; k < 10; k++) {
+                                    SignificantStringTerms.Bucket kBucket = kAgg.getBucketByKey(Integer.toString(k));
+                                    assertThat(jAgg.getSubsetSize(), equalTo(100L));
+                                    assertThat(kBucket.getDocCount(), equalTo(1L));
+                                }
                             }
                         }
-                    }
+                    }, keywordField("i"), keywordField("j"), keywordField("k")));
                 }
             }
         }
@@ -671,27 +678,26 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                                 .minDocCount(0)
                                 .subAggregation(new SignificantTermsAggregationBuilder("k").field("k").minDocCount(0))
                         );
-                    SignificantLongTerms result = searchAndReduce(
-                        searcher,
-                        new AggTestConfig(request, longField("i"), longField("j"), longField("k"))
-                    );
-                    assertThat(result.getSubsetSize(), equalTo(1000L));
-                    for (int i = 0; i < 10; i++) {
-                        SignificantLongTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
-                        assertThat(iBucket.getDocCount(), equalTo(100L));
-                        SignificantLongTerms jAgg = iBucket.getAggregations().get("j");
-                        assertThat(jAgg.getSubsetSize(), equalTo(100L));
-                        for (int j = 0; j < 10; j++) {
-                            SignificantLongTerms.Bucket jBucket = jAgg.getBucketByKey(Integer.toString(j));
-                            assertThat(jBucket.getDocCount(), equalTo(10L));
-                            SignificantLongTerms kAgg = jBucket.getAggregations().get("k");
-                            assertThat(kAgg.getSubsetSize(), equalTo(10L));
-                            for (int k = 0; k < 10; k++) {
-                                SignificantLongTerms.Bucket kBucket = kAgg.getBucketByKey(Integer.toString(k));
-                                assertThat(kBucket.getDocCount(), equalTo(1L));
+                    searchAndReduce(searcher, new AggTestConfig(request, agg -> {
+                        SignificantLongTerms result = (SignificantLongTerms) agg;
+                        assertThat(result.getSubsetSize(), equalTo(1000L));
+                        for (int i = 0; i < 10; i++) {
+                            SignificantLongTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
+                            assertThat(iBucket.getDocCount(), equalTo(100L));
+                            SignificantLongTerms jAgg = iBucket.getAggregations().get("j");
+                            assertThat(jAgg.getSubsetSize(), equalTo(100L));
+                            for (int j = 0; j < 10; j++) {
+                                SignificantLongTerms.Bucket jBucket = jAgg.getBucketByKey(Integer.toString(j));
+                                assertThat(jBucket.getDocCount(), equalTo(10L));
+                                SignificantLongTerms kAgg = jBucket.getAggregations().get("k");
+                                assertThat(kAgg.getSubsetSize(), equalTo(10L));
+                                for (int k = 0; k < 10; k++) {
+                                    SignificantLongTerms.Bucket kBucket = kAgg.getBucketByKey(Integer.toString(k));
+                                    assertThat(kBucket.getDocCount(), equalTo(1L));
+                                }
                             }
                         }
-                    }
+                    }, longField("i"), longField("j"), longField("k")));
                 }
             }
         }

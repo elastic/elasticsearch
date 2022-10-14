@@ -311,9 +311,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(HISTO_FIELD);
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
-                InternalAggregation histogram;
-                histogram = searchAndReduce(indexSearcher, new AggTestConfig(aggBuilder, fieldType, valueFieldType).withQuery(query));
-                verify.accept(histogram);
+                searchAndReduce(indexSearcher, new AggTestConfig(aggBuilder, verify, fieldType, valueFieldType).withQuery(query));
             }
         }
     }

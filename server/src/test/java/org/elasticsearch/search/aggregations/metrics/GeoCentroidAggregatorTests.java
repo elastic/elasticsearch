@@ -39,9 +39,11 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                assertNull(result.centroid());
-                assertFalse(AggregationInspectionHelper.hasValue(result));
+                searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                    InternalGeoCentroid result = (InternalGeoCentroid) agg;
+                    assertNull(result.centroid());
+                    assertFalse(AggregationInspectionHelper.hasValue(result));
+                }, fieldType));
             }
         }
     }
@@ -57,13 +59,17 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("another_field");
-                InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                assertNull(result.centroid());
+                searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                    InternalGeoCentroid result = (InternalGeoCentroid) agg;
+                    assertNull(result.centroid());
+                }, fieldType));
 
                 fieldType = new GeoPointFieldMapper.GeoPointFieldType("another_field");
-                result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                assertNull(result.centroid());
-                assertFalse(AggregationInspectionHelper.hasValue(result));
+                searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                    InternalGeoCentroid result = (InternalGeoCentroid) agg;
+                    assertNull(result.centroid());
+                    assertFalse(AggregationInspectionHelper.hasValue(result));
+                }, fieldType));
             }
         }
     }
@@ -84,9 +90,11 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("another_field");
-                InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                assertEquals(result.centroid(), expectedCentroid);
-                assertTrue(AggregationInspectionHelper.hasValue(result));
+                searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                    InternalGeoCentroid result = (InternalGeoCentroid) agg;
+                    assertEquals(result.centroid(), expectedCentroid);
+                    assertTrue(AggregationInspectionHelper.hasValue(result));
+                }, fieldType));
             }
         }
     }
@@ -149,14 +157,15 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
         GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg").field("field");
         try (IndexReader reader = w.getReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
-            InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-
-            assertEquals("my_agg", result.getName());
-            SpatialPoint centroid = result.centroid();
-            assertNotNull(centroid);
-            assertEquals(expectedCentroid.getX(), centroid.getX(), GEOHASH_TOLERANCE);
-            assertEquals(expectedCentroid.getY(), centroid.getY(), GEOHASH_TOLERANCE);
-            assertTrue(AggregationInspectionHelper.hasValue(result));
+            searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                InternalGeoCentroid result = (InternalGeoCentroid) agg;
+                assertEquals("my_agg", result.getName());
+                SpatialPoint centroid = result.centroid();
+                assertNotNull(centroid);
+                assertEquals(expectedCentroid.getX(), centroid.getX(), GEOHASH_TOLERANCE);
+                assertEquals(expectedCentroid.getY(), centroid.getY(), GEOHASH_TOLERANCE);
+                assertTrue(AggregationInspectionHelper.hasValue(result));
+            }, fieldType));
         }
     }
 

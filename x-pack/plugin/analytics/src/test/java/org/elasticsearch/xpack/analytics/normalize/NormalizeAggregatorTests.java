@@ -163,11 +163,10 @@ public class NormalizeAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                InternalAggregation internalAggregation = searchAndReduce(
+                searchAndReduce(
                     indexSearcher,
-                    new AggTestConfig(aggBuilder, dateFieldType, valueFieldType, termFieldType).withQuery(query)
+                    new AggTestConfig(aggBuilder, aggAssertion, dateFieldType, valueFieldType, termFieldType).withQuery(query)
                 );
-                aggAssertion.accept(internalAggregation);
             }
         }
     }

@@ -136,12 +136,12 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(aggBuilder.field());
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
-                InternalDateHistogram histogram;
-                histogram = searchAndReduce(
+                searchAndReduce(
                     indexSearcher,
-                    new AggTestConfig(aggBuilder, fieldType, valueFieldType).withMaxBuckets(1000).withQuery(query)
+                    new AggTestConfig(aggBuilder, agg -> verify.accept((InternalDateHistogram) agg), fieldType, valueFieldType)
+                        .withMaxBuckets(1000)
+                        .withQuery(query)
                 );
-                verify.accept(histogram);
             }
         }
     }

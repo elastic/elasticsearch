@@ -480,6 +480,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
         }
     }
+
     @SuppressWarnings("unchecked")
     private <A extends InternalAggregation> A searchAndReduce(
         IndexSettings indexSettings,
@@ -489,9 +490,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
     ) throws IOException {
         assert aggTestConfig.builders().size() == aggTestConfig.verifiers().size();
         InternalAggregation result = null;
+        // NOCOMMIT - this is just a placeholder to get all the existing tests running in list mode.  Really, we need to use the
+        // MultiBucketCollector here for any of this to have been worth it.
         for (int i = 0; i < aggTestConfig.builders().size(); i++) {
             result = searchAndReduceSingleAggregator(i, indexSettings, searcher, breakerService, aggTestConfig);
             aggTestConfig.verifiers().get(i).accept(result);
+            verifyOutputFieldNames(aggTestConfig.builders().get(i), result);
         }
         // Once all the callers pass in a verifier, we can stop returning anything (which won't work in the parallel agg case anyway)
         return (A) result;
@@ -653,13 +657,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-                InternalAggregation agg = searchAndReduce(indexSearcher, aggTestConfig);
-                aggTestConfig.verifiers().get(0).accept(agg);
-
-                if (aggTestConfig.builders().size() == 1) {
-                    verifyOutputFieldNames(aggTestConfig.builders().get(0), agg);
-                }
+                searchAndReduce(indexSearcher, aggTestConfig);
             }
         }
     }
@@ -698,11 +696,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 DirectoryReader[] readers = directoryReaders.toArray(new DirectoryReader[0]);
                 try (MultiReader multiReader = new MultiReader(readers)) {
                     IndexSearcher indexSearcher = newIndexSearcher(multiReader);
-
-                    V agg = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, verify, fieldTypes).withQuery(query));
-                    verify.accept(agg);
-
-                    verifyOutputFieldNames(aggregationBuilder, agg);
+                    searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, verify, fieldTypes).withQuery(query));
                 }
             } finally {
                 IOUtils.close(directoryReaders);
@@ -1047,17 +1041,19 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
                     AssertionError failure = null;
                     try {
-                        InternalAggregation internalAggregation = searchAndReduce(
-                            indexSearcher,
-                            new AggTestConfig(aggregationBuilder, r -> {}, fieldType)
-                        );
-                        // We should make sure if the builder says it supports sampling, that the internal aggregations returned override
-                        // finalizeSampling
-                        if (aggregationBuilder.supportsSampling()) {
-                            SamplingContext randomSamplingContext = new SamplingContext(randomDoubleBetween(1e-8, 0.1, false), randomInt());
-                            InternalAggregation sampledResult = internalAggregation.finalizeSampling(randomSamplingContext);
-                            assertThat(sampledResult.getClass(), equalTo(internalAggregation.getClass()));
-                        }
+                        searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, internalAggregation -> {
+                            // We should make sure if the builder says it supports sampling, that the internal aggregations returned
+                            // override finalizeSampling
+                            if (aggregationBuilder.supportsSampling()) {
+                                SamplingContext randomSamplingContext = new SamplingContext(
+                                    randomDoubleBetween(1e-8, 0.1, false),
+                                    randomInt()
+                                );
+                                InternalAggregation sampledResult = internalAggregation.finalizeSampling(randomSamplingContext);
+                                assertThat(sampledResult.getClass(), equalTo(internalAggregation.getClass()));
+                            }
+
+                        }, fieldType));
                         if (supportedVSTypes.contains(vst) == false || unsupportedMappedFieldTypes.contains(fieldType.typeName())) {
                             failure = new AssertionError(
                                 "Aggregator ["

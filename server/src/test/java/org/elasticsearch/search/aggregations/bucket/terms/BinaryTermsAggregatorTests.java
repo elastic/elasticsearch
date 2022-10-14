@@ -156,11 +156,12 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType binaryFieldType = new BinaryFieldMapper.BinaryFieldType(BINARY_FIELD);
 
-                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(
+                searchAndReduce(
                     indexSearcher,
-                    new AggTestConfig(aggregationBuilder, binaryFieldType).withQuery(query)
+                    new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalMappedTerms<?, ?>) agg), binaryFieldType).withQuery(
+                        query
+                    )
                 );
-                verify.accept(rareTerms);
             }
         }
     }

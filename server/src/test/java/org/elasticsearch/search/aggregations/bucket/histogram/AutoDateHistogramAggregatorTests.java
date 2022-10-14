@@ -1032,11 +1032,16 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 MappedFieldType instantFieldType = new NumberFieldMapper.NumberFieldType(INSTANT_FIELD, NumberFieldMapper.NumberType.LONG);
                 MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NUMERIC_FIELD, NumberFieldMapper.NumberType.LONG);
 
-                final InternalAutoDateHistogram histogram = searchAndReduce(
+                searchAndReduce(
                     indexSearcher,
-                    new AggTestConfig(aggregationBuilder, fieldType, instantFieldType, numericFieldType).withQuery(query)
+                    new AggTestConfig(
+                        aggregationBuilder,
+                        agg -> verify.accept((InternalAutoDateHistogram) agg),
+                        fieldType,
+                        instantFieldType,
+                        numericFieldType
+                    ).withQuery(query)
                 );
-                verify.accept(histogram);
             }
         }
     }

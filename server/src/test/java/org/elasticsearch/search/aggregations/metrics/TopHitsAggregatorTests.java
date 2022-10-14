@@ -185,8 +185,11 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
             .build();
         AggregationBuilder agg = AggregationBuilders.topHits("top_hits");
-        TopHits result = searchAndReduce(searcher, new AggTestConfig(agg, STRING_FIELD_TYPE).withQuery(query));
-        assertEquals(3, result.getHits().getTotalHits().value);
+        searchAndReduce(
+            searcher,
+            new AggTestConfig(agg, result -> assertEquals(3, ((TopHits) result).getHits().getTotalHits().value), STRING_FIELD_TYPE)
+                .withQuery(query)
+        );
         reader.close();
         directory.close();
     }

@@ -156,23 +156,29 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                         expectedOddMin = Math.min(expectedOddMin, e.getValue().v2());
                     }
                 }
-                StringTerms result = searchAndReduce(indexSearcher, new AggTestConfig(request, withJoinFields(longField("number"), kwd)));
+                long finalExpectedEvenChildCount = expectedEvenChildCount;
+                double finalExpectedEvenMin = expectedEvenMin;
+                long finalExpectedOddChildCount = expectedOddChildCount;
+                double finalExpectedOddMin = expectedOddMin;
+                searchAndReduce(indexSearcher, new AggTestConfig(request, agg -> {
+                    StringTerms result = (StringTerms) agg;
+                    StringTerms.Bucket evenBucket = result.getBucketByKey("even");
+                    InternalChildren evenChildren = evenBucket.getAggregations().get("children");
+                    Min evenMin = evenChildren.getAggregations().get("min");
+                    assertThat(evenChildren.getDocCount(), equalTo(finalExpectedEvenChildCount));
+                    assertThat(evenMin.value(), equalTo(finalExpectedEvenMin));
 
-                StringTerms.Bucket evenBucket = result.getBucketByKey("even");
-                InternalChildren evenChildren = evenBucket.getAggregations().get("children");
-                Min evenMin = evenChildren.getAggregations().get("min");
-                assertThat(evenChildren.getDocCount(), equalTo(expectedEvenChildCount));
-                assertThat(evenMin.value(), equalTo(expectedEvenMin));
+                    if (finalExpectedOddChildCount > 0) {
+                        StringTerms.Bucket oddBucket = result.getBucketByKey("odd");
+                        InternalChildren oddChildren = oddBucket.getAggregations().get("children");
+                        Min oddMin = oddChildren.getAggregations().get("min");
+                        assertThat(oddChildren.getDocCount(), equalTo(finalExpectedOddChildCount));
+                        assertThat(oddMin.value(), equalTo(finalExpectedOddMin));
+                    } else {
+                        assertNull(result.getBucketByKey("odd"));
+                    }
+                }, withJoinFields(longField("number"), kwd)));
 
-                if (expectedOddChildCount > 0) {
-                    StringTerms.Bucket oddBucket = result.getBucketByKey("odd");
-                    InternalChildren oddChildren = oddBucket.getAggregations().get("children");
-                    Min oddMin = oddChildren.getAggregations().get("min");
-                    assertThat(oddChildren.getDocCount(), equalTo(expectedOddChildCount));
-                    assertThat(oddMin.value(), equalTo(expectedOddMin));
-                } else {
-                    assertNull(result.getBucketByKey("odd"));
-                }
             }
         }
     }
@@ -232,16 +238,12 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
                     var fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
                     var fieldType2 = new KeywordFieldMapper.KeywordFieldType("string_field", false, true, Map.of());
-                    InternalChildren result = searchAndReduce(
-                        indexSearcher,
-                        new AggTestConfig(aggregationBuilder, withJoinFields(fieldType, fieldType2)).withQuery(
-                            new TermQuery(new Term("join_field", "parent_type"))
-                        )
-                    );
-
-                    Terms terms = result.getAggregations().get("_name2");
-                    TopHits topHits = terms.getBuckets().get(0).getAggregations().get("_name3");
-                    assertThat(topHits.getHits().getHits(), arrayWithSize(1));
+                    searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, agg -> {
+                        InternalChildren result = (InternalChildren) agg;
+                        Terms terms = result.getAggregations().get("_name2");
+                        TopHits topHits = terms.getBuckets().get(0).getAggregations().get("_name3");
+                        assertThat(topHits.getHits().getHits(), arrayWithSize(1));
+                    }, withJoinFields(fieldType, fieldType2)).withQuery(new TermQuery(new Term("join_field", "parent_type"))));
                 }
             }
         }
@@ -306,11 +308,10 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
-        InternalChildren result = searchAndReduce(
+        searchAndReduce(
             indexSearcher,
-            new AggTestConfig(aggregationBuilder, withJoinFields(fieldType)).withQuery(query)
+            new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalChildren) agg), withJoinFields(fieldType)).withQuery(query)
         );
-        verify.accept(result);
     }
 
     @Override

@@ -112,9 +112,10 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-                InternalFilters filters;
-                filters = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType).withQuery(query));
-                verify.accept(filters);
+                searchAndReduce(
+                    indexSearcher,
+                    new AggTestConfig(aggregationBuilder, agg -> verify.accept((InternalFilters) agg), fieldType).withQuery(query)
+                );
             }
         }
     }

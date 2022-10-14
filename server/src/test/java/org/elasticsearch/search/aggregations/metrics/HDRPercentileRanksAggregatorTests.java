@@ -48,11 +48,13 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
         try (IndexReader reader = new MultiReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
-            PercentileRanks ranks = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-            Percentile rank = ranks.iterator().next();
-            assertEquals(Double.NaN, rank.getPercent(), 0d);
-            assertEquals(0.5, rank.getValue(), 0d);
-            assertFalse(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks) ranks));
+            searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                PercentileRanks ranks = (PercentileRanks) agg;
+                Percentile rank = ranks.iterator().next();
+                assertEquals(Double.NaN, rank.getPercent(), 0d);
+                assertEquals(0.5, rank.getValue(), 0d);
+                assertFalse(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks) ranks));
+            }, fieldType));
         }
     }
 
@@ -70,20 +72,22 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                PercentileRanks ranks = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
-                Iterator<Percentile> rankIterator = ranks.iterator();
-                Percentile rank = rankIterator.next();
-                assertEquals(0.1, rank.getValue(), 0d);
-                assertThat(rank.getPercent(), Matchers.equalTo(0d));
-                rank = rankIterator.next();
-                assertEquals(0.5, rank.getValue(), 0d);
-                assertThat(rank.getPercent(), Matchers.greaterThan(0d));
-                assertThat(rank.getPercent(), Matchers.lessThan(100d));
-                rank = rankIterator.next();
-                assertEquals(12, rank.getValue(), 0d);
-                assertThat(rank.getPercent(), Matchers.equalTo(100d));
-                assertFalse(rankIterator.hasNext());
-                assertTrue(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks) ranks));
+                searchAndReduce(searcher, new AggTestConfig(aggBuilder, agg -> {
+                    PercentileRanks ranks = (PercentileRanks) agg;
+                    Iterator<Percentile> rankIterator = ranks.iterator();
+                    Percentile rank = rankIterator.next();
+                    assertEquals(0.1, rank.getValue(), 0d);
+                    assertThat(rank.getPercent(), Matchers.equalTo(0d));
+                    rank = rankIterator.next();
+                    assertEquals(0.5, rank.getValue(), 0d);
+                    assertThat(rank.getPercent(), Matchers.greaterThan(0d));
+                    assertThat(rank.getPercent(), Matchers.lessThan(100d));
+                    rank = rankIterator.next();
+                    assertEquals(12, rank.getValue(), 0d);
+                    assertThat(rank.getPercent(), Matchers.equalTo(100d));
+                    assertFalse(rankIterator.hasNext());
+                    assertTrue(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks) ranks));
+                }, fieldType));
             }
         }
     }

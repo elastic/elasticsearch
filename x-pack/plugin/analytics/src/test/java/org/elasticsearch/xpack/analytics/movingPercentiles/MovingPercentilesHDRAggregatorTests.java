@@ -69,24 +69,22 @@ public class MovingPercentilesHDRAggregatorTests extends MovingPercentilesAbstra
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(aggBuilder.field());
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.DOUBLE);
 
-                InternalDateHistogram histogram;
-                histogram = searchAndReduce(
-                    indexSearcher,
-                    new AggTestConfig(aggBuilder, fieldType, valueFieldType).withMaxBuckets(1000).withQuery(query)
-                );
-                for (int i = 0; i < histogram.getBuckets().size(); i++) {
-                    InternalDateHistogram.Bucket bucket = histogram.getBuckets().get(i);
-                    InternalHDRPercentiles values = bucket.getAggregations().get("MovingPercentiles");
-                    DoubleHistogram expected = reduce(i, window, shift, states);
-                    if (values == null) {
-                        assertNull(expected);
-                    } else {
-                        DoubleHistogram agg = values.getState();
-                        assertEquals(expected.getTotalCount(), agg.getTotalCount());
-                        assertEquals(expected.getMaxValue(), agg.getMaxValue(), 0d);
-                        assertEquals(expected.getMinValue(), agg.getMinValue(), 0d);
+                searchAndReduce(indexSearcher, new AggTestConfig(aggBuilder, r -> {
+                    InternalDateHistogram histogram = (InternalDateHistogram) r;
+                    for (int i = 0; i < histogram.getBuckets().size(); i++) {
+                        InternalDateHistogram.Bucket bucket = histogram.getBuckets().get(i);
+                        InternalHDRPercentiles values = bucket.getAggregations().get("MovingPercentiles");
+                        DoubleHistogram expected = reduce(i, window, shift, states);
+                        if (values == null) {
+                            assertNull(expected);
+                        } else {
+                            DoubleHistogram agg = values.getState();
+                            assertEquals(expected.getTotalCount(), agg.getTotalCount());
+                            assertEquals(expected.getMaxValue(), agg.getMaxValue(), 0d);
+                            assertEquals(expected.getMinValue(), agg.getMinValue(), 0d);
+                        }
                     }
-                }
+                }, fieldType, valueFieldType).withMaxBuckets(1000).withQuery(query));
             }
         }
     }

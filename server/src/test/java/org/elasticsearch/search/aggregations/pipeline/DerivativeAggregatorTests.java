@@ -715,11 +715,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(SINGLE_VALUED_FIELD_NAME);
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
-                InternalAggregation histogram = searchAndReduce(
-                    indexSearcher,
-                    new AggTestConfig(aggBuilder, fieldType, valueFieldType).withQuery(query)
-                );
-                verify.accept(histogram);
+                searchAndReduce(indexSearcher, new AggTestConfig(aggBuilder, verify, fieldType, valueFieldType).withQuery(query));
             }
         }
     }

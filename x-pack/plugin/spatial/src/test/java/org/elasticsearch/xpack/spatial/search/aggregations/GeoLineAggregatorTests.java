@@ -411,8 +411,12 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             MappedFieldType groupFieldType = new KeywordFieldMapper.KeywordFieldType("group_id", false, true, Collections.emptyMap());
             MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("sort_field", fieldNumberType);
 
-            Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType, fieldType2, groupFieldType));
-            verify.accept(terms);
+            searchAndReduce(
+                indexSearcher,
+                new AggTestConfig(aggregationBuilder, agg -> verify.accept((Terms) agg), fieldType, fieldType2, groupFieldType).withQuery(
+                    query
+                )
+            );
         } finally {
             indexReader.close();
             directory.close();

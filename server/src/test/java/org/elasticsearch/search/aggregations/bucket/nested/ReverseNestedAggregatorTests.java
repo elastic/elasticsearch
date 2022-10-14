@@ -73,14 +73,16 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 reverseNestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                Nested nested = searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, fieldType));
-                ReverseNested reverseNested = (ReverseNested) ((InternalAggregation) nested).getProperty(REVERSE_AGG_NAME);
-                assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
-                assertEquals(0, reverseNested.getDocCount());
+                searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, agg -> {
+                    Nested nested = (Nested) agg;
+                    ReverseNested reverseNested = (ReverseNested) ((InternalAggregation) nested).getProperty(REVERSE_AGG_NAME);
+                    assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
+                    assertEquals(0, reverseNested.getDocCount());
 
-                Max max = (Max) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
-                assertEquals(MAX_AGG_NAME, max.getName());
-                assertEquals(Double.NEGATIVE_INFINITY, max.value(), Double.MIN_VALUE);
+                    Max max = (Max) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
+                    assertEquals(MAX_AGG_NAME, max.getName());
+                    assertEquals(Double.NEGATIVE_INFINITY, max.value(), Double.MIN_VALUE);
+                }, fieldType));
             }
         }
     }
@@ -133,17 +135,21 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 reverseNestedBuilder.subAggregation(maxAgg);
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
-                AggTestConfig aggTestConfig = new AggTestConfig(nestedBuilder, fieldType);
-                Nested nested = searchAndReduce(newSearcher(indexReader, false, true), aggTestConfig);
-                assertEquals(expectedNestedDocs, nested.getDocCount());
+                int finalExpectedNestedDocs = expectedNestedDocs;
+                int finalExpectedParentDocs = expectedParentDocs;
+                double finalExpectedMaxValue = expectedMaxValue;
+                searchAndReduce(newSearcher(indexReader, false, true), new AggTestConfig(nestedBuilder, agg -> {
+                    Nested nested = (Nested) agg;
+                    assertEquals(finalExpectedNestedDocs, nested.getDocCount());
 
-                ReverseNested reverseNested = (ReverseNested) ((InternalAggregation) nested).getProperty(REVERSE_AGG_NAME);
-                assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
-                assertEquals(expectedParentDocs, reverseNested.getDocCount());
+                    ReverseNested reverseNested = (ReverseNested) ((InternalAggregation) nested).getProperty(REVERSE_AGG_NAME);
+                    assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
+                    assertEquals(finalExpectedParentDocs, reverseNested.getDocCount());
 
-                Max max = (Max) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
-                assertEquals(MAX_AGG_NAME, max.getName());
-                assertEquals(expectedMaxValue, max.value(), Double.MIN_VALUE);
+                    Max max = (Max) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
+                    assertEquals(MAX_AGG_NAME, max.getName());
+                    assertEquals(finalExpectedMaxValue, max.value(), Double.MIN_VALUE);
+                }, fieldType));
             }
         }
     }

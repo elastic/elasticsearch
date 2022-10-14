@@ -17,6 +17,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -132,6 +135,33 @@ public class RoutingNodeTests extends ESTestCase {
         assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test1", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(1));
         assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test2", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
         assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test3", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
+    }
+
+    public void testReturnStartedShards() {
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"))));
+
+        ShardRouting startedShard = TestShardRouting.newShardRouting("test1", 1, "node-1", false, ShardRoutingState.STARTED);
+
+        routingNode.add(startedShard);
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"), ShardId.fromString("[test1][1]"))));
+
+        ShardRouting relocatingShard = TestShardRouting.newShardRouting(
+            "test2",
+            2,
+            "node-1",
+            "node-2",
+            false,
+            ShardRoutingState.RELOCATING
+        );
+        routingNode.add(relocatingShard);
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"), ShardId.fromString("[test1][1]"))));
+
+        routingNode.remove(startedShard);
+        assertThat(startedShardsSet(routingNode), equalTo(Set.of(ShardId.fromString("[test][0]"))));
+    }
+
+    private static Set<ShardId> startedShardsSet(RoutingNode routingNode) {
+        return Arrays.stream(routingNode.started()).map(ShardRouting::shardId).collect(Collectors.toSet());
     }
 
 }

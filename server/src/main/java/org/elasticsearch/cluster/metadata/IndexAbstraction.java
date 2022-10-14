@@ -235,6 +235,7 @@ public interface IndexAbstraction {
                 }
                 isSystem = isSystem && imd.isSystem();
             }
+            this.referenceIndices.sort(Index.COMPARE_BY_NAME);
 
             if (widx == null && indexMetadatas.size() == 1 && indexMetadatas.get(0).getAliases().get(aliasName).writeIndex() == null) {
                 widx = indexMetadatas.get(0).getIndex();

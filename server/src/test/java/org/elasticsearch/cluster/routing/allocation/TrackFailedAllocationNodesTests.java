@@ -70,12 +70,12 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
 
         // do not track the failed nodes while shard is started
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
-        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(clusterState.routingTable().index("idx").shard(0).primaryShard().state(), equalTo(ShardRoutingState.STARTED));
         clusterState = allocationService.applyFailedShards(
             clusterState,
-            List.of(new FailedShard(clusterState.routingTable().index("idx").shard(0).shard(0), null, null, false)),
+            List.of(new FailedShard(clusterState.routingTable().index("idx").shard(0).primaryShard(), null, null, false)),
             List.of()
         );
-        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().getFailedNodeIds(), empty());
+        assertThat(clusterState.routingTable().index("idx").shard(0).primaryShard().unassignedInfo().getFailedNodeIds(), empty());
     }
 }

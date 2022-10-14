@@ -1109,6 +1109,27 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
         });
+
+        // Example transform package
+        Arrays.asList("kibana_sample_data_ecommerce", "kibana_sample_data_ecommerce_transform" + randomInt()).forEach(indexName -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            // Allow search and indexing
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(indexAbstraction), is(true));
+            // Allow create and delete index
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(true));
+
+            // Implied by the overall view_index_metadata and monitor privilege
+            assertViewIndexMetadata(kibanaRole, indexName);
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
+                is(true)
+            );
+        });
     }
 
     public void testKibanaAdminRole() {
@@ -1723,9 +1744,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     metadata.getIndicesLookup(),
                     fieldPermissionsCache
                 );
-            assertThat(iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
-            assertThat(iac.getIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS).isGranted(), is(true));
-            assertThat(iac.getIndexPermissions(asyncSearchIndex).isGranted(), is(true));
+            assertThat(iac.hasIndexPermissions(internalSecurityIndex), is(true));
+            assertThat(iac.hasIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS), is(true));
+            assertThat(iac.hasIndexPermissions(asyncSearchIndex), is(true));
         }
     }
 
@@ -1840,17 +1861,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         IndicesAccessControl iac = superuserRole.indices()
             .authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
-        assertThat(iac.getIndexPermissions("a1").isGranted(), is(true));
-        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        assertThat(iac.hasIndexPermissions("a1"), is(true));
+        assertThat(iac.hasIndexPermissions("b"), is(true));
         iac = superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
-        assertThat(iac.getIndexPermissions("a1").isGranted(), is(true));
-        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        assertThat(iac.hasIndexPermissions("a1"), is(true));
+        assertThat(iac.hasIndexPermissions("b"), is(true));
         iac = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
-        assertThat(iac.getIndexPermissions("a2").isGranted(), is(true));
-        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        assertThat(iac.hasIndexPermissions("a2"), is(true));
+        assertThat(iac.hasIndexPermissions("b"), is(true));
         iac = superuserRole.indices().authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
-        assertThat(iac.getIndexPermissions("aaaaaa").isGranted(), is(true));
-        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        assertThat(iac.hasIndexPermissions("aaaaaa"), is(true));
+        assertThat(iac.hasIndexPermissions("b"), is(true));
 
         // Read security indices => allowed
         iac = superuserRole.indices()
@@ -1860,8 +1881,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 lookup,
                 fieldPermissionsCache
             );
-        assertThat("For " + iac, iac.getIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS).isGranted(), is(true));
-        assertThat("For " + iac, iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
+        assertThat("For " + iac, iac.hasIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS), is(true));
+        assertThat("For " + iac, iac.hasIndexPermissions(internalSecurityIndex), is(true));
 
         // Write security indices => denied
         iac = superuserRole.indices()
@@ -1871,8 +1892,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 lookup,
                 fieldPermissionsCache
             );
-        assertThat("For " + iac, iac.getIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS).isGranted(), is(false));
-        assertThat("For " + iac, iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(false));
+        assertThat("For " + iac, iac.hasIndexPermissions(TestRestrictedIndices.SECURITY_MAIN_ALIAS), is(false));
+        assertThat("For " + iac, iac.hasIndexPermissions(internalSecurityIndex), is(false));
 
         assertTrue(superuserRole.indices().check(SearchAction.NAME));
         assertFalse(superuserRole.indices().check("unknown"));

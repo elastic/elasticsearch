@@ -97,6 +97,11 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     @Override
+    protected NestedQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new NestedQueryBuilder("path", queryBuilder, ScoreMode.None);
+    }
+
+    @Override
     protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
         // TODO how to assert this?

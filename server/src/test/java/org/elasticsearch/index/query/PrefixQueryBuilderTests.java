@@ -41,12 +41,12 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     protected Map<String, PrefixQueryBuilder> getAlternateVersions() {
         Map<String, PrefixQueryBuilder> alternateVersions = new HashMap<>();
         PrefixQueryBuilder prefixQuery = randomPrefixQuery();
-        String contentString = """
+        String contentString = formatted("""
             {
                 "prefix" : {
                     "%s" : "%s"
                 }
-            }""".formatted(prefixQuery.fieldName(), prefixQuery.value());
+            }""", prefixQuery.fieldName(), prefixQuery.value());
         alternateVersions.put(contentString, prefixQuery);
         return alternateVersions;
     }

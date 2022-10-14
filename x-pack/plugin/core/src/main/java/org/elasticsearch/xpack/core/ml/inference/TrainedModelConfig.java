@@ -237,15 +237,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         description = in.readOptionalString();
         createTime = in.readInstant();
         definition = in.readOptionalWriteable(LazyModelDefinition::fromStreamInput);
-        tags = Collections.unmodifiableList(in.readList(StreamInput::readString));
+        tags = in.readImmutableList(StreamInput::readString);
         metadata = in.readMap();
         input = new TrainedModelInput(in);
         modelSize = in.readVLong();
         estimatedOperations = in.readVLong();
         licenseLevel = License.OperationMode.parse(in.readString());
-        this.defaultFieldMap = in.readBoolean()
-            ? Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString))
-            : null;
+        this.defaultFieldMap = in.readBoolean() ? in.readImmutableMap(StreamInput::readString, StreamInput::readString) : null;
 
         this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
         if (in.getVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {

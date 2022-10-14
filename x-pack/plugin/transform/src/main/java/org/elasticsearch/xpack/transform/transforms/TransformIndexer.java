@@ -166,6 +166,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     abstract void persistState(TransformState state, ActionListener<Void> listener);
 
+    abstract void validate(ActionListener<Void> listener);
+
     @Override
     protected String getJobId() {
         return transformConfig.getId();
@@ -316,10 +318,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             configurationReadyListener.onResponse(null);
         }, listener::onFailure);
 
-        ActionListener<Void> reLoadFieldMappingsListener = ActionListener.wrap(
-            updateConfigResponse -> { doGetFieldMappings(fieldMappingsListener); },
-            listener::onFailure
-        );
+        ActionListener<Void> reLoadFieldMappingsListener = ActionListener.wrap(updateConfigResponse -> {
+            logger.debug(() -> format("[%s] Retrieve field mappings from the destination index", getJobId()));
+
+            doGetFieldMappings(fieldMappingsListener);
+        }, listener::onFailure);
 
         // If we are continuous, we will want to verify we have the latest stored configuration
         ActionListener<Void> changedSourceListener = ActionListener.wrap(r -> {
@@ -372,6 +375,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 hasSourceChanged = true;
                 listener.onFailure(failure);
             }));
+        } else if (context.getCheckpoint() == 0 && Boolean.TRUE.equals(transformConfig.getSettings().getUnattended())) {
+            // this transform runs in unattended mode and has never run, to go on
+            validate(changedSourceListener);
         } else {
             hasSourceChanged = true;
             context.setLastSearchTime(instantOfTrigger);
@@ -1136,11 +1142,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return request.source(sourceBuilder)
             .allowPartialSearchResults(false) // shard failures should fail the request
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
-    }
-
-    protected void failIndexer(String failureMessage) {
-        // note: logging and audit is done as part of context.markAsFailed
-        context.markAsFailed(failureMessage);
     }
 
     /**

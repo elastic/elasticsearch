@@ -93,7 +93,7 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
     }
 
     @Override
-    public boolean isMapped() {
+    public boolean canLeadReduction() {
         return false;
     }
 

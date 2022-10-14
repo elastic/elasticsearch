@@ -116,6 +116,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(DenseVectorFieldType.class));
         assertEquals(fieldType.isIndexed(), indexed);
@@ -128,6 +133,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertEquals("field", existsQuery.getField());
         assertNoFieldNamesField(fields);
     }
+
+    // We override this because dense vectors are the only field type that are not aggregatable but
+    // that do provide fielddata. TODO: resolve this inconsistency!
+    @Override
+    public void testAggregatableConsistency() {}
 
     public void testDims() {
         {
@@ -471,7 +481,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new DenseVectorSyntheticSourceSupport();
     }
 

@@ -8,7 +8,7 @@
 
 Evaluates a trained model. The model may be any supervised model either trained by {dfanalytics} or imported.
 
-preview::[]
+beta::[]
 
 [[infer-trained-model-request]]
 == {api-request-title}

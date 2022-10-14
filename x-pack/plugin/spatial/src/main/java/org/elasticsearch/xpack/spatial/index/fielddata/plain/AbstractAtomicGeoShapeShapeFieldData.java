@@ -13,37 +13,36 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.ShapeValues;
 
 import static org.elasticsearch.common.geo.SphericalMercatorUtils.latToSphericalMercator;
 import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSphericalMercator;
 
-public abstract class AbstractAtomicGeoShapeShapeFieldData extends LeafShapeFieldData {
+public abstract class AbstractAtomicGeoShapeShapeFieldData extends LeafShapeFieldData<GeoShapeValues> {
 
-    public AbstractAtomicGeoShapeShapeFieldData(ToScriptFieldFactory<ShapeValues> toScriptFieldFactory) {
+    public AbstractAtomicGeoShapeShapeFieldData(ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
         super(toScriptFieldFactory);
     }
 
-    public static LeafShapeFieldData empty(final int maxDoc, ToScriptFieldFactory<ShapeValues> toScriptFieldFactory) {
+    public static LeafShapeFieldData<GeoShapeValues> empty(final int maxDoc, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
         return new LeafShapeFieldData.Empty<>(toScriptFieldFactory, GeoShapeValues.EMPTY);
     }
 
-    public static final class GeoShapeScriptValues extends LeafShapeFieldData.ShapeScriptValues<GeoPoint>
+    public static final class GeoShapeScriptValues extends LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue>
         implements
             ScriptDocValues.Geometry {
 
-        public GeoShapeScriptValues(GeometrySupplier<GeoPoint, ShapeValues.ShapeValue> supplier) {
+        public GeoShapeScriptValues(GeometrySupplier<GeoPoint, GeoShapeValues.GeoShapeValue> supplier) {
             super(supplier);
         }
 
         @Override
         public GeoShapeValues.GeoShapeValue get(int index) {
-            return (GeoShapeValues.GeoShapeValue) super.get(index);
+            return super.get(index);
         }
 
         @Override
         public GeoShapeValues.GeoShapeValue getValue() {
-            return (GeoShapeValues.GeoShapeValue) super.getValue();
+            return super.getValue();
         }
 
         @Override

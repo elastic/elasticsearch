@@ -16,6 +16,9 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Sub phase within the fetch phase used to fetch things *about* the documents like highlighting or matched queries.
@@ -75,6 +78,16 @@ public interface FetchSubPhase {
         }
     }
 
+    record StoredFieldsSpec(boolean requiresSource, Set<String> requiredStoredFields) {
+        public static StoredFieldsSpec NO_REQUIREMENTS = new StoredFieldsSpec(false, Set.of());
+
+        public StoredFieldsSpec merge(StoredFieldsSpec other) {
+            Set<String> mergedFields = new HashSet<>(this.requiredStoredFields);
+            mergedFields.addAll(other.requiredStoredFields);
+            return new StoredFieldsSpec(this.requiresSource || other.requiresSource, mergedFields);
+        }
+    }
+
     /**
      * Returns a {@link FetchSubPhaseProcessor} for this sub phase.
      *
@@ -82,4 +95,12 @@ public interface FetchSubPhase {
      * implementation should return {@code null}
      */
     FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException;
+
+    /**
+     * The stored fields or source required by this sub phase
+     */
+    default StoredFieldsSpec storedFieldsSpec(FetchContext fetchContext) {
+        return StoredFieldsSpec.NO_REQUIREMENTS;
+    }
+
 }

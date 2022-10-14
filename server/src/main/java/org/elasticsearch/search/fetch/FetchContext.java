@@ -105,6 +105,13 @@ public class FetchContext {
     }
 
     /**
+     * Configuration for fetching stored fields
+     */
+    public StoredFieldsContext storedFieldsContext() {
+        return searchContext.storedFieldsContext();
+    }
+
+    /**
      * Should the response include `explain` output
      */
     public boolean explain() {

@@ -47,6 +47,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -101,13 +102,15 @@ public class FetchPhase {
 
     private SearchHits buildSearchHits(SearchContext context, Profiler profiler) {
 
-        SourceLoader sourceLoader = context.newSourceLoader();
-        Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        StoredFieldLoader storedFieldLoader = profiler.storedFields(
-            createStoredFieldLoader(context, sourceLoader, storedToRequestedFields)
-        );
-
         FetchContext fetchContext = new FetchContext(context);
+        SourceLoader sourceLoader = context.newSourceLoader();
+        List<StoredField> storedFields = expandStoredFields(fetchContext);
+        FetchSubPhase.StoredFieldsSpec sfs = buildStoredFieldsSpec(fetchContext, storedFields, fetchSubPhases);
+        sfs.merge(new FetchSubPhase.StoredFieldsSpec(false, sourceLoader.requiredStoredFields()));
+
+        StoredFieldLoader storedFieldLoader = profiler.storedFields(
+            StoredFieldLoader.create(sfs.requiresSource(), sfs.requiredStoredFields())
+        );
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
@@ -139,11 +142,12 @@ public class FetchPhase {
                 }
                 HitContext hit = prepareHitContext(
                     context,
+                    sfs.requiresSource(),
                     profiler,
                     leafNestedDocuments,
                     leafStoredFieldLoader,
                     doc,
-                    storedToRequestedFields,
+                    storedFields,
                     ctx,
                     leafSourceLoader
                 );
@@ -179,91 +183,79 @@ public class FetchPhase {
         }
     }
 
-    private static StoredFieldLoader createStoredFieldLoader(
-        SearchContext context,
-        SourceLoader sourceLoader,
-        Map<String, Set<String>> storedToRequestedFields
-    ) {
-        StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
+    record StoredField(String name, MappedFieldType ft, boolean isMetadataField) {}
 
-        if (storedFieldsContext == null) {
-            // no fields specified, default to return source if no explicit indication
-            if (context.hasScriptFields() == false && context.hasFetchSourceContext() == false) {
-                context.fetchSourceContext(FetchSourceContext.FETCH_SOURCE);
-            }
-            boolean loadSource = sourceRequired(context);
-            if (loadSource) {
-                if (false == sourceLoader.requiredStoredFields().isEmpty()) {
-                    // add the stored fields needed to load the source mapping to an empty set so they aren't returned
-                    sourceLoader.requiredStoredFields().forEach(fieldName -> storedToRequestedFields.putIfAbsent(fieldName, Set.of()));
-                }
-            }
-            return StoredFieldLoader.create(loadSource, sourceLoader.requiredStoredFields());
-        } else if (storedFieldsContext.fetchFields() == false) {
-            // disable stored fields entirely
-            return StoredFieldLoader.empty();
-        } else {
-            for (String fieldNameOrPattern : context.storedFieldsContext().fieldNames()) {
-                if (fieldNameOrPattern.equals(SourceFieldMapper.NAME)) {
-                    FetchSourceContext fetchSourceContext = context.hasFetchSourceContext()
-                        ? context.fetchSourceContext()
-                        : FetchSourceContext.FETCH_SOURCE;
-                    context.fetchSourceContext(FetchSourceContext.of(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
-                    continue;
-                }
-                SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
-                Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(fieldNameOrPattern);
-                for (String fieldName : fieldNames) {
-                    MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
-                    String storedField = fieldType.name();
-                    Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(storedField, key -> new HashSet<>());
-                    requestedFields.add(fieldName);
-                }
-            }
-            boolean loadSource = sourceRequired(context);
-            if (loadSource) {
-                sourceLoader.requiredStoredFields().forEach(fieldName -> storedToRequestedFields.putIfAbsent(fieldName, Set.of()));
-            }
-            if (storedToRequestedFields.isEmpty()) {
-                // empty list specified, default to disable _source if no explicit indication
-                return StoredFieldLoader.create(loadSource, sourceLoader.requiredStoredFields());
-            } else {
-                return StoredFieldLoader.create(loadSource, storedToRequestedFields.keySet());
+    private static List<StoredField> expandStoredFields(FetchContext fetchContext) {
+        StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
+        if (storedFieldsContext == null || storedFieldsContext.fetchFields() == false) {
+            return List.of();
+        }
+        List<StoredField> storedFields = new ArrayList<>();
+        SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
+        for (String field : storedFieldsContext.fieldNames()) {
+            Collection<String> fieldNames = sec.getMatchingFieldNames(field);
+            for (String fieldName : fieldNames) {
+                MappedFieldType ft = sec.getFieldType(fieldName);
+                storedFields.add(new StoredField(fieldName, ft, sec.isMetadataField(ft.name())));
             }
         }
+        return storedFields;
     }
 
-    private static boolean sourceRequired(SearchContext context) {
-        return context.sourceRequested() || context.fetchFieldsContext() != null;
+    private static FetchSubPhase.StoredFieldsSpec buildStoredFieldsSpec(
+        FetchContext fetchContext,
+        List<StoredField> storedFields,
+        FetchSubPhase[] subPhases
+    ) {
+        boolean requiresSource = false;
+        Set<String> requiredFields = new HashSet<>();
+        Iterator<StoredField> it = storedFields.iterator();
+        while (it.hasNext()) {
+            StoredField storedField = it.next();
+            if (SourceFieldMapper.NAME.equals(storedField.name)) {
+                requiresSource = true;
+                it.remove();
+            } else {
+                requiredFields.add(storedField.name);
+            }
+        }
+        FetchSubPhase.StoredFieldsSpec spec = new FetchSubPhase.StoredFieldsSpec(requiresSource, requiredFields);
+        for (FetchSubPhase subPhase : subPhases) {
+            spec = spec.merge(subPhase.storedFieldsSpec(fetchContext));
+        }
+        return spec;
     }
 
     private static HitContext prepareHitContext(
         SearchContext context,
+        boolean requiresSource,
         Profiler profiler,
         LeafNestedDocuments nestedDocuments,
         LeafStoredFieldLoader leafStoredFieldLoader,
         int docId,
-        Map<String, Set<String>> storedToRequestedFields,
+        List<StoredField> storedFields,
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
             return prepareNonNestedHitContext(
                 context,
+                requiresSource,
                 profiler,
                 leafStoredFieldLoader,
                 docId,
-                storedToRequestedFields,
+                storedFields,
                 subReaderContext,
                 sourceLoader
             );
         } else {
             return prepareNestedHitContext(
                 context,
+                requiresSource,
                 profiler,
                 docId,
                 nestedDocuments,
-                storedToRequestedFields,
+                storedFields,
                 subReaderContext,
                 leafStoredFieldLoader
             );
@@ -279,10 +271,11 @@ public class FetchPhase {
      */
     private static HitContext prepareNonNestedHitContext(
         SearchContext context,
+        boolean requiresSource,
         Profiler profiler,
         LeafStoredFieldLoader leafStoredFieldLoader,
         int docId,
-        Map<String, Set<String>> storedToRequestedFields,
+        List<StoredField> storedFields,
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader
     ) throws IOException {
@@ -298,7 +291,7 @@ public class FetchPhase {
             if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 Map<String, DocumentField> metaFields = new HashMap<>();
-                fillDocAndMetaFields(context, leafStoredFieldLoader.storedFields(), storedToRequestedFields, docFields, metaFields);
+                fillDocAndMetaFields(leafStoredFieldLoader.storedFields(), storedFields, docFields, metaFields);
                 hit = new SearchHit(docId, leafStoredFieldLoader.id(), docFields, metaFields);
             } else {
                 hit = new SearchHit(docId, leafStoredFieldLoader.id(), emptyMap(), emptyMap());
@@ -306,7 +299,7 @@ public class FetchPhase {
 
             HitContext hitContext = new HitContext(hit, subReaderContext, subDocId);
             BytesReference source;
-            if (sourceRequired(context)) {
+            if (requiresSource) {
                 try {
                     profiler.startLoadingSource();
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
@@ -341,17 +334,14 @@ public class FetchPhase {
     @SuppressWarnings("unchecked")
     private static HitContext prepareNestedHitContext(
         SearchContext context,
+        boolean requiresSource,
         Profiler profiler,
         int topDocId,
         LeafNestedDocuments nestedInfo,
-        Map<String, Set<String>> storedToRequestedFields,
+        List<StoredField> storedFields,
         LeafReaderContext subReaderContext,
         LeafStoredFieldLoader childFieldLoader
     ) throws IOException {
-        // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
-        // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
-        // because the entire _source is only stored with the root document.
-        boolean needSource = sourceRequired(context) || context.highlight() != null;
 
         String rootId;
         Map<String, Object> rootSourceAsMap = null;
@@ -360,18 +350,18 @@ public class FetchPhase {
         if (context instanceof InnerHitsContext.InnerHitSubContext innerHitsContext) {
             rootId = innerHitsContext.getRootId();
 
-            if (needSource) {
+            if (requiresSource) {
                 Source rootLookup = innerHitsContext.getRootLookup();
                 rootSourceAsMap = rootLookup.source();
                 rootSourceContentType = rootLookup.sourceContentType();
             }
         } else {
-            StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(needSource, Collections.emptySet()));
+            StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(requiresSource, Collections.emptySet()));
             LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(subReaderContext, null);
             leafRootLoader.advanceTo(nestedInfo.rootDoc());
             rootId = leafRootLoader.id();
 
-            if (needSource) {
+            if (requiresSource) {
                 if (leafRootLoader.source() != null) {
                     Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(leafRootLoader.source(), false);
                     rootSourceAsMap = tuple.v2();
@@ -389,7 +379,7 @@ public class FetchPhase {
             if (childFieldLoader.storedFields().isEmpty() == false) {
                 docFields = new HashMap<>();
                 metaFields = new HashMap<>();
-                fillDocAndMetaFields(context, childFieldLoader.storedFields(), storedToRequestedFields, docFields, metaFields);
+                fillDocAndMetaFields(childFieldLoader.storedFields(), storedFields, docFields, metaFields);
             }
         }
 
@@ -427,39 +417,23 @@ public class FetchPhase {
         return hitContext;
     }
 
-    public static List<Object> processStoredField(Function<String, MappedFieldType> fieldTypeLookup, String field, List<Object> input) {
-        MappedFieldType ft = fieldTypeLookup.apply(field);
-        if (ft == null) {
-            // TODO remove this once we've stopped calling it for accidentally loaded fields
-            return input;
-        }
-        return input.stream().map(ft::valueForDisplay).collect(Collectors.toList());
-    }
-
     private static void fillDocAndMetaFields(
-        SearchContext context,
-        Map<String, List<Object>> storedFields,
-        Map<String, Set<String>> storedToRequestedFields,
+        Map<String, List<Object>> loadedFields,
+        List<StoredField> storedFields,
         Map<String, DocumentField> docFields,
         Map<String, DocumentField> metaFields
     ) {
-        Function<String, MappedFieldType> fieldTypeLookup = context.getSearchExecutionContext()::getFieldType;
-        for (Map.Entry<String, List<Object>> entry : storedFields.entrySet()) {
-            String storedField = entry.getKey();
-            List<Object> storedValues = processStoredField(fieldTypeLookup, storedField, entry.getValue());
-            if (storedToRequestedFields.containsKey(storedField)) {
-                for (String requestedField : storedToRequestedFields.get(storedField)) {
-                    if (context.getSearchExecutionContext().isMetadataField(requestedField)) {
-                        metaFields.put(requestedField, new DocumentField(requestedField, storedValues));
-                    } else {
-                        docFields.put(requestedField, new DocumentField(requestedField, storedValues));
-                    }
-                }
-            } else {
-                if (context.getSearchExecutionContext().isMetadataField(storedField)) {
-                    metaFields.put(storedField, new DocumentField(storedField, storedValues));
+        for (StoredField storedField : storedFields) {
+            if (loadedFields.containsKey(storedField.ft.name())) {
+                List<Object> storedValues = loadedFields.get(storedField.ft.name())
+                    .stream()
+                    .map(storedField.ft::valueForDisplay)
+                    .toList();
+                DocumentField df = new DocumentField(storedField.name, storedValues);
+                if (storedField.isMetadataField) {
+                    metaFields.put(storedField.name, df);
                 } else {
-                    docFields.put(storedField, new DocumentField(storedField, storedValues));
+                    docFields.put(storedField.name, df);
                 }
             }
         }

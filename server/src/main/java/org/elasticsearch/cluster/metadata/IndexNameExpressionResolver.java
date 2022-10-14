@@ -1224,23 +1224,23 @@ public class IndexNameExpressionResolver {
                         } else {
                             result.remove(expression);
                         }
-                        continue;
-                    }
-                    wildcardSeen = true;
-                    Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression);
-                    Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
-                    AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
-                    if (context.getOptions().allowNoIndices() == false) {
-                        emptyWildcardExpansion.set(true);
-                        matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
-                    }
-                    if (add) {
-                        matchingOpenClosedNames.forEachOrdered(result::add);
                     } else {
-                        matchingOpenClosedNames.forEachOrdered(result::remove);
-                    }
-                    if (emptyWildcardExpansion.get()) {
-                        throw indexNotFoundException(expression);
+                        wildcardSeen = true;
+                        Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression);
+                        Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
+                        AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
+                        if (context.getOptions().allowNoIndices() == false) {
+                            emptyWildcardExpansion.set(true);
+                            matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
+                        }
+                        if (add) {
+                            matchingOpenClosedNames.forEachOrdered(result::add);
+                        } else {
+                            matchingOpenClosedNames.forEachOrdered(result::remove);
+                        }
+                        if (emptyWildcardExpansion.get()) {
+                            throw indexNotFoundException(expression);
+                        }
                     }
                 }
             }

@@ -175,7 +175,8 @@ public final class AuthorizationUtils {
         ClusterState clusterState,
         String childAction,
         DiscoveryNode destinationNode,
-        TransportRequest request
+        TransportRequest request,
+        Version version
     ) {
 
         AuthorizationEngine.AuthorizationContext parentContext = extractAuthorizationContext(threadContext, childAction);
@@ -231,6 +232,7 @@ public final class AuthorizationUtils {
 
         if (clusterState.nodes().nodeExists(destinationNode) == false) {
             // We can only pre-authorize actions targeting node which belongs to the same cluster.
+            // TODO: Ensure we remove any existing pre-authorization before sending request to remote cluster node.
             return;
         }
 
@@ -256,6 +258,7 @@ public final class AuthorizationUtils {
                     // Sending a child action to node1 would have already put parent authorization in the thread context.
                     // To avoid attempting to pre-authorize the same parent action twice we simply return here
                     // since pre-authorization is already set in the context.
+                    logger.debug("child action [" + childAction + "] of parent action [" + parentContext.getAction() + "] is already pre-authorized");
                     return;
                 } else {
                     throw new AssertionError(
@@ -269,9 +272,9 @@ public final class AuthorizationUtils {
                     );
                 }
             } else {
-                logger.debug("Pre-authorizing child action [" + childAction + "] of parent action [" + parentContext.getAction() + "]");
+                logger.debug("adding pre-authorization for child action [" + childAction + "] of parent action [" + parentContext.getAction() + "]");
                 new ParentIndexActionAuthorization(
-                    Version.CURRENT,
+                    version,
                     parentContext.getAction(),
                     parentContext.getIndicesAccessControl().isGranted()
                 ).writeToThreadContext(threadContext);

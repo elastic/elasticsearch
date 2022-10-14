@@ -57,8 +57,6 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     private final ModuleLayer.Controller moduleController;
     private final Set<String> packageNames;
 
-    private static final Map<String, Set<String>> bootLayerModulesToServices = getModuleToServiceMap(ModuleLayer.boot());
-
     private static Map<String, Set<String>> getModuleToServiceMap(ModuleLayer moduleLayer) {
         Set<String> unqualifiedExports = moduleLayer.modules()
             .stream()

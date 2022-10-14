@@ -56,7 +56,7 @@ public class CrossClusterSecurity {
                 .toList();
             final Collection<String> removed = this.apiKeys.keySet()
                 .stream()
-                .filter(clusterAlias -> { return newClusterAliasApiKeyMap.containsKey(clusterAlias) == false; })
+                .filter(clusterAlias -> newClusterAliasApiKeyMap.containsKey(clusterAlias) == false)
                 .toList();
             final Collection<String> changed = this.apiKeys.entrySet()
                 .stream()

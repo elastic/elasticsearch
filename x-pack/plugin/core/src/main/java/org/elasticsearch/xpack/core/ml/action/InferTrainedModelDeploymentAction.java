@@ -91,12 +91,42 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
         private boolean skipQueue = false;
+        // textInput added for uses that accept a query string
+        // and do know which field the model expects to find its
+        // input and so cannot construct a document.
+        private final String textInput;
 
         public Request(String modelId, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
             this.docs = ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS);
             this.update = update;
             this.inferenceTimeout = inferenceTimeout;
+            this.textInput = null;
+        }
+
+        public Request(String modelId, InferenceConfigUpdate update, String textInput, TimeValue inferenceTimeout) {
+            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
+            this.docs = List.of();
+            this.textInput = ExceptionsHelper.requireNonNull(textInput, "inference text input");
+            this.update = update;
+            this.inferenceTimeout = inferenceTimeout;
+        }
+
+        // for tests
+        Request(
+            String modelId,
+            InferenceConfigUpdate update,
+            List<Map<String, Object>> docs,
+            String textInput,
+            boolean skipQueue,
+            TimeValue inferenceTimeout
+        ) {
+            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
+            this.docs = docs;
+            this.textInput = textInput;
+            this.update = update;
+            this.inferenceTimeout = inferenceTimeout;
+            this.skipQueue = skipQueue;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -108,6 +138,11 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
                 skipQueue = in.readBoolean();
             }
+            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+                textInput = in.readOptionalString();
+            } else {
+                textInput = null;
+            }
         }
 
         public String getModelId() {
@@ -116,6 +151,10 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         public List<Map<String, Object>> getDocs() {
             return docs;
+        }
+
+        public String getTextInput() {
+            return textInput;
         }
 
         public InferenceConfigUpdate getUpdate() {
@@ -150,8 +189,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (docs == null) {
                 validationException = addValidationError("[" + DOCS.getPreferredName() + "] must not be null", validationException);
             } else {
-                if (docs.isEmpty()) {
-                    validationException = addValidationError("at least one document is required", validationException);
+                if (docs.isEmpty() && textInput == null) {
+                    validationException = addValidationError("at least one document is required ", validationException);
                 }
                 if (docs.size() > 1) {
                     // TODO support multiple docs
@@ -171,6 +210,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
                 out.writeBoolean(skipQueue);
             }
+            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+                out.writeOptionalString(textInput);
+            }
         }
 
         @Override
@@ -186,12 +228,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return Objects.equals(modelId, that.modelId)
                 && Objects.equals(docs, that.docs)
                 && Objects.equals(update, that.update)
-                && Objects.equals(inferenceTimeout, that.inferenceTimeout);
+                && Objects.equals(inferenceTimeout, that.inferenceTimeout)
+                && Objects.equals(skipQueue, that.skipQueue)
+                && Objects.equals(textInput, that.textInput);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, update, docs, inferenceTimeout);
+            return Objects.hash(modelId, update, docs, inferenceTimeout, skipQueue, textInput);
         }
 
         @Override
@@ -205,6 +249,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             private List<Map<String, Object>> docs;
             private TimeValue timeout;
             private InferenceConfigUpdate update;
+            private boolean skipQueue = false;
+            private String textInput;
 
             private Builder() {}
 
@@ -232,8 +278,18 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
             }
 
+            public Builder setTextInput(String textInput) {
+                this.textInput = textInput;
+                return this;
+            }
+
+            public Builder setSkipQueue(boolean skipQueue) {
+                this.skipQueue = skipQueue;
+                return this;
+            }
+
             public Request build() {
-                return new Request(modelId, update, docs, timeout);
+                return new Request(modelId, update, docs, textInput, skipQueue, timeout);
             }
         }
     }
@@ -241,15 +297,20 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
         private final InferenceResults results;
+        private long tookMillis;
 
-        public Response(InferenceResults result) {
+        public Response(InferenceResults result, long tookMillis) {
             super(Collections.emptyList(), Collections.emptyList());
             this.results = Objects.requireNonNull(result);
+            this.tookMillis = tookMillis;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             results = in.readNamedWriteable(InferenceResults.class);
+            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+                tookMillis = in.readVLong();
+            }
         }
 
         @Override
@@ -264,10 +325,21 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeNamedWriteable(results);
+            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+                out.writeVLong(tookMillis);
+            }
         }
 
         public InferenceResults getResults() {
             return results;
+        }
+
+        public long getTookMillis() {
+            return tookMillis;
+        }
+
+        public void setTookMillis(long tookMillis) {
+            this.tookMillis = tookMillis;
         }
     }
 }

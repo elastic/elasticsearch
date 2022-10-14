@@ -62,7 +62,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
     private final SetOnce<RelevanceMatchQueryRewriter> relevanceMatchQueryRewriter = new SetOnce<>();
     private final SetOnce<IndexCreationService> indexCreationService = new SetOnce<>();
 
-    private final SetOnce<XSearchRequestValidationService> xSearchRequestValidator = new SetOnce<>();
+    private final SetOnce<XSearchRequestValidationService> xSearchRequestValidationService = new SetOnce<>();
 
     @Override
     public List<RestHandler> getRestHandlers(
@@ -74,7 +74,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestXSearchAction(relevanceMatchQueryRewriter.get(), xSearchRequestValidator.get()));
+        return List.of(new RestXSearchAction(relevanceMatchQueryRewriter.get(), xSearchRequestValidationService.get()));
     }
 
     @Override
@@ -111,7 +111,7 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
     ) {
 
         indexCreationService.set(new IndexCreationService(client, clusterService));
-        xSearchRequestValidator.set(new XSearchRequestValidationService(indexNameExpressionResolver, clusterService));
+        xSearchRequestValidationService.set(new XSearchRequestValidationService(indexNameExpressionResolver, clusterService));
         RelevanceSettingsService relevanceSettingsService = new RelevanceSettingsService(client);
         CurationsService curationsService = new CurationsService(client);
         QueryFieldsResolver queryFieldsResolver = new QueryFieldsResolver();
@@ -120,6 +120,6 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
             new RelevanceMatchQueryRewriter(clusterService, relevanceSettingsService, curationsService, queryFieldsResolver)
         );
 
-        return List.of(relevanceMatchQueryRewriter.get(), indexCreationService.get(), xSearchRequestValidator.get());
+        return List.of(relevanceMatchQueryRewriter.get(), indexCreationService.get(), xSearchRequestValidationService.get());
     }
 }

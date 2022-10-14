@@ -12,11 +12,13 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -31,6 +33,11 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
     private static final String REMOTE_SEARCH_USER = "remote_search_user";
     private static final SecureString PASSWORD = new SecureString("super-secret-password".toCharArray());
     private static final String REMOTE_SEARCH_ROLE = "remote_search";
+
+    @BeforeClass
+    public static void checkFeatureFlag() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+    }
 
     @Before
     public void setup() throws IOException {

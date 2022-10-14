@@ -414,7 +414,7 @@ public class RoleDescriptorTests extends ESTestCase {
         }
     }
 
-    public void testCannotSerializeRoleDescriptorWithRemoteIndicesTowardsOldVersions() throws IOException {
+    public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
         final Version version = VersionUtils.randomVersionBetween(
             random(),

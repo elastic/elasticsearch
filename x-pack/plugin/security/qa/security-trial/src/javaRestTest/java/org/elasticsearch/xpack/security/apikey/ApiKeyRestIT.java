@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -74,8 +75,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createRole("user_role", Set.of("monitor"));
         createUser(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD, List.of("manage_own_api_key_role"));
         createRole("manage_own_api_key_role", Set.of("manage_own_api_key"));
-        createUser(REMOTE_INDICES_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
-        createRole("remote_indices_role", Set.of("grant_api_key", "manage_own_api_key"), "remote");
     }
 
     @After
@@ -83,11 +82,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         deleteUser(SYSTEM_USER);
         deleteUser(END_USER);
         deleteUser(MANAGE_OWN_API_KEY_USER);
-        deleteUser(REMOTE_INDICES_USER);
         deleteRole("system_role");
         deleteRole("user_role");
         deleteRole("manage_own_api_key_role");
-        deleteRole("remote_indices_role");
         invalidateApiKeysForUser(END_USER);
         invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);
     }
@@ -580,7 +577,11 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
     }
 
-    public void testRemoteIndicesNotSupportedForApiKeys() {
+    public void testRemoteIndicesNotSupportedForApiKeys() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        createUser(REMOTE_INDICES_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
+        createRole("remote_indices_role", Set.of("grant_api_key", "manage_own_api_key"), "remote");
         final String remoteIndicesSection = """
             "remote_indices": [
                 {
@@ -638,6 +639,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               }
             }""", includeRemoteIndices ? remoteIndicesSection : ""));
         doRequestAndAssertRemoteIndicesNotSupported(bulkUpdateApiKeyRequest, false == includeRemoteIndices);
+
+        deleteUser(REMOTE_INDICES_USER);
+        deleteRole("remote_indices_role");
     }
 
     private void doRequestAndAssertRemoteIndicesNotSupported(final Request request, final boolean executeAsRemoteIndicesUser) {

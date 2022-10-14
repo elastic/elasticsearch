@@ -16,7 +16,7 @@ import org.elasticsearch.plugin.api.NamedComponent;
 
 @NamedComponent(name = "example_analyzer_factory")
 //TODO guide mention about named component, org.elasticsearch.plugin.analysis.api.*
-public class ExampleAnalyzerFactory extends AbstractAnalyzerFactory { //implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
+public class ExampleAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
 
     @Override
     //TODO guide lucene

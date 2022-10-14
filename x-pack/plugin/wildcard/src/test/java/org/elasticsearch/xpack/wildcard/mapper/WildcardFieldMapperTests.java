@@ -1239,15 +1239,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             }
             List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
-            List<String> outList = new ArrayList<>();
+            List<String> docValuesValues = new ArrayList<>();
             List<String> outExtraValues = new ArrayList<>();
             values.stream().map(Tuple::v2).forEach(v -> {
                 if (ignoreAbove != null && v.length() > ignoreAbove) {
                     outExtraValues.add(v);
                 } else {
-                    outList.add(v);
+                    docValuesValues.add(v);
                 }
             });
+            List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
             Collections.sort(outList);
             outList.addAll(outExtraValues);
             Object out = outList.size() == 1 ? outList.get(0) : outList;

@@ -247,29 +247,25 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     /**
-     * Build a {@link SourceToParse} with an id.
+     * Build a {@link SourceToParse} with the id {@code "1"} and without any dynamic templates.
      */
     protected final SourceToParse source(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         return source("1", build, null);
     }
 
+    /**
+     * Build a {@link SourceToParse} without any dynamic templates.
+     */
     protected final SourceToParse source(@Nullable String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
         throws IOException {
-        return source("test", id, build, routing, Map.of());
+        return source(id, build, routing, Map.of());
     }
 
+    /**
+     * Build a {@link SourceToParse}.
+     */
     protected final SourceToParse source(
-        String id,
-        CheckedConsumer<XContentBuilder, IOException> build,
-        @Nullable String routing,
-        Map<String, String> dynamicTemplates
-    ) throws IOException {
-        return source("text", id, build, routing, dynamicTemplates);
-    }
-
-    protected final SourceToParse source(
-        String index,
-        String id,
+        @Nullable String id,
         CheckedConsumer<XContentBuilder, IOException> build,
         @Nullable String routing,
         Map<String, String> dynamicTemplates
@@ -280,6 +276,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
+    /**
+     * Build a {@link SourceToParse} with an id of {@code "1"}.
+     */
     protected static SourceToParse source(String source) {
         return new SourceToParse("1", new BytesArray(source), XContentType.JSON);
     }

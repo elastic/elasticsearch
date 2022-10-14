@@ -19,6 +19,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,6 +37,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
+
 /**
  * Base class for all classes producing lucene queries.
  * Supports conversion to BytesReference and creation of lucene Query objects.
@@ -45,6 +49,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     public static final float DEFAULT_BOOST = 1.0f;
     public static final ParseField NAME_FIELD = new ParseField("_name");
     public static final ParseField BOOST_FIELD = new ParseField("boost");
+
+    private static int maxNestedDepth = 20;
 
     protected String queryName;
     protected float boost = DEFAULT_BOOST;
@@ -290,13 +296,41 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {}
 
     /**
-     * Parses a query excluding the query element that wraps it
+     * Parses and returns a query (excluding the query field that wraps it). To be called by API that support
+     * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
+     * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
+     * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}.
      */
-    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
-        return parseInnerQueryBuilder(parser, Integer.valueOf(0));
+    public static QueryBuilder parseTopLevelQuery(XContentParser parser) throws IOException {
+        FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
+            int nestedDepth;
+
+            @Override
+            public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
+                if (categoryClass.equals(QueryBuilder.class)) {
+                    nestedDepth++;
+                    if (nestedDepth > maxNestedDepth) {
+                        throw new IllegalArgumentException(
+                            "The nested depth of the query exceeds the maximum nested depth for queries set in ["
+                                + INDICES_MAX_NESTED_DEPTH_SETTING.getKey()
+                                + "]"
+                        );
+                    }
+                }
+                T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
+                if (categoryClass.equals(QueryBuilder.class)) {
+                    nestedDepth--;
+                }
+                return namedObject;
+            }
+        };
+        return parseInnerQueryBuilder(parserWrapper);
     }
 
-    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser, Integer nestedDepth) throws IOException {
+    /**
+     * Parses an inner query. To be called by query implementations that support inner queries.
+     */
+    protected static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, must start with start_object");
@@ -316,7 +350,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         }
         QueryBuilder result;
         try {
-            result = parser.namedObject(QueryBuilder.class, queryName, nestedDepth);
+            result = parser.namedObject(QueryBuilder.class, queryName, null);
         } catch (NamedObjectNotFoundException e) {
             String message = String.format(
                 Locale.ROOT,
@@ -380,6 +414,17 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     protected static void declareStandardFields(AbstractObjectParser<? extends QueryBuilder, ?> parser) {
         parser.declareFloat(QueryBuilder::boost, AbstractQueryBuilder.BOOST_FIELD);
         parser.declareString(QueryBuilder::queryName, AbstractQueryBuilder.NAME_FIELD);
+    }
+
+    /**
+     * Set the maximum nested depth of bool queries.
+     * Default value is 20.
+     */
+    public static void setMaxNestedDepth(int maxNestedDepth) {
+        if (maxNestedDepth < 1) {
+            throw new IllegalArgumentException("maxNestedDepth must be >= 1");
+        }
+        AbstractQueryBuilder.maxNestedDepth = maxNestedDepth;
     }
 
     @Override

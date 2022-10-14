@@ -449,7 +449,6 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         boolean singleFunctionFound = false;
         String singleFunctionName = null;
         List<FunctionScoreQueryBuilder.FilterFunctionBuilder> filterFunctionBuilders = new ArrayList<>();
-
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

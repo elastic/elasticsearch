@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -25,6 +27,9 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeThat;
@@ -40,7 +45,7 @@ public class CrossClusterSecurityTests extends ESTestCase {
     public void setUp() throws Exception {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             super.setUp();
-            threadPool = new TestThreadPool(getTestName());
+            this.threadPool = new TestThreadPool(getTestName());
         }
 
     }
@@ -48,53 +53,61 @@ public class CrossClusterSecurityTests extends ESTestCase {
     @After
     public void stopThreadPool() throws Exception {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            clusterService.close();
-            terminate(threadPool);
+            this.clusterService.close();
+            terminate(this.threadPool);
         }
     }
 
     public void testSendAsync() {
         assumeThat(TcpTransport.isUntrustedRemoteClusterEnabled(), is(true));
-        final String clusterNameA = "localCluster";
+        final Settings fixedSettings = Settings.builder().put("path.home", createTempDir()).build();
+        final String clusterNameA = "action";
+        final String clusterNameB = "clusterB";
         final Settings initialSettings = Settings.builder()
-            .put("cluster.remote.unchangedCluster.authorization", "apiKey1")
-            .put("path.home", createTempDir())
+            .put(fixedSettings)
+            .put("cluster.remote." + clusterNameA + ".authorization", "initialize")
             .build();
 
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        SecurityContext securityContext = spy(new SecurityContext(initialSettings, threadPool.getThreadContext()));
+        this.clusterService = ClusterServiceUtils.createClusterService(this.threadPool);
+        SecurityContext securityContext = spy(new SecurityContext(initialSettings, this.threadPool.getThreadContext()));
 
-        SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
+        new SecurityServerTransportInterceptor(
             initialSettings,
-            threadPool,
+            this.threadPool,
             mock(AuthenticationService.class),
             mock(AuthorizationService.class),
             mock(SSLService.class),
             securityContext,
-            new DestructiveOperations(initialSettings, clusterService.getClusterSettings()),
-            new CrossClusterSecurity(initialSettings, clusterService.getClusterSettings())
+            new DestructiveOperations(initialSettings, this.clusterService.getClusterSettings()),
+            new CrossClusterSecurity(initialSettings, this.clusterService.getClusterSettings())
         );
-        final DiscoveryNode masterNodeA = clusterService.state().nodes().getMasterNode();
+        final DiscoveryNode masterNodeA = this.clusterService.state().nodes().getMasterNode();
 
-        // Add changedCluster authorization setting
+        // Add clusterB authorization setting
         final Settings newSettings1 = Settings.builder()
-            .put(initialSettings)
-            .put("cluster.remote.changedCluster.authorization", "apiKey2")
+            .put(fixedSettings)
+            .put("cluster.remote." + clusterNameA + ".authorization", "addedB")
+            .put("cluster.remote." + clusterNameB + ".authorization", randomApiKey())
             .build();
         final ClusterState newClusterState1 = createClusterState(clusterNameA, masterNodeA, newSettings1);
-        ClusterServiceUtils.setState(clusterService, newClusterState1);
+        ClusterServiceUtils.setState(this.clusterService, newClusterState1);
 
-        // Change changedCluster authorization setting
+        // Change clusterB authorization setting
         final Settings newSettings2 = Settings.builder()
-            .put(initialSettings)
-            .put("cluster.remote.changedCluster.authorization", "apiKey3")
+            .put(fixedSettings)
+            .put("cluster.remote." + clusterNameA + ".authorization", "updatedB")
+            .put("cluster.remote." + clusterNameB + ".authorization", randomApiKey())
             .build();
         final ClusterState newClusterState2 = createClusterState(clusterNameA, masterNodeA, newSettings2);
-        ClusterServiceUtils.setState(clusterService, newClusterState2);
+        ClusterServiceUtils.setState(this.clusterService, newClusterState2);
 
-        // Remove changedCluster authorization setting (revert to initialSettings)
-        final ClusterState newClusterState3 = createClusterState(clusterNameA, masterNodeA, initialSettings);
-        ClusterServiceUtils.setState(clusterService, newClusterState3);
+        // Remove clusterB authorization setting
+        final Settings newSettings3 = Settings.builder()
+            .put(fixedSettings)
+            .put("cluster.remote." + clusterNameA + ".authorization", "removedB")
+            .build();
+        final ClusterState newClusterState3 = createClusterState(clusterNameA, masterNodeA, newSettings3);
+        ClusterServiceUtils.setState(this.clusterService, newClusterState3);
     }
 
     private static ClusterState createClusterState(final String clusterName, final DiscoveryNode masterNode, final Settings newSettings) {
@@ -107,5 +120,14 @@ public class CrossClusterSecurityTests extends ESTestCase {
         state.metadata(Metadata.builder().persistentSettings(newSettings).generateClusterUuidIfNeeded());
         state.routingTable(RoutingTable.builder().build());
         return state.build();
+    }
+
+    private String randomApiKey() {
+        final String id = "apikey_" + randomAlphaOfLength(6);
+        // Sufficient for testing. See ApiKeyService and ApiKeyService.ApiKeyCredentials for actual API Key generation.
+        try (SecureString secret = UUIDs.randomBase64UUIDSecureString()) {
+            final String apiKey = id + ":" + secret;
+            return Base64.getEncoder().withoutPadding().encodeToString(apiKey.getBytes(StandardCharsets.UTF_8));
+        }
     }
 }

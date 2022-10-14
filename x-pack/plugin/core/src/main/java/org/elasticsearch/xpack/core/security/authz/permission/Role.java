@@ -199,7 +199,7 @@ public interface Role {
         private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache, RestrictedIndices restrictedIndices) {
             // TODO handle this when we introduce remote index privileges for built-in users and roles. That's the only production code
             // using this builder
-            assert rd.getRemoteIndicesPrivileges().length == 0;
+            assert false == rd.hasRemoteIndicesPrivileges();
             this.names = new String[] { rd.getName() };
             cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges()));
             groups.addAll(convertFromIndicesPrivileges(rd.getIndicesPrivileges(), fieldPermissionsCache));

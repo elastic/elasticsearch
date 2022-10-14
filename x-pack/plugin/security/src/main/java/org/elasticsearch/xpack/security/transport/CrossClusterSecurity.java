@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -48,7 +49,9 @@ public class CrossClusterSecurity {
         }
     }
 
-    private void setApiKeys(final Map<String, String> newClusterAliasApiKeyMap) {
+    private void setApiKeys(final Map<String, String> identityHashMap) {
+        // Workaround: Copy entries from IdentityHashMap to HashMap, so Map.containsKey() works as expected
+        final HashMap<String,String> newClusterAliasApiKeyMap = new HashMap<>(identityHashMap);
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             final Collection<String> added = newClusterAliasApiKeyMap.keySet()
                 .stream()

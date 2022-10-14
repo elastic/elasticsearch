@@ -26,8 +26,8 @@ import java.util.function.Supplier;
  * Parser for {@link Mapping} provided in {@link CompressedXContent} format
  */
 public final class MappingParser {
+    private static final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
     private final Supplier<MappingParserContext> parserContextSupplier;
-    private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
 
@@ -93,15 +93,16 @@ public final class MappingParser {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
-        return parse(type, mapping, metadataMappers);
+        return parse(type, mapping, metadataMappers, parserContextSupplier.get(), metadataMapperParsers);
     }
 
-    private Mapping parse(
+    private static Mapping parse(
         String type,
         Map<String, Object> mapping,
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataFieldMappers
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataFieldMappers,
+        MappingParserContext parserContext,
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers
     ) throws MapperParsingException {
-        MappingParserContext parserContext = parserContextSupplier.get();
         RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
         Map<String, Object> meta = null;
         final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>(metadataFieldMappers);

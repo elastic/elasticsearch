@@ -1197,8 +1197,8 @@ public class IndexNameExpressionResolver {
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = validateAliasOrIndex(expressions.get(i));
-                final RuntimeException missingAliasOrIndexException = aliasOrIndexExists(context, expression);
-                if (missingAliasOrIndexException == null) {
+                final RuntimeException missingExpressionException = aliasOrIndexExists(context, expression);
+                if (missingExpressionException == null) {
                     if (result != null) {
                         result.add(expression);
                     }
@@ -1218,7 +1218,7 @@ public class IndexNameExpressionResolver {
                         // TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
                         if (add) {
                             if (context.getOptions().ignoreUnavailable() == false) {
-                                throw missingAliasOrIndexException;
+                                throw missingExpressionException;
                             }
                             result.add(expression);
                         } else {

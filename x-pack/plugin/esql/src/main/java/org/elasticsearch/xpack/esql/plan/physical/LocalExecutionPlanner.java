@@ -233,14 +233,8 @@ public class LocalExecutionPlanner {
                 source
             );
         } else if (node instanceof ExchangeExec exchangeExec) {
-            int driverInstances;
-            if (exchangeExec.getType() == ExchangeExec.Type.GATHER) {
-                driverInstances = 1;
-                context.setDriverInstanceCount(1);
-            } else {
-                driverInstances = taskConcurrency;
-                context.setDriverInstanceCount(driverInstances);
-            }
+            int driverInstances = exchangeExec.getType() == ExchangeExec.Type.GATHER ? 1 : taskConcurrency;
+            context.setDriverInstanceCount(driverInstances);
             Exchange ex = new Exchange(driverInstances, exchangeExec.getPartitioning().toExchange(), bufferMaxPages);
 
             LocalExecutionPlanContext subContext = context.createSubContext();

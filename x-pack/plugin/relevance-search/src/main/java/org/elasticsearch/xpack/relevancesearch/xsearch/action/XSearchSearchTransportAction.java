@@ -10,46 +10,56 @@ package org.elasticsearch.xpack.relevancesearch.xsearch.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
 
-public class XSearchSearchTransportAction extends HandledTransportAction<XSearchSearchAction.Request, XSearchSearchAction.Response> {
+public class XSearchSearchTransportAction extends HandledTransportAction<XSearchSearchAction.Request, SearchResponse> {
 
     private static final Logger LOGGER = LogManager.getLogger(XSearchSearchTransportAction.class);
 
     private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
+
+    private final NodeClient client;
 
     @Inject
     public XSearchSearchTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
         String executor,
-        RelevanceMatchQueryRewriter relevanceMatchQueryRewriter
+        RelevanceMatchQueryRewriter relevanceMatchQueryRewriter,
+        NodeClient client
     ) {
         super(XSearchSearchAction.NAME, false, transportService, actionFilters, XSearchSearchAction.Request::new, executor);
         this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
+        this.client = client;
     }
 
     @Override
-    protected void doExecute(Task task, XSearchSearchAction.Request request, ActionListener<XSearchSearchAction.Response> listener) {
+    protected void doExecute(Task task, XSearchSearchAction.Request request, ActionListener<SearchResponse> listener) {
 
-        // TODO pull settings from engine
+        // TODO pull settings from engine & request
+        String index = "search-parks";
         String relevanceSettingsId = null;
         String curationsSettingsId = null;
 
-        RelevanceMatchQueryBuilder relevanceMatchQueryBuilder = new RelevanceMatchQueryBuilder(
+        RelevanceMatchQueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(
             relevanceMatchQueryRewriter,
             request.getQuery(),
             relevanceSettingsId,
             curationsSettingsId
         );
 
-        listener.onResponse(new XSearchSearchAction.Response(request.getQuery()));
-        listener.onFailure(new UnsupportedOperationException("oh no!"));
+        SearchRequest searchRequest = client.prepareSearch(index).setQuery(queryBuilder).setSize(1000).setFetchSource(true).request();
+        client.execute(SearchAction.INSTANCE, searchRequest, listener);
+
     }
 }

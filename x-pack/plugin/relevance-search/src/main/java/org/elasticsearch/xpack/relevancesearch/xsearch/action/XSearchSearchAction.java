@@ -9,17 +9,13 @@ package org.elasticsearch.xpack.relevancesearch.xsearch.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -28,14 +24,14 @@ import java.util.Objects;
 
 // TODO - Right now I'm calling this `XSearchSearch` in case we decide to expand the API calls under the `XSearch`
 // umbrella. We could consider taking a firm stand here and simply calling these `XSearchActions` if we think that's cleaner.
-public class XSearchSearchAction extends ActionType<XSearchSearchAction.Response> {
+public class XSearchSearchAction extends ActionType<SearchResponse> {
 
     public static final XSearchSearchAction INSTANCE = new XSearchSearchAction();
 
     static final String NAME = "indices:data/read/xsearch";
 
     private XSearchSearchAction() {
-        super(NAME, Response::new);
+        super(NAME, SearchResponse::new);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
@@ -129,32 +125,37 @@ public class XSearchSearchAction extends ActionType<XSearchSearchAction.Response
 
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    // public static class Response extends SearchResponse {
+    //
+    // public Response(StreamInput in) throws IOException {
+    // super(in);
+    // }
+    //
+    // }
 
-        public static final ParseField NAME_FIELD = new ParseField("name");
-
-        private final String response;
-
-        public Response(String response) {
-            this.response = response;
-        }
-
-        public Response(StreamInput in) throws IOException {
-            this(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(response);
-        }
-
-        // TODO return real content
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
-            builder.field("response", response);
-            builder.endObject();
-            return builder;
-        }
-    }
+// public static final ParseField NAME_FIELD = new ParseField("name");
+//
+//
+// public Response(String response) {
+// this.response = response;
+// }
+//
+// public Response(StreamInput in) throws IOException {
+// this(in.readString());
+// }
+//
+// @Override
+// public void writeTo(StreamOutput out) throws IOException {
+// out.writeString(response);
+// }
+//
+// // TODO return real content
+// @Override
+// public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+// builder.startObject();
+// builder.field("response", response);
+// builder.endObject();
+// return builder;
+// }
+// }
 }

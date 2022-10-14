@@ -1174,7 +1174,7 @@ public class DataStreamIT extends ESIntegTestCase {
             .opType(DocWriteRequest.OpType.CREATE)
             .routing("custom");
         IndexResponse indexResponse = client().index(indexRequest).actionGet();
-        assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStream, 1)));
+        assertThat(indexResponse.getIndex(), backingIndexEqualTo(dataStream, 1));
         // Index doc with custom routing that targets the data stream
         IndexRequest indexRequestWithRouting = new IndexRequest(dataStream).source("@timestamp", System.currentTimeMillis())
             .opType(DocWriteRequest.OpType.CREATE)

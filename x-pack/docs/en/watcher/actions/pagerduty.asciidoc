@@ -78,7 +78,7 @@ payload as well as an array of contexts to the action.
 |======
 
 NOTE: Although some of the attributes below have names which match the PagerDuty "Events API v1" parameter
-      names, Elastic is now using the "Events API v2" API and it translates to the appropriate parameters.
+      names, the "Events API v2" API is finally used by translating the attributes appropriately.
 
 [[pagerduty-event-trigger-incident-attributes]]
 .Pagerduty event trigger incident attributes

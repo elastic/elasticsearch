@@ -1493,7 +1493,12 @@ public class DataStreamIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             try {
-                client().admin().indices().prepareGetIndex().addIndices(DataStream.getDefaultBackingIndexName("potato-biscuit", 2)).get();
+                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "potato-biscuit" });
+                GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                    .actionGet();
+                String newBackingIndexName = getDataStreamResponse.getDataStreams().get(0).getDataStream().getWriteIndex().getName();
+                assertThat(newBackingIndexName, backingIndexEqualTo("potato-biscuit", 2));
+                client().admin().indices().prepareGetIndex().addIndices(newBackingIndexName).get();
             } catch (Exception e) {
                 logger.info("--> expecting second index to be created but it has not yet been created");
                 fail("expecting second index to exist");
@@ -1512,10 +1517,13 @@ public class DataStreamIT extends ESIntegTestCase {
         });
 
         // We should *NOT* have a third index, it should have rolled over *exactly* once
-        expectThrows(
-            Exception.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices(DataStream.getDefaultBackingIndexName("potato-biscuit", 3)).get()
-        );
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "potato-biscuit" });
+        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+            .actionGet();
+        List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+        assertThat(backingIndices.size(), equalTo(2));
+        assertThat(backingIndices.get(0).getName(), backingIndexEqualTo("potato-biscuit", 1));
+        assertThat(backingIndices.get(1).getName(), backingIndexEqualTo("potato-biscuit", 2));
     }
 
     // Test that datastream's segments by default are sorted on @timestamp desc

@@ -7,7 +7,12 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -50,26 +55,57 @@ public class CrossClusterSecurityTests extends ESTestCase {
 
     public void testSendAsync() {
         assumeThat(TcpTransport.isUntrustedRemoteClusterEnabled(), is(true));
-        final Settings settings = Settings.builder()
+        final String clusterNameA = "localCluster";
+        final Settings initialSettings = Settings.builder()
+            .put("cluster.remote.unchangedCluster.authorization", "apiKey1")
             .put("path.home", createTempDir())
-            .put("cluster.remote.cluster1.authorization", "apikey1")
-            .put("cluster.remote.cluster2.authorization", "apikey2")
             .build();
 
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        SecurityContext securityContext = spy(new SecurityContext(settings, threadPool.getThreadContext()));
+        SecurityContext securityContext = spy(new SecurityContext(initialSettings, threadPool.getThreadContext()));
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
-            settings,
+            initialSettings,
             threadPool,
             mock(AuthenticationService.class),
             mock(AuthorizationService.class),
             mock(SSLService.class),
             securityContext,
-            new DestructiveOperations(settings, clusterService.getClusterSettings()),
-            new CrossClusterSecurity(settings, clusterService.getClusterSettings())
+            new DestructiveOperations(initialSettings, clusterService.getClusterSettings()),
+            new CrossClusterSecurity(initialSettings, clusterService.getClusterSettings())
         );
-        final ClusterState initialState = clusterService.state();
-        ClusterServiceUtils.setState(clusterService, initialState); // force state update to trigger listener
+        final DiscoveryNode masterNodeA = clusterService.state().nodes().getMasterNode();
+
+        // Add changedCluster authorization setting
+        final Settings newSettings1 = Settings.builder()
+            .put(initialSettings)
+            .put("cluster.remote.changedCluster.authorization", "apiKey2")
+            .build();
+        final ClusterState newClusterState1 = createClusterState(clusterNameA, masterNodeA, newSettings1);
+        ClusterServiceUtils.setState(clusterService, newClusterState1);
+
+        // Change changedCluster authorization setting
+        final Settings newSettings2 = Settings.builder()
+            .put(initialSettings)
+            .put("cluster.remote.changedCluster.authorization", "apiKey3")
+            .build();
+        final ClusterState newClusterState2 = createClusterState(clusterNameA, masterNodeA, newSettings2);
+        ClusterServiceUtils.setState(clusterService, newClusterState2);
+
+        // Remove changedCluster authorization setting (revert to initialSettings)
+        final ClusterState newClusterState3 = createClusterState(clusterNameA, masterNodeA, initialSettings);
+        ClusterServiceUtils.setState(clusterService, newClusterState3);
+    }
+
+    private static ClusterState createClusterState(final String clusterName, final DiscoveryNode masterNode, final Settings newSettings) {
+        final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        discoBuilder.add(masterNode);
+        discoBuilder.masterNodeId(masterNode.getId());
+
+        final ClusterState.Builder state = ClusterState.builder(new ClusterName(clusterName));
+        state.nodes(discoBuilder);
+        state.metadata(Metadata.builder().persistentSettings(newSettings).generateClusterUuidIfNeeded());
+        state.routingTable(RoutingTable.builder().build());
+        return state.build();
     }
 }

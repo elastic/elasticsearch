@@ -14,6 +14,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -24,7 +25,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -44,46 +44,49 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.MASTER_ROLE;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasValue;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(ClusterRebalanceRoutingTests.class);
 
-    private static final long NODE_SIZE = 55_000L;
-    private static final Map<String, Long> INDEX_SIZE = new HashMap<>();
+    private static final Logger logger = LogManager.getLogger(ClusterRebalanceRoutingTests.class);
 
-    private MockAllocationService createOldAllocationService(Settings settings, ClusterService clusterService) {
+    private MockAllocationService createOldAllocationService(
+        Settings settings,
+        ClusterService clusterService,
+        ClusterInfoService clusterInfoService
+    ) {
         return new MockAllocationService(
             randomAllocationDeciders(settings, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
-            () -> createClusterInfo(clusterService.state()),
+            clusterInfoService,
             () -> SnapshotShardSizeInfo.EMPTY
         );
     }
 
-    private MockAllocationService createNewAllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
+    private MockAllocationService createNewAllocationService(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ClusterInfoService clusterInfoService
+    ) {
         var strategyRef = new SetOnce<AllocationService>();
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             new BalancedShardsAllocator(settings),
             threadPool,
             clusterService,
-            (clusterState, routingAllocationAction) -> strategyRef.get().executeWithRoutingAllocation(
-                clusterState,
-                "reconcile-desired-balance",
-                routingAllocationAction
-            )
+            (clusterState, routingAllocationAction) -> strategyRef.get()
+                .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction)
         );
         var strategy = new MockAllocationService(
             randomAllocationDeciders(settings, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
             new TestGatewayAllocator(),
             desiredBalanceShardsAllocator,
-            () -> createClusterInfo(clusterService.state()),
+            clusterInfoService,
             () -> SnapshotShardSizeInfo.EMPTY
         );
         strategyRef.set(strategy);
@@ -100,38 +103,58 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), "10")
             .build();
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(newNode("master", Set.of(MASTER_ROLE))).localNodeId("master").masterNodeId("master").build())
+            .nodes(
+                DiscoveryNodes.builder().add(newNode("master", Set.of(MASTER_ROLE))).localNodeId("master").masterNodeId("master").build()
+            )
             .build();
 
         var threadPool = new TestThreadPool(getTestName());
         var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
-        var strategy = createOldAllocationService(settings, clusterService);
-//        var strategy = createNewAllocationService(settings, threadPool, clusterService);
+        var clusterInfoService = new TestClusterInfoService(clusterService);
+        // var strategy = createOldAllocationService(settings, clusterService, clusterInfoService);
+        var strategy = createNewAllocationService(settings, threadPool, clusterService, clusterInfoService);
 
-        for (int i = 0; i < 10; i++) {
-            startNewNode(clusterService, strategy, "node-" + i);
-            initializeAllShards(clusterService, strategy);
-            for (int j = 0; j < 10; j++) {
-                for (int k = 0; k < 10; k++) {
-                    createIndex(clusterService, strategy, "index-" + i + "-" + j + "-" + k, (j * 10 + k + 1) * 10);
-                }
+        var nodeNameGenerator = new AtomicInteger(0);
+        var indexNameGenerator = new AtomicInteger(0);
+
+        for (int i = 0; i < 5_000; i++) {
+            if (clusterInfoService.totalIndicesSize * 1.15 > clusterInfoService.totalNodesSize) {
+                startNewNode(clusterService, clusterInfoService, strategy, "node-" + nodeNameGenerator.incrementAndGet(), 1_000_000);
                 initializeAllShards(clusterService, strategy);
             }
-            verifyDiskUsage(clusterService.state());
+
+            var indexSize = switch (randomIntBetween(0, 1000)) {
+                case 0 -> randomIntBetween(100_000, 150_000); // rare big index
+                default -> randomIntBetween(100, 10_000);
+            };
+
+            createIndex(clusterService, clusterInfoService, strategy, "index-" + indexNameGenerator.incrementAndGet(), indexSize, false);
+            if (randomIntBetween(0, 9) == 0) {
+                initializeAllShards(clusterService, strategy);
+            }
+            clusterInfoService.verifyDiskUsage();
         }
 
         var state = clusterService.state();
-//        logger.info("--> {}", state.getRoutingNodes().toString());
-        for (RoutingNode routingNode : state.getRoutingNodes()) {
-            logger.info("--> {}:{}", routingNode.nodeId(), routingNode.numberOfOwningShards());
+        var info = clusterInfoService.getClusterInfo();
+        for (var entry : info.getNodeMostAvailableDiskUsages().entrySet()) {
+            var routingNode = state.getRoutingNodes().node(entry.getKey());
+            logger.info("{} with {} indices", entry.getValue(), routingNode != null ? routingNode.numberOfOwningShards() : 0);
         }
 
         clusterService.close();
         terminate(threadPool);
     }
 
-    private void startNewNode(ClusterService clusterService, AllocationService strategy, String nodeName) throws InterruptedException {
-        logger.info("Starting [{}]", nodeName);
+    private void startNewNode(
+        ClusterService clusterService,
+        TestClusterInfoService clusterInfoService,
+        AllocationService strategy,
+        String nodeName,
+        long capacity
+    ) throws InterruptedException {
+        logger.info("Starting [{}] with capacity [{}]", nodeName, capacity);
+        clusterInfoService.addNode(nodeName, capacity);
         var nodeLatch = new CountDownLatch(1);
         clusterService.submitUnbatchedStateUpdateTask("add-node", new ClusterStateUpdateTask() {
             @Override
@@ -146,25 +169,27 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                fail("Should not happen in test");
+                fail("Should not happen in test " + e);
             }
         });
 
-        assertTrue(nodeLatch.await(1, TimeUnit.SECONDS));
+        assertTrue(nodeLatch.await(10, TimeUnit.SECONDS));
     }
 
     private static ClusterState addNode(ClusterState clusterState, String name) {
-        return ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(name)).build())
-            .build();
+        return ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode(name)).build()).build();
     }
 
-    private void createIndex(ClusterService clusterService, AllocationService strategy, String indexName, long size) throws InterruptedException {
-
-        INDEX_SIZE.put(indexName, size);
-
-        logger.info("Adding [{}]", indexName);
-
+    private void createIndex(
+        ClusterService clusterService,
+        TestClusterInfoService clusterInfoService,
+        AllocationService strategy,
+        String indexName,
+        long size,
+        boolean await
+    ) throws InterruptedException {
+        logger.info("Adding [{}] with size [{}]", indexName, size);
+        clusterInfoService.addIndex(indexName, size);
         var indexLatch = new CountDownLatch(1);
         clusterService.submitUnbatchedStateUpdateTask("add-index", new ClusterStateUpdateTask() {
             @Override
@@ -179,10 +204,12 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                fail("Should not happen in test");
+                fail("Should not happen in test " + e);
             }
         });
-        assertTrue(indexLatch.await(1, TimeUnit.SECONDS));
+        if (await) {
+            assertTrue(indexLatch.await(10, TimeUnit.SECONDS));
+        }
     }
 
     private static ClusterState addIndex(ClusterState clusterState, String name) {
@@ -190,22 +217,17 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         var metadataBuilder = Metadata.builder(clusterState.metadata());
         var routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
 
-        var indexMetadataBuilder = IndexMetadata.builder(name)
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0);
+        var indexMetadataBuilder = IndexMetadata.builder(name).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0);
 
         metadataBuilder.put(indexMetadataBuilder);
         routingTableBuilder.addAsNew(metadataBuilder.get(name));
 
-        return ClusterState.builder(clusterState)
-            .metadata(metadataBuilder)
-            .routingTable(routingTableBuilder)
-            .build();
+        return ClusterState.builder(clusterState).metadata(metadataBuilder).routingTable(routingTableBuilder).build();
     }
 
     private void initializeAllShards(ClusterService clusterService, AllocationService strategy) throws InterruptedException {
-        while (true) {
+        int initializing = 0;
+        do {
             var startLatch = new CountDownLatch(2);
 
             clusterService.submitUnbatchedStateUpdateTask("start-shards", new ClusterStateUpdateTask() {
@@ -227,69 +249,97 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    fail("Should not happen in test");
+                    fail("Should not happen in test " + e);
                 }
             });
 
-            assertTrue(startLatch.await(1, TimeUnit.SECONDS));
+            assertTrue(startLatch.await(10, TimeUnit.SECONDS));
 
-            var initializing = RoutingNodesHelper.shardsWithState(clusterService.state().getRoutingNodes(), INITIALIZING).size();
+            initializing = RoutingNodesHelper.shardsWithState(clusterService.state().getRoutingNodes(), INITIALIZING).size();
             logger.info("Starting shards. [{}] remaining", initializing);
 
-            if (initializing == 0) {
-                break;
-            }
-        }
+        } while (initializing > 0);
     }
 
-    private ClusterInfo createClusterInfo(ClusterState clusterState) {
+    private static class TestClusterInfoService implements ClusterInfoService {
 
-        var diskSpaceUsage = new HashMap<String, DiskUsage>();
-        for (DiscoveryNode node : clusterState.nodes()) {
-            diskSpaceUsage.put(node.getId(), new DiskUsage(node.getId(), node.getName(), "/data", NODE_SIZE, NODE_SIZE));
+        private final ClusterService clusterService;
+        private final Map<String, Long> nodeSizes = new HashMap<>();
+        private long totalNodesSize = 0L;
+        private final Map<String, Long> indexSizes = new HashMap<>();
+        private long totalIndicesSize = 0L;
+
+        private TestClusterInfoService(ClusterService clusterService) {
+            this.clusterService = clusterService;
         }
 
-        var shardSizes = new HashMap<String, Long>();
-        var dataPath = new HashMap<ClusterInfo.NodeAndShard, String>();
-        for (IndexRoutingTable indexRoutingTable : clusterState.getRoutingTable()) {
-            var shardRouting = indexRoutingTable.shard(0).primaryShard();
-            var shardSize = INDEX_SIZE.get(shardRouting.shardId().getIndexName());
-            if (shardRouting.unassigned()) {
-                continue;
+        public void addNode(String nodeId, long size) {
+            nodeSizes.put(nodeId, size);
+            totalNodesSize += size;
+        }
+
+        public void addIndex(String indexName, long size) {
+            indexSizes.put(indexName, size);
+            totalIndicesSize += size;
+        }
+
+        @Override
+        public ClusterInfo getClusterInfo() {
+
+            var state = clusterService.state();
+
+            var diskSpaceUsage = new HashMap<String, DiskUsage>();
+            for (DiscoveryNode node : state.nodes()) {
+                var nodeSize = nodeSizes.getOrDefault(node.getId(), 0L);
+                diskSpaceUsage.put(node.getId(), new DiskUsage(node.getId(), node.getName(), "/data", nodeSize, nodeSize));
             }
-            diskSpaceUsage.compute(shardRouting.currentNodeId(), (k, currentUsage) -> {
-                var freeBytes = currentUsage.freeBytes() - shardSize;
-                if (freeBytes < 0 || freeBytes > NODE_SIZE) {
-                    logger.error("Unexpected free size [{}] for node [{}]", freeBytes, k);
+
+            var shardSizes = new HashMap<String, Long>();
+            var dataPath = new HashMap<ClusterInfo.NodeAndShard, String>();
+            for (IndexRoutingTable indexRoutingTable : state.getRoutingTable()) {
+                var shardRouting = indexRoutingTable.shard(0).primaryShard();
+                var shardSize = indexSizes.get(shardRouting.shardId().getIndexName());
+                if (shardSize == null) {
+                    logger.error("Failed to find index [{}]", shardRouting.shardId().getIndexName());
+                    continue;
                 }
-                return currentUsage.copyWithFreeBytes(freeBytes);
-            });
-            shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shardRouting), shardSize);
-            dataPath.put(new ClusterInfo.NodeAndShard(shardRouting.currentNodeId(), shardRouting.shardId()), "/data");
-        }
-
-        return new ClusterInfo(
-            diskSpaceUsage,
-            diskSpaceUsage,
-            shardSizes,
-            Map.of(),
-            dataPath,
-            Map.of()
-        );
-    }
-
-    private void verifyDiskUsage(ClusterState clusterState) {
-        var nodeDiskUsage = new HashMap<String, Long>();
-        for (IndexRoutingTable indexRoutingTable : clusterState.getRoutingTable()) {
-            var shardRouting = indexRoutingTable.shard(0).primaryShard();
-            var shardSize = INDEX_SIZE.get(shardRouting.shardId().getIndexName());
-            if (shardRouting.unassigned()) {
-                continue;
+                if (shardRouting.unassigned()) {
+                    continue;
+                }
+                diskSpaceUsage.compute(shardRouting.currentNodeId(), (k, currentUsage) -> {
+                    if (currentUsage == null) {
+                        logger.error("Failed to find node [{}]", k);
+                    }
+                    return currentUsage.copyWithFreeBytes(currentUsage.freeBytes() - shardSize);
+                });
+                shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shardRouting), shardSize);
+                dataPath.put(new ClusterInfo.NodeAndShard(shardRouting.currentNodeId(), shardRouting.shardId()), "/data");
             }
-            nodeDiskUsage.compute(shardRouting.currentNodeId(), (k, v) -> v == null ? shardSize : v + shardSize);
+
+            return new ClusterInfo(diskSpaceUsage, diskSpaceUsage, shardSizes, Map.of(), dataPath, Map.of());
         }
 
-        assertThat(nodeDiskUsage, not(hasValue(greaterThan(NODE_SIZE))));
-        logger.info("Current disk usage: {}", nodeDiskUsage);
+        private void verifyDiskUsage() {
+            var state = clusterService.state();
+
+            var nodeDiskUsage = new HashMap<String, Long>();
+            for (IndexRoutingTable indexRoutingTable : state.getRoutingTable()) {
+                var shardRouting = indexRoutingTable.shard(0).primaryShard();
+                var shardSize = indexSizes.get(shardRouting.shardId().getIndexName());
+                if (shardRouting.unassigned()) {
+                    continue;
+                }
+                nodeDiskUsage.compute(shardRouting.currentNodeId(), (k, v) -> v == null ? shardSize : v + shardSize);
+            }
+
+            for (DiscoveryNode node : state.nodes()) {
+                assertThat(
+                    node.getId(),
+                    nodeSizes.getOrDefault(node.getId(), 0L),
+                    greaterThanOrEqualTo(nodeDiskUsage.getOrDefault(node.getId(), 0L))
+                );
+            }
+            logger.debug("Current disk usage: {}", nodeDiskUsage);
+        }
     }
 }

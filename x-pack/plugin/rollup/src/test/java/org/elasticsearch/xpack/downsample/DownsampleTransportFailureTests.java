@@ -67,7 +67,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         private final String coordinator;
         private final String worker;
 
-        public TestClusterHelper(final InternalTestCluster cluster) {
+        TestClusterHelper(final InternalTestCluster cluster) {
             this.cluster = cluster;
             this.coordinator = randomCoordinator();
             this.worker = randomWorker();
@@ -277,7 +277,8 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         assertTrue(blockIndexWrites(SOURCE_INDEX_NAME));
 
         logger.info(
-            "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]".formatted(
+            String.format(
+                "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]",
                 testCluster.size(),
                 testCluster.masterName(),
                 testCluster.coordinatorName(),
@@ -320,7 +321,8 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
         final MockTransportService coordinator = testCluster.coordinatorMockTransportService();
         logger.info(
-            "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]".formatted(
+            String.format(
+                "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]",
                 testCluster.size(),
                 testCluster.masterName(),
                 testCluster.coordinatorName(),
@@ -375,7 +377,8 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
         final MockTransportService master = testCluster.masterMockTransportService();
         logger.info(
-            "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]".formatted(
+            String.format(
+                "Cluster size [%d], master node [%s], coordinator node [%s], worker node [%s]",
                 testCluster.size(),
                 testCluster.masterName(),
                 testCluster.coordinatorName(),

@@ -1199,14 +1199,20 @@ public class IndexNameExpressionResolver {
                 String expression = validateAliasOrIndex(expressions.get(i));
                 final RuntimeException missingExpressionException = aliasOrIndexExists(context, expression);
                 if (missingExpressionException == null) {
+                    // expression exists but skip adding it to result for optimisation purposes; they will be added later
                     if (result != null) {
                         result.add(expression);
                     }
                 } else {
                     if (result == null) {
-                        // add all the previous ones...
+                        // add all the previous expressions because they exist but were not added, as an optimisation
                         result = new HashSet<>(expressions.subList(0, i));
                     }
+                    /* An expression does not exist when:
+                       * it should be treated as exclusion because it starts with "-"
+                       * it should be treated as a wildcard (inclusion or exclusion) because it contains a "*"
+                       * it genuinely does not exist or is a datastream or an alias and the request type and options disallow it
+                     */
                     final boolean add;
                     if (expression.charAt(0) == '-' && wildcardSeen) {
                         add = false;
@@ -1215,8 +1221,10 @@ public class IndexNameExpressionResolver {
                         add = true;
                     }
                     if (Regex.isSimpleMatchPattern(expression) == false) {
-                        // TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
                         if (add) {
+                            // missing expression that is neither an exclusion nor a wildcard
+                            // this must be a name for a resource that genuinely does not exist
+                            // TODO investigate if this check can be moved outside the wildcard resolver
                             if (context.getOptions().ignoreUnavailable() == false) {
                                 throw missingExpressionException;
                             }

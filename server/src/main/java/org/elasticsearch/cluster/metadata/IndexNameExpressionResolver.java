@@ -1203,46 +1203,46 @@ public class IndexNameExpressionResolver {
                     if (result != null) {
                         result.add(expression);
                     }
-                    continue;
-                }
-                if (result == null) {
-                    // add all the previous ones...
-                    result = new HashSet<>(expressions.subList(0, i));
-                }
-                final boolean add;
-                if (expression.charAt(0) == '-' && wildcardSeen) {
-                    add = false;
-                    expression = expression.substring(1);
                 } else {
-                    add = true;
-                }
-                if (Regex.isSimpleMatchPattern(expression) == false) {
-                    // TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
-                    if (add) {
-                        if (context.getOptions().ignoreUnavailable() == false) {
-                            throw missingAliasOrIndexException;
-                        }
-                        result.add(expression);
-                    } else {
-                        result.remove(expression);
+                    if (result == null) {
+                        // add all the previous ones...
+                        result = new HashSet<>(expressions.subList(0, i));
                     }
-                    continue;
-                }
-                wildcardSeen = true;
-                Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression);
-                Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
-                AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
-                if (context.getOptions().allowNoIndices() == false) {
-                    emptyWildcardExpansion.set(true);
-                    matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
-                }
-                if (add) {
-                    matchingOpenClosedNames.forEachOrdered(result::add);
-                } else {
-                    matchingOpenClosedNames.forEachOrdered(result::remove);
-                }
-                if (emptyWildcardExpansion.get()) {
-                    throw indexNotFoundException(expression);
+                    final boolean add;
+                    if (expression.charAt(0) == '-' && wildcardSeen) {
+                        add = false;
+                        expression = expression.substring(1);
+                    } else {
+                        add = true;
+                    }
+                    if (Regex.isSimpleMatchPattern(expression) == false) {
+                        // TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
+                        if (add) {
+                            if (context.getOptions().ignoreUnavailable() == false) {
+                                throw missingAliasOrIndexException;
+                            }
+                            result.add(expression);
+                        } else {
+                            result.remove(expression);
+                        }
+                        continue;
+                    }
+                    wildcardSeen = true;
+                    Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression);
+                    Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
+                    AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
+                    if (context.getOptions().allowNoIndices() == false) {
+                        emptyWildcardExpansion.set(true);
+                        matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
+                    }
+                    if (add) {
+                        matchingOpenClosedNames.forEachOrdered(result::add);
+                    } else {
+                        matchingOpenClosedNames.forEachOrdered(result::remove);
+                    }
+                    if (emptyWildcardExpansion.get()) {
+                        throw indexNotFoundException(expression);
+                    }
                 }
             }
             if (result == null) {

@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 /**
  * Aggregation for adjacency matrices.
@@ -54,7 +54,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         public static final NamedObjectParser<KeyedFilter, String> PARSER = (
             XContentParser p,
             String aggName,
-            String name) -> new KeyedFilter(name, parseInnerQueryBuilder(p));
+            String name) -> new KeyedFilter(name, parseTopLevelQuery(p));
 
         public KeyedFilter(String key, QueryBuilder filter) {
             if (key == null) {

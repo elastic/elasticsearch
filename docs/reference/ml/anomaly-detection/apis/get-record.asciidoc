@@ -15,7 +15,7 @@ Retrieves anomaly records for an {anomaly-job}.
 [[ml-get-record-prereqs]]
 == {api-prereq-title}
 
-Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
 `machine_learning_user` built-in role.
 
 [[ml-get-record-desc]]
@@ -104,6 +104,46 @@ The API returns an array of record objects, which have the following properties:
 `actual`::
 (array) The actual value for the bucket.
 
+//Begin anomaly_score_explanation
+`anomaly_score_explanation`::
+(object) When present, it provides information about the factors impacting the
+initial anomaly score.
++
+.Properties of `anomaly_score_explanation`
+[%collapsible%open]
+====
+`anomaly_characteristics_impact`::::
+(Optional, integer) Impact of the statistical properties of the detected anomalous interval.
+
+`anomaly_length`::::
+(Optional, integer) Length of the detected anomaly in the number of buckets.
+
+`anomaly_type`::::
+(Optional, string) Type of the detected anomaly: spike or dip.
+
+`high_variance_penalty`::::
+(Optional, boolean) Indicates reduction of anomaly score for the bucket with large confidence intervals.
+
+`incomplete_bucket_penalty`::::
+(Optional, boolean) Indicates reduction of anomaly score if the bucket contains fewer samples than historically expected.
+
+`lower_confidence_bound`::::
+(Optional, double) Lower bound of the 95% confidence interval.
+
+`multi_bucket_impact`::::
+(Optional, integer) Impact of the deviation between actual and typical in the past 12 buckets."
+
+`single_bucket_impact`::::
+(Optional, integer) Impact of the deviation between actual and typical in the current bucket.
+
+`typical_value`::::
+(Optional, double) Typical (expected) value for this bucket.
+
+`upper_confidence_bound`::::
+(Optional, double) Upper bound of the 95% confidence interval.
+====
+//End anomaly_score_explanation
+
 `bucket_span`::
 (number)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-span-results]
@@ -123,7 +163,7 @@ this field is not present. This sub-resource contains the most anomalous records
 for the `over_field_name`. For scalability reasons, a maximum of the 10 most
 significant causes of the anomaly are returned. As part of the core analytical modeling, these low-level anomaly records are aggregated for their parent over
 field record. The causes resource contains similar elements to the record
-resource, namely `actual`, `typical`, `geo_results.actual_point`, 
+resource, namely `actual`, `typical`, `geo_results.actual_point`,
 `geo_results.typical_point`, `*_field_name` and `*_field_value`. Probability and
 scores are not applicable to causes.
 

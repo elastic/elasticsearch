@@ -60,7 +60,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 public class DownsampleTransportFailureTests extends ESIntegTestCase {
 
-    public static final List<String> ROLLUP_INDEXER_ACTIONS = List.of(RollupIndexerAction.NAME, RollupIndexerAction.NAME + "[s]");
+    public static final String ROLLUP_INDEXER_SHARD_ACTION = RollupIndexerAction.NAME + "[s]";
 
     private static class TestClusterHelper {
         private final InternalTestCluster cluster;
@@ -392,7 +392,7 @@ public class DownsampleTransportFailureTests extends ESIntegTestCase {
         testCluster.allMockTransportServices()
             .forEach(
                 mockTransportService -> master.addSendBehavior(mockTransportService, (connection, requestId, action, request, options) -> {
-                    if (ROLLUP_INDEXER_ACTIONS.contains(action)) {
+                    if (ROLLUP_INDEXER_SHARD_ACTION.equals(action)) {
                         logger.info("Simulated disruption: node [" + connection.getNode().getName() + "] action [" + action + "]");
                         throw new ElasticsearchException(
                             "Simulated disruption: node [" + connection.getNode().getName() + "] action [" + action + "]"

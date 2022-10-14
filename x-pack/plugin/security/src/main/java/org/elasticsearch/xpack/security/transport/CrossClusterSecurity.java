@@ -36,7 +36,9 @@ public class CrossClusterSecurity {
 
     public CrossClusterSecurity(final Settings settings, final ClusterSettings clusterSettings) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            // Settings.getAsMap returns HashMap which is passed to setApiKeys.
             this.setApiKeys(REMOTE_CLUSTER_AUTHORIZATION.getAsMap(settings));
+            // ClusterSettings.addAffixMapUpdateConsumer registers setApiKeys to receive IdentityHashMap from Settings.
             clusterSettings.addAffixMapUpdateConsumer(REMOTE_CLUSTER_AUTHORIZATION, this::setApiKeys, (k, v) -> {});
         }
     }
@@ -50,7 +52,7 @@ public class CrossClusterSecurity {
     }
 
     private void setApiKeys(final Map<String, String> identityHashMap) {
-        // Workaround: Copy entries from IdentityHashMap to HashMap, so Map.containsKey() works as expected
+        // Try to workaround IdentityHashMap vs HashMap issue; IdentityHashMap.containsKey(HashMap.keySet().iterator().next()) doesn't work.
         final HashMap<String, String> newClusterAliasApiKeyMap = new HashMap<>(identityHashMap);
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             final Collection<String> added = newClusterAliasApiKeyMap.keySet()

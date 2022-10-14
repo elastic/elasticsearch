@@ -198,7 +198,6 @@ public class IndexNameExpressionResolver {
             .toList();
     }
 
-    // TODO This is what we call to validate that we're querying xsearch against an engine
     public List<String> searchEngineNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
         Context context = new Context(
             state,

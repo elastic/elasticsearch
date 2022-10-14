@@ -41,6 +41,11 @@ public final class IntArrayBlock extends Block {
     }
 
     @Override
+    public Object getObject(int position) {
+        return getInt(position);
+    }
+
+    @Override
     public String toString() {
         return "IntArrayBlock{positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + '}';
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -27,19 +28,16 @@ import java.util.function.Supplier;
 public final class MappingParser {
     private final Supplier<MappingParserContext> parserContextSupplier;
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
-    private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
 
     MappingParser(
         Supplier<MappingParserContext> parserContextSupplier,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-        Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
         Function<String, String> documentTypeResolver
     ) {
         this.parserContextSupplier = parserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
-        this.metadataMappersSupplier = metadataMappersSupplier;
         this.documentTypeResolver = documentTypeResolver;
     }
 
@@ -74,7 +72,11 @@ public final class MappingParser {
     }
 
     @SuppressWarnings("unchecked")
-    Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
+    Mapping parse(
+        @Nullable String type,
+        CompressedXContent source,
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers
+    ) throws MapperParsingException {
         Objects.requireNonNull(source, "source cannot be null");
         Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
         if (mapping.isEmpty()) {
@@ -91,15 +93,18 @@ public final class MappingParser {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
-        return parse(type, mapping);
+        return parse(type, mapping, metadataMappers);
     }
 
-    private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
+    private Mapping parse(
+        String type,
+        Map<String, Object> mapping,
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataFieldMappers
+    ) throws MapperParsingException {
         MappingParserContext parserContext = parserContextSupplier.get();
         RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
-
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
+        final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>(metadataFieldMappers);
 
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         while (iterator.hasNext()) {

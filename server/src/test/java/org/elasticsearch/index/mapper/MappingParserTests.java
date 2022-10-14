@@ -55,12 +55,7 @@ public class MappingParserTests extends MapperServiceTestCase {
                 metadataMappers.put(m.getClass(), m);
             }
         });
-        return new MappingParser(
-            parserContextSupplier,
-            metadataMapperParsers,
-            () -> metadataMappers,
-            type -> MapperService.SINGLE_MAPPING_NAME
-        );
+        return new MappingParser(parserContextSupplier, metadataMapperParsers, type -> MapperService.SINGLE_MAPPING_NAME);
     }
 
     public void testFieldNameWithDotsDisallowed() throws Exception {
@@ -68,7 +63,11 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.startObject("foo.bar").field("type", "text").endObject();
             b.startObject("foo.baz").field("type", "keyword").endObject();
         });
-        Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
+        Mapping mapping = createMappingParser(Settings.EMPTY).parse(
+            "_doc",
+            new CompressedXContent(BytesReference.bytes(builder)),
+            new LinkedHashMap<>()
+        );
 
         Mapper object = mapping.getRoot().getMapper("foo");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
@@ -90,7 +89,11 @@ public class MappingParserTests extends MapperServiceTestCase {
             }
             b.endObject();
         });
-        Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
+        Mapping mapping = createMappingParser(Settings.EMPTY).parse(
+            "_doc",
+            new CompressedXContent(BytesReference.bytes(builder)),
+            new LinkedHashMap<>()
+        );
         MappingLookup mappingLookup = MappingLookup.fromMapping(mapping);
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
@@ -104,7 +107,11 @@ public class MappingParserTests extends MapperServiceTestCase {
         });
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+            () -> createMappingParser(Settings.EMPTY).parse(
+                "_doc",
+                new CompressedXContent(BytesReference.bytes(builder)),
+                new LinkedHashMap<>()
+            )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
     }
@@ -130,7 +137,11 @@ public class MappingParserTests extends MapperServiceTestCase {
         });
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+            () -> createMappingParser(Settings.EMPTY).parse(
+                "_doc",
+                new CompressedXContent(BytesReference.bytes(builder)),
+                new LinkedHashMap<>()
+            )
         );
         assertEquals("Type [alias] cannot be used in multi field", e.getMessage());
     }
@@ -139,7 +150,11 @@ public class MappingParserTests extends MapperServiceTestCase {
         XContentBuilder builder = topMapping(b -> { b.field(RoutingFieldMapper.NAME, "required"); });
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+            () -> createMappingParser(Settings.EMPTY).parse(
+                "_doc",
+                new CompressedXContent(BytesReference.bytes(builder)),
+                new LinkedHashMap<>()
+            )
         );
         assertEquals("[_routing] config must be an object", e.getMessage());
     }

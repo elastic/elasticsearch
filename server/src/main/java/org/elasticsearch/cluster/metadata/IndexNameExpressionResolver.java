@@ -1196,8 +1196,7 @@ public class IndexNameExpressionResolver {
             Collection<String> result = null;
             boolean wildcardSeen = false;
             for (int i = 0; i < expressions.size(); i++) {
-                String expression = expressions.get(i);
-                validateAliasOrIndex(expression);
+                String expression = validateAliasOrIndex(expressions.get(i));
                 final RuntimeException missingAliasOrIndexException = aliasOrIndexExists(context, expression);
                 if (missingAliasOrIndexException == null) {
                     if (result != null) {
@@ -1253,7 +1252,7 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        private static void validateAliasOrIndex(String expression) {
+        private static String validateAliasOrIndex(String expression) {
             if (Strings.isEmpty(expression)) {
                 throw indexNotFoundException(expression);
             }
@@ -1264,6 +1263,7 @@ public class IndexNameExpressionResolver {
             if (expression.charAt(0) == '_') {
                 throw new InvalidIndexNameException(expression, "must not start with '_'.");
             }
+            return expression;
         }
 
         private static RuntimeException aliasOrIndexExists(Context context, String expression) {

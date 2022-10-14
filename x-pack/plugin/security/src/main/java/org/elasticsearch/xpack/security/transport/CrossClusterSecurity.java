@@ -17,6 +17,7 @@ import org.elasticsearch.transport.TcpTransport;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_AUTHORIZATION;
@@ -49,32 +50,34 @@ public class CrossClusterSecurity {
 
     private void setApiKeys(final Map<String, String> newClusterAliasApiKeyMap) {
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            final Collection<String> removed = this.apiKeys.keySet()
-                .stream()
-                .filter(s -> newClusterAliasApiKeyMap.containsKey(s) == false)
-                .toList();
             final Collection<String> added = newClusterAliasApiKeyMap.keySet()
                 .stream()
-                .filter(s -> this.apiKeys.containsKey(s) == false)
+                .filter(clusterAlias -> this.apiKeys.containsKey(clusterAlias) == false)
                 .toList();
-            final Collection<String> unchanged = this.apiKeys.entrySet()
+            final Collection<String> removed = this.apiKeys.keySet()
                 .stream()
-                .filter(
-                    e -> newClusterAliasApiKeyMap.containsKey(e.getKey())
-                        && Objects.equals(e.getValue(), newClusterAliasApiKeyMap.get(e.getKey()))
-                )
-                .map(Map.Entry::getKey)
+                .filter(clusterAlias -> { return newClusterAliasApiKeyMap.containsKey(clusterAlias) == false; })
                 .toList();
             final Collection<String> changed = this.apiKeys.entrySet()
                 .stream()
                 .filter(
-                    e -> newClusterAliasApiKeyMap.containsKey(e.getKey())
-                        && Objects.equals(e.getValue(), newClusterAliasApiKeyMap.get(e.getKey())) == false
+                    clusterAliasApiKey -> newClusterAliasApiKeyMap.containsKey(clusterAliasApiKey.getKey())
+                        && Objects.equals(clusterAliasApiKey.getValue(), newClusterAliasApiKeyMap.get(clusterAliasApiKey.getKey())) == false
+                )
+                .map(Map.Entry::getKey)
+                .toList();
+            final Collection<String> unchanged = this.apiKeys.entrySet()
+                .stream()
+                .filter(
+                    clusterAliasAndApiKey -> newClusterAliasApiKeyMap.containsKey(clusterAliasAndApiKey.getKey())
+                        && Objects.equals(clusterAliasAndApiKey.getValue(), newClusterAliasApiKeyMap.get(clusterAliasAndApiKey.getKey()))
                 )
                 .map(Map.Entry::getKey)
                 .toList();
             LOGGER.info(
-                "Added: {}, Removed: {}, Changed: {}, Unchanged: {}",
+                "Old: {}, New: {}, Added: {}, Removed: {}, Changed: {}, Unchanged: {}",
+                new TreeMap<>(this.apiKeys),
+                new TreeMap<>(newClusterAliasApiKeyMap),
                 new TreeSet<>(added),
                 new TreeSet<>(removed),
                 new TreeSet<>(changed),

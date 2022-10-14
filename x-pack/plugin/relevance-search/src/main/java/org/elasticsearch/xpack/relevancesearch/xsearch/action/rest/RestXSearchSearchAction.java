@@ -7,12 +7,23 @@
 
 package org.elasticsearch.xpack.relevancesearch.xsearch.action.rest;
 
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
+import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
 import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchSearchAction;
 
 import java.io.IOException;
@@ -27,6 +38,13 @@ public class RestXSearchSearchAction extends BaseRestHandler {
 
     public static final String REST_BASE_PATH = "/{index}/_xsearch";
 
+    private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
+
+    @Inject
+    public RestXSearchSearchAction(RelevanceMatchQueryRewriter relevanceMatchQueryRewriter) {
+        super();
+        this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
+    }
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, REST_BASE_PATH), new Route(POST, REST_BASE_PATH));
@@ -42,15 +60,37 @@ public class RestXSearchSearchAction extends BaseRestHandler {
         String index = request.param("index");
         XContentParser parser = request.contentOrSourceParamParser();
         XSearchSearchAction.Request xsearchRequest = XSearchSearchAction.Request.parseRequest(index, parser);
-        // Do the xsearch request
         xsearchRequest.indicesOptions(IndicesOptions.fromRequest(request, xsearchRequest.indicesOptions()));
-        return channel -> client.execute(XSearchSearchAction.INSTANCE, xsearchRequest, new RestToXContentListener<>(channel));
+
+        RelevanceMatchQueryBuilder queryBuilder = createQueryBuilder(xsearchRequest);
+        return channel -> doXSearch(index, queryBuilder, client, channel);
     }
 
-    private static final Set<String> RESPONSE_PARAMS = Collections.emptySet();
+    private RelevanceMatchQueryBuilder createQueryBuilder(XSearchSearchAction.Request request) {
+        // TODO pull these values from engine
+        String relevanceSettingsId = null;
+        String curationsSettingsId = null;
+
+        return new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery(), relevanceSettingsId, curationsSettingsId);
+    }
+
+    /**** POC CODE BEGINS HERE *****/
+
+    private static void doXSearch(String index, RelevanceMatchQueryBuilder queryBuilder, NodeClient client, RestChannel channel) {
+
+        SearchRequest searchRequest = client.prepareSearch(index).setQuery(queryBuilder).setSize(1000).setFetchSource(true).request();
+
+        client.execute(SearchAction.INSTANCE, searchRequest, new RestBuilderListener<>(channel) {
+            @Override
+            public RestResponse buildResponse(SearchResponse searchResponse, XContentBuilder builder) throws Exception {
+                searchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                return new RestResponse(RestStatus.OK, builder);
+            }
+        });
+    }
 
     @Override
     protected Set<String> responseParams() {
-        return RESPONSE_PARAMS;
+        return Collections.emptySet();
     }
 }

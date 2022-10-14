@@ -56,7 +56,7 @@ public class VersionStringDocValuesField extends AbstractScriptFieldFactory<Vers
 
     @Override
     public String getInternal(int index) {
-        return VersionEncoder.decodeVersion(getBytesRefInternal(index));
+        return VersionEncoder.decodeVersion(getBytesRefInternal(index)).utf8ToString();
     }
 
     private BytesRef getBytesRefInternal(int index) {

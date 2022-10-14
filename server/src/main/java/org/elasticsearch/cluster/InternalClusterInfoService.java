@@ -245,26 +245,26 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 final ShardStats[] stats = indicesStatsResponse.getShards();
                                 final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
                                 final Map<ShardId, Long> shardDataSetSizeBuilder = new HashMap<>();
-                                final Map<ShardRouting, String> dataPathByShardRoutingBuilder = new HashMap<>();
+                                final Map<ClusterInfo.NodeAndShard, String> dataPath = new HashMap<>();
                                 final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders =
                                     new HashMap<>();
                                 buildShardLevelInfo(
                                     clusterService.state().routingTable(),
-                                    stats,
+                                    adjustShardStats(stats),
                                     shardSizeByIdentifierBuilder,
                                     shardDataSetSizeBuilder,
-                                    dataPathByShardRoutingBuilder,
+                                    dataPath,
                                     reservedSpaceBuilders
                                 );
 
-                                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace = new HashMap<>();
-                                reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
+                                final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = new HashMap<>();
+                                reservedSpaceBuilders.forEach((nodeAndPath, builder) -> reservedSpace.put(nodeAndPath, builder.build()));
 
                                 indicesStatsSummary = new IndicesStatsSummary(
                                     Map.copyOf(shardSizeByIdentifierBuilder),
                                     Map.copyOf(shardDataSetSizeBuilder),
-                                    Map.copyOf(dataPathByShardRoutingBuilder),
-                                    Map.copyOf(rsrvdSpace)
+                                    Map.copyOf(dataPath),
+                                    Map.copyOf(reservedSpace)
                                 );
                             }
 
@@ -420,7 +420,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             mostAvailableSpaceUsages,
             indicesStatsSummary.shardSizes,
             indicesStatsSummary.shardDataSetSizes,
-            indicesStatsSummary.shardRoutingToDataPath,
+            indicesStatsSummary.dataPath,
             indicesStatsSummary.reservedSpace
         );
     }
@@ -428,6 +428,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     // allow tests to adjust the node stats on receipt
     List<NodeStats> adjustNodesStats(List<NodeStats> nodeStats) {
         return nodeStats;
+    }
+
+    ShardStats[] adjustShardStats(ShardStats[] shardStats) {
+        return shardStats;
     }
 
     void refreshAsync(ActionListener<ClusterInfo> future) {
@@ -450,12 +454,12 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         ShardStats[] stats,
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizeBuilder,
-        Map<ShardRouting, String> newShardRoutingToDataPath,
+        Map<ClusterInfo.NodeAndShard, String> dataPathByShard,
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard
     ) {
         for (ShardStats s : stats) {
             final ShardRouting shardRouting = routingTable.deduplicate(s.getShardRouting());
-            newShardRoutingToDataPath.put(shardRouting, s.getDataPath());
+            dataPathByShard.put(ClusterInfo.NodeAndShard.from(shardRouting), s.getDataPath());
 
             final StoreStats storeStats = s.getStats().getStore();
             if (storeStats == null) {
@@ -501,7 +505,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private record IndicesStatsSummary(
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizes,
-        Map<ShardRouting, String> shardRoutingToDataPath,
+        Map<ClusterInfo.NodeAndShard, String> dataPath,
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
     ) {
         static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(Map.of(), Map.of(), Map.of(), Map.of());

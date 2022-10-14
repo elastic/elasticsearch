@@ -10,6 +10,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -438,7 +439,7 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testNodeProcessorsBound() {
-        final Setting<Double> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
+        final Setting<Processors> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
         final int available = Runtime.getRuntime().availableProcessors();
         final double processors = randomDoubleBetween(available + Math.ulp(available), Float.MAX_VALUE, true);
         final Settings settings = Settings.builder().put(processorsSetting.getKey(), processors).build();
@@ -478,7 +479,7 @@ public class EsExecutorsTests extends ESTestCase {
     }
 
     public void testNodeProcessorsFloatValidation() {
-        final Setting<Double> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
+        final Setting<Processors> processorsSetting = EsExecutors.NODE_PROCESSORS_SETTING;
 
         {
             final Settings settings = Settings.builder().put(processorsSetting.getKey(), 0.0).build();

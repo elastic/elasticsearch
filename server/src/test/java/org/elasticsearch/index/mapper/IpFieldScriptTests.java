@@ -18,6 +18,7 @@ import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -65,7 +66,7 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
                 IpFieldScript script = new IpFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider()),
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -100,7 +101,7 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
                 IpFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null)
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, new SourceLookup.ReaderSourceProvider())
                 );
                 IpFieldScript ipFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<InetAddress> results = new ArrayList<>();

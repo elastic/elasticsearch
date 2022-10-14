@@ -34,12 +34,13 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
         int maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         AllocationService allocationService = createAllocationService();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .put(IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
         DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
         for (int i = 0; i < 5; i++) {
             discoNodes.add(newNode("node-" + i));
         }
+        discoNodes.masterNodeId("node-0").localNodeId("node-0");
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(discoNodes)
             .metadata(metadata)
@@ -69,12 +70,12 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
 
         // do not track the failed nodes while shard is started
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
-        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(clusterState.routingTable().index("idx").shard(0).primaryShard().state(), equalTo(ShardRoutingState.STARTED));
         clusterState = allocationService.applyFailedShards(
             clusterState,
-            List.of(new FailedShard(clusterState.routingTable().index("idx").shard(0).shard(0), null, null, false)),
+            List.of(new FailedShard(clusterState.routingTable().index("idx").shard(0).primaryShard(), null, null, false)),
             List.of()
         );
-        assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().getFailedNodeIds(), empty());
+        assertThat(clusterState.routingTable().index("idx").shard(0).primaryShard().unassignedInfo().getFailedNodeIds(), empty());
     }
 }

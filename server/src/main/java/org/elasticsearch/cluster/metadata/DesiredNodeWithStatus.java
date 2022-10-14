@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -38,7 +39,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
         (args, unused) -> new DesiredNodeWithStatus(
             new DesiredNode(
                 (Settings) args[0],
-                (Float) args[1],
+                (Processors) args[1],
                 (DesiredNode.ProcessorsRange) args[2],
                 (ByteSizeValue) args[3],
                 (ByteSizeValue) args[4],
@@ -119,6 +120,10 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
     @Override
     public int compareTo(DesiredNodeWithStatus o) {
         return desiredNode.compareTo(o.desiredNode);
+    }
+
+    public boolean equalsWithProcessorsCloseTo(DesiredNodeWithStatus other) {
+        return other != null && status == other.status && desiredNode.equalsWithProcessorsCloseTo(other.desiredNode);
     }
 
     public enum Status {

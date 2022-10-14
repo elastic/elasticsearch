@@ -287,7 +287,7 @@ public class AssignmentPlannerTests extends ESTestCase {
             int scale = randomIntBetween(0, 10);
             double load = randomDoubleBetween(0.1, 1.0, true);
             List<Node> nodes = randomNodes(scale);
-            List<Model> models = randomModels(scale, load, nodes);
+            List<Model> models = randomModels(scale, load);
             nodeSizes.add(nodes.size());
             modelSizes.add(models.size());
             logger.debug("Nodes = " + nodes.size() + "; Models = " + models.size());
@@ -324,7 +324,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         int scale = randomIntBetween(0, 10);
         double load = randomDoubleBetween(0.1, 1.0, true);
         List<Node> nodes = randomNodes(scale);
-        List<Model> models = randomModels(scale, load, nodes);
+        List<Model> models = randomModels(scale, load);
         AssignmentPlan originalPlan = new AssignmentPlanner(nodes, models).computePlan();
 
         List<Model> previousModelsPlusNew = new ArrayList<>(models.size() + 1);
@@ -453,7 +453,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(assignmentPlan.getRemainingNodeCores("n_2"), equalTo(0));
     }
 
-    private static List<Model> createModelsFromPlan(AssignmentPlan plan) {
+    public static List<Model> createModelsFromPlan(AssignmentPlan plan) {
         List<Model> models = new ArrayList<>();
         for (Model m : plan.models()) {
             Optional<Map<Node, Integer>> assignments = plan.assignments(m);
@@ -479,7 +479,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         return models;
     }
 
-    private static Map<String, Map<String, Integer>> convertToIdIndexed(AssignmentPlan plan) {
+    public static Map<String, Map<String, Integer>> convertToIdIndexed(AssignmentPlan plan) {
         Map<String, Map<String, Integer>> result = new HashMap<>();
         for (Model m : plan.models()) {
             Optional<Map<Node, Integer>> assignments = plan.assignments(m);
@@ -492,14 +492,18 @@ public class AssignmentPlannerTests extends ESTestCase {
         return result;
     }
 
-    private static void assertModelFullyAssignedToNode(AssignmentPlan plan, Model m, Node n) {
+    public static void assertModelFullyAssignedToNode(AssignmentPlan plan, Model m, Node n) {
         Optional<Map<Node, Integer>> assignments = plan.assignments(m);
         assertThat(assignments.isPresent(), is(true));
         assertThat(assignments.get().size(), equalTo(1));
         assertThat(assignments.get().get(n), equalTo(m.allocations()));
     }
 
-    private List<Node> randomNodes(int scale) {
+    public static List<Node> randomNodes(int scale) {
+        return randomNodes(scale, "");
+    }
+
+    public static List<Node> randomNodes(int scale, String nodeIdPrefix) {
         Long[] memBytesPerCoreValues = {
             ByteSizeValue.ofGb(1).getBytes() / 2,
             ByteSizeValue.ofGb(1).getBytes(),
@@ -511,12 +515,12 @@ public class AssignmentPlannerTests extends ESTestCase {
         for (int i = 0; i < 1 + 3 * scale; i++) {
             int cores = randomIntBetween(2, 32);
             long memBytesPerCore = randomFrom(memBytesPerCoreValues);
-            nodes.add(new Node("n_" + i, cores * memBytesPerCore, cores));
+            nodes.add(new Node(nodeIdPrefix + "n_" + i, cores * memBytesPerCore, cores));
         }
         return nodes;
     }
 
-    private List<Model> randomModels(int scale, double load, List<Node> nodes) {
+    public static List<Model> randomModels(int scale, double load) {
         List<Model> models = new ArrayList<>();
         for (int i = 0; i < Math.max(2, Math.round(load * (1 + 8 * scale))); i++) {
             models.add(randomModel(String.valueOf(i)));
@@ -524,7 +528,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         return models;
     }
 
-    private static Model randomModel(String idSuffix) {
+    public static Model randomModel(String idSuffix) {
         int allocations = randomIntBetween(1, 32);
         return new Model(
             "m_" + idSuffix,
@@ -536,7 +540,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         );
     }
 
-    private static void assertPreviousAssignmentsAreSatisfied(List<Model> models, AssignmentPlan assignmentPlan) {
+    public static void assertPreviousAssignmentsAreSatisfied(List<Model> models, AssignmentPlan assignmentPlan) {
         for (Model m : models.stream().filter(m -> m.currentAllocationsByNodeId().isEmpty() == false).toList()) {
             Map<Node, Integer> assignments = assignmentPlan.assignments(m).get();
             Set<String> assignedNodeIds = new HashSet<>();

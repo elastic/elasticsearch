@@ -14,7 +14,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,10 +41,8 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
             @Override
             public void process(HitContext hitContext) throws IOException {
+                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
                 SearchHit hit = hitContext.hit();
-                SourceLookup sourceLookup = hitContext.sourceLookup();
-
-                Map<String, DocumentField> documentFields = fieldFetcher.fetch(sourceLookup);
                 for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
                     hit.setDocumentField(entry.getKey(), entry.getValue());
                 }

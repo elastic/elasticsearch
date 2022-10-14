@@ -84,7 +84,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 || threadName.contains("readiness-service")
                 || threadName.contains("JVMCI-native") // GraalVM Compiler Thread
                 || threadName.contains("file-settings-watcher")
-                || threadName.contains("FileSystemWatchService")) {
+                || threadName.contains("FileSystemWatch")) { // FileSystemWatchService(Linux/Windows), FileSystemWatcher(BSD/AIX)
                 continue;
             }
             String nodePrefix = "("

@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class TranslogStats implements Writeable, ToXContentFragment {
 
@@ -126,5 +127,28 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         out.writeVInt(uncommittedOperations);
         out.writeVLong(uncommittedSizeInBytes);
         out.writeVLong(earliestLastModifiedAge);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TranslogStats that = (TranslogStats) o;
+        return numberOfOperations == that.numberOfOperations
+            && translogSizeInBytes == that.translogSizeInBytes
+            && uncommittedOperations == that.uncommittedOperations
+            && uncommittedSizeInBytes == that.uncommittedSizeInBytes
+            && earliestLastModifiedAge == that.earliestLastModifiedAge;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            numberOfOperations,
+            translogSizeInBytes,
+            uncommittedOperations,
+            uncommittedSizeInBytes,
+            earliestLastModifiedAge
+        );
     }
 }

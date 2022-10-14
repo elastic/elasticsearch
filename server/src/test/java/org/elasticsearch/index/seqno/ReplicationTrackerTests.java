@@ -1153,7 +1153,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         IndexShardRoutingTable.Builder routingTableBuilder = new IndexShardRoutingTable.Builder(routingTable);
         for (ShardRouting replicaShard : routingTable.replicaShards()) {
             routingTableBuilder.removeShard(replicaShard);
-            routingTableBuilder.addShard(replicaShard.moveToStarted());
+            routingTableBuilder.addShard(replicaShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
         }
         routingTable = routingTableBuilder.build();
         activeAllocationIds.addAll(initializingAllocationIds);

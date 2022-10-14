@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class WeightedAggregatorTests<T extends OutputAggregator> extends AbstractSerializingTestCase<T> {
+public abstract class WeightedAggregatorTests<T extends OutputAggregator> extends AbstractXContentSerializingTestCase<T> {
 
     protected boolean lenient;
 

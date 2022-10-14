@@ -16,11 +16,16 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SimpleRoleTests extends ESTestCase {
+
+    public void testEmptyRoleHasNoEmptyListOfNames() {
+        assertThat(Role.EMPTY.names(), emptyArray());
+    }
 
     public void testHasPrivilegesCache() throws ExecutionException {
         final SimpleRole role = Role.builder(

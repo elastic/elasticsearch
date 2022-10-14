@@ -51,7 +51,7 @@ public class GetByPathAugmentationTests extends ScriptTestCase {
     }
 
     private String missingValue(String path) {
-        return String.format(Locale.ROOT, "Could not find value at path [%s]", path);
+        return formatted("Could not find value at path [%s]", path);
     }
 
     private void assertPathValue(String collection, String key, Object value) {

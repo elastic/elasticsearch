@@ -13,14 +13,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
-import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrixTests;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalCompositeTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFiltersTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridTests;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridTests;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogramTests;
@@ -119,7 +117,6 @@ public class AggregationsTests extends ESTestCase {
         new InternalGeoCentroidTests(),
         new InternalHistogramTests(),
         new InternalDateHistogramTests(),
-        new InternalAutoDateHistogramTests(),
         new InternalVariableWidthHistogramTests(),
         new LongTermsTests(),
         new DoubleTermsTests(),
@@ -138,7 +135,6 @@ public class AggregationsTests extends ESTestCase {
         new InternalDateRangeTests(),
         new InternalGeoDistanceTests(),
         new InternalFiltersTests(),
-        new InternalAdjacencyMatrixTests(),
         new SignificantLongTermsTests(),
         new SignificantStringTermsTests(),
         new InternalScriptedMetricTests(),

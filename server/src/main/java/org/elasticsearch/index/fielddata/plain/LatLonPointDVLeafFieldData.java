@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-final class LatLonPointDVLeafFieldData extends AbstractLeafGeoPointFieldData {
+final class LatLonPointDVLeafFieldData extends LeafGeoPointFieldData {
     private final LeafReader reader;
     private final String fieldName;
 

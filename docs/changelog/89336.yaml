@@ -1,5 +1,0 @@
-pr: 89336
-summary: Report better error for GCS credentials load failure
-area: Snapshot/Restore
-type: bug
-issues: []

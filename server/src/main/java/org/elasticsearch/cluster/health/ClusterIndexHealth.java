@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,7 +34,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Writeable, ToXContentFragment {
+public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
     private static final String STATUS = "status";
     private static final String NUMBER_OF_SHARDS = "number_of_shards";
     private static final String NUMBER_OF_REPLICAS = "number_of_replicas";
@@ -240,11 +239,6 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
 
     public Map<Integer, ClusterShardHealth> getShards() {
         return this.shards;
-    }
-
-    @Override
-    public Iterator<ClusterShardHealth> iterator() {
-        return shards.values().iterator();
     }
 
     @Override

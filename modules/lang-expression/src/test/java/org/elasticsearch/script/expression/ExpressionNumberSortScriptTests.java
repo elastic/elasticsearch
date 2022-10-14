@@ -17,6 +17,7 @@ import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -50,7 +51,11 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         when(fieldData.load(any())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, _lookup, fdt) -> fieldData);
+        lookup = new SearchLookup(
+            field -> field.equals("field") ? fieldType : null,
+            (ignored, _lookup, fdt) -> fieldData,
+            new SourceLookup.ReaderSourceProvider()
+        );
     }
 
     private NumberSortScript.LeafFactory compile(String expression) {

@@ -124,38 +124,4 @@ public class XSearchSearchAction extends ActionType<SearchResponse> {
         }
 
     }
-
-    // public static class Response extends SearchResponse {
-    //
-    // public Response(StreamInput in) throws IOException {
-    // super(in);
-    // }
-    //
-    // }
-
-// public static final ParseField NAME_FIELD = new ParseField("name");
-//
-//
-// public Response(String response) {
-// this.response = response;
-// }
-//
-// public Response(StreamInput in) throws IOException {
-// this(in.readString());
-// }
-//
-// @Override
-// public void writeTo(StreamOutput out) throws IOException {
-// out.writeString(response);
-// }
-//
-// // TODO return real content
-// @Override
-// public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-// builder.startObject();
-// builder.field("response", response);
-// builder.endObject();
-// return builder;
-// }
-// }
 }

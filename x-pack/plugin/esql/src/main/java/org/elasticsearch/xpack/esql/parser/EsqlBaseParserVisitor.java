@@ -239,6 +239,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitOrderExpression(EsqlBaseParser.OrderExpressionContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#projectCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#projectClause}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitProjectClause(EsqlBaseParser.ProjectClauseContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#booleanValue}.
    * @param ctx the parse tree
    * @return the visitor result

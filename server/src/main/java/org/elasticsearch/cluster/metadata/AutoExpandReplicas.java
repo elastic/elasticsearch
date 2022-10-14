@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalInt;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
@@ -93,15 +92,11 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
         }
     }
 
-    int getMaxReplicas(int numDataNodes) {
-        return Math.min(maxReplicas, numDataNodes - 1);
-    }
-
     public boolean expandToAllNodes() {
         return maxReplicas == Integer.MAX_VALUE;
     }
 
-    public OptionalInt getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
+    public int getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         assert enabled : "should only be called when enabled";
         int numMatchingDataNodes = 0;
         for (DiscoveryNode discoveryNode : allocation.nodes().getDataNodes().values()) {
@@ -110,20 +105,19 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
                 numMatchingDataNodes++;
             }
         }
+        return calculateDesiredNumberOfReplicas(numMatchingDataNodes);
+    }
 
-        final int min = minReplicas();
-        final int max = getMaxReplicas(numMatchingDataNodes);
+    // package private for testing
+    int calculateDesiredNumberOfReplicas(int numMatchingDataNodes) {
         int numberOfReplicas = numMatchingDataNodes - 1;
-        if (numberOfReplicas < min) {
-            numberOfReplicas = min;
-        } else if (numberOfReplicas > max) {
-            numberOfReplicas = max;
+        // Make sure number of replicas is always between min and max
+        if (numberOfReplicas < minReplicas) {
+            numberOfReplicas = minReplicas;
+        } else if (numberOfReplicas > maxReplicas) {
+            numberOfReplicas = maxReplicas;
         }
-
-        if (numberOfReplicas >= min && numberOfReplicas <= max) {
-            return OptionalInt.of(numberOfReplicas);
-        }
-        return OptionalInt.empty();
+        return numberOfReplicas;
     }
 
     @Override
@@ -153,11 +147,10 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
                 if (allocation == null) {
                     allocation = allocationSupplier.get();
                 }
-                autoExpandReplicas.getDesiredNumberOfReplicas(indexMetadata, allocation).ifPresent(numberOfReplicas -> {
-                    if (numberOfReplicas != indexMetadata.getNumberOfReplicas()) {
-                        nrReplicasChanged.computeIfAbsent(numberOfReplicas, ArrayList::new).add(indexMetadata.getIndex().getName());
-                    }
-                });
+                int numberOfReplicas = autoExpandReplicas.getDesiredNumberOfReplicas(indexMetadata, allocation);
+                if (numberOfReplicas != indexMetadata.getNumberOfReplicas()) {
+                    nrReplicasChanged.computeIfAbsent(numberOfReplicas, ArrayList::new).add(indexMetadata.getIndex().getName());
+                }
             }
         }
         return nrReplicasChanged;

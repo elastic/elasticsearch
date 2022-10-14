@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -46,12 +47,12 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private static final ParseField STORAGE_FIELD = new ParseField("storage");
     private static final ParseField VERSION_FIELD = new ParseField("node_version");
 
-    public static final ConstructingObjectParser<DesiredNode, String> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DesiredNode, Void> PARSER = new ConstructingObjectParser<>(
         "desired_node",
         false,
         (args, name) -> new DesiredNode(
             (Settings) args[0],
-            (Float) args[1],
+            (Processors) args[1],
             (ProcessorsRange) args[2],
             (ByteSizeValue) args[3],
             (ByteSizeValue) args[4],
@@ -60,27 +61,36 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
-        PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), PROCESSORS_FIELD);
-        PARSER.declareObjectOrNull(
+        configureParser(PARSER);
+    }
+
+    static <T> void configureParser(ConstructingObjectParser<T, Void> parser) {
+        parser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
+        parser.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> Processors.fromXContent(p),
+            PROCESSORS_FIELD,
+            ObjectParser.ValueType.DOUBLE
+        );
+        parser.declareObjectOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> ProcessorsRange.fromXContent(p),
             null,
             PROCESSORS_RANGE_FIELD
         );
-        PARSER.declareField(
+        parser.declareField(
             ConstructingObjectParser.constructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MEMORY_FIELD.getPreferredName()),
             MEMORY_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareField(
+        parser.declareField(
             ConstructingObjectParser.constructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), STORAGE_FIELD.getPreferredName()),
             STORAGE_FIELD,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareField(
+        parser.declareField(
             ConstructingObjectParser.constructorArg(),
             (p, c) -> parseVersion(p.text()),
             VERSION_FIELD,
@@ -96,7 +106,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     }
 
     private final Settings settings;
-    private final Float processors;
+    private final Processors processors;
     private final ProcessorsRange processorsRange;
     private final ByteSizeValue memory;
     private final ByteSizeValue storage;
@@ -104,21 +114,17 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private final String externalId;
     private final Set<DiscoveryNodeRole> roles;
 
-    public DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version) {
-        this(settings, (float) processors, memory, storage, version);
-    }
-
     public DesiredNode(Settings settings, ProcessorsRange processorsRange, ByteSizeValue memory, ByteSizeValue storage, Version version) {
         this(settings, null, processorsRange, memory, storage, version);
     }
 
-    public DesiredNode(Settings settings, float processors, ByteSizeValue memory, ByteSizeValue storage, Version version) {
-        this(settings, processors, null, memory, storage, version);
+    public DesiredNode(Settings settings, double processors, ByteSizeValue memory, ByteSizeValue storage, Version version) {
+        this(settings, Processors.of(processors), null, memory, storage, version);
     }
 
-    private DesiredNode(
+    DesiredNode(
         Settings settings,
-        Float processors,
+        Processors processors,
         ProcessorsRange processorsRange,
         ByteSizeValue memory,
         ByteSizeValue storage,
@@ -147,12 +153,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             );
         }
 
-        if (processors != null && invalidNumberOfProcessors(processors)) {
-            throw new IllegalArgumentException(
-                format(Locale.ROOT, "Only a positive number of [processors] are allowed and [%f] was provided", processors)
-            );
-        }
-
         if (NODE_EXTERNAL_ID_SETTING.get(settings).isBlank()) {
             throw new IllegalArgumentException(
                 format(Locale.ROOT, "[%s] or [%s] is missing or empty", NODE_NAME_SETTING.getKey(), NODE_EXTERNAL_ID_SETTING.getKey())
@@ -171,13 +171,13 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     public static DesiredNode readFrom(StreamInput in) throws IOException {
         final var settings = Settings.readSettingsFromStream(in);
-        final Float processors;
+        final Processors processors;
         final ProcessorsRange processorsRange;
         if (in.getVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
-            processors = in.readOptionalFloat();
+            processors = in.readOptionalWriteable(Processors::readFrom);
             processorsRange = in.readOptionalWriteable(ProcessorsRange::readFrom);
         } else {
-            processors = (float) in.readInt();
+            processors = Processors.readFrom(in);
             processorsRange = null;
         }
         final var memory = new ByteSizeValue(in);
@@ -188,15 +188,14 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Settings.writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         if (out.getVersion().onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
-            out.writeOptionalFloat(processors);
+            out.writeOptionalWriteable(processors);
             out.writeOptionalWriteable(processorsRange);
         } else {
             assert processorsRange == null;
             assert processors != null;
-            assert processorHasDecimals() == false;
-            out.writeInt((int) (float) processors);
+            processors.writeTo(out);
         }
         memory.writeTo(out);
         storage.writeTo(out);
@@ -210,6 +209,12 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        toInnerXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public void toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SETTINGS_FIELD.getPreferredName());
         settings.toXContent(builder, params);
         builder.endObject();
@@ -222,8 +227,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         builder.field(MEMORY_FIELD.getPreferredName(), memory);
         builder.field(STORAGE_FIELD.getPreferredName(), storage);
         builder.field(VERSION_FIELD.getPreferredName(), version);
-        builder.endObject();
-        return builder;
     }
 
     public boolean hasMasterRole() {
@@ -234,7 +237,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         return settings;
     }
 
-    public float minProcessors() {
+    public Processors minProcessors() {
         if (processors != null) {
             return processors;
         }
@@ -242,10 +245,11 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     }
 
     public int roundedDownMinProcessors() {
-        return roundDown(minProcessors());
+        return minProcessors().roundDown();
     }
 
-    public Float maxProcessors() {
+    @Nullable
+    public Processors maxProcessors() {
         if (processors != null) {
             return processors;
         }
@@ -254,15 +258,22 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     }
 
     public Integer roundedUpMaxProcessors() {
-        if (maxProcessors() == null) {
+        final Processors maxProcessors = maxProcessors();
+        if (maxProcessors == null) {
             return null;
         }
 
-        return roundUp(maxProcessors());
+        return maxProcessors.roundUp();
     }
 
-    private boolean processorHasDecimals() {
-        return processors != null && ((int) (float) processors) != Math.ceil(processors);
+    @Nullable
+    Processors processors() {
+        return processors;
+    }
+
+    @Nullable
+    ProcessorsRange processorsRange() {
+        return processorsRange;
     }
 
     public ByteSizeValue memory() {
@@ -289,7 +300,8 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         if (version.onOrAfter(RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
             return true;
         }
-        return processorsRange == null && processorHasDecimals() == false;
+
+        return processorsRange == null && processors.isCompatibleWithVersion(version);
     }
 
     @Override
@@ -297,14 +309,24 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DesiredNode that = (DesiredNode) o;
-        return Objects.equals(settings, that.settings)
-            && Objects.equals(processors, that.processors)
+        return equalsWithoutProcessorsSpecification(that)
             && Objects.equals(processorsRange, that.processorsRange)
+            && Objects.equals(processors, that.processors);
+    }
+
+    private boolean equalsWithoutProcessorsSpecification(DesiredNode that) {
+        return Objects.equals(settings, that.settings)
             && Objects.equals(memory, that.memory)
             && Objects.equals(storage, that.storage)
             && Objects.equals(version, that.version)
             && Objects.equals(externalId, that.externalId)
             && Objects.equals(roles, that.roles);
+    }
+
+    public boolean equalsWithProcessorsCloseTo(DesiredNode that) {
+        return equalsWithoutProcessorsSpecification(that)
+            && Processors.equalsOrCloseTo(processors, that.processors)
+            && ProcessorsRange.equalsOrCloseTo(processorsRange, that.processorsRange);
     }
 
     @Override
@@ -340,83 +362,56 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             + '}';
     }
 
-    private static boolean invalidNumberOfProcessors(float processors) {
-        return processors <= 0 || Float.isInfinite(processors) || Float.isNaN(processors);
-    }
-
-    private static int roundUp(float value) {
-        return (int) Math.ceil(value);
-    }
-
-    private static int roundDown(float value) {
-        return Math.max(1, (int) Math.floor(value));
-    }
-
-    public record ProcessorsRange(float min, Float max) implements Writeable, ToXContentObject {
+    public record ProcessorsRange(Processors min, @Nullable Processors max) implements Writeable, ToXContentObject {
 
         private static final ParseField MIN_FIELD = new ParseField("min");
         private static final ParseField MAX_FIELD = new ParseField("max");
 
-        public static final ConstructingObjectParser<ProcessorsRange, String> PROCESSORS_PARSER = new ConstructingObjectParser<>(
-            "processors",
+        public static final ConstructingObjectParser<ProcessorsRange, String> PROCESSORS_RANGE_PARSER = new ConstructingObjectParser<>(
+            "processors_range",
             false,
-            (args, name) -> new ProcessorsRange((float) args[0], (Float) args[1])
+            (args, name) -> new ProcessorsRange((Processors) args[0], (Processors) args[1])
         );
 
         static {
-            PROCESSORS_PARSER.declareFloat(ConstructingObjectParser.constructorArg(), MIN_FIELD);
-            PROCESSORS_PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), MAX_FIELD);
+            PROCESSORS_RANGE_PARSER.declareField(
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> Processors.fromXContent(p),
+                MIN_FIELD,
+                ObjectParser.ValueType.DOUBLE
+            );
+            PROCESSORS_RANGE_PARSER.declareField(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> Processors.fromXContent(p),
+                MAX_FIELD,
+                ObjectParser.ValueType.DOUBLE
+            );
         }
 
         static ProcessorsRange fromXContent(XContentParser parser) throws IOException {
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                return PROCESSORS_PARSER.parse(parser, null);
-            } else {
-                // For BWC with nodes pre 8.3
-                float processors = parser.floatValue();
-                return new ProcessorsRange(processors, processors);
-            }
+            return PROCESSORS_RANGE_PARSER.parse(parser, null);
+        }
+
+        public ProcessorsRange(double min, Double max) {
+            this(Processors.of(min), Processors.of(max));
         }
 
         public ProcessorsRange {
-            if (invalidNumberOfProcessors(min)) {
-                throw new IllegalArgumentException(
-                    format(
-                        Locale.ROOT,
-                        "Only a positive number of [%s] processors are allowed and [%f] was provided",
-                        MIN_FIELD.getPreferredName(),
-                        min
-                    )
-                );
-            }
-
-            if (max != null && invalidNumberOfProcessors(max)) {
-                throw new IllegalArgumentException(
-                    format(
-                        Locale.ROOT,
-                        "Only a positive number of [%s] processors are allowed and [%f] was provided",
-                        MAX_FIELD.getPreferredName(),
-                        max
-                    )
-                );
-            }
-
-            if (max != null && min > max) {
+            if (max != null && min.compareTo(max) > 0) {
                 throw new IllegalArgumentException(
                     "min processors must be less than or equal to max processors and it was: min: " + min + " max: " + max
                 );
             }
         }
 
-        @Nullable
         private static ProcessorsRange readFrom(StreamInput in) throws IOException {
-            return new ProcessorsRange(in.readFloat(), in.readOptionalFloat());
+            return new ProcessorsRange(Processors.readFrom(in), in.readOptionalWriteable(Processors::readFrom));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeFloat(min);
-            out.writeOptionalFloat(max);
+            min.writeTo(out);
+            out.writeOptionalWriteable(max);
         }
 
         @Override
@@ -428,6 +423,15 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             }
             builder.endObject();
             return builder;
+        }
+
+        static boolean equalsOrCloseTo(ProcessorsRange a, ProcessorsRange b) {
+            return (a == b) || (a != null && a.equalsOrCloseTo(b));
+        }
+
+        boolean equalsOrCloseTo(ProcessorsRange that) {
+            return that != null
+                && (equals(that) || (Processors.equalsOrCloseTo(min, that.min) && Processors.equalsOrCloseTo(max, that.max)));
         }
     }
 }

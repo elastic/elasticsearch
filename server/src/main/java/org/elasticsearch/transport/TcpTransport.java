@@ -10,8 +10,8 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -42,6 +42,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -103,6 +104,23 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         false,
         Setting.Property.NodeScope
     );
+
+    private static final Boolean UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED;
+
+    static {
+        final String property = System.getProperty("es.untrusted_remote_cluster_feature_flag_registered");
+        if (Build.CURRENT.isSnapshot() && property != null) {
+            throw new IllegalArgumentException(
+                "es.untrusted_remote_cluster_feature_flag_registered " + "is only supported in non-snapshot builds"
+            );
+        }
+        UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
+    }
+
+    public static boolean isUntrustedRemoteClusterEnabled() {
+        return Build.CURRENT.isSnapshot()
+            || (UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED != null && UNTRUSTED_REMOTE_CLUSTER_FEATURE_FLAG_REGISTERED);
+    }
 
     private final boolean ignoreDeserializationErrors;
 
@@ -700,8 +718,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 } else {
                     logger.log(
                         closeConnectionExceptionLevel,
-                        new ParameterizedMessage(
-                            "close connection exception caught on transport layer [{}], disconnecting from relevant node",
+                        () -> format(
+                            "close connection exception caught on transport layer [%s], disconnecting from relevant node",
                             channel
                         ),
                         e
@@ -1159,7 +1177,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // Connection failures are generally logged elsewhere, but go via the ChannelsConnectedListener which only captures the first
             // exception for each bundle of channels. If the ChannelOpenTraceLogger is installed then trace-logging is enabled so we can log
             // every failure.
-            logger.trace(new ParameterizedMessage("failed to open transport channel: {}", channel), e);
+            logger.trace(() -> format("failed to open transport channel: %s", channel), e);
         }
     }
 

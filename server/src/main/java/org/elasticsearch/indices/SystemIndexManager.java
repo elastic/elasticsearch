@@ -46,6 +46,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETT
  * those indices can be automatically managed. Only some system indices are managed
  * internally to Elasticsearch - others are created and managed externally, e.g.
  * Kibana indices.
+ *
+ * Other metadata updates are handled by {@link org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService}.
  */
 public class SystemIndexManager implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SystemIndexManager.class);

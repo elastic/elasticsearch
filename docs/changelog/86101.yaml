@@ -1,5 +1,0 @@
-pr: 86101
-summary: Log `cluster.initial_master_nodes` at startup
-area: Cluster Coordination
-type: enhancement
-issues: []

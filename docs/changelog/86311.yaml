@@ -1,6 +1,0 @@
-pr: 86311
-summary: Set `serverAuth` extended key usage for generated certificates and CSRs
-area: TLS
-type: enhancement
-issues:
- - 81067

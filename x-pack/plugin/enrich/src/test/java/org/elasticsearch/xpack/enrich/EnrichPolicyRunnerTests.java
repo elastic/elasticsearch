@@ -52,7 +52,6 @@ import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -63,6 +62,7 @@ import org.elasticsearch.xcontent.smile.SmileXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -87,7 +87,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, TestGeoShapeFieldMapperPlugin.class, LocalStateEnrich.class);
+        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, SpatialPlugin.class, LocalStateEnrich.class);
     }
 
     private static ThreadPool testThreadPool;
@@ -428,16 +428,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         int numberOfSourceIndices = 3;
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
-            IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source("""
-                {
-                  "idx": %s,
-                  "key": "key%s",
-                  "field1": "value1",
-                  "field2": 2,
-                  "field3": "ignored",
-                  "field4": "ignored",
-                  "field5": "value5"
-                }""".formatted(idx, idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
+            IndexResponse indexRequest = client().index(
+                new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(formatted("""
+                    {
+                      "idx": %s,
+                      "key": "key%s",
+                      "field1": "value1",
+                      "field2": 2,
+                      "field3": "ignored",
+                      "field4": "ignored",
+                      "field5": "value5"
+                    }""", idx, idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ).actionGet();
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
             SearchResponse sourceSearchResponse = client().search(
@@ -516,7 +518,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
             IndexResponse indexRequest = client().index(
-                new IndexRequest().index(sourceIndex).id(collidingDocId).routing(collidingDocId + idx).source("""
+                new IndexRequest().index(sourceIndex).id(collidingDocId).routing(collidingDocId + idx).source(formatted("""
                     {
                       "idx": %s,
                       "key": "key%s",
@@ -525,7 +527,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                       "field3": "ignored",
                       "field4": "ignored",
                       "field5": "value5"
-                    }""".formatted(idx, idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    }""", idx, idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             ).actionGet();
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
@@ -619,16 +621,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         int numberOfSourceIndices = 3;
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
-            IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source("""
-                {
-                  "idx": %s,
-                  "key": "key",
-                  "field1": "value1",
-                  "field2": 2,
-                  "field3": "ignored",
-                  "field4": "ignored",
-                  "field5": "value5"
-                }""".formatted(idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
+            IndexResponse indexRequest = client().index(
+                new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(formatted("""
+                    {
+                      "idx": %s,
+                      "key": "key",
+                      "field1": "value1",
+                      "field2": 2,
+                      "field3": "ignored",
+                      "field4": "ignored",
+                      "field5": "value5"
+                    }""", idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            ).actionGet();
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
             SearchResponse sourceSearchResponse = client().search(

@@ -117,7 +117,7 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(stats.getJvmInference().getBytes(), greaterThanOrEqualTo(0L));
         }
         assertThat(mlNodes, is(2));
-        assertThat(nodesWithPytorchModel, equalTo(mlNodes));
+        assertThat(nodesWithPytorchModel, equalTo(1));
         assertThat(nodesWithAnomalyJob, is(1));
         // It's possible that the DFA job could have finished before the stats call was made
         assumeFalse(

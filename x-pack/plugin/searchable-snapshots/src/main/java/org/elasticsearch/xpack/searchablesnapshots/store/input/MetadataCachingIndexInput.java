@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
@@ -20,6 +19,8 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
@@ -215,8 +216,8 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
                 );
             } catch (Exception e) {
                 logger.debug(
-                    new ParameterizedMessage(
-                        "failed to store bytes [{}-{}] of file [{}] obtained from index cache",
+                    () -> format(
+                        "failed to store bytes [%s-%s] of file [%s] obtained from index cache",
                         cachedBlob.from(),
                         cachedBlob.to(),
                         fileInfo
@@ -255,7 +256,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
     protected void writeCacheFile(final FileChannel fc, final long start, final long end, final Consumer<Long> progressUpdater)
         throws IOException {
         assert assertFileChannelOpen(fc);
-        assert assertCurrentThreadMayWriteCacheFile();
+        assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         final long length = end - start;
         final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
         logger.trace(() -> format("writing range [%s-%s] to cache file [%s]", start, end, cacheFileReference));
@@ -353,15 +354,8 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
 
     @SuppressForbidden(reason = "Use positional writes on purpose")
     protected static int positionalWrite(FileChannel fc, long start, ByteBuffer byteBuffer) throws IOException {
-        assert assertCurrentThreadMayWriteCacheFile();
+        assert ThreadPool.assertCurrentThreadPool(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         return fc.write(byteBuffer, start);
-    }
-
-    protected static boolean assertCurrentThreadMayWriteCacheFile() {
-        final String threadName = Thread.currentThread().getName();
-        assert isCacheFetchAsyncThread(threadName)
-            : "expected the current thread [" + threadName + "] to belong to the cache fetch async thread pool";
-        return true;
     }
 
     protected int readDirectlyIfAlreadyClosed(long position, ByteBuffer b, Exception e) throws IOException {

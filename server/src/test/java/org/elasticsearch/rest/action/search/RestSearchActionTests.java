@@ -7,11 +7,15 @@
  */
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -69,6 +73,47 @@ public class RestSearchActionTests extends RestActionTestCase {
         ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
         action.handleRequest(request, new FakeRestChannel(request, false, 1), verifyingClient);
+    }
+
+    public void testValidateSearchRequest() {
+        {
+            Map<String, String> params = new HashMap<>();
+            params.put("rest_total_hits_as_int", "true");
+
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+                Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+            ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
+
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().trackTotalHitsUpTo(100));
+
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> RestSearchAction.validateSearchRequest(request, searchRequest)
+            );
+            assertEquals("[rest_total_hits_as_int] cannot be used if the tracking of total hits is not accurate, got 100", ex.getMessage());
+        }
+        {
+            Map<String, String> params = new HashMap<>();
+            params.put("search_type", randomFrom(SearchType.values()).name());
+
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+                Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+            ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
+
+            SearchRequest searchRequest = new SearchRequest();
+            KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", new float[] { 1, 1, 1 }, 10, 100);
+            searchRequest.source(new SearchSourceBuilder().knnSearch(knnSearch));
+
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> RestSearchAction.validateSearchRequest(request, searchRequest)
+            );
+            assertEquals(
+                "cannot set [search_type] when using [knn] search, since the search type is determined automatically",
+                ex.getMessage()
+            );
+        }
     }
 
     /**

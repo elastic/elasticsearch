@@ -9,7 +9,6 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
@@ -42,6 +41,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
@@ -493,7 +494,7 @@ public abstract class TransportWriteAction<
             ActionListener<Void> listener
         ) {
             if (TransportActions.isShardNotAvailableException(exception) == false) {
-                logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
+                logger.warn(() -> format("[%s] %s", replica.shardId(), message), exception);
             }
             shardStateAction.remoteShardFailed(
                 replica.shardId(),

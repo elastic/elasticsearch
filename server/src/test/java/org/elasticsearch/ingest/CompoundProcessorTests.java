@@ -14,7 +14,6 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -38,7 +37,7 @@ public class CompoundProcessorTests extends ESTestCase {
 
     @Before
     public void init() {
-        ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        ingestDocument = TestIngestDocument.emptyIngestDocument();
     }
 
     // need to (randomly?) mix sync and async processors

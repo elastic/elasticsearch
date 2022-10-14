@@ -1,0 +1,18 @@
+pr: 89106
+summary: Set `track_total_hits` to false when not needed
+area: SQL
+type: enhancement
+issues:
+ - 88764
+highlight:
+  title: Speed up SQL queries by not tracking total hits by default
+  body: |-
+    SQL query translator now explicitly sets track_total_hits to false when
+    not needed.
+    This has a significant impact on SQL query performance in cases where total hits
+    are not needed to calculate the final result, in particular when the cost of evaluation
+    of a single document is particularly high (eg. queries that involve script evaluation)
+    and in queries with a small LIMIT value.
+    In our tests, on some specific queries, we see a speed-up of more than 50%,
+    with peaks of ~95% (from 600ms to 20ms).
+  notable: true

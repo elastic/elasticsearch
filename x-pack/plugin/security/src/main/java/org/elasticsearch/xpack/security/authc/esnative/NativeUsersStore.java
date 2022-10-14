@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -62,6 +61,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -276,13 +276,7 @@ public class NativeUsersStore {
                                     listener
                                 );
                             } else {
-                                logger.debug(
-                                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                        "failed to change password for user [{}]",
-                                        request.username()
-                                    ),
-                                    e
-                                );
+                                logger.debug(() -> format("failed to change password for user [%s]", request.username()), e);
                                 ValidationException validationException = new ValidationException();
                                 validationException.addValidationError("user must exist in order to change password");
                                 listener.onFailure(validationException);
@@ -398,13 +392,7 @@ public class NativeUsersStore {
                         if (isIndexNotFoundOrDocumentMissing(e)) {
                             // if the index doesn't exist we can never update a user
                             // if the document doesn't exist, then this update is not valid
-                            logger.debug(
-                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to update user document with username [{}]",
-                                    putUserRequest.username()
-                                ),
-                                e
-                            );
+                            logger.debug(() -> format("failed to update user document with username [%s]", putUserRequest.username()), e);
                             ValidationException validationException = new ValidationException();
                             validationException.addValidationError("password must be specified unless you are updating an existing user");
                             failure = validationException;
@@ -500,14 +488,7 @@ public class NativeUsersStore {
                         if (isIndexNotFoundOrDocumentMissing(e)) {
                             // if the index doesn't exist we can never update a user
                             // if the document doesn't exist, then this update is not valid
-                            logger.debug(
-                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to {} user [{}]",
-                                    enabled ? "enable" : "disable",
-                                    username
-                                ),
-                                e
-                            );
+                            logger.debug(() -> format("failed to %s user [%s]", enabled ? "enable" : "disable", username), e);
                             ValidationException validationException = new ValidationException();
                             validationException.addValidationError("only existing users can be " + (enabled ? "enabled" : "disabled"));
                             failure = validationException;
@@ -654,10 +635,7 @@ public class NativeUsersStore {
                         public void onFailure(Exception e) {
                             if (TransportActions.isShardNotAvailableException(e)) {
                                 logger.trace(
-                                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                        "could not retrieve built in user [{}] info since security index unavailable",
-                                        username
-                                    ),
+                                    () -> format("could not retrieve built in user [%s] info since security index unavailable", username),
                                     e
                                 );
                             }

@@ -27,6 +27,7 @@ import org.elasticsearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
@@ -116,7 +117,7 @@ public class UnifiedHighlighter implements Highlighter {
         );
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
-        OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
+        OffsetSource offsetSource = getOffsetSource(fieldContext.context, fieldContext.fieldType);
         BreakIterator breakIterator;
         int higlighterNumberOfFragments;
         if (numberOfFragments == 0
@@ -213,7 +214,10 @@ public class UnifiedHighlighter implements Highlighter {
         return rawValue.substring(0, Math.min(rawValue.length(), Integer.MAX_VALUE - 1));
     }
 
-    protected static OffsetSource getOffsetSource(MappedFieldType fieldType) {
+    protected static OffsetSource getOffsetSource(FetchContext fetchContext, MappedFieldType fieldType) {
+        if (fetchContext.sourceLoader().reordersFieldValues()) {
+            return OffsetSource.ANALYSIS;
+        }
         TextSearchInfo tsi = fieldType.getTextSearchInfo();
         if (tsi.hasOffsets()) {
             return tsi.termVectors() != TextSearchInfo.TermVector.NONE ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;

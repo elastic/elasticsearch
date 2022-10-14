@@ -15,6 +15,10 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
@@ -31,19 +35,15 @@ public class DataStreamMetadataTests extends AbstractNamedWriteableTestCase<Data
         if (randomBoolean()) {
             return new DataStreamMetadata(ImmutableOpenMap.of(), ImmutableOpenMap.of());
         }
-        ImmutableOpenMap.Builder<String, DataStream> dataStreams = ImmutableOpenMap.builder();
-        for (int i = 0; i < randomIntBetween(1, 5); i++) {
-            dataStreams.put(randomAlphaOfLength(5), DataStreamTestHelper.randomInstance());
-        }
+        Map<String, DataStream> dataStreams = IntStream.range(0, randomIntBetween(1, 5))
+            .boxed()
+            .collect(Collectors.toUnmodifiableMap(i -> randomAlphaOfLength(5), i -> DataStreamTestHelper.randomInstance()));
 
-        ImmutableOpenMap.Builder<String, DataStreamAlias> dataStreamsAliases = ImmutableOpenMap.builder();
-        if (randomBoolean()) {
-            for (int i = 0; i < randomIntBetween(1, 5); i++) {
-                DataStreamAlias alias = DataStreamTestHelper.randomAliasInstance();
-                dataStreamsAliases.put(alias.getName(), alias);
-            }
-        }
-        return new DataStreamMetadata(dataStreams.build(), dataStreamsAliases.build());
+        Map<String, DataStreamAlias> dataStreamsAliases = IntStream.range(0, randomIntBetween(1, 5))
+            .mapToObj(i -> DataStreamTestHelper.randomAliasInstance())
+            .collect(Collectors.toUnmodifiableMap(DataStreamAlias::getName, Function.identity()));
+
+        return new DataStreamMetadata(ImmutableOpenMap.builder(dataStreams).build(), ImmutableOpenMap.builder(dataStreamsAliases).build());
     }
 
     @Override

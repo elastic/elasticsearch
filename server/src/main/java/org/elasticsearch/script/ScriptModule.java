@@ -51,6 +51,8 @@ public class ScriptModule {
                 BytesRefSortScript.CONTEXT,
                 TermsSetQueryScript.CONTEXT,
                 UpdateScript.CONTEXT,
+                ReindexScript.CONTEXT,
+                UpdateByQueryScript.CONTEXT,
                 BucketAggregationScript.CONTEXT,
                 BucketAggregationSelectorScript.CONTEXT,
                 SignificantTermsHeuristicScoreScript.CONTEXT,
@@ -66,7 +68,8 @@ public class ScriptModule {
                 ScriptedMetricAggContexts.MapScript.CONTEXT,
                 ScriptedMetricAggContexts.CombineScript.CONTEXT,
                 ScriptedMetricAggContexts.ReduceScript.CONTEXT,
-                IntervalFilterScript.CONTEXT
+                IntervalFilterScript.CONTEXT,
+                DoubleValuesScript.CONTEXT
             ),
             RUNTIME_FIELDS_CONTEXTS.stream()
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));

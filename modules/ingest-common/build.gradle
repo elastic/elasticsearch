@@ -16,7 +16,7 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(':modules:lang-painless')
+  compileOnly project(':modules:lang-painless:spi')
   api project(':libs:elasticsearch-grok')
   api project(':libs:elasticsearch-dissect')
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"

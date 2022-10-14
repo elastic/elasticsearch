@@ -10,7 +10,6 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NotifyOnceListener;
@@ -32,6 +31,7 @@ import java.util.Locale;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.Strings.format;
 
 public class HandshakingTransportAddressConnector implements TransportAddressConnector {
 
@@ -148,8 +148,8 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                             // that the remote node is listening on 0.0.0.0 but has made an inappropriate choice for its
                                             // publish address.
                                             logger.warn(
-                                                new ParameterizedMessage(
-                                                    "completed handshake with [{}] at [{}] but followup connection to [{}] failed",
+                                                () -> format(
+                                                    "completed handshake with [%s] at [%s] but followup connection to [%s] failed",
                                                     remoteNode.descriptionWithoutAttributes(),
                                                     transportAddress,
                                                     remoteNode.getAddress()

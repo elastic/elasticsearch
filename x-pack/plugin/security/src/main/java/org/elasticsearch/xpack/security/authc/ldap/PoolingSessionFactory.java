@@ -15,7 +15,6 @@ import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.SecureString;
@@ -35,7 +34,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.BIND_DN;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SECURE_BIND_PASSWORD;
 
@@ -99,7 +98,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                     "[{}] is set but no bind password is specified. Without a corresponding bind password, "
                         + "all {} realm authentication will fail. Specify a bind password via [{}] or [{}]. "
                         + "In the next major release, nodes with incomplete bind credentials will fail to start.",
-                    RealmSettings.getFullSettingKey(config, BIND_DN),
+                    RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
                     config.type(),
                     RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
                     RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
@@ -201,8 +200,8 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
                     pool.setHealthCheckIntervalMillis(healthCheckInterval);
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] and [{}} have not been specified or are not valid distinguished names,"
+                        () -> format(
+                            "[%s] and [%s] have not been specified or are not valid distinguished names,"
                                 + "so connection health checking is disabled",
                             RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN),
                             RealmSettings.getFullSettingKey(config, PoolingSessionFactorySettings.HEALTH_CHECK_DN)

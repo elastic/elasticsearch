@@ -44,6 +44,8 @@ public final class DataTypes {
     public static final DataType DATETIME         = new DataType("DATETIME", "date",        Long.BYTES,  false, false, true);
     // ip
     public static final DataType IP               = new DataType("ip",                45,                false, false, true);
+    // version
+    public static final DataType VERSION          = new DataType("version",           Integer.MAX_VALUE, false, false, true);
     // binary
     public static final DataType BINARY           = new DataType("binary",            Integer.MAX_VALUE, false, false, true);
     // complex types
@@ -68,6 +70,7 @@ public final class DataTypes {
         TEXT,
         DATETIME,
         IP,
+        VERSION,
         BINARY,
         OBJECT,
         NESTED

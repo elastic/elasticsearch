@@ -601,8 +601,7 @@ class InjectorImpl implements Injector, Lookups {
      */
     MembersInjectorStore membersInjectorStore;
 
-    @Override
-    public <T> Provider<T> getProvider(Class<T> type) {
+    private <T> Provider<T> getProvider(Class<T> type) {
         return getProvider(Key.get(type));
     }
 

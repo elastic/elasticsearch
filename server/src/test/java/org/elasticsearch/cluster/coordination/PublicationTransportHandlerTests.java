@@ -32,6 +32,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransport;
@@ -52,6 +54,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.service.MasterService.STATE_UPDATE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -101,7 +105,14 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
             () -> handler.newPublicationContext(
-                new ClusterStatePublicationEvent(new BatchSummary("test"), clusterState, unserializableClusterState, 0L, 0L)
+                new ClusterStatePublicationEvent(
+                    new BatchSummary("test"),
+                    clusterState,
+                    unserializableClusterState,
+                    new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, emptyMap()),
+                    0L,
+                    0L
+                )
             )
         );
         assertNotNull(e.getCause());
@@ -276,7 +287,14 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             final PublicationTransportHandler.PublicationContext context;
             try {
                 context = handler.newPublicationContext(
-                    new ClusterStatePublicationEvent(new BatchSummary("test"), prevClusterState, nextClusterState, 0L, 0L)
+                    new ClusterStatePublicationEvent(
+                        new BatchSummary("test"),
+                        prevClusterState,
+                        nextClusterState,
+                        new Task(randomNonNegativeLong(), "test", STATE_UPDATE_ACTION_NAME, "", TaskId.EMPTY_TASK_ID, emptyMap()),
+                        0L,
+                        0L
+                    )
                 );
             } catch (ElasticsearchException e) {
                 assertTrue(simulateFailures);

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
@@ -66,7 +67,11 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         // we can initially only allocate on node2
         assertEquals(routingTable.index("idx").shard(0).shard(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).shard(0).currentNodeId(), "node2");
-        routingTable = service.applyFailedShard(state, routingTable.index("idx").shard(0).shard(0), randomBoolean()).routingTable();
+        routingTable = service.applyFailedShards(
+            state,
+            List.of(new FailedShard(routingTable.index("idx").shard(0).shard(0), null, null, randomBoolean())),
+            List.of()
+        ).routingTable();
         state = ClusterState.builder(state).routingTable(routingTable).build();
         assertEquals(routingTable.index("idx").shard(0).shard(0).state(), UNASSIGNED);
         assertNull(routingTable.index("idx").shard(0).shard(0).currentNodeId());
@@ -122,7 +127,11 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             true,
             "test"
         );
-        state = service.applyFailedShard(state, routingTable.index("idx").shard(0).primaryShard(), randomBoolean());
+        state = service.applyFailedShards(
+            state,
+            List.of(new FailedShard(routingTable.index("idx").shard(0).primaryShard(), null, null, randomBoolean())),
+            List.of()
+        );
 
         // now bring back node1 and see it's assigned
         state = service.reroute(ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).add(node1)).build(), "test");

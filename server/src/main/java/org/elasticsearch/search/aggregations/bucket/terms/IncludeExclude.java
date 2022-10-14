@@ -19,13 +19,14 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.RegExp;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.ParseField;
@@ -173,10 +174,10 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
         private SetBackedLongFilter(int numValids, int numInvalids) {
             if (numValids > 0) {
-                valids = new HashSet<>(numValids);
+                valids = Sets.newHashSetWithExpectedSize(numValids);
             }
             if (numInvalids > 0) {
-                invalids = new HashSet<>(numInvalids);
+                invalids = Sets.newHashSetWithExpectedSize(numInvalids);
             }
         }
 

@@ -159,7 +159,12 @@ public class InstallPluginAction implements Closeable {
      * maintained so that existing user workflows that install these plugins do not need to be updated
      * immediately.
      */
-    public static final Set<String> PLUGINS_CONVERTED_TO_MODULES = Set.of("repository-azure", "repository-gcs", "repository-s3");
+    public static final Set<String> PLUGINS_CONVERTED_TO_MODULES = Set.of(
+        "repository-azure",
+        "repository-gcs",
+        "repository-s3",
+        "ingest-attachment"
+    );
 
     static final Set<PosixFilePermission> BIN_DIR_PERMS;
     static final Set<PosixFilePermission> BIN_FILES_PERMS;

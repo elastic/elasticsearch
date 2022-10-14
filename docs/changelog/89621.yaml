@@ -1,0 +1,5 @@
+pr: 89621
+summary: Fix bug for kNN with filtered aliases
+area: Vector Search
+type: bug
+issues: []

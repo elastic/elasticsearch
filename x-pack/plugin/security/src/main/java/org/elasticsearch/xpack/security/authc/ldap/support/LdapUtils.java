@@ -27,8 +27,6 @@ import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
@@ -53,6 +51,8 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import javax.naming.ldap.Rdn;
+
+import static org.elasticsearch.core.Strings.format;
 
 public final class LdapUtils {
 
@@ -658,13 +658,7 @@ public final class LdapUtils {
                             searchResult
                         );
                     } catch (LDAPException e) {
-                        LOGGER.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "caught exception while trying to follow referral [{}]",
-                                referralUrl
-                            ),
-                            e
-                        );
+                        LOGGER.warn(() -> format("caught exception while trying to follow referral [%s]", referralUrl), e);
                         if (ignoreReferralErrors) {
                             // Needed in order for the countDown to be correct
                             referralListener.onResponse(emptyResult(searchResult));
@@ -744,10 +738,7 @@ public final class LdapUtils {
                 if (ignoreErrors) {
                     if (LOGGER.isDebugEnabled()) {
                         LOGGER.debug(
-                            new ParameterizedMessage(
-                                "Failed to retrieve results from referral URL [{}]." + " Treating as 'no results'",
-                                referralURL
-                            ),
+                            () -> format("Failed to retrieve results from referral URL [%s]." + " Treating as 'no results'", referralURL),
                             e
                         );
                     }

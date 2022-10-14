@@ -20,6 +20,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -76,7 +77,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -102,7 +104,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -128,7 +131,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -154,7 +158,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -175,7 +180,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -197,7 +203,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         handler = transport.configureServerChannelHandler();
         ch = new EmbeddedChannel(handler);
@@ -228,7 +235,8 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP
         );
         assertNotNull(transport.configureServerChannelHandler());
     }

@@ -29,10 +29,11 @@ installed.
 
 [source,yaml]
 ----
-plugin.mandatory: ingest-attachment
+plugin.mandatory: my-ingest-plugin
 ----
 
 include::processors/append.asciidoc[]
+include::processors/attachment.asciidoc[]
 include::processors/bytes.asciidoc[]
 include::processors/circle.asciidoc[]
 include::processors/community-id.asciidoc[]

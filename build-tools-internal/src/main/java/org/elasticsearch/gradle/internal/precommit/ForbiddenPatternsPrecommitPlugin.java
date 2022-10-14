@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
@@ -20,7 +19,7 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin {
 
     public static final String FORBIDDEN_PATTERNS_TASK_NAME = "forbiddenPatterns";
     private final ProviderFactory providerFactory;

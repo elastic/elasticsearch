@@ -5,7 +5,10 @@
 <titleabbrev>Activate user profile</titleabbrev>
 ++++
 
-beta::[]
+NOTE: The user profile feature is designed only for use by {kib} and
+Elastic’s {observability}, {ents}, and {elastic-sec} solutions. Individual
+users and external applications should not call this API directly. Elastic reserves
+the right to change or remove this feature in future releases without prior notice.
 
 Creates or updates a user profile on behalf of another user.
 
@@ -103,7 +106,7 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-  "uid": "u_kd2JMqwUQwSCCOxMv7M1vw",
+  "uid": "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0",
   "enabled": true,
   "last_synchronized": 1642650651037,
   "user": {
@@ -123,7 +126,6 @@ The API returns the following response:
   }
 }
 ----
-// TESTRESPONSE[s/u_kd2JMqwUQwSCCOxMv7M1vw/$body.uid/]
 // TESTRESPONSE[s/1642650651037/$body.last_synchronized/]
 // TESTRESPONSE[s/88/$body._doc._primary_term/]
 // TESTRESPONSE[s/66/$body._doc._seq_no/]

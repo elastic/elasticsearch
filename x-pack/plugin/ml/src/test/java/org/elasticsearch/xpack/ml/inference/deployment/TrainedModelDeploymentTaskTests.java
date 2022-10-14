@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskId;
@@ -53,7 +54,8 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
                 randomLongBetween(1, Long.MAX_VALUE),
                 randomInt(5),
                 randomInt(5),
-                randomInt(5)
+                randomInt(5),
+                randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, Long.MAX_VALUE))
             ),
             nodeService,
             licenseState,

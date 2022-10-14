@@ -8,7 +8,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -390,10 +389,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                                     );
                                     handleNodes(nodesIter);
                                 } else {
-                                    logger.warn(
-                                        new ParameterizedMessage("[{}] failed to open managed connection to node [{}]", clusterAlias, node),
-                                        e
-                                    );
+                                    logger.warn(() -> format("[%s] failed to open managed connection to node [%s]", clusterAlias, node), e);
                                     IOUtils.closeWhileHandlingException(connection);
                                     collectRemoteNodes(seedNodes, listener);
                                 }

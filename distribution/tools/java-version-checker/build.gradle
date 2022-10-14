@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.build'
 
 sourceSets {
   unsupportedJdkVersionEntrypoint
@@ -22,6 +22,7 @@ tasks.named("jar") {
   }
 }
 
-["test", "javadoc"].each {
+// TODO revisit forbiddenApis issues
+["javadoc", "forbiddenApisMain", "forbiddenApisUnsupportedJdkVersionEntrypoint"].each {
   tasks.named(it).configure { enabled = false }
 }

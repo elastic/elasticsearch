@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,8 +51,7 @@ public class JoinReasonService {
      * Called when a new cluster state was applied by a master-eligible node, possibly adding or removing some nodes.
      */
     public void onClusterStateApplied(DiscoveryNodes discoveryNodes) {
-        assert Thread.currentThread().getName().contains('[' + ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME + ']')
-            || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         assert discoveryNodes.getLocalNode().isMasterNode();
 
         if (this.discoveryNodes != discoveryNodes) {
@@ -98,8 +98,7 @@ public class JoinReasonService {
      * absent node is still tracked then this adds the removal reason ({@code disconnected}, {@code lagging}, etc.) to the tracker.
      */
     public void onNodeRemoved(DiscoveryNode discoveryNode, String reason) {
-        assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
-            : Thread.currentThread().getName();
+        assert MasterService.assertMasterUpdateOrTestThread();
         trackedNodes.computeIfPresent(discoveryNode.getId(), (ignored, trackedNode) -> trackedNode.withRemovalReason(reason));
     }
 

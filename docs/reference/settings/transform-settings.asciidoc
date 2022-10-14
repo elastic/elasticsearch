@@ -16,14 +16,14 @@ default.
 
 `node.roles: [ transform ]`::
 (<<static-cluster-setting,Static>>) Set `node.roles` to contain `transform` to
-identify the node as a _transform node_. If you want to run {transforms}, there 
+identify the node as a _transform node_. If you want to run {transforms}, there
 must be at least one {transform} node in your cluster.
 +
 If you set `node.roles`, you must explicitly specify all the required roles for
 the node. To learn more, refer to <<modules-node>>.
-+ 
-IMPORTANT: It is strongly recommended that dedicated {transform} nodes also have 
-the `remote_cluster_client` role; otherwise, {ccs} fails when used in 
++
+IMPORTANT: It is strongly recommended that dedicated {transform} nodes also have
+the `remote_cluster_client` role; otherwise, {ccs} fails when used in
 {transforms}. See <<remote-node>>.
 
 `xpack.transform.enabled`::
@@ -37,3 +37,5 @@ retries when it experiences a non-fatal error. Once the number of retries is
 exhausted, the {transform} task is marked as `failed`. The default value is `10`
 with a valid minimum of `0` and maximum of `100`. If a {transform} is already
 running, it has to be restarted to use the changed setting.
+The `num_failure_retries` setting can also be specified on an individual {transform} level.
+Specifying this setting for each {transform} individually is recommended.

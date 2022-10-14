@@ -89,9 +89,11 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -162,7 +164,12 @@ public class ClusterStateChanges {
         Environment environment = TestEnvironment.newEnvironment(SETTINGS);
         Transport transport = mock(Transport.class); // it's not used
 
-        final var masterService = new MasterService(SETTINGS, clusterSettings, threadPool) {
+        final var masterService = new MasterService(
+            SETTINGS,
+            clusterSettings,
+            threadPool,
+            new TaskManager(SETTINGS, threadPool, Collections.emptySet())
+        ) {
             @Override
             protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
                 // run master tasks inline, no need to fork to a separate thread
@@ -227,7 +234,8 @@ public class ClusterStateChanges {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(SETTINGS, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
             clusterSettings,
-            Collections.emptySet()
+            Collections.emptySet(),
+            Tracer.NOOP
         );
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(SETTINGS, xContentRegistry, null, null, null) {
             // metadata upgrader should do nothing
@@ -276,8 +284,7 @@ public class ClusterStateChanges {
             allocationService,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             indicesService,
-            shardLimitValidator,
-            threadPool
+            shardLimitValidator
         );
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             SETTINGS,

@@ -27,8 +27,8 @@ import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.mockito.Mockito.mock;
@@ -72,8 +72,8 @@ public class HighlighterTestCase extends MapperServiceTestCase {
      */
     protected static void assertHighlights(Map<String, HighlightField> highlights, String field, String... fragments) {
         assertNotNull("No highlights reported for field [" + field + "]", highlights.get(field));
-        Set<String> actualFragments = Arrays.stream(highlights.get(field).getFragments()).map(Text::toString).collect(Collectors.toSet());
-        Set<String> expectedFragments = Set.of(fragments);
+        List<String> actualFragments = Arrays.stream(highlights.get(field).getFragments()).map(Text::toString).collect(Collectors.toList());
+        List<String> expectedFragments = List.of(fragments);
         assertEquals(expectedFragments, actualFragments);
     }
 
@@ -82,6 +82,7 @@ public class HighlighterTestCase extends MapperServiceTestCase {
         when(fetchContext.highlight()).thenReturn(search.highlighter().build(context));
         when(fetchContext.parsedQuery()).thenReturn(new ParsedQuery(search.query().toQuery(context)));
         when(fetchContext.getSearchExecutionContext()).thenReturn(context);
+        when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(false));
         return fetchContext;
     }
 }

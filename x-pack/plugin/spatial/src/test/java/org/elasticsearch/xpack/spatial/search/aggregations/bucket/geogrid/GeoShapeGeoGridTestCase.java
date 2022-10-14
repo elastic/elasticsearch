@@ -39,7 +39,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
+import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
@@ -163,7 +163,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
         GeoBoundingBox bbox = randomBBox();
 
-        List<BinaryGeoShapeDocValuesField> docs = new ArrayList<>();
+        List<BinaryShapeDocValuesField> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             Point p = randomPoint();
             double lon = GeoTestUtils.encodeDecodeLon(p.getX());
@@ -179,7 +179,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
         final long numDocsInBucket = numDocsWithin;
 
         testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, bbox, iw -> {
-            for (BinaryGeoShapeDocValuesField docField : docs) {
+            for (BinaryShapeDocValuesField docField : docs) {
                 iw.addDocument(Collections.singletonList(docField));
             }
         }, geoGrid -> {
@@ -287,7 +287,7 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket> e
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
+        indexSearcher.search(query, aggregator.asCollector());
         aggregator.postCollection();
 
         verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());

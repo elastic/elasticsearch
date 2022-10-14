@@ -9,7 +9,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -476,7 +476,7 @@ public class RecoverySourceHandler {
                 closeable.close();
             } catch (Exception e) {
                 assert false : e;
-                logger.warn(new ParameterizedMessage("Exception while closing [{}]", closeable), e);
+                logger.warn(() -> format("Exception while closing [%s]", closeable), e);
             }
         });
     }
@@ -556,9 +556,15 @@ public class RecoverySourceHandler {
                     );
                 }
             }
-            if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
+            // When sync ids were used we could use them to check if two shard copies were equivalent,
+            // if that's the case we can skip sending files from the source shard to the target shard.
+            // If the shard uses the current replication mechanism, we have to compute the recovery plan,
+            // and it is still possible to skip the sending files from the source shard to the target shard
+            // using a different mechanism to determine it.
+            // TODO: is this still relevant today?
+            if (hasSameLegacySyncId(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
-                final boolean canUseSnapshots = useSnapshots && request.canDownloadSnapshotFiles();
+                final boolean canUseSnapshots = canUseSnapshots();
                 recoveryPlannerService.computeRecoveryPlan(
                     shard.shardId(),
                     shardStateIdentifier,
@@ -596,6 +602,12 @@ public class RecoverySourceHandler {
         } catch (Exception e) {
             throw new RecoverFilesRecoveryException(request.shardId(), 0, new ByteSizeValue(0L), e);
         }
+    }
+
+    private boolean canUseSnapshots() {
+        return useSnapshots && request.canDownloadSnapshotFiles()
+        // Avoid using snapshots for searchable snapshots as these are implicitly recovered from a snapshot
+            && shard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
     }
 
     void recoverFilesFromSourceAndSnapshot(
@@ -790,7 +802,7 @@ public class RecoverySourceHandler {
         private final CountDown countDown;
         private final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> pendingSnapshotFilesToRecover;
         private final AtomicBoolean cancelled = new AtomicBoolean();
-        private final Set<ListenableFuture<Void>> outstandingRequests = new HashSet<>(maxConcurrentSnapshotFileDownloads);
+        private final Set<ListenableFuture<Void>> outstandingRequests = Sets.newHashSetWithExpectedSize(maxConcurrentSnapshotFileDownloads);
         private List<StoreFileMetadata> filesFailedToDownloadFromSnapshot;
 
         SnapshotRecoverFileRequestsSender(ShardRecoveryPlan shardRecoveryPlan, ActionListener<List<StoreFileMetadata>> listener) {
@@ -829,16 +841,13 @@ public class RecoverySourceHandler {
                     public void onFailure(Exception e) {
                         if (cancelled.get() || e instanceof CancellableThreads.ExecutionCancelledException) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "cancelled while recovering file [{}] from snapshot",
-                                    snapshotFileToRecover.metadata()
-                                ),
+                                () -> format("cancelled while recovering file [%s] from snapshot", snapshotFileToRecover.metadata()),
                                 e
                             );
                         } else {
                             logger.warn(
-                                new ParameterizedMessage(
-                                    "failed to recover file [{}] from snapshot{}",
+                                () -> format(
+                                    "failed to recover file [%s] from snapshot%s",
                                     snapshotFileToRecover.metadata(),
                                     shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() ? ", will recover from primary instead" : ""
                                 ),
@@ -993,7 +1002,7 @@ public class RecoverySourceHandler {
         }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
     }
 
-    boolean canSkipPhase1(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
+    boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
         if (source.getSyncId() == null || source.getSyncId().equals(target.getSyncId()) == false) {
             return false;
         }

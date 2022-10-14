@@ -29,15 +29,16 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.SpatialUtils;
+import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper.ShapeFieldType;
-import org.elasticsearch.xpack.spatial.index.mapper.ShapeIndexer;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
 import java.io.IOException;
@@ -116,7 +117,7 @@ public class CircleProcessorTests extends ESTestCase {
         map.put("field", circleMap);
         Geometry expectedPoly = SpatialUtils.createRegularGeoShapePolygon(circle, 4);
         assertThat(expectedPoly, instanceOf(Polygon.class));
-        IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
         processor.execute(ingestDocument);
         Map<String, Object> polyMap = ingestDocument.getFieldValue("field", Map.class);
@@ -135,7 +136,7 @@ public class CircleProcessorTests extends ESTestCase {
         HashMap<String, Object> map = new HashMap<>();
         map.put("field", WellKnownText.toWKT(circle));
         Geometry expectedPoly = SpatialUtils.createRegularGeoShapePolygon(circle, 4);
-        IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 2, GEO_SHAPE);
         processor.execute(ingestDocument);
         String polyString = ingestDocument.getFieldValue("field", String.class);
@@ -145,7 +146,7 @@ public class CircleProcessorTests extends ESTestCase {
     public void testInvalidWKT() {
         HashMap<String, Object> map = new HashMap<>();
         map.put("field", "invalid");
-        IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("invalid circle definition"));
@@ -155,7 +156,7 @@ public class CircleProcessorTests extends ESTestCase {
     }
 
     public void testMissingField() {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), Collections.emptyMap());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("field [field] not present as part of path [field]"));
@@ -167,7 +168,7 @@ public class CircleProcessorTests extends ESTestCase {
         field.put("radius", "10m");
         Map<String, Object> map = new HashMap<>();
         map.put("field", field);
-        IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
 
         for (Object value : new Object[] { null, 4.0, "not_circle" }) {
@@ -183,7 +184,7 @@ public class CircleProcessorTests extends ESTestCase {
         field.put("radius", "10m");
         Map<String, Object> map = new HashMap<>();
         map.put("field", field);
-        IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
 
         for (Object value : new Object[] { null, "not_circle" }) {
@@ -199,7 +200,7 @@ public class CircleProcessorTests extends ESTestCase {
         field.put("coordinates", List.of(100.0, 1.0));
         Map<String, Object> map = new HashMap<>();
         map.put("field", field);
-        IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(map);
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
 
         for (Object value : new Object[] { null, "NotNumber", "10.0fs" }) {
@@ -257,22 +258,23 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType = new ShapeFieldType(fieldName, true, Orientation.RIGHT, null, Collections.emptyMap());
+        MappedFieldType shapeType = new ShapeFieldType(fieldName, true, true, Orientation.RIGHT, null, Collections.emptyMap());
 
         ShapeQueryProcessor processor = new ShapeQueryProcessor();
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);
-        Query sameShapeQuery = processor.shapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
+        Query sameShapeQuery = processor.shapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext, true);
         Query centerPointQuery = processor.shapeQuery(
             new Point(circle.getLon(), circle.getLat()),
             fieldName,
             ShapeRelation.INTERSECTS,
-            mockedContext
+            mockedContext,
+            true
         );
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            ShapeIndexer indexer = new ShapeIndexer(fieldName);
+            CartesianShapeIndexer indexer = new CartesianShapeIndexer(fieldName);
             for (IndexableField field : indexer.indexShape(geometry)) {
                 doc.add(field);
             }

@@ -27,12 +27,12 @@ public class PreserveOneAllocation extends AbstractPreserveAllocations {
 
     @Override
     protected Map<String, Integer> calculateAllocationsPerNodeToPreserve(Model m) {
-        return m.currentAllocationByNodeId().entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue() - 1));
+        return m.currentAllocationsByNodeId().entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue() - 1));
     }
 
     @Override
     protected int calculatePreservedAllocations(Model m) {
-        return (int) m.currentAllocationByNodeId().values().stream().filter(v -> v > 0).count();
+        return (int) m.currentAllocationsByNodeId().values().stream().filter(v -> v > 0).count();
     }
 
     @Override

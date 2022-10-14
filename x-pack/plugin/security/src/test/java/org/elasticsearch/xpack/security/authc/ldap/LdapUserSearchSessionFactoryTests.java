@@ -42,6 +42,7 @@ import org.junit.Before;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.BIND_DN;
@@ -217,13 +218,15 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         try (LdapUserSearchSessionFactory ignored = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
             assertCriticalWarnings(
-                ("[%s] is set but no bind password is specified. Without a corresponding bind password, "
-                    + "all ldap realm authentication will fail. Specify a bind password via [%s] or [%s]. "
-                    + "In the next major release, nodes with incomplete bind credentials will fail to start.").formatted(
-                        RealmSettings.getFullSettingKey(config, BIND_DN),
-                        RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
-                        RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
-                    )
+                String.format(
+                    Locale.ROOT,
+                    "[%s] is set but no bind password is specified. Without a corresponding bind password, "
+                        + "all ldap realm authentication will fail. Specify a bind password via [%s] or [%s]. "
+                        + "In the next major release, nodes with incomplete bind credentials will fail to start.",
+                    RealmSettings.getFullSettingKey(config, BIND_DN),
+                    RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
+                    RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
+                )
             );
         }
     }
@@ -250,7 +253,9 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         Exception ex = expectThrows(IllegalArgumentException.class, () -> getLdapUserSearchSessionFactory(config, sslService, threadPool));
         assertEquals(
-            "You cannot specify both [%s] and [%s]".formatted(
+            String.format(
+                Locale.ROOT,
+                "You cannot specify both [%s] and [%s]",
                 RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD),
                 RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
             ),

@@ -370,7 +370,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param shardId           the {@link ShardId}
      */
     public void waitForCacheFilesEvictionIfNeeded(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
-        assert assertGenericThreadPool();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final Future<?> future;
         synchronized (shardsEvictionsMutex) {
             if (allowShardsEvictions == false) {
@@ -391,7 +391,7 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     private void processShardEviction(ShardEviction shardEviction) {
         assert isPendingShardEviction(shardEviction) : "shard is not marked as evicted: " + shardEviction;
-        assert assertGenericThreadPool();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         shardsEvictionsLock.readLock().lock();
         try {
@@ -733,13 +733,6 @@ public class CacheService extends AbstractLifecycleComponent {
                 && Objects.equals(snapshotIndexName, cacheKey.getSnapshotIndexName())
                 && Objects.equals(shardId, cacheKey.getShardId());
         }
-    }
-
-    private static boolean assertGenericThreadPool() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.GENERIC + ']') || threadName.startsWith("TEST-")
-            : "expected generic thread pool but got " + threadName;
-        return true;
     }
 
     private enum CacheFileEventType {

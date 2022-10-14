@@ -25,12 +25,12 @@ public class MaxPrimaryShardSizeCondition extends Condition<ByteSizeValue> {
     public static final String NAME = "max_primary_shard_size";
 
     public MaxPrimaryShardSizeCondition(ByteSizeValue value) {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = value;
     }
 
     public MaxPrimaryShardSizeCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = new ByteSizeValue(in.readVLong(), ByteSizeUnit.BYTES);
     }
 
@@ -62,7 +62,7 @@ public class MaxPrimaryShardSizeCondition extends Condition<ByteSizeValue> {
         if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
             return new MaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(parser.text(), NAME));
         } else {
-            throw new IllegalArgumentException("invalid token: " + parser.currentToken());
+            throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }
     }
 }

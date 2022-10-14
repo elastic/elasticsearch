@@ -253,12 +253,12 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                 String sourceOnlySnapshot = "source-only-snap-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + WRITE_REPOSITORY_NAME + '/' + sourceOnlySnapshot);
                 request.addParameter("wait_for_completion", "true");
-                request.setJsonEntity("""
+                request.setJsonEntity(formatted("""
                     {
                         "include_global_state": false,
                         "indices" : "%s"
                     }
-                    """.formatted(indexName));
+                    """, indexName));
 
                 final Response response = adminClient().performRequest(request);
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
@@ -335,7 +335,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             clearCache(restoredIndexName);
 
             final long bytesInCacheAfterClear = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
-            assertThat(bytesInCacheAfterClear, equalTo(bytesInCacheBeforeClear));
+            assertThat("Searchable snapshot cache wasn't cleared", bytesInCacheAfterClear, equalTo(bytesInCacheBeforeClear));
 
             searchResults = search(restoredIndexName, QueryBuilders.matchAllQuery(), Boolean.TRUE);
             assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));

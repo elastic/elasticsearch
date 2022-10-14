@@ -10,7 +10,6 @@ package org.elasticsearch.action.support.master;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -34,6 +33,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.reservedstate.ActionWithReservedState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -43,6 +43,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -51,7 +52,9 @@ import static org.elasticsearch.core.Strings.format;
  * A base class for operations that needs to be performed on the master node.
  */
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends
-    HandledTransportAction<Request, Response> {
+    HandledTransportAction<Request, Response>
+    implements
+        ActionWithReservedState<Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportMasterNodeAction.class);
 
@@ -143,9 +146,25 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
     }
 
+    // package private for testing
+    void validateForReservedState(Request request, ClusterState state) {
+        Optional<String> handlerName = reservedStateHandlerName();
+        assert handlerName.isPresent();
+
+        validateForReservedState(state, handlerName.get(), modifiedKeys(request), request.toString());
+    }
+
+    // package private for testing
+    boolean supportsReservedState() {
+        return reservedStateHandlerName().isPresent();
+    }
+
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
+        if (supportsReservedState()) {
+            validateForReservedState(request, state);
+        }
         logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
         if (task != null) {
             request.setParentTask(clusterService.localNode().getId(), task.getId());
@@ -243,11 +262,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                         retryOnMasterChange(clusterState, cause);
                                     } else {
                                         logger.trace(
-                                            new ParameterizedMessage(
-                                                "failure when forwarding request [{}] to master [{}]",
-                                                actionName,
-                                                masterNode
-                                            ),
+                                            () -> format("failure when forwarding request [%s] to master [%s]", actionName, masterNode),
                                             exp
                                         );
                                         listener.onFailure(exp);

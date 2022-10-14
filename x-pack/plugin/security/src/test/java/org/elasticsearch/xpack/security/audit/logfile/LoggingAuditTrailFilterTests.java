@@ -79,6 +79,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     private Settings settings;
     private DiscoveryNode localNode;
     private ClusterService clusterService;
+    private ClusterSettings clusterSettings;
     private ApiKeyService apiKeyService;
 
     @Before
@@ -104,7 +105,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         when(clusterService.getClusterName()).thenReturn(ClusterName.CLUSTER_NAME_SETTING.get(settings));
         when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         when(clusterService.state()).thenReturn(clusterState);
-        final ClusterSettings clusterSettings = mockClusterSettings();
+        clusterSettings = mockClusterSettings();
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         Mockito.doAnswer((Answer) invocation -> {
             final LoggingAuditTrail arg0 = (LoggingAuditTrail) invocation.getArguments()[0];
@@ -2692,6 +2693,110 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
 
         auditTrail.authenticationSuccess(randomAlphaOfLength(8), createAuthentication(user, authUser, "realm"), unfilteredAction, request);
         assertThat("AuthenticationSuccess message: unfiltered action is filtered out", logOutput.size(), is(1));
+        logOutput.clear();
+        threadContext.stashContext();
+    }
+
+    public void testRemoveIgnoreFilter() throws IllegalAccessException, IOException {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        final String policyName = randomAlphaOfLengthBetween(5, 8);
+        final List<String> filteredUsers = randomNonEmptyListOfFilteredNames();
+        final List<String> filteredRoles = randomNonEmptyListOfFilteredNames();
+        final List<String> filteredRealms = randomNonEmptyListOfFilteredNames();
+        final List<String> filteredIndices = randomNonEmptyListOfFilteredNames();
+        final List<String> filteredActions = randomNonEmptyListOfFilteredActions();
+
+        // First create an auditTrail with no filtering
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(
+            Settings.builder().put(settings).build(),
+            clusterService,
+            logger,
+            threadContext
+        );
+        final List<String> logOutput = CapturingLogger.output(logger.getName(), Level.INFO);
+
+        // First create a working ignore filter
+        final Settings.Builder settingsBuilder = Settings.builder();
+        final String username;
+        if (randomBoolean()) {
+            settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".users", filteredUsers);
+            username = randomFrom(filteredUsers);
+        } else {
+            username = null;
+        }
+
+        final String realmName;
+        if (randomBoolean()) {
+            settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".realms", filteredRealms);
+            realmName = randomFrom(filteredRealms);
+        } else {
+            realmName = null;
+        }
+
+        final String roleName;
+        if (randomBoolean()) {
+            settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".roles", filteredRoles);
+            roleName = randomFrom(filteredRoles);
+        } else {
+            roleName = null;
+        }
+
+        final String indexName;
+        if (randomBoolean()) {
+            settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".indices", filteredIndices);
+            indexName = randomFrom(filteredIndices);
+        } else {
+            indexName = null;
+        }
+
+        // If nothing is filtered so far due to randomisation, always filter on action name
+        final String actionName;
+        if (randomBoolean() || (username == null && realmName == null && roleName == null && indexName == null)) {
+            settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters." + policyName + ".actions", filteredActions);
+            actionName = randomFrom(filteredActions);
+        } else {
+            actionName = null;
+        }
+
+        final String requestId = randomAlphaOfLength(10);
+        final Authentication authentication = Authentication.newRealmAuthentication(
+            new User(
+                username != null ? username : randomAlphaOfLengthBetween(3, 10),
+                roleName != null ? roleName : randomAlphaOfLengthBetween(3, 10)
+            ),
+            new RealmRef(
+                realmName != null ? realmName : randomAlphaOfLengthBetween(3, 10),
+                randomAlphaOfLengthBetween(3, 10),
+                randomAlphaOfLengthBetween(3, 8),
+                randomFrom(AuthenticationTestHelper.randomDomain(randomBoolean()), null)
+            )
+        );
+        final MockIndicesRequest request = new MockIndicesRequest(
+            threadContext,
+            indexName != null ? indexName : randomAlphaOfLengthBetween(3, 10)
+        );
+        final AuthorizationInfo authorizationInfo = authzInfo(authentication.getUser().roles());
+        final String action = actionName != null ? actionName : randomAlphaOfLengthBetween(3, 10);
+
+        // Filter not created yet, message should be logged
+        auditTrail.accessGranted(requestId, authentication, action, request, authorizationInfo);
+        assertThat("AccessGranted message: should not filter since we have no filter", logOutput.size(), is(1));
+        logOutput.clear();
+        threadContext.stashContext();
+
+        // Create the filter, the same message should be filtered
+        clusterSettings.applySettings(settingsBuilder.build());
+        auditTrail.accessGranted(requestId, authentication, action, request, authorizationInfo);
+        assertThat("AccessGranted message: should be filtered out", logOutput.size(), is(0));
+        logOutput.clear();
+        threadContext.stashContext();
+
+        // Remove the filter, the message is logged again
+        clusterSettings.applySettings(Settings.EMPTY);
+        auditTrail.accessGranted(requestId, authentication, action, request, authorizationInfo);
+        assertThat("AccessGranted message: should not filter since filter is removed", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
     }

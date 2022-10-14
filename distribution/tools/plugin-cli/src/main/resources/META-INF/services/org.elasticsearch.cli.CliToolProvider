@@ -1,1 +1,2 @@
 org.elasticsearch.plugins.cli.PluginCliProvider
+org.elasticsearch.plugins.cli.SyncPluginsCliProvider

@@ -27,6 +27,7 @@ import org.junit.Before;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryIteratorException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
@@ -169,12 +170,22 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
                         total += getTotalFileSize(subpath);
                     }
                     return total;
-                } catch (NotDirectoryException | NoSuchFileException | FileNotFoundException e) {
+                } catch (IOException | DirectoryIteratorException e) {
+                    if (isFileNotFoundException(e) == false) {
+                        throw e;
+                    }
                     // probably removed
                     return 0L;
                 }
             }
         }
+    }
+
+    private static boolean isFileNotFoundException(Exception e) {
+        if (e instanceof DirectoryIteratorException) {
+            e = ((DirectoryIteratorException) e).getCause();
+        }
+        return e instanceof NotDirectoryException || e instanceof NoSuchFileException || e instanceof FileNotFoundException;
     }
 
     private static class TestFileSystemProvider extends FilterFileSystemProvider {

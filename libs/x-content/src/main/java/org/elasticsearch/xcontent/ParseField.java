@@ -13,7 +13,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 public class ParseField {
     private final String name;
     private final String[] deprecatedNames;
-    private final Function<RestApiVersion, Boolean> forRestApiVersion;
+    private final Predicate<RestApiVersion> forRestApiVersion;
     private final String allReplacedWith;
     private final boolean fullyDeprecated;
 
@@ -33,7 +33,7 @@ public class ParseField {
 
     private ParseField(
         String name,
-        Function<RestApiVersion, Boolean> forRestApiVersion,
+        Predicate<RestApiVersion> forRestApiVersion,
         String[] deprecatedNames,
         boolean fullyDeprecated,
         String allReplacedWith
@@ -97,14 +97,14 @@ public class ParseField {
      * Creates a new field with current name and deprecatedNames, but overrides forRestApiVersion
      * @param forRestApiVersionOverride - a boolean function indicating for what version a deprecated name is available
      */
-    public ParseField forRestApiVersion(Function<RestApiVersion, Boolean> forRestApiVersionOverride) {
+    public ParseField forRestApiVersion(Predicate<RestApiVersion> forRestApiVersionOverride) {
         return new ParseField(this.name, forRestApiVersionOverride, this.deprecatedNames, this.fullyDeprecated, this.allReplacedWith);
     }
 
     /**
      * @return a function indicating for which RestApiVersion a deprecated name is declared for
      */
-    public Function<RestApiVersion, Boolean> getForRestApiVersion() {
+    public Predicate<RestApiVersion> getForRestApiVersion() {
         return forRestApiVersion;
     }
 

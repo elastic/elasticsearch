@@ -128,7 +128,7 @@ public class RecoverySettings {
      * Bandwidth settings have a default value of -1 (meaning that they are undefined) or a value in (0, Long.MAX_VALUE).
      */
     private static Setting<ByteSizeValue> bandwidthSetting(String key) {
-        return new Setting<>(key, s -> ByteSizeValue.MINUS_ONE.getStringRep(), s -> {
+        return new Setting<>(key, ByteSizeValue.MINUS_ONE.getStringRep(), s -> {
             final ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
             if (ByteSizeValue.MINUS_ONE.equals(value)) {
                 return value;
@@ -650,21 +650,23 @@ public class RecoverySettings {
 
     @Nullable
     Releasable tryAcquireSnapshotDownloadPermits() {
+        if (getUseSnapshotsDuringRecovery() == false) {
+            return null;
+        }
+
         final int maxConcurrentSnapshotFileDownloads = getMaxConcurrentSnapshotFileDownloads();
         final boolean permitAcquired = maxSnapshotFileDownloadsPerNodeSemaphore.tryAcquire(maxConcurrentSnapshotFileDownloads);
-        if (getUseSnapshotsDuringRecovery() == false || permitAcquired == false) {
-            if (permitAcquired == false) {
-                logger.warn(
-                    String.format(
-                        Locale.ROOT,
-                        "Unable to acquire permit to use snapshot files during recovery, "
-                            + "this recovery will recover index files from the source node. "
-                            + "Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]",
-                        INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
-                        this.maxConcurrentSnapshotFileDownloadsPerNode
-                    )
-                );
-            }
+        if (permitAcquired == false) {
+            logger.warn(
+                String.format(
+                    Locale.ROOT,
+                    "Unable to acquire permit to use snapshot files during recovery, "
+                        + "this recovery will recover index files from the source node. "
+                        + "Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]",
+                    INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
+                    this.maxConcurrentSnapshotFileDownloadsPerNode
+                )
+            );
             return null;
         }
 

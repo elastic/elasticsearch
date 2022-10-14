@@ -10,6 +10,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction.Request;
@@ -60,7 +61,11 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
             (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
             request::setAllowNoMatch
         );
-        return channel -> client.execute(GetDatafeedsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            GetDatafeedsAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel)
+        );
     }
 
     @Override

@@ -33,7 +33,7 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -62,7 +62,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 final SourceOnlySnapshot.LinkedFilesDirectory wrappedDir = new SourceOnlySnapshot.LinkedFilesDirectory(targetDir);
                 SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(
                     wrappedDir,
-                    modifyDeletedDocs ? () -> new DocValuesFieldExistsQuery(softDeletesField) : null
+                    modifyDeletedDocs ? () -> new FieldExistsQuery(softDeletesField) : null
                 ) {
                     @Override
                     DirectoryReader wrapReader(DirectoryReader reader) throws IOException {

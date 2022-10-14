@@ -16,7 +16,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -36,6 +35,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
@@ -43,6 +43,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,6 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -219,7 +221,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         when(channel.request()).thenReturn(request);
         when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
         filter.handleRequest(request, channel, null);
-        ArgumentCaptor<BytesRestResponse> response = ArgumentCaptor.forClass(BytesRestResponse.class);
+        ArgumentCaptor<RestResponse> response = ArgumentCaptor.forClass(RestResponse.class);
         verify(channel).sendResponse(response.capture());
         RestResponse restResponse = response.getValue();
         assertThat(restResponse.status(), is(expectedRestStatus));
@@ -295,6 +297,32 @@ public class SecurityRestFilterTests extends ESTestCase {
             .map();
         assertEquals(1, map.size());
         assertEquals("bar", map.get("foo"));
+    }
+
+    public void testSanitizeHeaders() throws Exception {
+        for (boolean failRequest : List.of(true, false)) {
+            threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, randomAlphaOfLengthBetween(1, 10));
+            RestRequest request = mock(RestRequest.class);
+            when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+            Authentication authentication = AuthenticationTestHelper.builder().build();
+            doAnswer((i) -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
+                if (failRequest) {
+                    callback.onFailure(new RuntimeException());
+                } else {
+                    callback.onResponse(authentication);
+                }
+                return Void.TYPE;
+            }).when(authcService).authenticate(eq(request), anyActionListener());
+            Set<String> foundKeys = threadContext.getHeaders().keySet();
+            assertThat(foundKeys, hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER));
+
+            filter.handleRequest(request, channel, null);
+
+            foundKeys = threadContext.getHeaders().keySet();
+            assertThat(foundKeys, not(hasItem(UsernamePasswordToken.BASIC_AUTH_HEADER)));
+        }
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}

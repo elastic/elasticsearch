@@ -5,7 +5,10 @@
 <titleabbrev>Update user profile data</titleabbrev>
 ++++
 
-beta::[]
+NOTE: The user profile feature is designed only for use by {kib} and
+Elastic’s {observability}, {ents}, and {elastic-sec} solutions. Individual
+users and external applications should not call this API directly. Elastic reserves
+the right to change or remove this feature in future releases without prior notice.
 
 Updates specific data for the user profile that's associated with the specified
 unique ID.
@@ -91,16 +94,14 @@ indicating that the request is acknowledged:
 ==== {api-examples-title}
 
 The following request updates a profile document for a `uid` matching
-`u_kd2JMqwUQwSCCOxMv7M1vw`:
+`u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0`:
 
 [source,console]
 ----
-POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
+POST /_security/profile/u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0/_data
 {
   "labels": {
-    "app1": {
-      "tag": "prod"
-    }
+    "direction": "east"
   },
   "data": {
     "app1": {
@@ -109,18 +110,16 @@ POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
   }
 }
 ----
-// TEST[skip:uid is random and no way to ensure this uid exists]
+// TEST[setup:user_profiles]
 
 You can update the profile data to replace some keys and add new keys:
 
 [source,console]
 ----
-POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
+POST /_security/profile/u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0/_data
 {
   "labels": {
-    "app1": {
-      "tag": "dev"
-    }
+    "direction": "west"
   },
   "data": {
     "app1": {
@@ -129,42 +128,49 @@ POST /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw/_data
   }
 }
 ----
-// TEST[skip:uid is random and no way to ensure this uid exists]
+// TEST[continued]
 
-If you run the request again, the consolidated profile data is returned:
+If you get the profile now, the consolidated profile data is returned:
+[source,console]
+----
+GET /_security/profile/u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0?data=*
+----
+// TEST[continued]
 
-[source,js]
+[source,console-result]
 ----
 {
-  "u_kd2JMqwUQwSCCOxMv7M1vw": {
-    "uid": "u_kd2JMqwUQwSCCOxMv7M1vw",
-    "enabled": true,
-    "last_synchronized": 1642650651037,
-    "user": {
-      "username": "jacknich",
-      "roles": [
-        "admin", "other_role1"
-      ],
-      "realm_name": "native1",
-      "full_name": "Jack Nicholson",
-      "email": "jacknich@example.com"
-    },
-    "labels": {
-      "app1": {
-        "tag": "dev"
+  "profiles": [
+    {
+      "uid": "u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0",
+      "enabled": true,
+      "last_synchronized": 1642650651037,
+      "user": {
+        "username": "jackrea",
+        "roles": [
+          "admin"
+        ],
+        "realm_name": "native",
+        "full_name": "Jack Reacher",
+        "email": "jackrea@example.com"
+      },
+      "labels": {
+        "direction": "west"
+      },
+      "data": {
+        "app1": {
+          "theme": "default",
+          "font": "large"
+        }
+      },
+      "_doc": {
+        "_primary_term": 88,
+        "_seq_no": 66
       }
-    },
-    "data": {
-      "app1": {
-        "theme": "default",
-        "font": "large"
-      }
-    },
-    "_doc": {
-      "_primary_term": 1,
-      "_seq_no": 0
     }
-  }
+  ]
 }
 ----
-// NOTCONSOLE
+// TESTRESPONSE[s/1642650651037/$body.profiles.0.last_synchronized/]
+// TESTRESPONSE[s/88/$body.profiles.0._doc._primary_term/]
+// TESTRESPONSE[s/66/$body.profiles.0._doc._seq_no/]

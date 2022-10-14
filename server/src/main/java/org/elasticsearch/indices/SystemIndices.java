@@ -8,19 +8,22 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -51,13 +54,54 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 
 /**
- * This class holds the {@link SystemIndexDescriptor} objects that represent system indices the
- * node knows about. Methods for determining if an index should be a system index are also provided
- * to reduce the locations within the code that need to deal with {@link SystemIndexDescriptor}s.
+ * Provides information about system-owned indices and data streams for Elasticsearch and Elasticsearch plugins.
+ *
+ * <p>Various Elasticsearch features such as Security or Watcher keep their state in their own indices. We keep these indices separate
+ * from the user index space for a few reasons. In some cases, the indices contain information that should be hidden from users. But,
+ * more generally, we want to protect these indices and data streams from being inadvertently modified or deleted.
+ *
+ * <p>The system resources are grouped by feature, using the {@link SystemIndices.Feature} class. Most features will be loaded from
+ * instances of {@link SystemIndexPlugin}; any other features will be described in this class. Features may be retrieved by name or
+ * iterated over (see {@link #getFeature(String)} and {@link #getFeatures()}). Each Feature provides collections of
+ * {@link SystemIndexDescriptor}s or {@link SystemDataStreamDescriptor}s. These descriptors define their resources by means of patterns.
+ * Any index name or data stream name that matches one of these patterns is considered a system resource for * that descriptor, and user
+ * access to it will be restricted. These patterns are gathered and validated so that the SystemIndices object can provide information
+ * about system resources: for example, whether a particular string will be considered a “system name” (see {@link #isSystemIndex(String)}).
+ *
+ * <p>For more information about the expected behavior of system indices, see {@link SystemIndexDescriptor}. For more information about
+ * the expected behavior of system data streams, see {@link SystemDataStreamDescriptor}.
+ *
+ * <p>The SystemIndices object is constructed during {@link org.elasticsearch.node.Node} startup, and is not modified after construction.
+ * In other words, the set of system resources will be consistent over the lifetime of a node.
+ *
+ * <p>System resources will specify thread pools for reads, writes, and searches. This can ensure that system-critical operations, such
+ * as user authentication, are not blocked by heavy thread contention from user activities. {@link #getExecutorSelector()} provides an
+ * object for convenient look-ups of these thread pools.
+ *
+ * <p>There are a few requirements for system features, collectively:
+ * <ol>
+ *     <li>The feature names must be distinct.
+ *     <li>System index patterns must not overlap.
+ *     <li>Aliases for system indices must be distinct.
+ *     <li>Feature names must not be reserved names. Right now, the only
+ *         reserved name is “none”.
+ * </ol>
+ *
+ * <p>System index access is currently controlled by Security role index permissions. However, we have deprecated general rest access to
+ * system indices. This class provides checks for system index “access levels” (see {@link #getSystemIndexAccessLevel(ThreadContext)}).
+ * If a request has the wrong access level for a system index it is targeting, then we will issue a deprecation warning. In the future,
+ * we will block access. The non-deprecated way to access certain external system indices is to use the correct request headers. This
+ * behavior is already in place in {@link SystemDataStreamDescriptor} and “net-new” system indices (see
+ * {@link SystemIndexDescriptor#isNetNew()}).
+ *
+ * <p>The implementation of the system index name checks makes heavy use of the Lucene {@link Automaton} class. At a high level, an
+ * automaton is a kind of matcher that can be created from a regex. Lucene Automata give us the ability to check for overlapping
+ * patterns, and to create efficient unions of patterns.
  */
 public class SystemIndices {
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
@@ -65,6 +109,8 @@ public class SystemIndices {
     public static final String UPGRADED_INDEX_SUFFIX = "-reindexed-for-8";
 
     private static final Automaton EMPTY = Automata.makeEmpty();
+
+    private static final Logger logger = LogManager.getLogger(SystemIndices.class);
 
     /**
      * This is the source for non-plugin system features.
@@ -132,24 +178,18 @@ public class SystemIndices {
             .flatMap(
                 feature -> feature.getIndexDescriptors()
                     .stream()
-                    // The below filter & map are inside the enclosing flapMap so we have access to both the feature and the descriptor
+                    // The below filter & map are inside the enclosing flapMap so that we have access to both the feature and the descriptor
                     .filter(descriptor -> overlaps(descriptor.getIndexPattern(), suffixPattern) == false)
-                    .map(
-                        descriptor -> new ParameterizedMessage(
-                            "pattern [{}] from feature [{}]",
-                            descriptor.getIndexPattern(),
-                            feature.getName()
-                        ).getFormattedMessage()
-                    )
+                    .map(descriptor -> format("pattern [%s] from feature [%s]", descriptor.getIndexPattern(), feature.getName()))
             )
             .toList();
         if (descriptorsWithNoRoomForSuffix.isEmpty() == false) {
             throw new IllegalStateException(
-                new ParameterizedMessage(
-                    "the following system index patterns do not allow suffix [{}] required to allow upgrades: [{}]",
+                format(
+                    "the following system index patterns do not allow suffix [%s] required to allow upgrades: [%s]",
                     UPGRADED_INDEX_SUFFIX,
                     descriptorsWithNoRoomForSuffix
-                ).getFormattedMessage()
+                )
             );
         }
     }
@@ -251,13 +291,19 @@ public class SystemIndices {
     }
 
     /**
-     * Determines whether the provided name matches that of an index that backs a system data stream.
+     * Determines whether the provided name matches that of an index that backs a system data stream. Backing indices
+     * for system data streams are marked as "system" in their metadata (see {@link
+     * org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService}) and receive the same protections as the
+     * system data stream.
      */
     public boolean isSystemIndexBackingDataStream(String name) {
         return systemDataStreamIndicesRunAutomaton.run(name);
     }
 
     /**
+     * The Elasticsearch security plugin can use the automaton that matches all
+     * system resource names to efficiently authorize requests.
+     *
      * @return An {@link Automaton} that tests whether strings are names of system indices, aliases, or
      * data streams.
      */
@@ -267,6 +313,7 @@ public class SystemIndices {
 
     /**
      * Checks whether an index is a net-new system index, meaning we can apply non-BWC behavior to it.
+     * See {@link SystemIndexDescriptor#isNetNew()}.
      * @param indexName The index name to check.
      * @return {@code true} if the given index is covered by a net-new system index descriptor, {@code false} otherwise.
      */
@@ -288,6 +335,11 @@ public class SystemIndices {
      * @return The matching {@link SystemIndexDescriptor} or {@code null} if no descriptor is found
      */
     public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
+        return findMatchingDescriptor(indexDescriptors, name);
+    }
+
+    @Nullable
+    static SystemIndexDescriptor findMatchingDescriptor(SystemIndexDescriptor[] indexDescriptors, String name) {
         SystemIndexDescriptor matchingDescriptor = null;
         for (SystemIndexDescriptor systemIndexDescriptor : indexDescriptors) {
             if (systemIndexDescriptor.matchesIndexPattern(name)) {
@@ -308,26 +360,10 @@ public class SystemIndices {
     }
 
     /**
-     * Builds a predicate that tests if a system index should be accessible based on the provided product name
-     * contained in headers.
-     * @param threadContext the threadContext containing headers used for system index access
-     * @return Predicate to check external system index metadata with
-     */
-    public Predicate<IndexMetadata> getProductSystemIndexMetadataPredicate(ThreadContext threadContext) {
-        final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
-        if (product == null) {
-            return indexMetadata -> false;
-        }
-        final CharacterRunAutomaton automaton = productToSystemIndicesMatcher.get(product);
-        if (automaton == null) {
-            return indexMetadata -> false;
-        }
-        return indexMetadata -> automaton.run(indexMetadata.getIndex().getName());
-    }
-
-    /**
-     * Builds a predicate that tests if a system index name should be accessible based on the provided product name
-     * contained in headers.
+     * Builds a predicate that tests whether a system index should be accessible for a given ThreadContext. We allow guaranteed (that is,
+     * non-deprecated) external access to system indices based on special request headers in addition to security roles. If those
+     * headers are present and provide a product name with access to the index, they will be added to the thread context and checked
+     * here. Without these headers, we will add deprecation warnings to the response. In future versions, we will deny access altogether.
      * @param threadContext the threadContext containing headers used for system index access
      * @return Predicate to check external system index names with
      */
@@ -381,6 +417,7 @@ public class SystemIndices {
         Optional<Automaton> automaton = featureDescriptors.values()
             .stream()
             .flatMap(feature -> feature.getIndexDescriptors().stream())
+            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
             .filter(SystemIndexDescriptor::isNetNew)
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
             .reduce(Operations::union);
@@ -495,7 +532,9 @@ public class SystemIndices {
     }
 
     /**
-     * Determines what level of system index access should be allowed in the current context.
+     * Determines what level of system index access should be allowed in the current context. For system data streams and "net-new" system
+     * indices (see {@link SystemIndexDescriptor#isNetNew()}), access levels should be used to reject requests entirely. For non-net-new,
+     * backwards-compatible system indices, these access levels should be used for deprecation warnings.
      *
      * @param threadContext the current thread context that has headers associated with the current request
      * @return {@link SystemIndexAccessLevel#ALL} if unrestricted system index access should be allowed,
@@ -520,16 +559,39 @@ public class SystemIndices {
         }
     }
 
+    /**
+     * In a future release, these access levels will be used to allow or deny requests for system resources. Currently, the behavior
+     * differs for different types of system resources.
+     *
+     * <ol>
+     *     <li>For a system index whose descriptor returns false for {@link SystemIndexDescriptor#isNetNew()}: if a request is
+     *     determined to have an access level of NONE or if it accesses indices belonging to another product at a level of RESTRICTED,
+     *     we issue a depreciation warning.
+     *     <li>For a system index whose descriptor returns true for {@link SystemIndexDescriptor#isNetNew()} or any system data stream:
+     *     if a request is determined to have an access level of NONE or if it accesses indices belonging to another product at a level of
+     *     RESTRICTED, we deny access to the system resource.
+     * </ol>
+     */
     public enum SystemIndexAccessLevel {
+        /** Access level that skips system resource access checks. */
         ALL,
+        /**
+         * Access level that should deny access to net-new system indices and system data streams, and issue deprecation warnings for
+         * backwards-compatible system indices.
+         */
         NONE,
+        /**
+         * At this access level, check the value of the {@link SystemIndices#EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY}. If the
+         * request has an allowed product origin, allow access. If not, deny access to net-new system indices and system data streams, and
+         * issue deprecation warnings for backwards-compatible system indices.
+         */
         RESTRICTED,
         /**
          * This value exists because there was a desire for "net-new" system indices to opt in to the post-8.0 behavior of having
-         * access blocked in most cases, but this caused problems with certain APIs
-         * (see https://github.com/elastic/elasticsearch/issues/74687), so this access level was added as a workaround. Once we no longer
-         * have to support accessing existing system indices, this can and should be removed, along with the net-new property of
-         * system indices in general.
+         * access blocked in most cases, but this caused problems with certain APIs (see
+         * <a href="https://github.com/elastic/elasticsearch/issues/74687">issue #74687</a>), so this access level was added as a
+         * workaround. Once we no longer have to support accessing existing system indices, this can and should be removed, along with the
+         * net-new property of system indices in general.
          */
         BACKWARDS_COMPATIBLE_ONLY
     }
@@ -646,7 +708,13 @@ public class SystemIndices {
     }
 
     /**
-     * Class holding a description of a stateful feature.
+     * Describes an Elasticsearch system feature that keeps state in protected indices and data streams.
+     *
+     * <p>This is an internal class that closely follows the model of {@link SystemIndexPlugin}. See that class’s documents for high-level
+     * details about what constitutes a system feature.
+     *
+     * <p>This class has a static {@link #cleanUpFeature(Collection, Collection, String, ClusterService, Client, ActionListener)}  method
+     * that is the default implementation for resetting feature state.
      */
     public static class Feature {
         private final String name;
@@ -798,38 +866,14 @@ public class SystemIndices {
             return postMigrationFunction;
         }
 
-        /**
-         * Clean up the state of a feature
-         * @param indexDescriptors List of descriptors of a feature's system indices
-         * @param associatedIndexDescriptors List of descriptors of a feature's associated indices
-         * @param name Name of the feature, used in logging
-         * @param clusterService A clusterService, for retrieving cluster metadata
-         * @param client A client, for issuing delete requests
-         * @param listener A listener to return success or failure of cleanup
-         */
-        public static void cleanUpFeature(
-            Collection<? extends IndexPatternMatcher> indexDescriptors,
-            Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
+        private static void cleanUpFeatureForIndices(
             String name,
-            ClusterService clusterService,
             Client client,
-            ActionListener<ResetFeatureStateStatus> listener
+            String[] indexNames,
+            final ActionListener<ResetFeatureStateStatus> listener
         ) {
-            Metadata metadata = clusterService.state().getMetadata();
-
-            List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
-                .map(descriptor -> descriptor.getMatchingIndices(metadata))
-                .flatMap(List::stream)
-                .toList();
-
-            if (allIndices.isEmpty()) {
-                // if no actual indices match the pattern, we can stop here
-                listener.onResponse(ResetFeatureStateStatus.success(name));
-                return;
-            }
-
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
-            deleteIndexRequest.indices(allIndices.toArray(Strings.EMPTY_ARRAY));
+            deleteIndexRequest.indices(indexNames);
             client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -841,6 +885,78 @@ public class SystemIndices {
                     listener.onResponse(ResetFeatureStateStatus.failure(name, e));
                 }
             });
+        }
+
+        /**
+         * Clean up the state of a feature
+         * @param indexDescriptors List of descriptors of a feature's system indices
+         * @param associatedIndexDescriptors List of descriptors of a feature's associated indices
+         * @param name Name of the feature, used in logging
+         * @param clusterService A clusterService, for retrieving cluster metadata
+         * @param client A client, for issuing delete requests
+         * @param listener A listener to return success or failure of cleanup
+         */
+        public static void cleanUpFeature(
+            Collection<SystemIndexDescriptor> indexDescriptors,
+            Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
+            String name,
+            ClusterService clusterService,
+            Client client,
+            final ActionListener<ResetFeatureStateStatus> listener
+        ) {
+            Metadata metadata = clusterService.state().getMetadata();
+
+            List<String> associatedIndices = associatedIndexDescriptors.stream()
+                .map(descriptor -> descriptor.getMatchingIndices(metadata))
+                .flatMap(List::stream)
+                .toList();
+
+            final int taskCount = ((associatedIndices.size() > 0) ? 1 : 0) + (int) indexDescriptors.stream()
+                .filter(id -> id.getMatchingIndices(metadata).isEmpty() == false)
+                .count();
+
+            // check if there's nothing to do and take an early out
+            if (taskCount == 0) {
+                listener.onResponse(ResetFeatureStateStatus.success(name));
+                return;
+            }
+
+            GroupedActionListener<ResetFeatureStateStatus> groupedListener = new GroupedActionListener<>(
+                ActionListener.wrap(listenerResults -> {
+                    List<ResetFeatureStateStatus> errors = listenerResults.stream()
+                        .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
+                        .collect(Collectors.toList());
+
+                    if (errors.isEmpty()) {
+                        listener.onResponse(ResetFeatureStateStatus.success(name));
+                    } else {
+                        StringBuilder exceptions = new StringBuilder("[");
+                        exceptions.append(errors.stream().map(e -> e.getException().getMessage()).collect(Collectors.joining(", ")));
+                        exceptions.append(']');
+                        errors.forEach(e -> logger.warn(() -> "error while resetting feature [" + name + "]", e.getException()));
+                        listener.onResponse(ResetFeatureStateStatus.failure(name, new Exception(exceptions.toString())));
+                    }
+                }, listener::onFailure),
+                taskCount
+            );
+
+            // Send cleanup for the associated indices, they don't need special origin since they are not protected
+            if (associatedIndices.isEmpty() == false) {
+                cleanUpFeatureForIndices(name, client, associatedIndices.toArray(Strings.EMPTY_ARRAY), groupedListener);
+            }
+
+            // One descriptor at a time, create an originating client and clean up the feature
+            for (var indexDescriptor : indexDescriptors) {
+                List<String> matchingIndices = indexDescriptor.getMatchingIndices(metadata);
+
+                if (matchingIndices.isEmpty() == false) {
+                    final Client clientWithOrigin = (indexDescriptor.getOrigin() == null)
+                        ? client
+                        : new OriginSettingClient(client, indexDescriptor.getOrigin());
+
+                    cleanUpFeatureForIndices(name, clientWithOrigin, matchingIndices.toArray(Strings.EMPTY_ARRAY), groupedListener);
+                }
+            }
         }
 
         // No-op pre-migration function to be used as the default in case none are provided.

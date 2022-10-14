@@ -8,7 +8,7 @@ esplugin {
 }
 archivesBaseName = 'x-pack-deprecation'
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 dependencies {
   compileOnly project(":x-pack:plugin:core")

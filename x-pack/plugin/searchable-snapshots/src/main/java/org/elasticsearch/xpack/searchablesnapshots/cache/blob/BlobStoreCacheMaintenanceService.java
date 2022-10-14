@@ -368,7 +368,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         }
 
         void executeNextCleanUp(final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue) {
-            assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             final Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>> next = queue.poll();
             if (next != null) {
                 cleanUp(next.v1(), next.v2(), queue);
@@ -380,7 +380,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             final ActionListener<BulkByScrollResponse> listener,
             final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue
         ) {
-            assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, request, ActionListener.runAfter(listener, () -> {
                 if (queue.isEmpty() == false) {
                     threadPool.generic().execute(() -> executeNextCleanUp(queue));
@@ -429,7 +429,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         @Override
         public void run() {
-            assert assertGenericThread();
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             try {
                 ensureOpen();
                 if (pointIntTimeId == null) {
@@ -680,12 +680,6 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
     private void executeNext(PeriodicMaintenanceTask maintenanceTask) {
         threadPool.generic().execute(maintenanceTask);
-    }
-
-    private static boolean assertGenericThread() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains(ThreadPool.Names.GENERIC) : threadName;
-        return true;
     }
 
     private static Instant getCreationTime(SearchHit searchHit) {

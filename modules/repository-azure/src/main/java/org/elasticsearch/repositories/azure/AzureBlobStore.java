@@ -39,11 +39,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -333,7 +332,7 @@ public class AzureBlobStore implements BlobStore {
                     }
                     String blobName = blobItem.getName().substring(keyPath.length());
 
-                    blobsBuilder.put(blobName, new PlainBlobMetadata(blobName, properties.getContentLength()));
+                    blobsBuilder.put(blobName, new BlobMetadata(blobName, properties.getContentLength()));
                 }
             });
         } catch (Exception e) {

@@ -1,0 +1,5 @@
+pr: 89622
+summary: Fix `allow_no_indices` request option in special cases
+area: Infra/Core
+type: bug
+issues: []

@@ -23,7 +23,7 @@ public class GermanStemTokenFilterFactory extends AbstractTokenFilterFactory {
     private final CharArraySet exclusions;
 
     GermanStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
     }
 

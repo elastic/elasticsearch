@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Nullable;
@@ -86,7 +85,7 @@ public class JobSnapshotUpgraderResultProcessor {
                     bulkResultsPersister.executeRequest();
                 }
             } catch (Exception e) {
-                LOGGER.warn(new ParameterizedMessage("[{}] [{}] Error persisting model snapshot upgrade results", jobId, snapshotId), e);
+                LOGGER.warn(() -> format("[%s] [%s] Error persisting model snapshot upgrade results", jobId, snapshotId), e);
             }
         } catch (Exception e) {
             failed = true;
@@ -111,7 +110,7 @@ public class JobSnapshotUpgraderResultProcessor {
             } else {
                 // We should only get here if the iterator throws in which
                 // case parsing the autodetect output has failed.
-                LOGGER.error(new ParameterizedMessage("[{}] [{}] error parsing model snapshot upgrade output", jobId, snapshotId), e);
+                LOGGER.error(() -> format("[%s] [%s] error parsing model snapshot upgrade output", jobId, snapshotId), e);
             }
         } finally {
             completionLatch.countDown();
@@ -129,7 +128,7 @@ public class JobSnapshotUpgraderResultProcessor {
                     if (isAlive() == false) {
                         throw e;
                     }
-                    LOGGER.warn(new ParameterizedMessage("[{}] [{}] Error processing model snapshot upgrade result", jobId, snapshotId), e);
+                    LOGGER.warn(() -> format("[%s] [%s] Error processing model snapshot upgrade result", jobId, snapshotId), e);
                 }
             }
         } finally {

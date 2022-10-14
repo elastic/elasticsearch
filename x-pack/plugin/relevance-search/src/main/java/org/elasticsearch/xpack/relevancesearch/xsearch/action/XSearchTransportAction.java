@@ -20,6 +20,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
+import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchRequestValidationService;
 
 public class XSearchTransportAction extends HandledTransportAction<XSearchAction.Request, SearchResponse> {
 
@@ -27,21 +28,32 @@ public class XSearchTransportAction extends HandledTransportAction<XSearchAction
 
     private final NodeClient client;
 
+    private final XSearchRequestValidationService xSearchRequestValidationService;
+
     @Inject
     public XSearchTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
         String executor,
         RelevanceMatchQueryRewriter relevanceMatchQueryRewriter,
-        NodeClient client
+        NodeClient client,
+        XSearchRequestValidationService xSearchRequestValidationService
     ) {
         super(XSearchAction.NAME, false, transportService, actionFilters, XSearchAction.Request::new, executor);
         this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
         this.client = client;
+        this.xSearchRequestValidationService = xSearchRequestValidationService;
     }
 
     @Override
     protected void doExecute(Task task, XSearchAction.Request request, ActionListener<SearchResponse> listener) {
+
+        try {
+            xSearchRequestValidationService.validateRequest(request);
+        } catch (XSearchRequestValidationService.InvalidXSearchRequestException e) {
+            throw new RuntimeException(e);
+        }
+
         String[] indices = request.indices();
         QueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery());
         SearchRequest searchRequest = client.prepareSearch(indices).setQuery(queryBuilder).setSize(1000).setFetchSource(true).request();

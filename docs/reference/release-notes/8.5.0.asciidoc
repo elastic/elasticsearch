@@ -277,3 +277,10 @@ Client::
 * Upgrade Apache Commons Logging to 1.2 {es-pull}85745[#85745] (issue: {es-issue}40305[#40305])
 
 
+[[known-issues-8.5.0]]
+[float]
+=== Known issues
+
+* When using date range search with format that does not have all date fields (missing month or day)
+an incorrectly parsed date could be used. The workaround is to use date pattern with all date fields (year, month, day)
+(issue: {es-issue}90187[#90187])

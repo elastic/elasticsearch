@@ -1203,9 +1203,10 @@ public class DataStreamIT extends ESIntegTestCase {
             .opType(DocWriteRequest.OpType.CREATE);
         IndexResponse indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), backingIndexEqualTo("logs-foobar", 1));
+        String backingIndex = indexResponse.getIndex();
 
         // Index doc with custom routing that targets the backing index
-        IndexRequest indexRequestWithRouting = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-foobar", 1L)).source(
+        IndexRequest indexRequestWithRouting = new IndexRequest(backingIndex).source(
             "@timestamp",
             System.currentTimeMillis()
         )
@@ -1215,7 +1216,7 @@ public class DataStreamIT extends ESIntegTestCase {
             .setIfPrimaryTerm(indexResponse.getPrimaryTerm())
             .setIfSeqNo(indexResponse.getSeqNo());
         IndexResponse response = client().index(indexRequestWithRouting).actionGet();
-        assertThat(response.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
+        assertThat(response.getIndex(), equalTo(backingIndex));
     }
 
     public void testSearchAllResolvesDataStreams() throws Exception {

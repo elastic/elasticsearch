@@ -46,12 +46,9 @@ public class XSearchSearchTransportAction extends HandledTransportAction<XSearch
 
     @Override
     protected void doExecute(Task task, XSearchSearchAction.Request request, ActionListener<SearchResponse> listener) {
-
-        // TODO pull settings from engine & request
         String[] indices = request.getNames();
         QueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery());
         SearchRequest searchRequest = client.prepareSearch(indices).setQuery(queryBuilder).setSize(1000).setFetchSource(true).request();
         client.execute(SearchAction.INSTANCE, searchRequest);
-
     }
 }

@@ -62,15 +62,9 @@ public class RestXSearchSearchAction extends BaseRestHandler {
         XSearchSearchAction.Request xsearchRequest = XSearchSearchAction.Request.parseRequest(index, parser);
         xsearchRequest.indicesOptions(IndicesOptions.fromRequest(request, xsearchRequest.indicesOptions()));
 
-        RelevanceMatchQueryBuilder queryBuilder = createQueryBuilder(xsearchRequest);
+        RelevanceMatchQueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, xsearchRequest.getQuery());
         return channel -> doXSearch(index, queryBuilder, client, channel);
     }
-
-    private RelevanceMatchQueryBuilder createQueryBuilder(XSearchSearchAction.Request request) {
-        return new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery());
-    }
-
-    /**** POC CODE BEGINS HERE *****/
 
     private static void doXSearch(String index, RelevanceMatchQueryBuilder queryBuilder, NodeClient client, RestChannel channel) {
 

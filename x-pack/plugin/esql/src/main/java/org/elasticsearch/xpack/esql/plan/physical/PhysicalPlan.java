@@ -30,7 +30,5 @@ public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> {
     @Override
     public abstract boolean equals(Object obj);
 
-    public boolean singleNode() {
-        return true;
-    }
+    public abstract boolean singleNode();
 }

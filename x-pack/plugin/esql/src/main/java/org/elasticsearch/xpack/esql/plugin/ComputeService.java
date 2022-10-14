@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -121,11 +122,12 @@ public class ComputeService {
         }
     }
 
-    public void runCompute(PhysicalPlan physicalPlan, ActionListener<List<Page>> listener) {
+    public void runCompute(PhysicalPlan physicalPlan, EsqlConfiguration configuration, ActionListener<List<Page>> listener) {
         acquireSearchContexts(physicalPlan, ActionListener.wrap(searchContexts -> {
             boolean success = false;
             try {
                 LocalExecutionPlanner planner = new LocalExecutionPlanner(
+                    configuration,
                     searchContexts.stream()
                         .map(SearchContext::getSearchExecutionContext)
                         .map(

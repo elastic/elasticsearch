@@ -36,8 +36,15 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
 
     private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
 
+    private final ThreadPool threadPool;
+
     @Inject
-    public TransportListTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    public TransportListTasksAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool
+    ) {
         super(
             ListTasksAction.NAME,
             clusterService,
@@ -48,6 +55,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             TaskInfo::from,
             ThreadPool.Names.MANAGEMENT
         );
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -66,19 +74,27 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     }
 
     @Override
-    protected void processTasks(ListTasksRequest request, Consumer<Task> operation) {
+    protected void processTasks(ListTasksRequest request, Consumer<Task> operation, Runnable nodeOperation, Consumer<Exception> onFailure) {
         if (request.getWaitForCompletion()) {
-            long timeoutNanos = waitForCompletionTimeout(request.getTimeout());
-            operation = operation.andThen(task -> {
-                if (task.getAction().startsWith(ListTasksAction.NAME)) {
-                    // It doesn't make sense to wait for List Tasks and it can cause an infinite loop of the task waiting
-                    // for itself or one of its child tasks
-                    return;
-                }
-                taskManager.waitForTaskCompletion(task, timeoutNanos);
+            threadPool.generic().submit(() -> {
+                long timeoutNanos = waitForCompletionTimeout(request.getTimeout());
+                super.processTasks(request, operation.andThen(task -> {
+                    if (task.getAction().startsWith(ListTasksAction.NAME)) {
+                        // It doesn't make sense to wait for List Tasks and it can cause an infinite loop of the task waiting
+                        // for itself or one of its child tasks
+                        return;
+                    }
+                    try {
+                        taskManager.waitForTaskCompletion(task, timeoutNanos);
+                    } catch (Exception e) {
+                        onFailure.accept(e);
+                        throw e;
+                    }
+                }), nodeOperation, onFailure);
             });
+        } else {
+            super.processTasks(request, operation, nodeOperation, onFailure);
         }
-        super.processTasks(request, operation);
     }
 
 }

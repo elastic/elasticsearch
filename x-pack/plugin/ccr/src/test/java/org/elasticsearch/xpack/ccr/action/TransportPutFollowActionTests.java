@@ -115,6 +115,9 @@ public class TransportPutFollowActionTests extends ESTestCase {
         initialLocalBackingIndices.add(
             new Index("restore-" + DataStream.getDefaultBackingIndexName("logs-foobar", 5), UUID.randomUUID().toString())
         );
+        initialLocalBackingIndices.add(
+            new Index(DataStream.getDefaultBackingIndexName("different-datastream", 2), UUID.randomUUID().toString())
+        );
 
         DataStream localDataStream = new DataStream(
             "logs-foobar",
@@ -148,16 +151,17 @@ public class TransportPutFollowActionTests extends ESTestCase {
             localIndicesNames,
             is(
                 List.of(
+                    DataStream.getDefaultBackingIndexName("different-datastream", 2),
                     "absolute-name",
                     "persistent-name",
                     "random-name",
-                    ".ds-logs-foobar-2022.10.13-000001",
-                    "shrink-.ds-logs-foobar-2022.10.13-000002",
-                    "partial-.ds-logs-foobar-2022.10.13-000003",
-                    ".ds-logs-foobar-2022.10.13-000004",
-                    "restore-.ds-logs-foobar-2022.10.13-000005",
-                    ".ds-logs-foobar-2022.10.13-000006",
-                    ".ds-logs-foobar-2022.10.13-000007"
+                    DataStream.getDefaultBackingIndexName("logs-foobar", 1),
+                    "shrink-" + DataStream.getDefaultBackingIndexName("logs-foobar", 2),
+                    "partial-" + DataStream.getDefaultBackingIndexName("logs-foobar", 3),
+                    DataStream.getDefaultBackingIndexName("logs-foobar", 4),
+                    "restore-" + DataStream.getDefaultBackingIndexName("logs-foobar", 5),
+                    DataStream.getDefaultBackingIndexName("logs-foobar", 6),
+                    DataStream.getDefaultBackingIndexName("logs-foobar", 7)
                 )
             )
         );

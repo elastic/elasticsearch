@@ -59,23 +59,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
 
     private static final Logger logger = LogManager.getLogger(TransportPutFollowAction.class);
 
-    /**
-     * Comparator used to sort the backing indices of the local data stream when following a backing index that's not currently part of
-     * the local data stream.
-     * The backing indices usually contain `.ds-` (they usually start with this prefix, but not always as shrunk indices will have the
-     * `shrink-` prefix for e.g.) but given the `modify data stream API` any index name can be a backing index.
-     * For this reason this comparator groups the indices that don't contain `.ds-` in the lower generations, and the ones that do
-     * contain `.ds-` are ordered by the original (provided) backing index name - the name starting with `.ds-`.
-     * The goal is to make sure the prefixed (usually read-only - shrink-, restored-, partial-) backing indices do not end up being the
-     * write index of the local data stream.
-     */
-    private static final Comparator<Index> LOCAL_DATA_STREAM_INDICES_COMPARATOR = Comparator.comparing(
-        (Index o) -> o.getName().contains(BACKING_INDEX_PREFIX) ? 1 : -1
-    ).thenComparing((Index o) -> {
-        int backingPrefixPosition = o.getName().indexOf(BACKING_INDEX_PREFIX);
-        return backingPrefixPosition > -1 ? o.getName().substring(backingPrefixPosition) : o.getName();
-    });
-
     private final IndexScopedSettings indexScopedSettings;
     private final Client client;
     private final RestoreService restoreService;
@@ -383,7 +366,17 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 // to the data stream using the modify data stream API) so we use a comparator that partitions the non-standard backing
                 // indices at the beginning of the data stream (lower generations) and sorts them amongst themselves, and the rest of the
                 // indices (that contain `.ds-`) are sorted based on the original backing index name (ie. ignoring everything up to `.ds-`)
-                backingIndices.sort(LOCAL_DATA_STREAM_INDICES_COMPARATOR);
+                // The goal is to make sure the prefixed (usually read-only - shrink-, restored-, partial-) backing indices do not end
+                // up being the write index of the local data stream.
+
+                String partitionByBackingIndexBaseName = BACKING_INDEX_PREFIX + localDataStream.getName();
+                backingIndices.sort(
+                    Comparator.comparing((Index o) -> o.getName().contains(partitionByBackingIndexBaseName) ? 1 : -1)
+                        .thenComparing((Index o) -> {
+                            int backingPrefixPosition = o.getName().indexOf(BACKING_INDEX_PREFIX);
+                            return backingPrefixPosition > -1 ? o.getName().substring(backingPrefixPosition) : o.getName();
+                        })
+                );
             } else {
                 // edge case where the index was closed on the follower and was already in the datastream's index list
                 backingIndices = localDataStream.getIndices();

@@ -25,6 +25,6 @@ Ranking::
 [float]
 === Known issues
 
-* When using date range search with format that does not have all date fields (missing month and/or day)
+* When using date range search with format that does not have all date fields (missing month or day)
 and incorrectly parsed date could be used. The workaround is to use date pattern with all date fields (year, month, day)
 {es-issue}90187[#90187])

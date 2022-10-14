@@ -467,36 +467,38 @@ public class UberModuleClassLoaderTests extends ESTestCase {
 
     public void testServiceLoadingWithOptionalDependencies() throws Exception {
 
-        ClassLoader loader = getServiceTestLoader(true);
+        try (UberModuleClassLoader loader = getServiceTestLoader(true)) {
 
-        Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
-        Object instance = serviceCallerClass.getConstructor().newInstance();
+            Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
+            Object instance = serviceCallerClass.getConstructor().newInstance();
 
-        var requiredParent = serviceCallerClass.getMethod("callServiceFromRequiredParent");
-        assertThat(requiredParent.invoke(instance), equalTo("AB"));
-        var optionalParent = serviceCallerClass.getMethod("callServiceFromOptionalParent");
-        assertThat(optionalParent.invoke(instance), equalTo("catdog"));
-        var modular = serviceCallerClass.getMethod("callServiceFromModularJar");
-        assertThat(modular.invoke(instance), equalTo("12"));
-        var nonModular = serviceCallerClass.getMethod("callServiceFromNonModularJar");
-        assertThat(nonModular.invoke(instance), equalTo("foo"));
+            var requiredParent = serviceCallerClass.getMethod("callServiceFromRequiredParent");
+            assertThat(requiredParent.invoke(instance), equalTo("AB"));
+            var optionalParent = serviceCallerClass.getMethod("callServiceFromOptionalParent");
+            assertThat(optionalParent.invoke(instance), equalTo("catdog"));
+            var modular = serviceCallerClass.getMethod("callServiceFromModularJar");
+            assertThat(modular.invoke(instance), equalTo("12"));
+            var nonModular = serviceCallerClass.getMethod("callServiceFromNonModularJar");
+            assertThat(nonModular.invoke(instance), equalTo("foo"));
+        }
     }
 
     public void testServiceLoadingWithoutOptionalDependencies() throws Exception {
 
-        ClassLoader loader = getServiceTestLoader(false);
+        try (UberModuleClassLoader loader = getServiceTestLoader(false)) {
 
-        Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
-        Object instance = serviceCallerClass.getConstructor().newInstance();
+            Class<?> serviceCallerClass = loader.loadClass("q.caller.ServiceCaller");
+            Object instance = serviceCallerClass.getConstructor().newInstance();
 
-        var requiredParent = serviceCallerClass.getMethod("callServiceFromRequiredParent");
-        assertThat(requiredParent.invoke(instance), equalTo("AB"));
-        var optionalParent = serviceCallerClass.getMethod("callServiceFromOptionalParent");
-        assertThat(optionalParent.invoke(instance), equalTo("Optional AnimalService dependency not present at runtime."));
-        var modular = serviceCallerClass.getMethod("callServiceFromModularJar");
-        assertThat(modular.invoke(instance), equalTo("12"));
-        var nonModular = serviceCallerClass.getMethod("callServiceFromNonModularJar");
-        assertThat(nonModular.invoke(instance), equalTo("foo"));
+            var requiredParent = serviceCallerClass.getMethod("callServiceFromRequiredParent");
+            assertThat(requiredParent.invoke(instance), equalTo("AB"));
+            var optionalParent = serviceCallerClass.getMethod("callServiceFromOptionalParent");
+            assertThat(optionalParent.invoke(instance), equalTo("Optional AnimalService dependency not present at runtime."));
+            var modular = serviceCallerClass.getMethod("callServiceFromModularJar");
+            assertThat(modular.invoke(instance), equalTo("12"));
+            var nonModular = serviceCallerClass.getMethod("callServiceFromNonModularJar");
+            assertThat(nonModular.invoke(instance), equalTo("foo"));
+        }
     }
 
     /**
@@ -509,7 +511,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
      * We create a jar for each scenario, plus "service caller" jar with a demo class, then
      * create an UberModuleClassLoader for the relevant jars.
      */
-    private static ClassLoader getServiceTestLoader(boolean includeOptionalDeps) throws IOException {
+    private static UberModuleClassLoader getServiceTestLoader(boolean includeOptionalDeps) throws IOException {
         Path libDir = createTempDir("libs");
         Path parentJar = createRequiredJarForParentLayer(libDir);
         Path optionalJar = createOptionalJarForParentLayer(libDir);
@@ -606,7 +608,13 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         var serviceCallerJarCompiled = InMemoryJavaCompiler.compile(
             serviceCallerJarSources,
             "--class-path",
-            parentJar + ":" + optionalJar + ":" + modularJar + ":" + nonModularJar
+            String.join(
+                System.getProperty("path.separator"),
+                parentJar.toString(),
+                optionalJar.toString(),
+                modularJar.toString(),
+                nonModularJar.toString()
+            )
         );
 
         assertThat(serviceCallerJarCompiled, notNullValue());
@@ -657,7 +665,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         var nonModularJarCompiled = InMemoryJavaCompiler.compile(
             nonModularJarSources,
             "--class-path",
-            parentJar + ":" + optionalJar + ":" + modularJar
+            String.join(System.getProperty("path.separator"), parentJar.toString(), optionalJar.toString(), modularJar.toString())
         );
 
         assertThat(nonModularJarCompiled, notNullValue());

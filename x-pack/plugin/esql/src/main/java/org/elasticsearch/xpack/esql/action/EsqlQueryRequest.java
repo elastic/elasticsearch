@@ -14,6 +14,8 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -29,6 +31,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar"); // TODO -> "mode"?
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
+    private static final ParseField FILTER_FIELD = new ParseField("filter");
     private static final ParseField PRAGMA_FIELD = new ParseField("pragma");
 
     private static final ObjectParser<EsqlQueryRequest, Void> PARSER = objectParser(EsqlQueryRequest::new);
@@ -36,6 +39,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private String query;
     private boolean columnar;
     private ZoneId zoneId;
+    private QueryBuilder filter;
     private Settings pragmas = Settings.EMPTY;
 
     public EsqlQueryRequest(StreamInput in) throws IOException {
@@ -80,6 +84,14 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return zoneId;
     }
 
+    public void filter(QueryBuilder filter) {
+        this.filter = filter;
+    }
+
+    public QueryBuilder filter() {
+        return filter;
+    }
+
     public void pragmas(Settings pragmas) {
         this.pragmas = pragmas;
     }
@@ -97,6 +109,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE_FIELD);
+        parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
         parser.declareObject(EsqlQueryRequest::pragmas, (p, c) -> Settings.builder().loadFromMap(p.map()).build(), PRAGMA_FIELD);
         return parser;
     }

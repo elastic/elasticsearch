@@ -106,6 +106,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         Assert.assertEquals(1, results.values().size());
         assertEquals(2, results.values().get(0).size());
         assertEquals(50, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("x", "double"))), 1d);
+        assertEquals(43, (double) results.values().get(0).get(results.columns().indexOf(new ColumnInfo("avg_count", "double"))), 1d);
     }
 
     private EsqlQueryResponse run(String esqlCommands) {

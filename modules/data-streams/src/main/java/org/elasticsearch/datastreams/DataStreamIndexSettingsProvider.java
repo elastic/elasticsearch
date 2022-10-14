@@ -167,11 +167,19 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 extractPath(routingPaths, fieldMapper);
             }
             for (var template : mapperService.getAllDynamicTemplates()) {
+                if (template.pathMatch() == null) {
+                    continue;
+                }
+
                 var templateName = "__dynamic__" + template.name();
                 var mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
+                String mappingSnippetType = (String) mappingSnippet.get("type");
+                if (mappingSnippetType == null) {
+                    continue;
+                }
 
                 MappingParserContext parserContext = mapperService.parserContext();
-                var mapper = parserContext.typeParser(KeywordFieldMapper.CONTENT_TYPE)
+                var mapper = parserContext.typeParser(mappingSnippetType)
                     .parse(template.pathMatch(), mappingSnippet, parserContext)
                     .build(MapperBuilderContext.ROOT);
                 extractPath(routingPaths, mapper);

@@ -21,3 +21,10 @@ Ranking::
 * Ensure `cross_fields` always uses valid term statistics {es-pull}90314[#90314]
 
 
+[[known-issues-8.4.3]]
+[float]
+=== Known issues
+
+* When using date range search with format that does not have all date fields (missing month or day)
+an incorrectly parsed date could be used. The workaround is to use date pattern with all date fields (year, month, day)
+(issue: {es-issue}90187[#90187])

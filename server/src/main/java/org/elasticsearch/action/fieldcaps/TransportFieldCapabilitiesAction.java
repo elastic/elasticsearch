@@ -231,31 +231,24 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         FieldCapabilitiesRequest request,
         List<FieldCapabilitiesFailure> failures
     ) {
-        final List<FieldCapabilitiesIndexResponse> indexResponses = indexResponsesMap.values()
+        final FieldCapabilitiesIndexResponse[] indexResponses = indexResponsesMap.values()
             .stream()
             .sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName))
-            .toList();
-        final String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
+            .toArray(FieldCapabilitiesIndexResponse[]::new);
+        final String[] indices = Arrays.stream(indexResponses).map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
         int lastPendingIndex = 0;
-        for (int i = 1; i < indexResponses.size(); i++) {
-            if (indexResponses.get(lastPendingIndex).get() != indexResponses.get(i).get()) {
+        for (int i = 1; i <= indexResponses.length; i++) {
+            // use object equality to avoid expensive string comparison of mapping hashes.
+            if (i == indexResponses.length || indexResponses[lastPendingIndex].get() != indexResponses[i].get()) {
                 innerMerge(
                     ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i),
                     responseMapBuilder,
                     request,
-                    indexResponses.get(lastPendingIndex)
+                    indexResponses[lastPendingIndex]
                 );
                 lastPendingIndex = i;
             }
-        }
-        if (lastPendingIndex < indexResponses.size()) {
-            innerMerge(
-                ArrayUtil.copyOfSubArray(indices, lastPendingIndex, indexResponses.size()),
-                responseMapBuilder,
-                request,
-                indexResponses.get(lastPendingIndex)
-            );
         }
         final Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {

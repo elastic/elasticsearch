@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
@@ -551,17 +552,21 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             }
         }
 
-        FieldCapabilities build(boolean withIndices) {
-            final String[] indices;
-            if (withIndices) {
-                if (indicesList.size() == 1) {
-                    indices = indicesList.get(0).indices;
-                } else {
-                    indices = indicesList.stream().flatMap(caps -> Arrays.stream(caps.indices)).toArray(String[]::new);
+        private String[] filterIndices(int length, Predicate<IndexCaps> pred) {
+            int index = 0;
+            final String[] dst = new String[length];
+            for (IndexCaps indexCaps : indicesList) {
+                if (pred.test(indexCaps)) {
+                    System.arraycopy(indexCaps.indices, 0, dst, index, indexCaps.indices.length);
+                    index += indexCaps.indices.length;
                 }
-            } else {
-                indices = null;
             }
+            assert index == length : index + "!=" + length;
+            return dst;
+        }
+
+        FieldCapabilities build(boolean withIndices) {
+            final String[] indices = withIndices ? filterIndices(totalIndices, ic -> true) : null;
 
             // Iff this field is searchable in some indices AND non-searchable in others
             // we record the list of non-searchable indices
@@ -570,14 +575,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             if (isSearchable || searchableIndices == 0) {
                 nonSearchableIndices = null;
             } else {
-                nonSearchableIndices = new String[totalIndices - searchableIndices];
-                int index = 0;
-                for (IndexCaps indexCaps : indicesList) {
-                    if (indexCaps.isSearchable == false) {
-                        System.arraycopy(indexCaps.indices, 0, nonSearchableIndices, index, indexCaps.indices.length);
-                        index += indexCaps.indices.length;
-                    }
-                }
+                nonSearchableIndices = filterIndices(totalIndices - searchableIndices, ic -> ic.isSearchable == false);
             }
 
             // Iff this field is aggregatable in some indices AND non-aggregatable in others
@@ -587,14 +585,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             if (isAggregatable || aggregatableIndices == 0) {
                 nonAggregatableIndices = null;
             } else {
-                nonAggregatableIndices = new String[totalIndices - aggregatableIndices];
-                int index = 0;
-                for (IndexCaps indexCaps : indicesList) {
-                    if (indexCaps.isAggregatable == false) {
-                        System.arraycopy(indexCaps.indices, 0, nonAggregatableIndices, index, indexCaps.indices.length);
-                        index += indexCaps.indices.length;
-                    }
-                }
+                nonAggregatableIndices = filterIndices(totalIndices - aggregatableIndices, ic -> ic.isAggregatable == false);
             }
 
             // Collect all indices that have dimension == false if this field is marked as a dimension in at least one index
@@ -603,14 +594,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             if (isDimension || dimensionIndices == 0) {
                 nonDimensionIndices = null;
             } else {
-                nonDimensionIndices = new String[totalIndices - dimensionIndices];
-                int index = 0;
-                for (IndexCaps indexCaps : indicesList) {
-                    if (indexCaps.isDimension == false) {
-                        System.arraycopy(indexCaps.indices, 0, nonDimensionIndices, index, indexCaps.indices.length);
-                        index += indexCaps.indices.length;
-                    }
-                }
+                nonDimensionIndices = filterIndices(totalIndices - dimensionIndices, ic -> ic.isDimension == false);
             }
 
             final String[] metricConflictsIndices;
@@ -618,10 +602,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
                 // Collect all indices that have this field. If it is marked differently in different indices, we cannot really
                 // make a decisions which index is "right" and which index is "wrong" so collecting all indices where this field
                 // is present is probably the only sensible thing to do here
-                metricConflictsIndices = Objects.requireNonNullElseGet(
-                    indices,
-                    () -> indicesList.stream().flatMap(caps -> Arrays.stream(caps.indices)).toArray(String[]::new)
-                );
+                metricConflictsIndices = Objects.requireNonNullElseGet(indices, () -> filterIndices(totalIndices, ic -> true));
             } else {
                 metricConflictsIndices = null;
             }

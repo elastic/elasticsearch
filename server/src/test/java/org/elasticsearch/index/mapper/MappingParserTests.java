@@ -194,7 +194,7 @@ public class MappingParserTests extends MapperServiceTestCase {
                }
             }
             """;
-        Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(mappingAsString));
+        Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(mappingAsString), new LinkedHashMap<>());
         assertEquals(1, mapping.getRoot().mappers.size());
         Mapper object = mapping.getRoot().getMapper("obj");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));

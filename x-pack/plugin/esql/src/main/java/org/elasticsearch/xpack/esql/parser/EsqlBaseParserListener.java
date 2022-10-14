@@ -394,6 +394,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitOrderExpression(EsqlBaseParser.OrderExpressionContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#projectCommand}.
+   * @param ctx the parse tree
+   */
+  void enterProjectCommand(EsqlBaseParser.ProjectCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#projectCommand}.
+   * @param ctx the parse tree
+   */
+  void exitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#projectClause}.
+   * @param ctx the parse tree
+   */
+  void enterProjectClause(EsqlBaseParser.ProjectClauseContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#projectClause}.
+   * @param ctx the parse tree
+   */
+  void exitProjectClause(EsqlBaseParser.ProjectClauseContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#booleanValue}.
    * @param ctx the parse tree
    */

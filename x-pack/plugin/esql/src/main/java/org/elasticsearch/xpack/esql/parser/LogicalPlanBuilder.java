@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRenameRemove;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -34,6 +37,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.ql.util.StringUtils.MINUS;
+import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -112,13 +117,33 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return input -> new OrderBy(source, input, orders);
     }
 
-    private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {
-        return ctx.sourceIdentifier().stream().map(this::visitSourceIdentifier).collect(Collectors.joining(","));
-    }
-
     @Override
     public Object visitExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) {
         return new Explain(source(ctx), typedParsing(this, ctx.subqueryExpression().query(), LogicalPlan.class));
+    }
+
+    @Override
+    public PlanFactory visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx) {
+        int clauseSize = ctx.projectClause().size();
+        List<NamedExpression> projections = new ArrayList<>(clauseSize);
+        List<NamedExpression> removals = new ArrayList<>(clauseSize);
+
+        for (EsqlBaseParser.ProjectClauseContext clause : ctx.projectClause()) {
+            NamedExpression ne = this.visitProjectClause(clause);
+            if (ne instanceof UnresolvedStar == false && ne.name().startsWith(MINUS)) {
+                if (ne.name().substring(1).equals(WILDCARD)) {// forbid "-*" kind of expression
+                    throw new ParsingException(ne.source(), "Removing all fields is not allowed [{}]", ne.source().text());
+                }
+                removals.add(ne);
+            } else {
+                projections.add(ne);
+            }
+        }
+        return input -> new ProjectReorderRenameRemove(source(ctx), input, projections, removals);
+    }
+
+    private String indexPatterns(EsqlBaseParser.FromCommandContext ctx) {
+        return ctx.sourceIdentifier().stream().map(this::visitSourceIdentifier).collect(Collectors.joining(","));
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

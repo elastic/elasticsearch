@@ -28,6 +28,7 @@ sourceCommand
 processingCommand
     : evalCommand
     | limitCommand
+    | projectCommand
     | sortCommand
     | statsCommand
     | whereCommand
@@ -123,6 +124,15 @@ sortCommand
 
 orderExpression
     : booleanExpression ordering=(ASC | DESC)? (NULLS nullOrdering=(FIRST | LAST))?
+    ;
+
+projectCommand
+    :  PROJECT projectClause (COMMA projectClause)*
+    ;
+
+projectClause
+    : sourceIdentifier
+    | newName=sourceIdentifier ASSIGN oldName=sourceIdentifier
     ;
 
 booleanValue

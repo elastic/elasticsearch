@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
@@ -40,6 +43,7 @@ import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class ExpressionBuilder extends IdentifierBuilder {
     protected Expression expression(ParseTree ctx) {
@@ -172,7 +176,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
+    public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         return new UnresolvedFunction(
             source(ctx),
             visitIdentifier(ctx.identifier()),
@@ -201,6 +205,22 @@ public class ExpressionBuilder extends IdentifierBuilder {
                 ? Order.NullsPosition.LAST
                 : Order.NullsPosition.FIRST
         );
+    }
+
+    @Override
+    public NamedExpression visitProjectClause(EsqlBaseParser.ProjectClauseContext ctx) {
+        Source src = source(ctx);
+        if (ctx.ASSIGN() != null) {
+            String newName = visitSourceIdentifier(ctx.newName);
+            String oldName = visitSourceIdentifier(ctx.oldName);
+            if (newName.contains(WILDCARD) || oldName.contains(WILDCARD)) {
+                throw new ParsingException(src, "Using wildcards (*) in renaming projections is not allowed [{}]", src.text());
+            }
+            return new Alias(src, newName, new UnresolvedAttribute(source(ctx.oldName), oldName));
+        } else {
+            String identifier = visitSourceIdentifier(ctx.sourceIdentifier(0));
+            return identifier.equals(WILDCARD) ? new UnresolvedStar(src, null) : new UnresolvedAttribute(src, identifier);
+        }
     }
 
     private static String unquoteString(Source source) {

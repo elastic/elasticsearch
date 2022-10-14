@@ -14,8 +14,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -57,6 +59,13 @@ public class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder timeZone(ZoneId zoneId) throws IOException {
             builder.field("time_zone", zoneId);
+            return this;
+        }
+
+        public RequestObjectBuilder pragmas(Settings pragmas) throws IOException {
+            builder.startObject("pragma");
+            pragmas.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
             return this;
         }
 

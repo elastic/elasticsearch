@@ -7,11 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
-import org.elasticsearch.xpack.esql.session.Executable;
-import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -23,7 +18,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
-public class Row extends LeafPlan implements Executable {
+public class Row extends LeafPlan {
 
     private final List<NamedExpression> fields;
 
@@ -38,23 +33,14 @@ public class Row extends LeafPlan implements Executable {
 
     @Override
     public List<Attribute> output() {
-        return fields.stream().<Attribute>map(f -> new ReferenceAttribute(f.source(), f.name(), f.dataType())).toList();
-    }
-
-    @Override
-    public void execute(EsqlSession session, ActionListener<Result> listener) {
-        listener.onResponse(new Result(output(), List.of(fields.stream().map(f -> {
-            if (f instanceof Alias) {
-                return ((Alias) f).child().fold();
-            } else {
-                return f.fold();
-            }
-        }).toList())));
+        return fields.stream()
+            .<Attribute>map(f -> new ReferenceAttribute(f.source(), f.name(), f.dataType(), null, f.nullable(), f.id(), f.synthetic()))
+            .toList();
     }
 
     @Override
     public boolean expressionsResolved() {
-        return false;
+        return true;
     }
 
     @Override

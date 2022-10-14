@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
-import org.elasticsearch.xpack.esql.session.Executable;
-import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
@@ -22,7 +18,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 import java.util.Objects;
 
-public class Explain extends LeafPlan implements Executable {
+public class Explain extends LeafPlan {
 
     public enum Type {
         PARSED,
@@ -36,24 +32,25 @@ public class Explain extends LeafPlan implements Executable {
         this.query = query;
     }
 
-    @Override
-    public void execute(EsqlSession session, ActionListener<Result> listener) {
-        ActionListener<String> analyzedStringListener = listener.map(
-            analyzed -> new Result(
-                output(),
-                List.of(List.of(query.toString(), Type.PARSED.toString()), List.of(analyzed, Type.ANALYZED.toString()))
-            )
-        );
-
-        session.analyzedPlan(
-            query,
-            ActionListener.wrap(
-                analyzed -> analyzedStringListener.onResponse(analyzed.toString()),
-                e -> analyzedStringListener.onResponse(e.toString())
-            )
-        );
-
-    }
+    // TODO: implement again
+    // @Override
+    // public void execute(EsqlSession session, ActionListener<Result> listener) {
+    // ActionListener<String> analyzedStringListener = listener.map(
+    // analyzed -> new Result(
+    // output(),
+    // List.of(List.of(query.toString(), Type.PARSED.toString()), List.of(analyzed, Type.ANALYZED.toString()))
+    // )
+    // );
+    //
+    // session.analyzedPlan(
+    // query,
+    // ActionListener.wrap(
+    // analyzed -> analyzedStringListener.onResponse(analyzed.toString()),
+    // e -> analyzedStringListener.onResponse(e.toString())
+    // )
+    // );
+    //
+    // }
 
     @Override
     public List<Attribute> output() {

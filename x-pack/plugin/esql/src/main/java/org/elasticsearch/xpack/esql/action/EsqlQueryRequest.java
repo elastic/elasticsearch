@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -30,6 +32,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar"); // TODO -> "mode"?
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField FILTER_FIELD = new ParseField("filter");
+    private static final ParseField PRAGMA_FIELD = new ParseField("pragma");
 
     private static final ObjectParser<EsqlQueryRequest, Void> PARSER = objectParser(EsqlQueryRequest::new);
 
@@ -37,6 +40,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private boolean columnar;
     private ZoneId zoneId;
     private QueryBuilder filter;
+    private Settings pragmas = Settings.EMPTY;
 
     public EsqlQueryRequest(StreamInput in) throws IOException {
         super(in);
@@ -46,7 +50,10 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (Strings.hasText(query) == false) {
-            validationException = addValidationError("[query] is required", null);
+            validationException = addValidationError("[query] is required", validationException);
+        }
+        if (Build.CURRENT.isSnapshot() == false && pragmas.isEmpty() == false) {
+            validationException = addValidationError("[pragma] only allowed in snapshot builds", validationException);
         }
         return validationException;
     }
@@ -85,6 +92,14 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return filter;
     }
 
+    public void pragmas(Settings pragmas) {
+        this.pragmas = pragmas;
+    }
+
+    public Settings pragmas() {
+        return pragmas;
+    }
+
     public static EsqlQueryRequest fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
@@ -94,7 +109,8 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE_FIELD);
-        parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER_FIELD);
+        parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
+        parser.declareObject(EsqlQueryRequest::pragmas, (p, c) -> Settings.builder().loadFromMap(p.map()).build(), PRAGMA_FIELD);
         return parser;
     }
 }

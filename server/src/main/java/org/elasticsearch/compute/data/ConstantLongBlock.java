@@ -33,6 +33,11 @@ public final class ConstantLongBlock extends Block {
     }
 
     @Override
+    public Object getObject(int position) {
+        return getLong(position);
+    }
+
+    @Override
     public String toString() {
         return "ConstantLongBlock{positions=" + getPositionCount() + ", value=" + value + '}';
     }

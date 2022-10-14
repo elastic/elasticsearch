@@ -106,7 +106,7 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
         public boolean advanceExact(int doc) throws IOException {
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
 
-            for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
+            for (Object value : valueFetcher.fetchValues(sourceLookup, doc, Collections.emptyList())) {
                 assert value instanceof Boolean;
                 if ((Boolean) value) {
                     ++trueCount;

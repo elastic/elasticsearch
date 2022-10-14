@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.time.ZoneId;
@@ -40,6 +41,11 @@ public class EsqlQueryRequestBuilder extends ActionRequestBuilder<EsqlQueryReque
 
     public EsqlQueryRequestBuilder filter(QueryBuilder filter) {
         request.filter(filter);
+        return this;
+    }
+
+    public EsqlQueryRequestBuilder pragmas(Settings pragmas) {
+        request.pragmas(pragmas);
         return this;
     }
 }

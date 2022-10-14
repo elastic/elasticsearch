@@ -621,7 +621,17 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     if (isUpdated) {
-                        listener.onResponse(TrainedModelAssignmentMetadata.fromState(newState).getModelAssignment(modelId));
+                        TrainedModelAssignment updatedAssignment = TrainedModelAssignmentMetadata.fromState(newState)
+                            .getModelAssignment(modelId);
+                        if (updatedAssignment.totalTargetAllocations() > existingAssignment.totalTargetAllocations()) {
+                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                                .execute(
+                                    () -> systemAuditor.info(
+                                        Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_REBALANCED, "model deployment updated")
+                                    )
+                                );
+                        }
+                        listener.onResponse(updatedAssignment);
                     }
                 }
             }),

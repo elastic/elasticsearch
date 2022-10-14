@@ -66,10 +66,10 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             );
         }
 
-        public static Builder parseRequest(String deploymentId, XContentParser parser) {
+        public static Builder parseRequest(String modelId, XContentParser parser) {
             Builder builder = PARSER.apply(parser, null);
-            if (deploymentId != null) {
-                builder.setModelId(deploymentId);
+            if (modelId != null) {
+                builder.setModelId(modelId);
             }
             return builder;
         }

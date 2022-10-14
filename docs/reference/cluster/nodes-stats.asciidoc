@@ -346,6 +346,10 @@ Total time spent throttling operations.
 (integer)
 Total time in milliseconds
 spent throttling operations.
+
+`write_load`::
+(double)
+Average number of write threads used while indexing documents.
 =======
 
 `get`::

@@ -54,43 +54,41 @@ public class CrossClusterSecurity {
     private void setApiKeys(final Map<String, String> identityHashMap) {
         // Try to workaround IdentityHashMap vs HashMap issue; IdentityHashMap.containsKey(HashMap.keySet().iterator().next()) doesn't work.
         final HashMap<String, String> newClusterAliasApiKeyMap = new HashMap<>(identityHashMap);
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            final Collection<String> added = newClusterAliasApiKeyMap.keySet()
-                .stream()
-                .filter(clusterAlias -> this.apiKeys.containsKey(clusterAlias) == false)
-                .toList();
-            final Collection<String> removed = this.apiKeys.keySet()
-                .stream()
-                .filter(clusterAlias -> newClusterAliasApiKeyMap.containsKey(clusterAlias) == false)
-                .toList();
-            final Collection<String> changed = this.apiKeys.entrySet()
-                .stream()
-                .filter(
-                    clusterAliasApiKey -> newClusterAliasApiKeyMap.containsKey(clusterAliasApiKey.getKey())
-                        && Objects.equals(clusterAliasApiKey.getValue(), newClusterAliasApiKeyMap.get(clusterAliasApiKey.getKey())) == false
-                )
-                .map(Map.Entry::getKey)
-                .toList();
-            final Collection<String> unchanged = this.apiKeys.entrySet()
-                .stream()
-                .filter(
-                    clusterAliasAndApiKey -> newClusterAliasApiKeyMap.containsKey(clusterAliasAndApiKey.getKey())
-                        && Objects.equals(clusterAliasAndApiKey.getValue(), newClusterAliasApiKeyMap.get(clusterAliasAndApiKey.getKey()))
-                )
-                .map(Map.Entry::getKey)
-                .toList();
-            LOGGER.info(
-                "Old: {}, New: {}, Added: {}, Removed: {}, Changed: {}, Unchanged: {}",
-                new TreeMap<>(this.apiKeys),
-                new TreeMap<>(newClusterAliasApiKeyMap),
-                new TreeSet<>(added),
-                new TreeSet<>(removed),
-                new TreeSet<>(changed),
-                new TreeSet<>(unchanged)
-            );
+        final Collection<String> added = newClusterAliasApiKeyMap.keySet()
+            .stream()
+            .filter(clusterAlias -> this.apiKeys.containsKey(clusterAlias) == false)
+            .toList();
+        final Collection<String> removed = this.apiKeys.keySet()
+            .stream()
+            .filter(clusterAlias -> newClusterAliasApiKeyMap.containsKey(clusterAlias) == false)
+            .toList();
+        final Collection<String> changed = this.apiKeys.entrySet()
+            .stream()
+            .filter(
+                clusterAliasApiKey -> newClusterAliasApiKeyMap.containsKey(clusterAliasApiKey.getKey())
+                    && Objects.equals(clusterAliasApiKey.getValue(), newClusterAliasApiKeyMap.get(clusterAliasApiKey.getKey())) == false
+            )
+            .map(Map.Entry::getKey)
+            .toList();
+        final Collection<String> unchanged = this.apiKeys.entrySet()
+            .stream()
+            .filter(
+                clusterAliasAndApiKey -> newClusterAliasApiKeyMap.containsKey(clusterAliasAndApiKey.getKey())
+                    && Objects.equals(clusterAliasAndApiKey.getValue(), newClusterAliasApiKeyMap.get(clusterAliasAndApiKey.getKey()))
+            )
+            .map(Map.Entry::getKey)
+            .toList();
+        LOGGER.info(
+            "Added: {}, Removed: {}, Changed: {}, Unchanged: {}, Old: {}, New: {}",
+            new TreeSet<>(added),
+            new TreeSet<>(removed),
+            new TreeSet<>(changed),
+            new TreeSet<>(unchanged),
+            new TreeMap<>(this.apiKeys),
+            new TreeMap<>(newClusterAliasApiKeyMap)
+        );
 
-            removed.forEach(this.apiKeys::remove); // removed
-            this.apiKeys.putAll(newClusterAliasApiKeyMap); // added, changed, and unchanged
-        }
+        removed.forEach(this.apiKeys::remove); // removed
+        this.apiKeys.putAll(newClusterAliasApiKeyMap); // added, changed, and unchanged
     }
 }

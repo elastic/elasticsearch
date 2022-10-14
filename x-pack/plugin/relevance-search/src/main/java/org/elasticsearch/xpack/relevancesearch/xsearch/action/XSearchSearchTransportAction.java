@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
@@ -47,19 +48,10 @@ public class XSearchSearchTransportAction extends HandledTransportAction<XSearch
     protected void doExecute(Task task, XSearchSearchAction.Request request, ActionListener<SearchResponse> listener) {
 
         // TODO pull settings from engine & request
-        String index = "search-parks";
-        String relevanceSettingsId = null;
-        String curationsSettingsId = null;
-
-        RelevanceMatchQueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(
-            relevanceMatchQueryRewriter,
-            request.getQuery(),
-            relevanceSettingsId,
-            curationsSettingsId
-        );
-
-        SearchRequest searchRequest = client.prepareSearch(index).setQuery(queryBuilder).setSize(1000).setFetchSource(true).request();
-        client.execute(SearchAction.INSTANCE, searchRequest, listener);
+        String[] indices = request.getNames();
+        QueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery());
+        SearchRequest searchRequest = client.prepareSearch(indices).setQuery(queryBuilder).setSize(1000).setFetchSource(true).request();
+        client.execute(SearchAction.INSTANCE, searchRequest);
 
     }
 }

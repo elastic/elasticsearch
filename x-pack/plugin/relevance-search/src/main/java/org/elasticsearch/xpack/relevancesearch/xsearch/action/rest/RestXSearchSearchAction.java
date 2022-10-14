@@ -67,11 +67,7 @@ public class RestXSearchSearchAction extends BaseRestHandler {
     }
 
     private RelevanceMatchQueryBuilder createQueryBuilder(XSearchSearchAction.Request request) {
-        // TODO pull these values from engine
-        String relevanceSettingsId = null;
-        String curationsSettingsId = null;
-
-        return new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery(), relevanceSettingsId, curationsSettingsId);
+        return new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery());
     }
 
     /**** POC CODE BEGINS HERE *****/

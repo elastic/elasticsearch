@@ -24,7 +24,6 @@ gradle.rootProject {
       elasticsearchVersion = "${props.get('elasticsearch')}-SNAPSHOT"
       log4jVersion = props.get('log4j')
       luceneVersion = props.get('lucene')
-
     }
   }
 }

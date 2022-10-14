@@ -51,7 +51,7 @@ public class CrossClusterSecurity {
 
     private void setApiKeys(final Map<String, String> identityHashMap) {
         // Workaround: Copy entries from IdentityHashMap to HashMap, so Map.containsKey() works as expected
-        final HashMap<String,String> newClusterAliasApiKeyMap = new HashMap<>(identityHashMap);
+        final HashMap<String, String> newClusterAliasApiKeyMap = new HashMap<>(identityHashMap);
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
             final Collection<String> added = newClusterAliasApiKeyMap.keySet()
                 .stream()

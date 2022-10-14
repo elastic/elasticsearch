@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.relevancesearch.xsearch.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -24,8 +22,6 @@ import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
 
 public class XSearchTransportAction extends HandledTransportAction<XSearchAction.Request, SearchResponse> {
-
-    private static final Logger LOGGER = LogManager.getLogger(XSearchTransportAction.class);
 
     private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
 
@@ -46,7 +42,7 @@ public class XSearchTransportAction extends HandledTransportAction<XSearchAction
 
     @Override
     protected void doExecute(Task task, XSearchAction.Request request, ActionListener<SearchResponse> listener) {
-        String[] indices = request.getNames();
+        String[] indices = request.indices();
         QueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery());
         SearchRequest searchRequest = client.prepareSearch(indices).setQuery(queryBuilder).setSize(1000).setFetchSource(true).request();
         client.execute(SearchAction.INSTANCE, searchRequest);

@@ -74,8 +74,6 @@ public class RestXSearchAction extends BaseRestHandler {
         NodeClient client,
         RestChannel channel
     ) {
-
-        // TODO make explain configurable
         SearchRequest searchRequest = client.prepareSearch(index)
             .setQuery(queryBuilder)
             .setSize(1000)

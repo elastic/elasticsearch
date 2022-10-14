@@ -34,22 +34,22 @@ public class XSearchAction extends ActionType<SearchResponse> {
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
-        private String[] names;
+        private String[] indices;
 
         private final String query;
 
         private final boolean explain;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false, false, true, false, false);
 
-        public Request(String[] names, String query, boolean explain) {
-            this.names = names;
+        public Request(String[] indices, String query, boolean explain) {
+            this.indices = indices;
             this.query = query;
             this.explain = explain;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.names = in.readStringArray();
+            this.indices = in.readStringArray();
             this.query = in.readString();
             this.explain = in.readBoolean();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -65,14 +65,13 @@ public class XSearchAction extends ActionType<SearchResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            // TODO validate that we're sending an engine in here and not a different index type
             return null;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalStringArray(names);
+            out.writeOptionalStringArray(indices);
             out.writeString(query);
             out.writeBoolean(explain);
             indicesOptions.writeIndicesOptions(out);
@@ -83,7 +82,7 @@ public class XSearchAction extends ActionType<SearchResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             XSearchAction.Request request = (XSearchAction.Request) o;
-            return Arrays.equals(names, request.names)
+            return Arrays.equals(indices, request.indices)
                 && indicesOptions.equals(request.indicesOptions)
                 && query.equals(request.query)
                 && explain == request.explain;
@@ -92,17 +91,13 @@ public class XSearchAction extends ActionType<SearchResponse> {
         @Override
         public int hashCode() {
             int result = Objects.hash(indicesOptions);
-            result = 31 * result + Arrays.hashCode(names) + Objects.hash(query) + Objects.hash(explain);
+            result = 31 * result + Arrays.hashCode(indices) + Objects.hash(query) + Objects.hash(explain);
             return result;
         }
 
         @Override
         public String[] indices() {
-            return names;
-        }
-
-        public String[] getNames() {
-            return names;
+            return indices;
         }
 
         public String getQuery() {
@@ -130,7 +125,7 @@ public class XSearchAction extends ActionType<SearchResponse> {
 
         @Override
         public IndicesRequest indices(String... indices) {
-            this.names = indices;
+            this.indices = indices;
             return this;
         }
 

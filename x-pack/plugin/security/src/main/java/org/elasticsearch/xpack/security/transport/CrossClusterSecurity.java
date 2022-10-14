@@ -11,11 +11,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.transport.TcpTransport;
 
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -51,9 +55,10 @@ public class CrossClusterSecurity {
         }
     }
 
-    private void setApiKeys(final Map<String, String> identityHashMap) {
-        // Try to workaround IdentityHashMap vs HashMap issue; IdentityHashMap.containsKey(HashMap.keySet().iterator().next()) doesn't work.
-        final HashMap<String, String> newClusterAliasApiKeyMap = new HashMap<>(identityHashMap);
+    public static final StringLiteralDeduplicator x = new StringLiteralDeduplicator();
+
+    private void setApiKeys(final Map<String, String> possibleIdentityHashMap) {
+        final Map<String, String> newClusterAliasApiKeyMap = convertToRegularMap(possibleIdentityHashMap);
         final Collection<String> added = newClusterAliasApiKeyMap.keySet()
             .stream()
             .filter(clusterAlias -> this.apiKeys.containsKey(clusterAlias) == false)
@@ -90,5 +95,25 @@ public class CrossClusterSecurity {
 
         removed.forEach(this.apiKeys::remove); // removed
         this.apiKeys.putAll(newClusterAliasApiKeyMap); // added, changed, and unchanged
+    }
+
+    // Java Strings are internally encoded as UTF-16, so no conversion needed
+    // If we used UTF-8, that would add two unnecessary conversion steps (UTF16 => UTF-8 => UTF-16).
+    private static final Charset INTERMEDIATE_CHARSET = StandardCharsets.UTF_16;
+
+    public static Map<String, String> convertToRegularMap(Map<String, String> map) {
+        if (map instanceof IdentityHashMap == false) {
+            return map;
+        }
+        // Copy all keys/values to a HashMap, but replace intern String keys with non-intern String keys
+        final Map<String, String> nonInternMap;
+        nonInternMap = new HashMap<>();
+        for (final Map.Entry<String, String> entry : map.entrySet()) {
+            final String internKey = entry.getKey();
+            final byte[] keyBytes = internKey.getBytes(INTERMEDIATE_CHARSET); // copy bytes to a new, non-intern String object
+            final String nonInternKey = new String(keyBytes, 0, keyBytes.length, INTERMEDIATE_CHARSET);
+            nonInternMap.put(nonInternKey, entry.getValue());
+        }
+        return nonInternMap;
     }
 }

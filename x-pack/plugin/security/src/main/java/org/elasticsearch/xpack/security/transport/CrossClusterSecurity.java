@@ -57,8 +57,8 @@ public class CrossClusterSecurity {
 
     public static final StringLiteralDeduplicator x = new StringLiteralDeduplicator();
 
-    private void setApiKeys(final Map<String, String> possibleIdentityHashMap) {
-        final Map<String, String> newClusterAliasApiKeyMap = convertToRegularMap(possibleIdentityHashMap);
+    private void setApiKeys(final Map<String, String> map) {
+        final Map<String, String> newClusterAliasApiKeyMap = (map instanceof IdentityHashMap) ? internKeysToNonIntern(map) : map;
         final Collection<String> added = newClusterAliasApiKeyMap.keySet()
             .stream()
             .filter(clusterAlias -> this.apiKeys.containsKey(clusterAlias) == false)
@@ -97,23 +97,41 @@ public class CrossClusterSecurity {
         this.apiKeys.putAll(newClusterAliasApiKeyMap); // added, changed, and unchanged
     }
 
-    // Java Strings are internally encoded as UTF-16, so no conversion needed
-    // If we used UTF-8, that would add two unnecessary conversion steps (UTF16 => UTF-8 => UTF-16).
-    private static final Charset INTERMEDIATE_CHARSET = StandardCharsets.UTF_16;
-
-    public static Map<String, String> convertToRegularMap(Map<String, String> map) {
-        if (map instanceof IdentityHashMap == false) {
-            return map;
-        }
-        // Copy all keys/values to a HashMap, but replace intern String keys with non-intern String keys
+    /**
+     * Copy all entries to a new Map, but use new non-intern copies of the String keys.
+     * For example, this can be used to convert an IdentityHashMap to a Map which complies with the equals(), get(), etc Map APIs.
+     * @param map Map with String keys that are assumed to be interned.
+     * @return New Map with non-intern String keys.
+     */
+    public static Map<String, String> internKeysToNonIntern(Map<String, String> map) {
         final Map<String, String> nonInternMap;
         nonInternMap = new HashMap<>();
         for (final Map.Entry<String, String> entry : map.entrySet()) {
-            final String internKey = entry.getKey();
-            final byte[] keyBytes = internKey.getBytes(INTERMEDIATE_CHARSET); // copy bytes to a new, non-intern String object
-            final String nonInternKey = new String(keyBytes, 0, keyBytes.length, INTERMEDIATE_CHARSET);
-            nonInternMap.put(nonInternKey, entry.getValue());
+            nonInternMap.put(internToNonIntern(entry.getKey()), entry.getValue());
         }
         return nonInternMap;
     }
+
+    /**
+     * Copy intern String characters to a new non-intern String object.
+     * @param internString String that is assumed to be interned.
+     * @return New String object which is not interned.
+     */
+    public static String internToNonIntern(final String internString) {
+        return internToNonIntern(internString, DEFAULT_INTERMEDIATE_CHARSET);
+    }
+
+    public static String internToNonIntern(final String internString, final Charset intermediateCharset) {
+        final byte[] keyBytes = internString.getBytes(intermediateCharset); // copy bytes to a new, non-intern String object
+        return new String(keyBytes, 0, keyBytes.length, intermediateCharset);
+    }
+
+    /**
+     * Use UTF-16 encoded chars to avoid unnecessary conversions.
+     * Java Strings are internally encoded as UTF-16, so u
+     * If using something else like UTF-8, that leads to two unnecessary conversions.
+     * First UTF16 to UTF8, then UTF8 to UTF-16.
+     */
+    private static final Charset DEFAULT_INTERMEDIATE_CHARSET = StandardCharsets.UTF_16;
+
 }

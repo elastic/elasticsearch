@@ -67,7 +67,7 @@ public class EnrichPolicyLocks {
     /**
      * Locks a policy to prevent concurrent execution. If the policy is currently executing, this method will immediately
      * throw without waiting. This method only blocks if another thread is currently capturing the current policy execution state.
-     * <p></p>
+     * <br/><br/>
      * If a policy is being executed, use {@link EnrichPolicyLocks#lockPolicy(String, String)} instead in order to properly track the
      * new enrich index that will be created.
      * @param policyName The policy name to lock for execution
@@ -81,7 +81,7 @@ public class EnrichPolicyLocks {
     /**
      * Locks a policy to prevent concurrent execution. If the policy is currently executing, this method will immediately
      * throw without waiting. This method only blocks if another thread is currently capturing the current policy execution state.
-     * <p></p>
+     * <br/><br/>
      * If a policy needs to be locked just to ensure it is not executing, use {@link EnrichPolicyLocks#lockPolicy(String)} instead since
      * no new enrich indices need to be maintained.
      * @param policyName The policy name to lock for execution

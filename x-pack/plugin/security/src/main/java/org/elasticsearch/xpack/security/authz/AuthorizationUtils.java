@@ -258,7 +258,9 @@ public final class AuthorizationUtils {
                     // Sending a child action to node1 would have already put parent authorization in the thread context.
                     // To avoid attempting to pre-authorize the same parent action twice we simply return here
                     // since pre-authorization is already set in the context.
-                    logger.debug("child action [" + childAction + "] of parent action [" + parentContext.getAction() + "] is already pre-authorized");
+                    logger.debug(
+                        "child action [" + childAction + "] of parent action [" + parentContext.getAction() + "] is already pre-authorized"
+                    );
                     return;
                 } else {
                     throw new AssertionError(
@@ -272,12 +274,11 @@ public final class AuthorizationUtils {
                     );
                 }
             } else {
-                logger.debug("adding pre-authorization for child action [" + childAction + "] of parent action [" + parentContext.getAction() + "]");
-                new ParentIndexActionAuthorization(
-                    version,
-                    parentContext.getAction(),
-                    parentContext.getIndicesAccessControl().isGranted()
-                ).writeToThreadContext(threadContext);
+                logger.debug(
+                    "adding pre-authorization for child action [" + childAction + "] of parent action [" + parentContext.getAction() + "]"
+                );
+                new ParentIndexActionAuthorization(version, parentContext.getAction(), parentContext.getIndicesAccessControl().isGranted())
+                    .writeToThreadContext(threadContext);
             }
         } catch (Exception e) {
             logger.error("Failed to write authorization to thread context.", e);

@@ -128,7 +128,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             // We need to store the thread context here as we pollute the context with pre-authorization
                             // which we only want to keep for a single transport request.
                             try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
-                                maybePreAuthorizeChildAction(connection.getNode(), action, request);
+                                maybePreAuthorizeChildAction(connection.getNode(), action, request, minVersion);
                                 sendWithUser(
                                     connection,
                                     action,
@@ -140,10 +140,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             }
                         }, minVersion);
                     } else {
+                        // TODO: Only pre-authorize (send pre-authz header) requests if version is same or newer...
                         // We need to store the thread context here as we pollute the context with pre-authorization
                         // which we only want to keep for a single transport request.
                         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
-                            maybePreAuthorizeChildAction(connection.getNode(), action, request);
+                            maybePreAuthorizeChildAction(connection.getNode(), action, request, minVersion);
                             sendWithUser(connection, action, request, options, handler, sender);
                         }
                     }
@@ -173,13 +174,14 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
     }
 
-    private void maybePreAuthorizeChildAction(DiscoveryNode destinationNode, String action, TransportRequest request) {
+    private void maybePreAuthorizeChildAction(DiscoveryNode destinationNode, String action, TransportRequest request, Version version) {
         AuthorizationUtils.maybePreAuthorizeChildAction(
             securityContext.getThreadContext(),
             clusterService.state(),
             action,
             destinationNode,
-            request
+            request,
+            version
         );
     }
 

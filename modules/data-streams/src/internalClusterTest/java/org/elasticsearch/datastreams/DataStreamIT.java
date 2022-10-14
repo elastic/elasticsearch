@@ -448,7 +448,6 @@ public class DataStreamIT extends ESIntegTestCase {
         indexDocs(dataStreamName, numDocs);
         verifyDocs(dataStreamName, numDocs, 1, 1);
 
-        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
@@ -456,7 +455,8 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getTimeStampField().getName(), equalTo("@timestamp"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), equalTo(1));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), equalTo(backingIndex));
+        String backingIndex = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
+        assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
 
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(dataStreamName)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
@@ -466,9 +466,9 @@ public class DataStreamIT extends ESIntegTestCase {
             equalTo("keyword")
         );
 
-        backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
-        assertThat(rolloverResponse.getNewIndex(), equalTo(backingIndex));
+        backingIndex = rolloverResponse.getNewIndex();
+        assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 2));
         assertTrue(rolloverResponse.isRolledOver());
 
         getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
@@ -483,25 +483,23 @@ public class DataStreamIT extends ESIntegTestCase {
         indexDocs(dataStreamName, numDocs2);
         verifyDocs(dataStreamName, numDocs + numDocs2, 1, 2);
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
+        getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
+        getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+        List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(dataStreamName);
         client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest).actionGet();
         getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(0));
-
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin()
-                .indices()
-                .getIndex(new GetIndexRequest().indices(DataStream.getDefaultBackingIndexName(dataStreamName, 1)))
-                .actionGet()
-        );
-        expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin()
-                .indices()
-                .getIndex(new GetIndexRequest().indices(DataStream.getDefaultBackingIndexName(dataStreamName, 2)))
-                .actionGet()
-        );
+        for (Index index : backingIndices) {
+            expectThrows(
+                IndexNotFoundException.class,
+                "Index '" + index.getName() + "' should have been deleted.",
+                () -> client().admin().indices().getIndex(new GetIndexRequest().indices(index.getName())).actionGet()
+            );
+        }
     }
 
     public void testTimeStampValidationInvalidFieldMapping() throws Exception {

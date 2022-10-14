@@ -24,7 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
-import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchSearchAction;
+import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,14 +34,14 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestXSearchSearchAction extends BaseRestHandler {
+public class RestXSearchAction extends BaseRestHandler {
 
     public static final String REST_BASE_PATH = "/{index}/_xsearch";
 
     private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
 
     @Inject
-    public RestXSearchSearchAction(RelevanceMatchQueryRewriter relevanceMatchQueryRewriter) {
+    public RestXSearchAction(RelevanceMatchQueryRewriter relevanceMatchQueryRewriter) {
         super();
         this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
     }
@@ -60,7 +60,7 @@ public class RestXSearchSearchAction extends BaseRestHandler {
         String index = request.param("index");
         boolean explain = request.paramAsBoolean("explain", false);
         XContentParser parser = request.contentOrSourceParamParser();
-        XSearchSearchAction.Request xsearchRequest = XSearchSearchAction.Request.parseRequest(index, parser, explain);
+        XSearchAction.Request xsearchRequest = XSearchAction.Request.parseRequest(index, parser, explain);
         xsearchRequest.indicesOptions(IndicesOptions.fromRequest(request, xsearchRequest.indicesOptions()));
 
         RelevanceMatchQueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, xsearchRequest.getQuery());

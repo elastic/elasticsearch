@@ -41,9 +41,9 @@ import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter
 import org.elasticsearch.xpack.relevancesearch.settings.curations.CurationsService;
 import org.elasticsearch.xpack.relevancesearch.settings.index.IndexCreationService;
 import org.elasticsearch.xpack.relevancesearch.settings.relevance.RelevanceSettingsService;
-import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchSearchAction;
-import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchSearchTransportAction;
-import org.elasticsearch.xpack.relevancesearch.xsearch.action.rest.RestXSearchSearchAction;
+import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchAction;
+import org.elasticsearch.xpack.relevancesearch.xsearch.action.XSearchTransportAction;
+import org.elasticsearch.xpack.relevancesearch.xsearch.action.rest.RestXSearchAction;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -71,12 +71,12 @@ public class RelevanceSearchPlugin extends Plugin implements ActionPlugin, Searc
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return List.of(new RestXSearchSearchAction(relevanceMatchQueryRewriter.get()));
+        return List.of(new RestXSearchAction(relevanceMatchQueryRewriter.get()));
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionPlugin.ActionHandler<>(XSearchSearchAction.INSTANCE, XSearchSearchTransportAction.class));
+        return List.of(new ActionPlugin.ActionHandler<>(XSearchAction.INSTANCE, XSearchTransportAction.class));
     }
 
     @Override

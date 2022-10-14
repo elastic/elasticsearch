@@ -22,15 +22,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-// TODO - Right now I'm calling this `XSearchSearch` in case we decide to expand the API calls under the `XSearch`
-// umbrella. We could consider taking a firm stand here and simply calling these `XSearchActions` if we think that's cleaner.
-public class XSearchSearchAction extends ActionType<SearchResponse> {
+public class XSearchAction extends ActionType<SearchResponse> {
 
-    public static final XSearchSearchAction INSTANCE = new XSearchSearchAction();
+    public static final XSearchAction INSTANCE = new XSearchAction();
 
     static final String NAME = "indices:data/read/xsearch";
 
-    private XSearchSearchAction() {
+    private XSearchAction() {
         super(NAME, SearchResponse::new);
     }
 
@@ -84,7 +82,7 @@ public class XSearchSearchAction extends ActionType<SearchResponse> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            XSearchSearchAction.Request request = (XSearchSearchAction.Request) o;
+            XSearchAction.Request request = (XSearchAction.Request) o;
             return Arrays.equals(names, request.names)
                 && indicesOptions.equals(request.indicesOptions)
                 && query.equals(request.query)

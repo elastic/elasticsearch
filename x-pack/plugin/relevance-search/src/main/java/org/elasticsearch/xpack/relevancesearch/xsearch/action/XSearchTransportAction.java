@@ -23,29 +23,29 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
 
-public class XSearchSearchTransportAction extends HandledTransportAction<XSearchSearchAction.Request, SearchResponse> {
+public class XSearchTransportAction extends HandledTransportAction<XSearchAction.Request, SearchResponse> {
 
-    private static final Logger LOGGER = LogManager.getLogger(XSearchSearchTransportAction.class);
+    private static final Logger LOGGER = LogManager.getLogger(XSearchTransportAction.class);
 
     private final RelevanceMatchQueryRewriter relevanceMatchQueryRewriter;
 
     private final NodeClient client;
 
     @Inject
-    public XSearchSearchTransportAction(
+    public XSearchTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
         String executor,
         RelevanceMatchQueryRewriter relevanceMatchQueryRewriter,
         NodeClient client
     ) {
-        super(XSearchSearchAction.NAME, false, transportService, actionFilters, XSearchSearchAction.Request::new, executor);
+        super(XSearchAction.NAME, false, transportService, actionFilters, XSearchAction.Request::new, executor);
         this.relevanceMatchQueryRewriter = relevanceMatchQueryRewriter;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(Task task, XSearchSearchAction.Request request, ActionListener<SearchResponse> listener) {
+    protected void doExecute(Task task, XSearchAction.Request request, ActionListener<SearchResponse> listener) {
         String[] indices = request.getNames();
         QueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, request.getQuery());
         SearchRequest searchRequest = client.prepareSearch(indices).setQuery(queryBuilder).setSize(1000).setFetchSource(true).request();

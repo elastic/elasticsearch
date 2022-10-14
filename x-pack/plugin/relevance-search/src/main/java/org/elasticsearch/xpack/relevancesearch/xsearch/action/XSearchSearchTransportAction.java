@@ -38,8 +38,9 @@ public class XSearchSearchTransportAction extends HandledTransportAction<XSearch
     @Override
     protected void doExecute(Task task, XSearchSearchAction.Request request, ActionListener<XSearchSearchAction.Response> listener) {
 
-        String relevanceSettingsId = "123";
-        String curationsSettingsId = "456";
+        // TODO pull settings from engine
+        String relevanceSettingsId = null;
+        String curationsSettingsId = null;
 
         RelevanceMatchQueryBuilder relevanceMatchQueryBuilder = new RelevanceMatchQueryBuilder(
             relevanceMatchQueryRewriter,

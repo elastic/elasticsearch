@@ -58,17 +58,30 @@ public class RestXSearchSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String index = request.param("index");
+        boolean explain = request.paramAsBoolean("explain", false);
         XContentParser parser = request.contentOrSourceParamParser();
-        XSearchSearchAction.Request xsearchRequest = XSearchSearchAction.Request.parseRequest(index, parser);
+        XSearchSearchAction.Request xsearchRequest = XSearchSearchAction.Request.parseRequest(index, parser, explain);
         xsearchRequest.indicesOptions(IndicesOptions.fromRequest(request, xsearchRequest.indicesOptions()));
 
         RelevanceMatchQueryBuilder queryBuilder = new RelevanceMatchQueryBuilder(relevanceMatchQueryRewriter, xsearchRequest.getQuery());
-        return channel -> doXSearch(index, queryBuilder, client, channel);
+        return channel -> doXSearch(index, xsearchRequest.explain(), queryBuilder, client, channel);
     }
 
-    private static void doXSearch(String index, RelevanceMatchQueryBuilder queryBuilder, NodeClient client, RestChannel channel) {
+    private static void doXSearch(
+        String index,
+        boolean explain,
+        RelevanceMatchQueryBuilder queryBuilder,
+        NodeClient client,
+        RestChannel channel
+    ) {
 
-        SearchRequest searchRequest = client.prepareSearch(index).setQuery(queryBuilder).setSize(1000).setFetchSource(true).request();
+        // TODO make explain configurable
+        SearchRequest searchRequest = client.prepareSearch(index)
+            .setQuery(queryBuilder)
+            .setSize(1000)
+            .setFetchSource(true)
+            .setExplain(explain)
+            .request();
 
         client.execute(SearchAction.INSTANCE, searchRequest, new RestBuilderListener<>(channel) {
             @Override

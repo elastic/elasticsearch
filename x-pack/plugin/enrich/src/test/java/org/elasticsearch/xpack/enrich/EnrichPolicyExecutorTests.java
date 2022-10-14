@@ -37,6 +37,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.empty;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -112,13 +114,14 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         Settings testSettings = Settings.builder().put(EnrichPlugin.ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS.getKey(), 2).build();
         CountDownLatch latch = new CountDownLatch(1);
         Client client = getClient(latch);
+        EnrichPolicyLocks locks = new EnrichPolicyLocks();
         final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
             testSettings,
             null,
             client,
             testThreadPool,
             TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
-            new EnrichPolicyLocks(),
+            locks,
             ESTestCase::randomNonNegativeLong
         );
 
@@ -166,6 +169,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         );
 
         // Ensure that the lock from the previous run has been cleared
+        assertThat(locks.lockedPolices(), is(empty()));
         CountDownLatch finalTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
             new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "1"),

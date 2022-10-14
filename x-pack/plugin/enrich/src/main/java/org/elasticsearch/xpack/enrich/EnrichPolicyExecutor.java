@@ -76,7 +76,7 @@ public class EnrichPolicyExecutor {
             internalRequest.setParentTask(request.getParentTask());
             client.execute(InternalExecutePolicyAction.INSTANCE, internalRequest, ActionListener.wrap(response -> {
                 if (response.getStatus() != null) {
-                    policyLock.release();
+                    releasePolicy(policyLock);
                     listener.onResponse(response);
                 } else {
                     assert response.getTaskId() != null : "If the execute response does not have a status it must return a task id";
@@ -84,12 +84,12 @@ public class EnrichPolicyExecutor {
                     listener.onResponse(response);
                 }
             }, e -> {
-                policyLock.release();
+                releasePolicy(policyLock);
                 listener.onFailure(e);
             }));
         } catch (Exception e) {
             // Be sure to unlock if submission failed.
-            policyLock.release();
+            releasePolicy(policyLock);
             throw e;
         }
     }
@@ -132,11 +132,19 @@ public class EnrichPolicyExecutor {
         return policyLock;
     }
 
+    private void releasePolicy(EnrichPolicyLock policyLock) {
+        try {
+            policyExecutionPermits.release();
+        } finally {
+            policyLock.release();
+        }
+    }
+
     private void waitAndThenRelease(TaskId taskId, EnrichPolicyLock policyLock) {
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(taskId);
         getTaskRequest.setWaitForCompletion(true);
-        client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(policyLock::release));
+        client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(() -> releasePolicy(policyLock)));
     }
 
     private Runnable createPolicyRunner(

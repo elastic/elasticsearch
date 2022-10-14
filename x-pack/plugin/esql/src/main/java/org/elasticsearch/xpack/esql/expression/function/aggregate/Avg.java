@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.analyzer;
+package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.Experimental;
 import org.elasticsearch.xpack.ql.expression.Expression;

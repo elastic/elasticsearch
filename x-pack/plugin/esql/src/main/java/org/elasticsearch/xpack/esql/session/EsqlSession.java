@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.analyzer.Analyzer;
+import org.elasticsearch.xpack.esql.analyzer.Verifier;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.physical.Mapper;
@@ -34,14 +36,34 @@ public class EsqlSession {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
 
-    private final IndexResolver indexResolver;
-    private final FunctionRegistry functionRegistry;
     private final EsqlConfiguration configuration;
+    private final IndexResolver indexResolver;
 
-    public EsqlSession(IndexResolver indexResolver, FunctionRegistry functionRegistry, EsqlConfiguration configuration) {
-        this.indexResolver = indexResolver;
-        this.functionRegistry = functionRegistry;
+    private final PreAnalyzer preAnalyzer;
+    private final Verifier verifier;
+    private final FunctionRegistry functionRegistry;
+    private final LogicalPlanOptimizer logicalPlanOptimizer;
+
+    private final Mapper mapper;
+    private final Optimizer physicalOptimizer;
+
+    public EsqlSession(
+        EsqlConfiguration configuration,
+        IndexResolver indexResolver,
+        PreAnalyzer preAnalyzer,
+        FunctionRegistry functionRegistry,
+        LogicalPlanOptimizer logicalPlanOptimizer,
+        Mapper mapper
+    ) {
         this.configuration = configuration;
+        this.indexResolver = indexResolver;
+
+        this.preAnalyzer = preAnalyzer;
+        this.verifier = new Verifier();
+        this.functionRegistry = functionRegistry;
+        this.mapper = mapper;
+        this.logicalPlanOptimizer = logicalPlanOptimizer;
+        this.physicalOptimizer = new Optimizer(configuration);
     }
 
     public void execute(String query, ActionListener<PhysicalPlan> listener) {
@@ -56,12 +78,12 @@ public class EsqlSession {
         }
 
         analyzedPlan(parsed, ActionListener.wrap(plan -> {
-            LOGGER.debug("Analyzed logical plan:\n{}", plan);
-            Mapper mapper = new Mapper();
-            PhysicalPlan physicalPlan = mapper.map(plan);
+            LOGGER.debug("Analyzed plan:\n{}", plan);
+            var optimizedPlan = logicalPlanOptimizer.optimize(plan);
+            LOGGER.debug("Optimized logical plan:\n{}", optimizedPlan);
+            var physicalPlan = mapper.map(plan);
             LOGGER.debug("Physical plan:\n{}", physicalPlan);
-            Optimizer optimizer = new Optimizer(configuration);
-            physicalPlan = optimizer.optimize(physicalPlan);
+            physicalPlan = physicalOptimizer.optimize(physicalPlan);
             LOGGER.debug("Optimized physical plan:\n{}", physicalPlan);
             listener.onResponse(physicalPlan);
         }, listener::onFailure));
@@ -78,7 +100,7 @@ public class EsqlSession {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(r, functionRegistry, configuration);
+            Analyzer analyzer = new Analyzer(r, functionRegistry, verifier, configuration);
             return analyzer.analyze(parsed);
         }, listener);
     }
@@ -108,5 +130,4 @@ public class EsqlSession {
             }
         }
     }
-
 }

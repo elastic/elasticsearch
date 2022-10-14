@@ -23,21 +23,21 @@ import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.esql.analyzer.Avg;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.action.ActionListener.wrap;
+
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
 
     private final PlanExecutor planExecutor;
     private final ComputeService computeService;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportEsqlQueryAction(
@@ -51,21 +51,21 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     ) {
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new);
         this.planExecutor = planExecutor;
+        this.clusterService = clusterService;
         this.computeService = new ComputeService(searchService, indexNameExpressionResolver, clusterService, threadPool);
     }
 
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        // TODO: create more realistic function registry
-        FunctionRegistry functionRegistry = new FunctionRegistry(FunctionRegistry.def(Avg.class, Avg::new, "AVG"));
         EsqlConfiguration configuration = new EsqlConfiguration(
             request.zoneId() != null ? request.zoneId() : ZoneOffset.UTC,
+            // TODO: plug-in security
             null,
-            null,
+            clusterService.getClusterName().value(),
             x -> Collections.emptySet(),
             request.pragmas()
         );
-        new EsqlSession(planExecutor.indexResolver(), functionRegistry, configuration).execute(request.query(), ActionListener.wrap(r -> {
+        planExecutor.newSession(configuration).execute(request.query(), wrap(r -> {
             computeService.runCompute(r, configuration, listener.map(pages -> {
                 List<ColumnInfo> columns = r.output().stream().map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType())).toList();
                 return new EsqlQueryResponse(columns, pagesToValues(pages));

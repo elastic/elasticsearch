@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
@@ -171,8 +171,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private Analyzer newAnalyzer(IndexResolution indexResolution) {
-        FunctionRegistry functionRegistry = new FunctionRegistry();
         Configuration configuration = new Configuration(ZoneOffset.UTC, null, null, x -> Collections.emptySet());
-        return new Analyzer(indexResolution, functionRegistry, configuration);
+        return new Analyzer(indexResolution, new EsqlFunctionRegistry(), new Verifier(), configuration);
     }
 }

@@ -17,7 +17,7 @@ with the message "totalTermFreq must be at least docFreq". If you use the
 This regression was fixed in version 8.4.3.
 
 * When using date range search with format that does not have all date fields (missing month or day)
-and incorrectly parsed date could be used. The workaround is to use date pattern with all date fields (year, month, day)
+an incorrectly parsed date could be used. The workaround is to use date pattern with all date fields (year, month, day)
 (issue: {es-issue}90187[#90187])
 
 

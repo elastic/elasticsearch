@@ -1198,7 +1198,8 @@ public class IndexNameExpressionResolver {
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
                 validateAliasOrIndex(expression);
-                if (aliasOrIndexExists(context, expression, false)) {
+                final RuntimeException missingAliasOrIndexException = aliasOrIndexExists(context, expression);
+                if (missingAliasOrIndexException == null) {
                     if (result != null) {
                         result.add(expression);
                     }
@@ -1217,10 +1218,10 @@ public class IndexNameExpressionResolver {
                 }
                 if (Regex.isSimpleMatchPattern(expression) == false) {
                     // TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
-                    if (context.getOptions().ignoreUnavailable() == false) {
-                        aliasOrIndexExists(context, expression, true);
-                    }
                     if (add) {
+                        if (context.getOptions().ignoreUnavailable() == false) {
+                            throw missingAliasOrIndexException;
+                        }
                         result.add(expression);
                     } else {
                         result.remove(expression);
@@ -1265,32 +1266,23 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        private static boolean aliasOrIndexExists(Context context, String expression, boolean throwExceptionIfAbsent) {
+        private static RuntimeException aliasOrIndexExists(Context context, String expression) {
             final IndicesOptions options = context.getOptions();
             IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
             if (indexAbstraction == null) {
-                if (throwExceptionIfAbsent) {
-                    throw indexNotFoundException(expression);
-                }
-                return false;
+                return indexNotFoundException(expression);
             }
 
             // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
             if (indexAbstraction.getType() == Type.ALIAS && options.ignoreAliases()) {
-                if (throwExceptionIfAbsent) {
-                    throw aliasesNotSupportedException(expression);
-                }
-                return false;
+                return aliasesNotSupportedException(expression);
             }
 
             if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                if (throwExceptionIfAbsent) {
-                    throw indexNotFoundException(expression);
-                }
-                return false;
+                return indexNotFoundException(expression);
             }
 
-            return true;
+            return null;
         }
 
         private static IndexNotFoundException indexNotFoundException(String expression) {

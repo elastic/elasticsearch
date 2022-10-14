@@ -35,6 +35,11 @@ public final class LongArrayBlock extends Block {
     }
 
     @Override
+    public Object getObject(int position) {
+        return getLong(position);
+    }
+
+    @Override
     public String toString() {
         return "LongArrayBlock{positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + '}';
     }

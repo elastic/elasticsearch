@@ -110,6 +110,10 @@ setup:
 
 ---
 "Test semantic search":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/90904"
+      version: "8.6.0 - "
+
   - do:
       ml.start_trained_model_deployment:
         model_id: text_embedding_model

@@ -27,4 +27,4 @@ Ranking::
 
 * When using date range search with format that does not have all date fields (missing month or day)
 and incorrectly parsed date could be used. The workaround is to use date pattern with all date fields (year, month, day)
-{es-issue}90187[#90187])
+(issue: {es-issue}90187[#90187])

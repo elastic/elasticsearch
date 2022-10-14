@@ -1078,12 +1078,18 @@ public class DataStreamIT extends ESIntegTestCase {
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
 
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet();
-
-        String backingIndex1 = DataStream.getDefaultBackingIndexName("logs-foobar", 1);
-        String backingIndex2 = DataStream.getDefaultBackingIndexName("logs-foobar", 2);
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "logs-foobar" });
+        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+            .actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo("logs-foobar"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), equalTo(1));
+        String backingIndex1 = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
+        assertThat(backingIndex1, backingIndexEqualTo("logs-foobar", 1));
 
         RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).get();
-        assertThat(rolloverResponse.getNewIndex(), equalTo(backingIndex2));
+        String backingIndex2 = rolloverResponse.getNewIndex();
+        assertThat(backingIndex2, backingIndexEqualTo("logs-foobar", 2));
         assertTrue(rolloverResponse.isRolledOver());
 
         // The index settings of all backing indices should be updated:

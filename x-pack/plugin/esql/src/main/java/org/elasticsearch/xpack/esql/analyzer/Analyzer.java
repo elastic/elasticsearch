@@ -38,12 +38,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     private final FunctionRegistry functionRegistry;
     private final Configuration configuration;
 
-    public Analyzer(IndexResolution indexResolution, FunctionRegistry functionRegistry, Configuration configuration) {
+    public Analyzer(IndexResolution indexResolution, FunctionRegistry functionRegistry, Verifier verifier, Configuration configuration) {
         assert indexResolution != null;
         this.indexResolution = indexResolution;
         this.functionRegistry = functionRegistry;
+        this.verifier = verifier;
         this.configuration = configuration;
-        this.verifier = new Verifier();
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {

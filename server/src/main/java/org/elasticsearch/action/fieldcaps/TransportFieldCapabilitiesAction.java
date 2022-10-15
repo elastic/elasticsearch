@@ -241,12 +241,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         for (int i = 1; i <= indexResponses.length; i++) {
             // use object equality to avoid expensive string comparison of mapping hashes.
             if (i == indexResponses.length || indexResponses[lastPendingIndex].get() != indexResponses[i].get()) {
-                innerMerge(
-                    ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i),
-                    responseMapBuilder,
-                    request,
-                    indexResponses[lastPendingIndex]
-                );
+                final String[] subIndices;
+                if (lastPendingIndex == 0 && i == indexResponses.length) {
+                    subIndices = indices;
+                } else {
+                    subIndices = ArrayUtil.copyOfSubArray(indices, lastPendingIndex, i);
+                }
+                innerMerge(subIndices, responseMapBuilder, request, indexResponses[lastPendingIndex]);
                 lastPendingIndex = i;
             }
         }
@@ -282,7 +283,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private void innerMerge(
-        String[] groupedIndices,
+        String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
         FieldCapabilitiesRequest request,
         FieldCapabilitiesIndexResponse response
@@ -302,7 +303,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 key -> new FieldCapabilities.Builder(field, key)
             );
             builder.add(
-                groupedIndices,
+                indices,
                 fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),

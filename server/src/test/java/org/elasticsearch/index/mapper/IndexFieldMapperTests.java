@@ -17,7 +17,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,7 +43,7 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         String index = mapperService.index().getName();
         withLuceneIndex(mapperService, iw -> {
-            SourceToParse source = source(index, "id", b -> b.field("field", "value"), "", Map.of());
+            SourceToParse source = source(b -> b.field("field", "value"));
             iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
         }, iw -> {
             IndexFieldMapper.IndexFieldType ft = (IndexFieldMapper.IndexFieldType) mapperService.fieldType("_index");

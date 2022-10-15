@@ -37,6 +37,14 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     @Override
+    protected FieldMaskingSpanQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof FieldMaskingSpanQueryBuilder) {
+            return new FieldMaskingSpanQueryBuilder((FieldMaskingSpanQueryBuilder) queryBuilder, "field");
+        }
+        return new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("field", "value"), "field");
+    }
+
+    @Override
     protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
         throws IOException {
         String fieldInQuery = expectedFieldName(queryBuilder.fieldName());

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Rectangle;
@@ -17,7 +18,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;

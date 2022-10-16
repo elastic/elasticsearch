@@ -303,7 +303,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search;
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
-    exports org.elasticsearch.search.aggregations.bucket.composite;
     exports org.elasticsearch.search.aggregations.bucket.filter;
     exports org.elasticsearch.search.aggregations.bucket.geogrid;
     exports org.elasticsearch.search.aggregations.bucket.global;
@@ -347,7 +346,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.snapshots;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
-    exports org.elasticsearch.timeseries.support;
     exports org.elasticsearch.tracing;
     exports org.elasticsearch.transport;
     exports org.elasticsearch.upgrades;
@@ -355,6 +353,9 @@ module org.elasticsearch.server {
     exports org.elasticsearch.watcher;
 
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
+
+    // Remove when random sampler agg has been moved to aggregations module:
+    exports org.elasticsearch.search.aggregations.bucket.sampler.random;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

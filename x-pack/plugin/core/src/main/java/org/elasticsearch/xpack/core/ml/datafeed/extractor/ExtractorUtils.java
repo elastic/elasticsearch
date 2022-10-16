@@ -7,6 +7,9 @@
 package org.elasticsearch.xpack.core.ml.datafeed.extractor;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -14,9 +17,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;

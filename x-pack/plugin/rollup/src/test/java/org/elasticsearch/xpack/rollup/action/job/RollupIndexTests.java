@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.rollup.action.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.rollup.job.RollupIndexer;

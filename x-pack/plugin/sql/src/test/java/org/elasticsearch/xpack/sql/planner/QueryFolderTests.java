@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.aggregations.bucket.composite.MissingOrder;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.aggregations.bucket.composite.MissingOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;

@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;

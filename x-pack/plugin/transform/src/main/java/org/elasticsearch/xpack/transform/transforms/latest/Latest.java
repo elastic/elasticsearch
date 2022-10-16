@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.transform.transforms.latest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -60,7 +60,7 @@ public class Latest extends AbstractCompositeAggFunction {
         TopHitsAggregationBuilder topHitsAgg = AggregationBuilders.topHits(TOP_HITS_AGGREGATION_NAME)
             .size(1)  // we are only interested in the top-1
             .sorts(config.getSorts());  // we copy the sort config directly from the function config
-        return AggregationBuilders.composite(COMPOSITE_AGGREGATION_NAME, sources).subAggregation(topHitsAgg);
+        return new CompositeAggregationBuilder(COMPOSITE_AGGREGATION_NAME, sources).subAggregation(topHitsAgg);
     }
 
     @Override

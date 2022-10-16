@@ -10,12 +10,13 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -60,7 +61,7 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
     public void testRealtimeComposite() throws Exception {
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         aggs.addAggregator(
-            AggregationBuilders.composite(
+            new CompositeAggregationBuilder(
                 "buckets",
                 Arrays.asList(
                     new DateHistogramValuesSourceBuilder("time").field("time").fixedInterval(new DateHistogramInterval("1000ms")),

@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
@@ -77,8 +75,6 @@ import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
-
-import java.util.List;
 
 /**
  * Utility class to create aggregations.
@@ -340,13 +336,6 @@ public class AggregationBuilders {
      */
     public static ScriptedMetricAggregationBuilder scriptedMetric(String name) {
         return new ScriptedMetricAggregationBuilder(name);
-    }
-
-    /**
-     * Create a new {@link CompositeAggregationBuilder} aggregation with the given name.
-     */
-    public static CompositeAggregationBuilder composite(String name, List<CompositeValuesSourceBuilder<?>> sources) {
-        return new CompositeAggregationBuilder(name, sources);
     }
 
     /**

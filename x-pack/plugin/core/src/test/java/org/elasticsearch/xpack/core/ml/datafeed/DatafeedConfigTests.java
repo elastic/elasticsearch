@@ -13,6 +13,9 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -31,9 +34,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -609,7 +609,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     }
 
     public void testValidateCompositeAggValueSources_MustHaveExactlyOneDateValue() {
-        CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
+        CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
             "buckets",
             Arrays.asList(new TermsValuesSourceBuilder("foo").field("bar"))
         );
@@ -619,7 +619,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         );
         assertThat(ex.getMessage(), containsString("must have exactly one date_histogram source"));
 
-        CompositeAggregationBuilder aggregationBuilderWithMoreDateHisto = AggregationBuilders.composite(
+        CompositeAggregationBuilder aggregationBuilderWithMoreDateHisto = new CompositeAggregationBuilder(
             "buckets",
             Arrays.asList(
                 new TermsValuesSourceBuilder("foo").field("bar"),
@@ -635,7 +635,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     }
 
     public void testValidateCompositeAggValueSources_DateHistoWithMissingBucket() {
-        CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
+        CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
             "buckets",
             Arrays.asList(
                 new TermsValuesSourceBuilder("foo").field("bar"),
@@ -650,7 +650,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     }
 
     public void testValidateCompositeAggValueSources_DateHistoBadOrder() {
-        CompositeAggregationBuilder aggregationBuilder = AggregationBuilders.composite(
+        CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
             "buckets",
             Arrays.asList(
                 new TermsValuesSourceBuilder("foo").field("bar"),
@@ -906,8 +906,9 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
                 sourceBuilder.fixedInterval(new DateHistogramInterval(interval));
             }
         }
-        CompositeAggregationBuilder composite = AggregationBuilders.composite("buckets", Arrays.asList(sourceBuilder))
-            .subAggregation(maxTime);
+        CompositeAggregationBuilder composite = new CompositeAggregationBuilder("buckets", Arrays.asList(sourceBuilder)).subAggregation(
+            maxTime
+        );
         return createDatafeedWithComposite(composite);
     }
 

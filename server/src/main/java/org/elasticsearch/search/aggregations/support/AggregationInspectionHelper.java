@@ -8,7 +8,6 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
@@ -110,10 +109,6 @@ public class AggregationInspectionHelper {
     }
 
     public static boolean hasValue(InternalVariableWidthHistogram agg) {
-        return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
-    }
-
-    public static boolean hasValue(InternalComposite agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 

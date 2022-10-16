@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 
 import java.util.List;
 import java.util.Map;

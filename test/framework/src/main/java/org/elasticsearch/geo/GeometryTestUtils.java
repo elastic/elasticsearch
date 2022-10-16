@@ -9,6 +9,8 @@
 package org.elasticsearch.geo;
 
 import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -317,5 +319,13 @@ public class GeometryTestUtils {
                 );
             }
         });
+    }
+
+    public static GeoBoundingBox randomBBox() {
+        Rectangle rectangle = randomRectangle();
+        return new GeoBoundingBox(
+            new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+        );
     }
 }

@@ -13,6 +13,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.TimeValue;
@@ -22,10 +26,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
@@ -111,14 +111,13 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         fields.addAll(Arrays.asList("time", "airline", "responsetime"));
         indices = Arrays.asList("index-1", "index-2");
         query = QueryBuilders.matchAllQuery();
-        compositeAggregationBuilder = AggregationBuilders.composite(
+        compositeAggregationBuilder = new CompositeAggregationBuilder(
             "buckets",
             Arrays.asList(
                 new DateHistogramValuesSourceBuilder("time_bucket").field("time").fixedInterval(new DateHistogramInterval("1000ms")),
                 new TermsValuesSourceBuilder("airline").field("airline")
             )
-        )
-            .size(10)
+        ).size(10)
             .subAggregation(AggregationBuilders.max("time").field("time"))
             .subAggregation(AggregationBuilders.avg("responsetime").field("responsetime"));
         runtimeMappings = Collections.emptyMap();

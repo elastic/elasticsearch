@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -16,7 +18,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -71,7 +72,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
                 ? AggregationBuilders.dateHistogram("buckets")
                     .field("time")
                     .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms"))
-                : AggregationBuilders.composite(
+                : new CompositeAggregationBuilder(
                     "buckets",
                     Collections.singletonList(
                         new DateHistogramValuesSourceBuilder("time").field("time")

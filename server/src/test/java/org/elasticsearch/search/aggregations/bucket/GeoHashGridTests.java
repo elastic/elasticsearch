@@ -10,12 +10,12 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.common.geo.GeoBoundingBoxTests;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
@@ -43,7 +43,7 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
             factory.shardSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            factory.setGeoBoundingBox(GeoBoundingBoxTests.randomBBox());
+            factory.setGeoBoundingBox(GeometryTestUtils.randomBBox());
         }
         return factory;
     }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.container;
 
-import org.elasticsearch.search.aggregations.bucket.composite.MissingOrder;
+import org.elasticsearch.aggregations.bucket.composite.MissingOrder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;

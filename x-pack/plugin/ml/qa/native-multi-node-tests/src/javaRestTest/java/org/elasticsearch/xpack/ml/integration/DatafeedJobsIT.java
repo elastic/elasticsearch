@@ -13,6 +13,8 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -23,7 +25,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -368,7 +369,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         aggs.addAggregator(
-            AggregationBuilders.composite(
+            new CompositeAggregationBuilder(
                 "buckets",
                 Collections.singletonList(
                     new DateHistogramValuesSourceBuilder("timebucket").fixedInterval(new DateHistogramInterval("1h")).field("time")
@@ -392,7 +393,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         if (getJobStats(compositeJobId).get(0).getState().equals(JobState.OPENED)) {
             aggs = new AggregatorFactories.Builder();
             aggs.addAggregator(
-                AggregationBuilders.composite(
+                new CompositeAggregationBuilder(
                     "buckets",
                     Collections.singletonList(
                         new DateHistogramValuesSourceBuilder("timebucket").fixedInterval(new DateHistogramInterval("1h")).field("time")

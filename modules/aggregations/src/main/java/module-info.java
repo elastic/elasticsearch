@@ -11,8 +11,10 @@ module org.elasticsearch.aggs {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.core;
+    requires org.apache.logging.log4j;
 
     exports org.elasticsearch.aggregations.bucket.histogram;
     exports org.elasticsearch.aggregations.bucket.adjacency;
+    exports org.elasticsearch.aggregations.bucket.composite;
 
 }

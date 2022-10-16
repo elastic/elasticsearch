@@ -10,6 +10,8 @@ package org.elasticsearch.aggregations;
 
 import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
+import org.elasticsearch.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.plugins.Plugin;
@@ -32,7 +34,10 @@ public class AggregationsPlugin extends Plugin implements SearchPlugin {
                 AutoDateHistogramAggregationBuilder::new,
                 AutoDateHistogramAggregationBuilder.PARSER
             ).addResultReader(InternalAutoDateHistogram::new)
-                .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators)
+                .setAggregatorRegistrar(AutoDateHistogramAggregationBuilder::registerAggregators),
+            new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new, CompositeAggregationBuilder.PARSER)
+                .addResultReader(InternalComposite::new)
+                .setAggregatorRegistrar(CompositeAggregationBuilder::registerAggregators)
         );
     }
 }

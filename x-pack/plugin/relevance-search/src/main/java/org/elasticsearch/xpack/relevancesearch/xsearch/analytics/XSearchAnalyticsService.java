@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.relevancesearch.xsearch;
+package org.elasticsearch.xpack.relevancesearch.xsearch.analytics;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;

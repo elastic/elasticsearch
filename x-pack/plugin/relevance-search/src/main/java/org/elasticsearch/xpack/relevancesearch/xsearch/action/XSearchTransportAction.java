@@ -19,8 +19,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryBuilder;
 import org.elasticsearch.xpack.relevancesearch.query.RelevanceMatchQueryRewriter;
-import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchAnalyticsService;
 import org.elasticsearch.xpack.relevancesearch.xsearch.XSearchRequestValidationService;
+import org.elasticsearch.xpack.relevancesearch.xsearch.analytics.XSearchAnalyticsService;
 
 public class XSearchTransportAction extends HandledTransportAction<XSearchAction.Request, SearchResponse> {
 

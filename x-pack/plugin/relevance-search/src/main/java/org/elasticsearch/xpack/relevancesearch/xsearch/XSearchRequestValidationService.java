@@ -32,12 +32,7 @@ public class XSearchRequestValidationService {
         String[] indices = request.indices();
         Set<String> engines = new HashSet<>(indexNameExpressionResolver.searchEngineNames(clusterService.state(), request.indicesOptions(), indices));
 
-        List<String> invalidIndices = new ArrayList<>();
-        for (String index : indices) {
-            if (engines.contains(index) == false) {
-                invalidIndices.add(index);
-            }
-        }
+List<String> invalidIndices = Arrays.stream(indices).filter(index -> engines.contains(index) == false)
 
         if (invalidIndices.size() > 0) {
             throw new InvalidXSearchRequestException("XSearch not supported for non-engine indices " + String.join(",", invalidIndices));

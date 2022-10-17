@@ -57,7 +57,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     }
 
     public RelevanceMatchQueryBuilder(RelevanceMatchQueryRewriter queryRewriter) {
-        super();
+        this();
         this.queryRewriter = queryRewriter;
     }
 
@@ -72,8 +72,7 @@ public class RelevanceMatchQueryBuilder extends AbstractQueryBuilder<RelevanceMa
     }
 
     public RelevanceMatchQueryBuilder(RelevanceMatchQueryRewriter queryRewriter, String query) {
-        super();
-        this.queryRewriter = queryRewriter;
+        this(queryRewriter);
         this.query = query;
     }
 

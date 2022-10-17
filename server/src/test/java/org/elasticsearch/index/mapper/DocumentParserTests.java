@@ -1847,8 +1847,27 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(err.getCause().getMessage(), containsString("field name cannot be an empty string"));
     }
 
+    public void testBlankFieldNamesSubobjectsFalse() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("subobjects", false)));
+        {
+            MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("", "foo"))));
+            assertThat(err.getMessage(), containsString("Field name cannot contain only whitespace: []"));
+        }
+        {
+            MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("  ", "foo"))));
+            assertThat(err.getMessage(), containsString("Field name cannot contain only whitespace: [  ]"));
+        }
+    }
+
     public void testDotsOnlyFieldNames() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        dotsOnlyFieldNames(createDocumentMapper(mapping(b -> {})));
+    }
+
+    public void testDotsOnlyFieldNamesSubobjectsFalse() throws Exception {
+        dotsOnlyFieldNames(createDocumentMapper(topMapping(b -> b.field("subobjects", false))));
+    }
+
+    private void dotsOnlyFieldNames(DocumentMapper mapper) {
         MapperParsingException err = expectThrows(
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.field(randomFrom(".", "..", "..."), "bar")))
